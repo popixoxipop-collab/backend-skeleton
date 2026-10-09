@@ -395,7 +395,7 @@
           "additionalProperties": false,
           "required": ["node", "npm", "platform", "arch", "installed", "recorded_by"],
           "properties": {
-            "node": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" },
+            "node": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$" },
             "npm": { "$ref": "#/$defs/exactVersion" },
             "platform": { "type": "string", "minLength": 1 },
             "arch": { "type": "string", "minLength": 1 },
@@ -427,7 +427,19 @@
         "case": { "$ref": "#/$defs/slug" },
         "role": { "enum": ["expected-schema", "migration-diff", "blocked-probe"] },
         "argv": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-        "pre": { "type": "array", "items": { "type": "object" } },
+        "pre": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["argv"],
+            "properties": {
+              "argv": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+              "env": { "type": "object", "additionalProperties": { "type": "string" } },
+              "expect_exit": { "type": "integer" }
+            }
+          }
+        },
         "clean": { "$ref": "#/$defs/stringList" },
         "env": { "type": "object", "additionalProperties": { "type": "string" } },
         "capture": {
@@ -439,9 +451,11 @@
             "required": ["kind"],
             "properties": {
               "kind": { "enum": ["stdout", "stderr", "file", "listing"] },
-              "path": { "type": "string" },
+              "path": { "type": "string", "minLength": 1 },
               "first_line": { "type": "boolean" }
-            }
+            },
+            "if": { "required": ["kind"], "properties": { "kind": { "enum": ["file", "listing"] } } },
+            "then": { "required": ["path"] }
           }
         },
         "result_file": { "type": "string", "pattern": "^oracle/results/[A-Za-z0-9_.-]+\\.out$" },

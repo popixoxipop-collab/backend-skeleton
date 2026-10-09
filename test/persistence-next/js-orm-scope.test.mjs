@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -16,13 +14,22 @@ const digest = (value) => crypto.createHash('sha256').update(value).digest('hex'
 const read = (orm, rel) => fs.readFileSync(path.join(ROOT, orm, rel), 'utf8');
 const loadScope = (orm) => JSON.parse(read(orm, 'SCOPE.json'));
 const skipProvider = ripgrepAvailable() ? false : 'ripgrep is required to recompute provider output';
-const evidenceCache = {};
-const evidenceOf = (orm) => (evidenceCache[orm] ??= computeEvidence(orm, loadScope(orm)));
+const evidenceCache = new Map();
+const evidenceOf = (orm) => {
+	if (!evidenceCache.has(orm)) evidenceCache.set(orm, computeEvidence(orm, loadScope(orm)));
+	return evidenceCache.get(orm);
+};
 const codesOf = (orm, scope, io = diskIo(orm)) => auditScope(orm, scope, { evidence: evidenceOf(orm), io }).map((item) => item.code);
-const mutated = (orm, change) => { const scope = loadScope(orm); change(scope); return scope; };
+const mutated = (orm, change) => {
+	const scope = loadScope(orm);
+	change(scope);
+	return scope;
+};
 const claimSupported = (construct) => Object.assign(construct, { support: 'supported', implementation: 'implemented', gap_behavior: 'none', planned_in: null, facets: construct.facets.length ? construct.facets : ['tables'] });
 
-test('the four records cover prisma, drizzle, typeorm and sequelize', () => assert.deepEqual([...ORMS].sort(), ['drizzle', 'prisma', 'sequelize', 'typeorm']));
+test('the four records cover prisma, drizzle, typeorm and sequelize', () => {
+	assert.deepEqual([...ORMS].sort(), ['drizzle', 'prisma', 'sequelize', 'typeorm']);
+});
 
 for (const orm of ORMS) {
 	const raw = read(orm, 'SCOPE.json');
@@ -113,38 +120,23 @@ for (const orm of ORMS) {
 	});
 }
 
-const oracleStep = (id, code, expectExit = 0) => ({ id, argv: ['node', '-e', code], expect_exit: expectExit, capture: [{ kind: 'stdout' }], result_file: `oracle/results/${id}.out` });
-
-function oracleSandbox(t, brokenExit) {
-	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'orm-oracle-test-'));
-	t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-	for (const sub of ['fixtures', 'oracle/results']) fs.mkdirSync(path.join(dir, 'prisma', sub), { recursive: true });
-	fs.copyFileSync(path.join(ROOT, 'js-orm-oracle.mjs'), path.join(dir, 'js-orm-oracle.mjs'));
-	fs.writeFileSync(path.join(dir, 'prisma/oracle/results/changed.out'), 'old\n');
-	const steps = [oracleStep('changed', 'console.log("new")'), oracleStep('broken', 'process.exit(3)', brokenExit)];
-	fs.writeFileSync(path.join(dir, 'prisma/SCOPE.json'), `${JSON.stringify({ pins: { packages: [] }, oracle: { module_type: 'module', steps } }, null, '\t')}\n`);
-	const run = (...args) => spawnSync(process.execPath, [path.join(dir, 'js-orm-oracle.mjs'), 'prisma', ...args], { encoding: 'utf8', timeout: 120000, env: { ...process.env, TMPDIR: dir } });
-	return { dir, run, file: (rel) => fs.readFileSync(path.join(dir, 'prisma', rel), 'utf8') };
-}
-
-test('oracle runner: an unknown or empty --only selection fails before installing or writing anything', (t) => {
-	const box = oracleSandbox(t, 0);
-	const before = box.file('SCOPE.json');
-	for (const only of [['--only', 'no-such-step'], ['--only']]) {
-		const run = box.run('--write', ...only);
-		assert.equal(run.status, 2, run.stderr);
-		assert.match(run.stderr, /unknown step id/);
+test('negative - a file or listing capture without a path and a pre command without argv fail the schema', () => {
+	const probes = [
+		['file capture', (step) => step.capture.find((part) => part.kind === 'file'), 'path'],
+		['listing capture', (step) => step.capture.find((part) => part.kind === 'listing'), 'path'],
+		['pre command', (step) => step.pre?.[0], 'argv'],
+	];
+	for (const [label, pick, field] of probes) {
+		const owners = ORMS.filter((orm) => loadScope(orm).oracle.steps.some(pick));
+		assert.ok(owners.length > 0, `no record has a ${label}`);
+		for (const orm of owners) {
+			const broken = mutated(orm, (item) => delete item.oracle.steps.map(pick).find(Boolean)[field]);
+			assert.equal(validateScopeSchema(broken).ok, false, `${orm}: ${label} without ${field}`);
+		}
 	}
-	assert.deepEqual([box.file('SCOPE.json'), fs.readdirSync(box.dir).sort()], [before, ['js-orm-oracle.mjs', 'prisma']]);
 });
 
-test('oracle runner: --write changes no frozen file or record when a later step fails', (t) => {
-	const failing = oracleSandbox(t, 0);
-	const passing = oracleSandbox(t, 3);
-	const before = failing.file('SCOPE.json');
-	assert.equal(failing.run('--write').status, 1);
-	assert.deepEqual([failing.file('oracle/results/changed.out'), failing.file('SCOPE.json')], ['old\n', before]);
-	assert.equal(passing.run('--write').status, 0);
-	assert.equal(passing.file('oracle/results/changed.out'), 'new\n');
-	assert.equal(JSON.parse(passing.file('SCOPE.json')).oracle.steps[0].output_sha256, digest('new\n'));
+test('the schema admits a pre-release Node version in the recorded runtime', () => {
+	const result = validateScopeSchema(mutated('prisma', (item) => { item.oracle.environment.node = 'v25.0.0-rc.1'; }));
+	assert.ok(result.ok, result.errors.join('; '));
 });

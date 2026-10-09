@@ -98,6 +98,14 @@ function verifyPins() {
 
 if (flags.pins) verifyPins();
 
+const runtime = { node: process.version, npm: exec(['npm', '--version'], { cwd: os.tmpdir() }).stdout.trim(), platform: process.platform, arch: process.arch };
+const runtimeOf = (item) => JSON.stringify([item.node, item.npm, item.platform, item.arch]);
+// Unselected steps keep results recorded under oracle.environment, so a partial --write must run under that runtime and never rewrites it.
+if (flags.mode === 'write' && flags.only !== null && runtimeOf(scope.oracle.environment ?? {}) !== runtimeOf(runtime)) {
+	log(`FAIL: --write --only would mix runtimes: recorded ${runtimeOf(scope.oracle.environment ?? {})}, this run ${runtimeOf(runtime)}; re-run --write without --only`);
+	process.exit(1);
+}
+
 const workdir = fs.mkdtempSync(path.join(os.tmpdir(), `orm-oracle-${orm}-`));
 log(`workdir: ${workdir}`);
 const cleanup = () => {
@@ -154,7 +162,8 @@ function capture(part, step, stdout, stderr) {
 	}
 	if (part.kind === 'listing') {
 		const dir = path.join(workdir, part.path);
-		return `${fs.existsSync(dir) ? fs.readdirSync(dir).sort().join('\n') : '<missing directory>'}\n`;
+		if (!fs.statSync(dir, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`step ${step.id}: expected output directory ${part.path} was not produced`);
+		return `${fs.readdirSync(dir).sort().join('\n')}\n`;
 	}
 	throw new Error(`step ${step.id}: unknown capture kind ${part.kind}`);
 }
@@ -179,10 +188,7 @@ function runStep(step) {
 const report = {
 	orm,
 	mode: flags.mode,
-	node: process.version,
-	npm: exec(['npm', '--version'], { cwd: workdir }).stdout.trim(),
-	platform: process.platform,
-	arch: process.arch,
+	...runtime,
 	installed,
 	steps: [],
 };
@@ -228,7 +234,7 @@ if (flags.mode === 'write' && !failed) {
 		fs.writeFileSync(resultPath, content);
 		Object.assign(step, update);
 	}
-	scope.oracle.environment = { node: process.version, npm: report.npm, platform: process.platform, arch: process.arch, installed, recorded_by: `adapters/persistence/js-orm-oracle.mjs ${orm} --write` };
+	if (flags.only === null) scope.oracle.environment = { ...runtime, installed, recorded_by: `adapters/persistence/js-orm-oracle.mjs ${orm} --write` };
 	saveScope();
 }
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
