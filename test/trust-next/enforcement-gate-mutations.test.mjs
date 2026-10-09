@@ -81,3 +81,13 @@ test('the catalog covers the values a caller keeps hold of and the properties th
     assert.ok(text.includes(part), `no mutant for ${part}`);
   }
 });
+
+test('the catalog covers the failure rule: stop, record, release and rethrow the original error, for every step that can fail', () => {
+  const ids = catalog.mutants.map((mutant) => mutant.id);
+  for (const part of ['FAIL-ABORT-DOES-NOT-KILL', 'FAIL-REARM-ERROR', 'FAIL-REPORT-NOT-AWAITED', 'FAIL-SLOT-LEAK', 'FAIL-CLEAR-ERROR', 'FAIL-OUTCOME-BEFORE-KILL', 'FAIL-CAUSE', 'FAIL-OWNED-HANDLE', 'FAIL-LISTENER', 'FAIL-DEVICE', 'FAIL-CONNECT-RESULT', 'FAIL-REFUSED-ANSWER', 'FAIL-HANDLE-WITHOUT-DONE', 'FAIL-SHADOW-CONNECT', 'FAIL-SHADOW-SPAWN']) {
+    assert.ok(ids.some((id) => id.includes(part)), `no mutant for ${part}`);
+  }
+  for (const mutant of catalog.mutants.filter((candidate) => candidate.id.startsWith('PMUT-GATE-FAIL-'))) {
+    assert.deepEqual(mutant.test_files, ['test/trust-next/enforcement-gate-failures.test.mjs'], `${mutant.id}: the failure rule is pinned by its own test file`);
+  }
+});

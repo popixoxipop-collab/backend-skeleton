@@ -127,6 +127,58 @@ Reported as `unsupported` because an in-process gate cannot enforce them: `cpu_m
 `pids` and `scratch_bytes`. They stay in the manifest and in its digest, and an operating-system layer
 must enforce them.
 
+## When a step fails
+
+One rule holds for every operation: fail closed. When a step fails after the host has started something (a child, a listener, a device, a
+connection, a write), the gate stops what it can, records the failure, releases what it counted and rethrows the original error. The steps
+that can fail are the methods of the host, the `timers` and the `clock` the gate was built with, the callback of `useSecret`, and the gate's
+own bookkeeping (writing an outcome, clearing a timer, closing a handle). The first error is the one the caller gets. A later failure of a
+step that the gate takes by itself (the log refusing an outcome, a timer that cannot be cleared, a `close()` that throws or rejects, a
+`kill()` that throws, a `done` that rejects) is absorbed and never replaces it. An outcome is written at most once: a write that failed is
+not retried, and something that happened is never recorded as failed.
+
+| Operation | What the host may have started when a later step fails | What the gate does |
+| --- | --- | --- |
+| read, environment, secret | nothing that outlives the call (a secret that was already passed to `use` stays used) | records the failure and rethrows; nothing is held |
+| write | a file | records the failure and rethrows; a file that was written stays written |
+| connect | a connection | an answer that does not report `connected: true` fails as `NOT_CONNECTED`; that answer, and an answer that cannot be handed over because its outcome could not be written, is closed if it offers `close()`; a connection that offers no `close()` stays made |
+| listen, device | a listener, a device handle | closed if it offers `close()` when the gate cannot hand it over; handed over unchanged when the outcome is written |
+| spawn | a child | see below |
+
+A host call that fails, or an answer that cannot be described (a read that is not bytes), is recorded as failed with the code of the error
+(`HOST_ERROR` when the code cannot be read) and the error of the host is thrown. When the log refuses even that record, the error of the host
+is still the one thrown: the decision is left without an outcome and `verifyAudit()` reports `AUDIT_OUTCOME_MISSING`. In shadow mode a
+request that cannot be passed through is refused with `EnforcementDenied` in the same way.
+
+**A spawn.** From the moment `host.spawn` returns a handle, the child counts toward `max_children` and its decision stays in flight until the
+host reports it gone. A failure from then on (the wall timer cannot be armed, the next link of a long wall chain cannot be armed inside its
+own timer callback, output cannot be read, a handle without `kill()` or `done`, a `done` that rejects) makes the gate, in this order:
+
+1. kill the child, before it does anything that can throw, such as reading the clock or writing the outcome;
+2. wait until the host reports the child gone (`done` settles, or rejects: a rejection is the host saying that it has nothing more to report);
+3. clear the wall timer, ignoring an error from `clearTimeout`;
+4. record the outcome as failed, with the code of the first error and `killed_for`, which names why the gate stopped the child: `gate_error`,
+   or the limit that came first (`wall_ms`, `stdout_bytes`, `stderr_bytes`), which a later error does not overwrite; a host whose `spawn`
+   threw has started nothing and gets no `killed_for`;
+5. release the slot, whatever the earlier steps did;
+6. rethrow the first error.
+
+An error inside a timer callback or an output callback cannot be thrown into the timer or the host that runs it. The gate keeps it, stops
+the child, and throws it from the request once the child is gone. A timer link that is still armed after the request has ended, because it
+could not be cleared, does nothing when it fires. When the child ends on its own, its true outcome is written first and the wall timer is
+cleared after it: a clock that fails then leaves the decision without an outcome (reported as missing), and a timer that cannot be cleared
+leaves the outcome as it was written and is the error of the call. Neither turns a child that ran into a failed one.
+
+What the gate cannot do, and states in `report().limits` (`host-effects-not-undone`):
+
+- It cannot take back a write, and it cannot close a connection, a listener or a device handle that offers no `close()`. `close()` is best
+  effort: its errors and rejections are ignored.
+- A `kill()` that does not end the child leaves the request waiting, with its slot taken and its decision in flight
+  (`report().audit.in_flight`), until the host reports the child gone. The gate sets no deadline on that report. When `done` rejects, the gate
+  has killed the child and stops counting it; if that kill did not end it, the child may keep running unaccounted for.
+- A handle without `done` cannot be waited for, so the gate kills it if it has `kill()` and releases the slot at once.
+- A host call or a `use` callback that never settles keeps its slot and its decision in flight; only a child has a wall limit.
+
 ## Audit
 
 Every decision and every outcome is appended to a hash-chained log (`bskel.trust-enforcement-audit/1`),
@@ -214,6 +266,9 @@ The log proves consistency of what the gate recorded; it does not prove that the
   audit chain recomputation and tamper cases, audit capacity (no host call without two free slots,
   reservations held by running requests, outcomes removed from or repeated in a log), forged and re-chained
   logs (an allowed operation the gate does not know, outcomes of the wrong kind), report honesty, digest sensitivity.
+- `test/trust-next/enforcement-gate-output.test.mjs`: the output caps against a scripted child that delivers several chunks: stdout and
+  stderr are cut at the cap summed over chunks, flagged as truncated, and the child is stopped; output below the cap is returned whole and
+  the child is not killed.
 - `test/trust-next/enforcement-gate-wall.test.mjs`: the wall limit under injected timers, up to `Number.MAX_SAFE_INTEGER` ms (a chain
   of 4,194,305 links), the kill at the last link and not before, clearing of the armed link, refused timers. No real timer is awaited.
 - `test/trust-next/enforcement-gate-decisions.test.mjs`: the table of decision shapes against the real gate (a driver per pair, a
@@ -222,6 +277,11 @@ The log proves consistency of what the gate recorded; it does not prove that the
   executable is resolved; holes, getters and revoked proxies in the argument list and its limits; write bytes edited, resized or detached
   while the path is canonicalised; timers replaced after construction; a host that reuses its output chunk; a manifest edited after
   construction; the values `audit()` returns.
+- `test/trust-next/enforcement-gate-failures.test.mjs`: the failure rule. A wall timer that cannot be armed, armed again inside its own
+  callback, or cleared; a clock that fails between the start of a child and its outcome; a kill that throws; a `done` that rejects; handles
+  without `kill()` or `done`; a host whose spawn throws; read, write, connect, listen, secret and device with a failing host call, a failing
+  log and a handle that cannot be handed over; a `close()` that throws, rejects or is absent; an answer that is not bytes; an error whose
+  `code` cannot be read; shadow refusals when the log cannot record them. Timers, clock and children are scripted; no real timer is awaited.
 - `test/trust-next/enforcement-gate-binding.test.mjs`: what a log is bound to. The mode (changed at every entry, decision or outcome, in
   both directions; entries of two real gates; `expectedMode`) and the time (a safe integer, direction not bound).
 - `test/trust-next/enforcement-audit-forge.mjs`: helper, not a test. An independent re-implementation of the audit chain, used to
@@ -230,5 +290,5 @@ The log proves consistency of what the gate recorded; it does not prove that the
   machine has one) and child processes behind the gate, including positive controls.
 - `test/trust-next/enforcement-gate-mutations.json`: executable mutants for the trust negative vectors,
   run by `test/conformance-next/product-mutation-runner.mjs`. `test/trust-next/enforcement-gate-mutations.test.mjs` guards the catalog:
-  every anchor occurs once, vectors and test files exist, the file is byte-exact, and the catalog covers the values the caller owns and
-  the properties the verifier binds a log to. A campaign result is a local run, not an attestation.
+  every anchor occurs once, vectors and test files exist, the file is byte-exact, and the catalog covers the values the caller owns,
+  the properties the verifier binds a log to and the failure rule. A campaign result is a local run, not an attestation.
