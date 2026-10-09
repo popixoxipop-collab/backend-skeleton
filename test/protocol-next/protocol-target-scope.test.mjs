@@ -26,6 +26,42 @@ const MUTATIONS = {
   'document recomputable offline': (scope) => { if (scope.pins.documents.length === 0) throw new Error('skip'); scope.pins.documents[0].offline_recomputable = true; },
 };
 
+const exercised = new Set();
+const documentOf = (scope, kind) => {
+  const found = scope.pins.documents.find((entry) => entry.kind === kind);
+  if (!found) throw new Error('skip');
+  return found;
+};
+const VERIFIER_FIELDS = {
+  'graphql-spec': ['repo', 'tag', 'commit', 'path', 'blob', 'one_of_mentions'],
+  rfc: ['source_url', 'metadata_url', 'status', 'pub_date', 'updated_by', 'phrases'],
+};
+for (const [kind, fields] of Object.entries(VERIFIER_FIELDS)) {
+  for (const field of fields) MUTATIONS[kind + ' document without ' + field] = (scope) => { delete documentOf(scope, kind)[field]; };
+}
+MUTATIONS['graphql-spec document commit is a branch name'] = (scope) => { documentOf(scope, 'graphql-spec').commit = 'main'; };
+MUTATIONS['rfc document with no phrases'] = (scope) => { documentOf(scope, 'rfc').phrases = []; };
+MUTATIONS['rfc phrase without text'] = (scope) => { delete documentOf(scope, 'rfc').phrases[0].text; };
+
+test('schema document variants require exactly the fields the pin verifier reads', () => {
+  const source = readText('test/protocol-next/tools/verify-target-pins.mjs');
+  const body = source.slice(source.indexOf('async function checkDocument'), source.indexOf('async function main'));
+  const graphqlAt = body.indexOf("pin.kind === 'graphql-spec'");
+  const rfcAt = body.indexOf("pin.kind === 'rfc'");
+  const endAt = body.indexOf('unknown document kind');
+  assert.ok(graphqlAt > 0 && rfcAt > graphqlAt && endAt > rfcAt, 'checkDocument branches are located');
+  const branches = { 'graphql-spec': body.slice(graphqlAt, rfcAt), rfc: body.slice(rfcAt, endAt) };
+  const common = new Set(['id', 'kind', 'sha256', 'bytes']);
+  const variants = readJson('adapters/protocol-next/schemas/protocol-target-scope.schema.json').$defs.document.allOf;
+  assert.deepEqual(variants.map((entry) => entry.if.properties.kind.const).sort(), Object.keys(branches).sort());
+  for (const [kind, text] of Object.entries(branches)) {
+    const read = [...new Set([...text.matchAll(/\bpin\.([a-z][a-z0-9_]*)/g)].map((match) => match[1]))].filter((name) => !common.has(name)).sort();
+    const variant = variants.find((entry) => entry.if.properties.kind.const === kind).then;
+    assert.deepEqual(read, [...variant.required].sort(), kind + ' variant requires what the verifier reads');
+    assert.deepEqual(read, [...VERIFIER_FIELDS[kind]].sort(), kind + ' mutation table covers what the verifier reads');
+  }
+});
+
 for (const family of TARGET_FAMILIES) {
   const { scope, fixtures, readmeText, oracle } = loadTarget(family);
   const allCases = [...fixtures.cases, ...fixtures.flow_cases];
@@ -43,6 +79,7 @@ for (const family of TARGET_FAMILIES) {
       const copy = structuredClone(scope);
       try { mutate(copy); } catch (error) { if (error.message === 'skip') continue; throw error; }
       assert.equal(validate(copy), false, 'mutation must be rejected: ' + name);
+      exercised.add(name);
     }
   });
 
@@ -154,3 +191,7 @@ for (const family of TARGET_FAMILIES) {
     for (const item of scope.claims_not_made) assert.ok(readmeText.includes(item), 'claims not made: ' + item.slice(0, 40));
   });
 }
+
+test('every schema mutation was applied to at least one target record', () => {
+  assert.deepEqual(Object.keys(MUTATIONS).filter((name) => !exercised.has(name)), []);
+});
