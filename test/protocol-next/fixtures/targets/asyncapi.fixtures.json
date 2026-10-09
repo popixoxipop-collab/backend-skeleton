@@ -1,0 +1,1944 @@
+{
+  "schema": "sbf.protocol-target-fixtures/1",
+  "family": "asyncapi",
+  "generated_on": "2026-10-08",
+  "cases": [
+    {
+      "id": "aapi-n01-v2.6.0-publish-subscribe",
+      "kind": "normal",
+      "title": "AsyncAPI 2.6.0 publish and subscribe operations",
+      "claim_ids": [
+        "S-AAPI-V2-CHANNELS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 2.6.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders/created:\n    subscribe:\n      operationId: onOrderCreated\n      message:\n        $ref: '#/components/messages/OrderCreated'\n  orders/cancel:\n    publish:\n      operationId: cancelOrder\n      message:\n        $ref: '#/components/messages/OrderCancelled'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        $ref: '#/components/schemas/Order'\n    OrderCancelled:\n      payload:\n        type: object\n  schemas:\n    Order:\n      type: object\n      properties:\n        id:\n          type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-2.6.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders/cancel @ orders/cancel",
+            "orders/created @ orders/created"
+          ],
+          "operations": [
+            "publish orders/cancel cancelOrder [OrderCancelled]",
+            "subscribe orders/created onOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCancelled - -",
+            "OrderCreated application/json #/components/schemas/Order"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-n02-v3.0.0-operations",
+      "kind": "normal",
+      "title": "AsyncAPI 3.0.0 send and receive operations",
+      "claim_ids": [
+        "S-AAPI-SERIALIZATION-INDEPENDENT",
+        "S-AAPI-V3-OPERATIONS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n  receiveOrderCreated:\n    action: receive\n    channel:\n      $ref: '#/channels/orders'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n        properties:\n          id:\n            type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "receive orders receiveOrderCreated []",
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-n03-v3.1.0-operations",
+      "kind": "normal",
+      "title": "AsyncAPI 3.1.0 send and receive operations",
+      "claim_ids": [
+        "S-AAPI-V3-OPERATIONS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.1.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n  receiveOrderCreated:\n    action: receive\n    channel:\n      $ref: '#/channels/orders'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n        properties:\n          id:\n            type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.1.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "receive orders receiveOrderCreated []",
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-n04-v3.0.0-json-serialization",
+      "kind": "normal",
+      "title": "The 3.0.0 document spelled as JSON",
+      "claim_ids": [
+        "S-AAPI-SERIALIZATION-INDEPENDENT"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "{\n  \"asyncapi\": \"3.0.0\",\n  \"info\": {\n    \"title\": \"Orders\",\n    \"version\": \"1.0.0\"\n  },\n  \"channels\": {\n    \"orders\": {\n      \"address\": \"orders.created\",\n      \"messages\": {\n        \"OrderCreated\": {\n          \"$ref\": \"#/components/messages/OrderCreated\"\n        }\n      }\n    }\n  },\n  \"operations\": {\n    \"sendOrderCreated\": {\n      \"action\": \"send\",\n      \"channel\": {\n        \"$ref\": \"#/channels/orders\"\n      },\n      \"messages\": [\n        {\n          \"$ref\": \"#/channels/orders/messages/OrderCreated\"\n        }\n      ]\n    },\n    \"receiveOrderCreated\": {\n      \"action\": \"receive\",\n      \"channel\": {\n        \"$ref\": \"#/channels/orders\"\n      }\n    }\n  },\n  \"components\": {\n    \"messages\": {\n      \"OrderCreated\": {\n        \"contentType\": \"application/json\",\n        \"payload\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"id\": {\n              \"type\": \"string\"\n            }\n          }\n        }\n      }\n    }\n  }\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "receive orders receiveOrderCreated []",
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-v-supported-2.0.0",
+      "kind": "version",
+      "title": "Version line: asyncapi: 2.0.0",
+      "claim_ids": [
+        "S-AAPI-VERSION-PATTERN"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 2.0.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders/created:\n    subscribe:\n      operationId: onOrderCreated\n      message:\n        $ref: '#/components/messages/OrderCreated'\n  orders/cancel:\n    publish:\n      operationId: cancelOrder\n      message:\n        $ref: '#/components/messages/OrderCancelled'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        $ref: '#/components/schemas/Order'\n    OrderCancelled:\n      payload:\n        type: object\n  schemas:\n    Order:\n      type: object\n      properties:\n        id:\n          type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-2.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders/cancel @ orders/cancel",
+            "orders/created @ orders/created"
+          ],
+          "operations": [
+            "publish orders/cancel cancelOrder [OrderCancelled]",
+            "subscribe orders/created onOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCancelled - -",
+            "OrderCreated application/json #/components/schemas/Order"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-v-supported-2.1.0",
+      "kind": "version",
+      "title": "Version line: asyncapi: 2.1.0",
+      "claim_ids": [
+        "S-AAPI-VERSION-PATTERN"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 2.1.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders/created:\n    subscribe:\n      operationId: onOrderCreated\n      message:\n        $ref: '#/components/messages/OrderCreated'\n  orders/cancel:\n    publish:\n      operationId: cancelOrder\n      message:\n        $ref: '#/components/messages/OrderCancelled'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        $ref: '#/components/schemas/Order'\n    OrderCancelled:\n      payload:\n        type: object\n  schemas:\n    Order:\n      type: object\n      properties:\n        id:\n          type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-2.1.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders/cancel @ orders/cancel",
+            "orders/created @ orders/created"
+          ],
+          "operations": [
+            "publish orders/cancel cancelOrder [OrderCancelled]",
+            "subscribe orders/created onOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCancelled - -",
+            "OrderCreated application/json #/components/schemas/Order"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-v-supported-2.2.0",
+      "kind": "version",
+      "title": "Version line: asyncapi: 2.2.0",
+      "claim_ids": [
+        "S-AAPI-VERSION-PATTERN"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 2.2.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders/created:\n    subscribe:\n      operationId: onOrderCreated\n      message:\n        $ref: '#/components/messages/OrderCreated'\n  orders/cancel:\n    publish:\n      operationId: cancelOrder\n      message:\n        $ref: '#/components/messages/OrderCancelled'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        $ref: '#/components/schemas/Order'\n    OrderCancelled:\n      payload:\n        type: object\n  schemas:\n    Order:\n      type: object\n      properties:\n        id:\n          type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-2.2.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders/cancel @ orders/cancel",
+            "orders/created @ orders/created"
+          ],
+          "operations": [
+            "publish orders/cancel cancelOrder [OrderCancelled]",
+            "subscribe orders/created onOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCancelled - -",
+            "OrderCreated application/json #/components/schemas/Order"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-v-supported-2.3.0",
+      "kind": "version",
+      "title": "Version line: asyncapi: 2.3.0",
+      "claim_ids": [
+        "S-AAPI-VERSION-PATTERN"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 2.3.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders/created:\n    subscribe:\n      operationId: onOrderCreated\n      message:\n        $ref: '#/components/messages/OrderCreated'\n  orders/cancel:\n    publish:\n      operationId: cancelOrder\n      message:\n        $ref: '#/components/messages/OrderCancelled'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        $ref: '#/components/schemas/Order'\n    OrderCancelled:\n      payload:\n        type: object\n  schemas:\n    Order:\n      type: object\n      properties:\n        id:\n          type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-2.3.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders/cancel @ orders/cancel",
+            "orders/created @ orders/created"
+          ],
+          "operations": [
+            "publish orders/cancel cancelOrder [OrderCancelled]",
+            "subscribe orders/created onOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCancelled - -",
+            "OrderCreated application/json #/components/schemas/Order"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-v-supported-2.4.0",
+      "kind": "version",
+      "title": "Version line: asyncapi: 2.4.0",
+      "claim_ids": [
+        "S-AAPI-VERSION-PATTERN"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 2.4.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders/created:\n    subscribe:\n      operationId: onOrderCreated\n      message:\n        $ref: '#/components/messages/OrderCreated'\n  orders/cancel:\n    publish:\n      operationId: cancelOrder\n      message:\n        $ref: '#/components/messages/OrderCancelled'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        $ref: '#/components/schemas/Order'\n    OrderCancelled:\n      payload:\n        type: object\n  schemas:\n    Order:\n      type: object\n      properties:\n        id:\n          type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-2.4.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders/cancel @ orders/cancel",
+            "orders/created @ orders/created"
+          ],
+          "operations": [
+            "publish orders/cancel cancelOrder [OrderCancelled]",
+            "subscribe orders/created onOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCancelled - -",
+            "OrderCreated application/json #/components/schemas/Order"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-v-supported-2.5.0",
+      "kind": "version",
+      "title": "Version line: asyncapi: 2.5.0",
+      "claim_ids": [
+        "S-AAPI-VERSION-PATTERN"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 2.5.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders/created:\n    subscribe:\n      operationId: onOrderCreated\n      message:\n        $ref: '#/components/messages/OrderCreated'\n  orders/cancel:\n    publish:\n      operationId: cancelOrder\n      message:\n        $ref: '#/components/messages/OrderCancelled'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        $ref: '#/components/schemas/Order'\n    OrderCancelled:\n      payload:\n        type: object\n  schemas:\n    Order:\n      type: object\n      properties:\n        id:\n          type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-2.5.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders/cancel @ orders/cancel",
+            "orders/created @ orders/created"
+          ],
+          "operations": [
+            "publish orders/cancel cancelOrder [OrderCancelled]",
+            "subscribe orders/created onOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCancelled - -",
+            "OrderCreated application/json #/components/schemas/Order"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-v-supported-2.6.0",
+      "kind": "version",
+      "title": "Version line: asyncapi: 2.6.0",
+      "claim_ids": [
+        "S-AAPI-VERSION-PATTERN"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 2.6.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders/created:\n    subscribe:\n      operationId: onOrderCreated\n      message:\n        $ref: '#/components/messages/OrderCreated'\n  orders/cancel:\n    publish:\n      operationId: cancelOrder\n      message:\n        $ref: '#/components/messages/OrderCancelled'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        $ref: '#/components/schemas/Order'\n    OrderCancelled:\n      payload:\n        type: object\n  schemas:\n    Order:\n      type: object\n      properties:\n        id:\n          type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-2.6.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders/cancel @ orders/cancel",
+            "orders/created @ orders/created"
+          ],
+          "operations": [
+            "publish orders/cancel cancelOrder [OrderCancelled]",
+            "subscribe orders/created onOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCancelled - -",
+            "OrderCreated application/json #/components/schemas/Order"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-v-supported-3.0.0",
+      "kind": "version",
+      "title": "Version line: asyncapi: 3.0.0",
+      "claim_ids": [
+        "S-AAPI-VERSION-PATTERN"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n  receiveOrderCreated:\n    action: receive\n    channel:\n      $ref: '#/channels/orders'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n        properties:\n          id:\n            type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "receive orders receiveOrderCreated []",
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-v-supported-3.1.0",
+      "kind": "version",
+      "title": "Version line: asyncapi: 3.1.0",
+      "claim_ids": [
+        "S-AAPI-VERSION-PATTERN"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.1.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n  receiveOrderCreated:\n    action: receive\n    channel:\n      $ref: '#/channels/orders'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n        properties:\n          id:\n            type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.1.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "receive orders receiveOrderCreated []",
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-v-untested-4.0.0",
+      "kind": "version",
+      "title": "Version line: asyncapi: 4.0.0",
+      "claim_ids": [
+        "S-AAPI-VERSION-WARNINGS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 4.0.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n  receiveOrderCreated:\n    action: receive\n    channel:\n      $ref: '#/channels/orders'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n        properties:\n          id:\n            type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-4.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [
+            {
+              "code": "ASYNCAPI_VERSION_UNTESTED",
+              "message": "AsyncAPI version \"4.0.0\" is outside the tested 2.x/3.x structural profiles"
+            }
+          ],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "receive orders receiveOrderCreated []",
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "divergence_note": "The parser rejects the document; the importer accepts it with ASYNCAPI_VERSION_UNTESTED (dialect asyncapi-4.0.0)."
+      }
+    },
+    {
+      "id": "aapi-v-untested-1.2.0",
+      "kind": "version",
+      "title": "Version line: asyncapi: 1.2.0",
+      "claim_ids": [
+        "S-AAPI-VERSION-WARNINGS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 1.2.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n  receiveOrderCreated:\n    action: receive\n    channel:\n      $ref: '#/channels/orders'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n        properties:\n          id:\n            type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-1.2.0",
+          "adapter": "asyncapi-object",
+          "warnings": [
+            {
+              "code": "ASYNCAPI_VERSION_UNTESTED",
+              "message": "AsyncAPI version \"1.2.0\" is outside the tested 2.x/3.x structural profiles"
+            }
+          ],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "receive orders receiveOrderCreated []",
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "divergence_note": "The parser rejects the document; the importer accepts it with ASYNCAPI_VERSION_UNTESTED (dialect asyncapi-1.2.0)."
+      }
+    },
+    {
+      "id": "aapi-v-untested-3.0.0-rc1",
+      "kind": "version",
+      "title": "Version line: asyncapi: 3.0.0-rc1",
+      "claim_ids": [
+        "S-AAPI-VERSION-WARNINGS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0.0-rc1\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n  receiveOrderCreated:\n    action: receive\n    channel:\n      $ref: '#/channels/orders'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n        properties:\n          id:\n            type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.0.0-rc1",
+          "adapter": "asyncapi-object",
+          "warnings": [
+            {
+              "code": "ASYNCAPI_VERSION_UNTESTED",
+              "message": "AsyncAPI version \"3.0.0-rc1\" is outside the tested 2.x/3.x structural profiles"
+            }
+          ],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "receive orders receiveOrderCreated []",
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "divergence_note": "The parser rejects the document; the importer accepts it with ASYNCAPI_VERSION_UNTESTED (dialect asyncapi-3.0.0-rc1)."
+      }
+    },
+    {
+      "id": "aapi-v-untested-v3.0.0",
+      "kind": "version",
+      "title": "Version line: asyncapi: v3.0.0",
+      "claim_ids": [
+        "S-AAPI-VERSION-WARNINGS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: v3.0.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n  receiveOrderCreated:\n    action: receive\n    channel:\n      $ref: '#/channels/orders'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n        properties:\n          id:\n            type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-v3.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [
+            {
+              "code": "ASYNCAPI_VERSION_UNTESTED",
+              "message": "AsyncAPI version \"v3.0.0\" is outside the tested 2.x/3.x structural profiles"
+            }
+          ],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "receive orders receiveOrderCreated []",
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "divergence_note": "The parser rejects the document; the importer accepts it with ASYNCAPI_VERSION_UNTESTED (dialect asyncapi-v3.0.0)."
+      }
+    },
+    {
+      "id": "aapi-v-untested-quoted-3.0",
+      "kind": "version",
+      "title": "Version line: asyncapi: '3.0'",
+      "claim_ids": [
+        "S-AAPI-VERSION-WARNINGS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: '3.0'\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n  receiveOrderCreated:\n    action: receive\n    channel:\n      $ref: '#/channels/orders'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n        properties:\n          id:\n            type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.0",
+          "adapter": "asyncapi-object",
+          "warnings": [
+            {
+              "code": "ASYNCAPI_VERSION_UNTESTED",
+              "message": "AsyncAPI version \"3.0\" is outside the tested 2.x/3.x structural profiles"
+            }
+          ],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "receive orders receiveOrderCreated []",
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "divergence_note": "The parser fails with an uncaught TypeError (Cannot read properties of undefined (reading split)); the importer accepts the document with ASYNCAPI_VERSION_UNTESTED (dialect asyncapi-3.0)."
+      }
+    },
+    {
+      "id": "aapi-v-missing-key",
+      "kind": "version",
+      "title": "Document without an asyncapi key",
+      "claim_ids": [
+        "S-AAPI-VERSION-WARNINGS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "info:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n  receiveOrderCreated:\n    action: receive\n    channel:\n      $ref: '#/channels/orders'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n        properties:\n          id:\n            type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-unknown",
+          "adapter": "asyncapi-object",
+          "warnings": [
+            {
+              "code": "ASYNCAPI_VERSION_MISSING",
+              "message": "document.asyncapi is missing"
+            }
+          ],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "receive orders receiveOrderCreated []",
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "divergence_note": "The parser rejects a document without an asyncapi field; the importer accepts it with ASYNCAPI_VERSION_MISSING (dialect asyncapi-unknown)."
+      }
+    },
+    {
+      "id": "aapi-v-missing-numeric-3",
+      "kind": "version",
+      "title": "Version line: asyncapi: 3",
+      "claim_ids": [
+        "S-AAPI-VERSION-WARNINGS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n  receiveOrderCreated:\n    action: receive\n    channel:\n      $ref: '#/channels/orders'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n        properties:\n          id:\n            type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-unknown",
+          "adapter": "asyncapi-object",
+          "warnings": [
+            {
+              "code": "ASYNCAPI_VERSION_MISSING",
+              "message": "document.asyncapi is missing"
+            }
+          ],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "receive orders receiveOrderCreated []",
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "divergence_note": "The parser fails with an uncaught TypeError (Cannot read properties of undefined (reading split)); the importer accepts the document with ASYNCAPI_VERSION_MISSING (dialect asyncapi-unknown)."
+      }
+    },
+    {
+      "id": "aapi-v-missing-empty-string",
+      "kind": "version",
+      "title": "Version line: asyncapi: ''",
+      "claim_ids": [
+        "S-AAPI-VERSION-WARNINGS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: ''\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n  receiveOrderCreated:\n    action: receive\n    channel:\n      $ref: '#/channels/orders'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n        properties:\n          id:\n            type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-unknown",
+          "adapter": "asyncapi-object",
+          "warnings": [
+            {
+              "code": "ASYNCAPI_VERSION_MISSING",
+              "message": "document.asyncapi is missing"
+            }
+          ],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "receive orders receiveOrderCreated []",
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "divergence_note": "The parser fails with an uncaught TypeError (Cannot read properties of undefined (reading split)); the importer accepts the document with ASYNCAPI_VERSION_MISSING (dialect asyncapi-unknown)."
+      }
+    },
+    {
+      "id": "aapi-v-missing-unquoted-3.0",
+      "kind": "version",
+      "title": "Version line: asyncapi: 3.0",
+      "claim_ids": [
+        "S-AAPI-VERSION-WARNINGS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n  receiveOrderCreated:\n    action: receive\n    channel:\n      $ref: '#/channels/orders'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n        properties:\n          id:\n            type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-unknown",
+          "adapter": "asyncapi-object",
+          "warnings": [
+            {
+              "code": "ASYNCAPI_VERSION_MISSING",
+              "message": "document.asyncapi is missing"
+            }
+          ],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "receive orders receiveOrderCreated []",
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "divergence_note": "An unquoted 3.0 is a YAML number. The parser fails with an uncaught TypeError (Cannot read properties of undefined (reading split)); the importer accepts the document with ASYNCAPI_VERSION_MISSING (dialect asyncapi-unknown)."
+      }
+    },
+    {
+      "id": "aapi-v-silent-2.6.1",
+      "kind": "version",
+      "title": "Version line: asyncapi: 2.6.1",
+      "claim_ids": [
+        "S-AAPI-VERSION-PATTERN",
+        "U-AAPI-SCHEMA-VALIDATION"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 2.6.1\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders/created:\n    subscribe:\n      operationId: onOrderCreated\n      message:\n        $ref: '#/components/messages/OrderCreated'\n  orders/cancel:\n    publish:\n      operationId: cancelOrder\n      message:\n        $ref: '#/components/messages/OrderCancelled'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        $ref: '#/components/schemas/Order'\n    OrderCancelled:\n      payload:\n        type: object\n  schemas:\n    Order:\n      type: object\n      properties:\n        id:\n          type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-2.6.1",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders/cancel @ orders/cancel",
+            "orders/created @ orders/created"
+          ],
+          "operations": [
+            "publish orders/cancel cancelOrder [OrderCancelled]",
+            "subscribe orders/created onOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCancelled - -",
+            "OrderCreated application/json #/components/schemas/Order"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "divergence_note": "The parser rejects 2.6.1 (it supports exactly 2.0.0 to 2.6.0, 3.0.0 and 3.1.0; the specification repository has no 2.6.1 tag); the importer matches its version pattern and accepts it without a warning."
+      }
+    },
+    {
+      "id": "aapi-v-silent-3.0.1",
+      "kind": "version",
+      "title": "Version line: asyncapi: 3.0.1",
+      "claim_ids": [
+        "S-AAPI-VERSION-PATTERN",
+        "U-AAPI-SCHEMA-VALIDATION"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0.1\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n  receiveOrderCreated:\n    action: receive\n    channel:\n      $ref: '#/channels/orders'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n        properties:\n          id:\n            type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.0.1",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "receive orders receiveOrderCreated []",
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "divergence_note": "The parser rejects 3.0.1 (it supports exactly 2.0.0 to 2.6.0, 3.0.0 and 3.1.0; the specification repository release for tag v3.0.1 is titled \"v3.0.1 - INVALID\"); the importer matches its version pattern and accepts it without a warning."
+      }
+    },
+    {
+      "id": "aapi-v-silent-3.9.9",
+      "kind": "version",
+      "title": "Version line: asyncapi: 3.9.9",
+      "claim_ids": [
+        "S-AAPI-VERSION-PATTERN",
+        "U-AAPI-SCHEMA-VALIDATION"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.9.9\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n  receiveOrderCreated:\n    action: receive\n    channel:\n      $ref: '#/channels/orders'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n        properties:\n          id:\n            type: string\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.9.9",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "receive orders receiveOrderCreated []",
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "divergence_note": "The parser rejects 3.9.9 (it supports exactly 2.0.0 to 2.6.0, 3.0.0 and 3.1.0; the specification repository has no 3.9.9 tag); the importer matches its version pattern and accepts it without a warning."
+      }
+    },
+    {
+      "id": "aapi-c00-control-minimal-send",
+      "kind": "control",
+      "title": "Control: minimal 3.0.0 document with one send operation",
+      "claim_ids": [
+        "U-AAPI-BINDINGS",
+        "U-AAPI-REPLY-CORRELATION",
+        "U-AAPI-RETRY-IDEMPOTENCY-DELIVERY",
+        "U-AAPI-SERVERS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-c01-mqtt-qos-2",
+      "kind": "counterexample",
+      "title": "Control plus an mqtt operation binding (qos 2, retain true)",
+      "claim_ids": [
+        "U-AAPI-BINDINGS",
+        "U-AAPI-RETRY-IDEMPOTENCY-DELIVERY"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n    bindings:\n      mqtt:\n        qos: 2\n        retain: true\n        bindingVersion: 0.2.0\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-c01b-mqtt-qos-0",
+      "kind": "counterexample",
+      "title": "Control plus an mqtt operation binding (qos 0, retain false)",
+      "claim_ids": [
+        "U-AAPI-BINDINGS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n    bindings:\n      mqtt:\n        qos: 0\n        retain: false\n        bindingVersion: 0.2.0\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-c02-kafka-amqp-bindings",
+      "kind": "counterexample",
+      "title": "Control plus kafka channel, operation and message bindings and an amqp operation binding",
+      "claim_ids": [
+        "U-AAPI-BINDINGS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    bindings:\n      kafka:\n        topic: orders.created\n        partitions: 12\n        replicas: 3\n        bindingVersion: 0.5.0\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n    bindings:\n      kafka:\n        groupId:\n          type: string\n          enum:\n            - orders-service\n        bindingVersion: 0.5.0\n      amqp:\n        ack: true\n        deliveryMode: 2\n        bindingVersion: 0.3.0\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      bindings:\n        kafka:\n          key:\n            type: string\n          bindingVersion: 0.5.0\n      payload:\n        type: object\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-c03-reply-and-correlation-id",
+      "kind": "counterexample",
+      "title": "Control plus an operation reply and a message correlationId",
+      "claim_ids": [
+        "U-AAPI-REPLY-CORRELATION"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n    reply:\n      address:\n        location: '$message.header#/replyTo'\n      channel:\n        $ref: '#/channels/orders'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      correlationId:\n        location: '$message.header#/correlationId'\n      payload:\n        type: object\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-c04-servers-broker-identity",
+      "kind": "counterexample",
+      "title": "Control plus a servers object naming a kafka broker and its version",
+      "claim_ids": [
+        "U-AAPI-SERVERS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nservers:\n  production:\n    host: broker.example.test:9093\n    protocol: kafka\n    protocolVersion: '3.7.0'\n    description: production cluster\nchannels:\n  orders:\n    address: orders.created\n    servers:\n      - $ref: '#/servers/production'\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      payload:\n        type: object\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-c05-channel-level-messages-only",
+      "kind": "counterexample",
+      "title": "Messages declared inline under a channel only",
+      "claim_ids": [
+        "U-AAPI-CHANNEL-LEVEL-MESSAGES"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        contentType: application/json\n        payload:\n          type: object\n      OrderCancelled:\n        payload:\n          type: object\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": []
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "divergence_note": "Both accept the document. The importer records message records from components.messages only (none here); the parser also counts the two messages declared under the channel."
+      }
+    },
+    {
+      "id": "aapi-c06-oneof-messages",
+      "kind": "counterexample",
+      "title": "Operation message given as a oneOf list",
+      "claim_ids": [
+        "U-AAPI-ONEOF-MESSAGES"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 2.6.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    publish:\n      operationId: sendOrderEvent\n      message:\n        oneOf:\n          - $ref: '#/components/messages/OrderCreated'\n          - $ref: '#/components/messages/OrderCancelled'\ncomponents:\n  messages:\n    OrderCreated:\n      payload:\n        type: object\n    OrderCancelled:\n      payload:\n        type: object\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-2.6.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders"
+          ],
+          "operations": [
+            "publish orders sendOrderEvent []"
+          ],
+          "messages": [
+            "OrderCancelled - -",
+            "OrderCreated - -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-c07-relative-file-ref",
+      "kind": "counterexample",
+      "title": "Relative-file $ref values",
+      "claim_ids": [
+        "U-AAPI-EXTERNAL-REFS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: './channels.yaml#/orders'\n    messages:\n      - $ref: './messages.yaml#/OrderCreated'\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [
+            {
+              "code": "ASYNCAPI_EXTERNAL_REF_UNRESOLVED",
+              "message": "operation sendOrderCreated uses an external channel $ref that is not resolved by the static importer: \"./channels.yaml#/orders\""
+            },
+            {
+              "code": "ASYNCAPI_EXTERNAL_REF_UNRESOLVED",
+              "message": "operation sendOrderCreated message uses an external $ref that is not resolved by the static importer: \"./messages.yaml#/OrderCreated\""
+            }
+          ],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "send null sendOrderCreated []"
+          ],
+          "messages": []
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "divergence_note": "The parser rejects the document in this offline run (invalid-ref: the relative file reference cannot be resolved); the importer accepts it, records no message and raises ASYNCAPI_EXTERNAL_REF_UNRESOLVED."
+      }
+    },
+    {
+      "id": "aapi-c08-mixed-2x-and-3x-constructs",
+      "kind": "counterexample",
+      "title": "A 2.6.0 document that also uses 3.x operations",
+      "claim_ids": [
+        "U-AAPI-SCHEMA-VALIDATION"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 2.6.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    subscribe:\n      operationId: onOrder\n      message:\n        name: OrderCreated\noperations:\n  sendOrder:\n    action: send\n    channel:\n      address: orders\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-2.6.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders"
+          ],
+          "operations": [
+            "send orders sendOrder []",
+            "subscribe orders onOrder [OrderCreated]"
+          ],
+          "messages": []
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "divergence_note": "The parser rejects the document (Property \"operations\" is not expected to be here in a 2.6.0 document); the importer reads 2.x and 3.x constructs side by side without validation."
+      }
+    },
+    {
+      "id": "aapi-c09-missing-required-info",
+      "kind": "counterexample",
+      "title": "A 3.0.0 document without the required info object",
+      "claim_ids": [
+        "U-AAPI-SCHEMA-VALIDATION"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0.0\nchannels:\n  orders:\n    address: orders.created\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "send orders sendOrderCreated []"
+          ],
+          "messages": []
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "divergence_note": "The parser rejects the document (Object must have required property \"info\"); the importer does not validate the info object."
+      }
+    },
+    {
+      "id": "aapi-c10-retry-idempotency-delivery-declared",
+      "kind": "counterexample",
+      "title": "Control plus x-retry, x-idempotency-key, x-delivery and an idempotency header",
+      "claim_ids": [
+        "U-AAPI-RETRY-IDEMPOTENCY-DELIVERY"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  orders:\n    address: orders.created\n    messages:\n      OrderCreated:\n        $ref: '#/components/messages/OrderCreated'\noperations:\n  sendOrderCreated:\n    action: send\n    channel:\n      $ref: '#/channels/orders'\n    messages:\n      - $ref: '#/channels/orders/messages/OrderCreated'\n    x-retry:\n      max_attempts: 5\n      backoff_ms: 200\n    x-idempotency-key: message.header.idempotencyKey\n    x-delivery: exactly-once\ncomponents:\n  messages:\n    OrderCreated:\n      contentType: application/json\n      headers:\n        type: object\n        required:\n          - idempotencyKey\n        properties:\n          idempotencyKey:\n            type: string\n      payload:\n        type: object\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "asyncapi-3.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [],
+          "channels": [
+            "orders @ orders.created"
+          ],
+          "operations": [
+            "send orders sendOrderCreated [OrderCreated]"
+          ],
+          "messages": [
+            "OrderCreated application/json -"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-x01-empty-object",
+      "kind": "negative",
+      "title": "Empty JSON object",
+      "claim_ids": [
+        "S-AAPI-BLOCKED-AND-ERRORS"
+      ],
+      "input": {
+        "file": "asyncapi.json",
+        "text": "{}"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "throws",
+        "projection": {
+          "status": "blocked",
+          "dialect": "asyncapi-unknown",
+          "adapter": "asyncapi-object",
+          "warnings": [
+            {
+              "code": "ASYNCAPI_VERSION_MISSING",
+              "message": "document.asyncapi is missing"
+            },
+            {
+              "code": "ASYNCAPI_CHANNELS_NOT_FOUND",
+              "message": "no channels or operations were found"
+            }
+          ],
+          "channels": [],
+          "operations": [],
+          "messages": []
+        },
+        "contract_error": "cannot emit a protocol contract from a blocked protocol scan"
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-x02-version-only",
+      "kind": "negative",
+      "title": "Version only, no channels",
+      "claim_ids": [
+        "S-AAPI-BLOCKED-AND-ERRORS"
+      ],
+      "input": {
+        "file": "asyncapi.json",
+        "text": "{\"asyncapi\":\"3.0.0\"}"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "throws",
+        "projection": {
+          "status": "blocked",
+          "dialect": "asyncapi-3.0.0",
+          "adapter": "asyncapi-object",
+          "warnings": [
+            {
+              "code": "ASYNCAPI_CHANNELS_NOT_FOUND",
+              "message": "no channels or operations were found"
+            }
+          ],
+          "channels": [],
+          "operations": [],
+          "messages": []
+        },
+        "contract_error": "cannot emit a protocol contract from a blocked protocol scan"
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-x03-remote-ref-denied",
+      "kind": "negative",
+      "title": "Remote $ref",
+      "claim_ids": [
+        "S-AAPI-BLOCKED-AND-ERRORS",
+        "U-AAPI-EXTERNAL-REFS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0.0\ninfo:\n  title: Orders\n  version: '1.0.0'\nchannels:\n  external:\n    $ref: https://example.test/external.yaml\n"
+      },
+      "expect": {
+        "outcome": "error",
+        "error_prefix": "remote $ref is disabled by default at #/channels/external/$ref"
+      },
+      "oracle": {
+        "compare": false,
+        "reason": "the reference parser would fetch the remote reference over the network; the oracle run is offline"
+      }
+    },
+    {
+      "id": "aapi-x04-top-level-array",
+      "kind": "negative",
+      "title": "Top-level array",
+      "claim_ids": [
+        "S-AAPI-BLOCKED-AND-ERRORS"
+      ],
+      "input": {
+        "file": "asyncapi.json",
+        "text": "[]"
+      },
+      "expect": {
+        "outcome": "error",
+        "error_prefix": "structured protocol document must decode to an object: asyncapi.json"
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-x05-invalid-yaml",
+      "kind": "negative",
+      "title": "Unterminated YAML flow sequence",
+      "claim_ids": [
+        "S-AAPI-BLOCKED-AND-ERRORS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "asyncapi: 3.0.0\nchannels: [unterminated\n"
+      },
+      "expect": {
+        "outcome": "error",
+        "error_prefix": "invalid YAML protocol document asyncapi.yaml: "
+      },
+      "oracle": {
+        "compare": true
+      }
+    },
+    {
+      "id": "aapi-x06-scalar-document",
+      "kind": "negative",
+      "title": "Plain text document",
+      "claim_ids": [
+        "S-AAPI-BLOCKED-AND-ERRORS"
+      ],
+      "input": {
+        "file": "asyncapi.yaml",
+        "text": "just a sentence\n"
+      },
+      "expect": {
+        "outcome": "error",
+        "error_prefix": "structured protocol document must decode to an object: asyncapi.yaml"
+      },
+      "oracle": {
+        "compare": true
+      }
+    }
+  ],
+  "equivalences": [
+    {
+      "id": "aapi-eq-bindings",
+      "kind": "planes",
+      "cases": [
+        "aapi-c00-control-minimal-send",
+        "aapi-c01-mqtt-qos-2",
+        "aapi-c01b-mqtt-qos-0",
+        "aapi-c02-kafka-amqp-bindings"
+      ],
+      "reason": "bindings do not reach the contract"
+    },
+    {
+      "id": "aapi-eq-reply-correlation",
+      "kind": "planes",
+      "cases": [
+        "aapi-c00-control-minimal-send",
+        "aapi-c03-reply-and-correlation-id"
+      ],
+      "reason": "reply and correlationId do not reach the contract"
+    },
+    {
+      "id": "aapi-eq-servers",
+      "kind": "planes",
+      "cases": [
+        "aapi-c00-control-minimal-send",
+        "aapi-c04-servers-broker-identity"
+      ],
+      "reason": "servers do not reach the contract"
+    },
+    {
+      "id": "aapi-eq-retry-idempotency-delivery",
+      "kind": "planes",
+      "cases": [
+        "aapi-c00-control-minimal-send",
+        "aapi-c10-retry-idempotency-delivery-declared"
+      ],
+      "reason": "x-retry, x-idempotency-key, x-delivery and idempotency headers do not reach the contract"
+    },
+    {
+      "id": "aapi-eq-serialization",
+      "kind": "projection",
+      "cases": [
+        "aapi-n02-v3.0.0-operations",
+        "aapi-n04-v3.0.0-json-serialization"
+      ],
+      "reason": "YAML and JSON spellings of one document give one projection"
+    }
+  ],
+  "contrasts": [
+    {
+      "id": "aapi-ct-channel-level-messages",
+      "cases": [
+        "aapi-c00-control-minimal-send",
+        "aapi-c05-channel-level-messages-only"
+      ],
+      "differ_in": [
+        "messages"
+      ]
+    }
+  ],
+  "determinism": [
+    {
+      "id": "aapi-det-n02",
+      "base_case": "aapi-n02-v3.0.0-operations",
+      "transforms": [
+        "crlf",
+        "no-final-newline",
+        "yaml-to-json",
+        "yaml-to-json+reverse-json-keys",
+        "yaml-to-json+crlf"
+      ]
+    },
+    {
+      "id": "aapi-det-n01",
+      "base_case": "aapi-n01-v2.6.0-publish-subscribe",
+      "transforms": [
+        "crlf",
+        "no-final-newline",
+        "yaml-to-json"
+      ]
+    }
+  ],
+  "flow_cases": [
+    {
+      "id": "aapi-f01-retry-idempotency-timeout-declared",
+      "scan_case": "aapi-c10-retry-idempotency-delivery-declared",
+      "family": "asyncapi",
+      "contrast": {
+        "scan_case": "aapi-c00-control-minimal-send"
+      },
+      "steps": [
+        {
+          "id": "send",
+          "action": {
+            "plane": "operations",
+            "match": {
+              "operation_id": "sendOrderCreated"
+            }
+          },
+          "retry": {
+            "max_attempts": 5,
+            "backoff_ms": 200
+          },
+          "idempotency": {
+            "key_ref": "message.header.idempotencyKey"
+          },
+          "timeout_ms": 1000
+        }
+      ],
+      "title": "Retry, idempotency and timeout declared on a send step are carried as given and are independent of the document",
+      "claim_ids": [
+        "U-AAPI-RETRY-IDEMPOTENCY-DELIVERY"
+      ],
+      "expect": {
+        "outcome": "built",
+        "steps": [
+          {
+            "id": "send",
+            "plane": "operations",
+            "retry": {
+              "max_attempts": 5,
+              "backoff_ms": 200
+            },
+            "idempotency": {
+              "key_ref": "message.header.idempotencyKey",
+              "required": true
+            },
+            "timeout_ms": 1000,
+            "after": [],
+            "caused_by": [],
+            "correlations": 0
+          }
+        ],
+        "relations": {
+          "ordering": [],
+          "causation": [],
+          "correlation": []
+        },
+        "dropped_step_fields": [],
+        "contrast_projection_equal": true
+      }
+    },
+    {
+      "id": "aapi-f02-delivery-qos-ack-dropped",
+      "scan_case": "aapi-c01-mqtt-qos-2",
+      "family": "asyncapi",
+      "steps": [
+        {
+          "id": "send",
+          "action": {
+            "plane": "operations",
+            "match": {
+              "operation_id": "sendOrderCreated"
+            }
+          },
+          "delivery": "exactly-once",
+          "qos": 2,
+          "ack": true,
+          "redelivery": {
+            "max_attempts": 3
+          }
+        }
+      ],
+      "title": "delivery, qos, ack and redelivery step fields are silently dropped",
+      "claim_ids": [
+        "U-AAPI-RETRY-IDEMPOTENCY-DELIVERY"
+      ],
+      "expect": {
+        "outcome": "built",
+        "steps": [
+          {
+            "id": "send",
+            "plane": "operations",
+            "retry": null,
+            "idempotency": null,
+            "timeout_ms": null,
+            "after": [],
+            "caused_by": [],
+            "correlations": 0
+          }
+        ],
+        "relations": {
+          "ordering": [],
+          "causation": [],
+          "correlation": []
+        },
+        "dropped_step_fields": [
+          "ack",
+          "delivery",
+          "qos",
+          "redelivery"
+        ],
+        "digest_equal_without_dropped": true
+      }
+    },
+    {
+      "id": "aapi-f03-retry-declared-on-receive-operation",
+      "scan_case": "aapi-n02-v3.0.0-operations",
+      "family": "asyncapi",
+      "steps": [
+        {
+          "id": "recv",
+          "action": {
+            "plane": "operations",
+            "match": {
+              "operation_id": "receiveOrderCreated"
+            }
+          },
+          "retry": {
+            "max_attempts": 3
+          },
+          "idempotency": {
+            "key_ref": "payload.id",
+            "required": false
+          }
+        }
+      ],
+      "title": "Retry and optional idempotency are accepted on a receive operation",
+      "claim_ids": [
+        "U-AAPI-RETRY-IDEMPOTENCY-DELIVERY"
+      ],
+      "expect": {
+        "outcome": "built",
+        "steps": [
+          {
+            "id": "recv",
+            "plane": "operations",
+            "retry": {
+              "max_attempts": 3,
+              "backoff_ms": null
+            },
+            "idempotency": {
+              "key_ref": "payload.id",
+              "required": false
+            },
+            "timeout_ms": null,
+            "after": [],
+            "caused_by": [],
+            "correlations": 0
+          }
+        ],
+        "relations": {
+          "ordering": [],
+          "causation": [],
+          "correlation": []
+        },
+        "dropped_step_fields": []
+      }
+    },
+    {
+      "id": "aapi-f04-send-then-receive-ordering",
+      "scan_case": "aapi-n02-v3.0.0-operations",
+      "family": "asyncapi",
+      "steps": [
+        {
+          "id": "send",
+          "action": {
+            "plane": "operations",
+            "match": {
+              "operation_id": "sendOrderCreated"
+            }
+          }
+        },
+        {
+          "id": "recv",
+          "action": {
+            "plane": "operations",
+            "match": {
+              "operation_id": "receiveOrderCreated"
+            }
+          },
+          "after": [
+            "send"
+          ],
+          "caused_by": [
+            "send"
+          ]
+        }
+      ],
+      "title": "Send then receive ordering and causation are explicit step declarations",
+      "claim_ids": [
+        "U-AAPI-RETRY-IDEMPOTENCY-DELIVERY"
+      ],
+      "expect": {
+        "outcome": "built",
+        "steps": [
+          {
+            "id": "recv",
+            "plane": "operations",
+            "retry": null,
+            "idempotency": null,
+            "timeout_ms": null,
+            "after": [
+              "send"
+            ],
+            "caused_by": [
+              "send"
+            ],
+            "correlations": 0
+          },
+          {
+            "id": "send",
+            "plane": "operations",
+            "retry": null,
+            "idempotency": null,
+            "timeout_ms": null,
+            "after": [],
+            "caused_by": [],
+            "correlations": 0
+          }
+        ],
+        "relations": {
+          "ordering": [
+            {
+              "before": "send",
+              "after": "recv",
+              "provenance": "explicit-after"
+            }
+          ],
+          "causation": [
+            {
+              "cause": "send",
+              "effect": "recv",
+              "provenance": "explicit-caused-by"
+            }
+          ],
+          "correlation": []
+        },
+        "dropped_step_fields": []
+      }
+    },
+    {
+      "id": "aapi-f05-retry-max-attempts-zero-rejected",
+      "scan_case": "aapi-c10-retry-idempotency-delivery-declared",
+      "family": "asyncapi",
+      "steps": [
+        {
+          "id": "send",
+          "action": {
+            "plane": "operations",
+            "match": {
+              "operation_id": "sendOrderCreated"
+            }
+          },
+          "retry": {
+            "max_attempts": 0
+          }
+        }
+      ],
+      "title": "retry.max_attempts of 0 is rejected",
+      "claim_ids": [
+        "U-AAPI-RETRY-IDEMPOTENCY-DELIVERY"
+      ],
+      "expect": {
+        "outcome": "rejected",
+        "error": "step send retry.max_attempts must be an integer >= 1"
+      }
+    },
+    {
+      "id": "aapi-f06-idempotency-empty-key-rejected",
+      "scan_case": "aapi-c10-retry-idempotency-delivery-declared",
+      "family": "asyncapi",
+      "steps": [
+        {
+          "id": "send",
+          "action": {
+            "plane": "operations",
+            "match": {
+              "operation_id": "sendOrderCreated"
+            }
+          },
+          "idempotency": {
+            "key_ref": ""
+          }
+        }
+      ],
+      "title": "An empty idempotency key_ref is rejected",
+      "claim_ids": [
+        "U-AAPI-RETRY-IDEMPOTENCY-DELIVERY"
+      ],
+      "expect": {
+        "outcome": "rejected",
+        "error": "step.idempotency.key_ref must be a non-empty string"
+      }
+    },
+    {
+      "id": "aapi-f07-action-from-other-contract-rejected",
+      "scan_case": "aapi-c10-retry-idempotency-delivery-declared",
+      "contexts": [
+        "aapi-c00-control-minimal-send"
+      ],
+      "family": "asyncapi",
+      "steps": [
+        {
+          "id": "send",
+          "action": {
+            "plane": "operations",
+            "match": {
+              "operation_id": "sendOrderCreated"
+            }
+          }
+        }
+      ],
+      "title": "An operation reference bound to another contract is rejected",
+      "claim_ids": [
+        "U-AAPI-RETRY-IDEMPOTENCY-DELIVERY"
+      ],
+      "expect": {
+        "outcome": "rejected",
+        "error": "ProtocolItemRef contract context is not available"
+      }
+    }
+  ]
+}

@@ -1,0 +1,537 @@
+{
+  "schema": "sbf.protocol-target-scope/1",
+  "target": {
+    "id": "PROTO-websocket-01",
+    "family": "websocket",
+    "title": "WebSocket manifest importer"
+  },
+  "plan_write_scope": {
+    "declared": "adapters/protocol/websocket/**",
+    "actual": [
+      "adapters/protocol-next/targets/websocket/**",
+      "adapters/protocol-next/schemas/protocol-target-scope.schema.json",
+      "test/protocol-next/**"
+    ],
+    "reason": "The directory adapters/protocol/ does not exist; the T18 protocol suite owns adapters/protocol-next/** (implementation, records) and test/protocol-next/** (tests, fixtures)."
+  },
+  "status": "scope-recorded",
+  "verified_on": "2026-10-08",
+  "adapter": {
+    "entry": "adapters/protocol-next/scanners/protocol-loaders.mjs#loadProtocolArtifact",
+    "dependencies": [
+      "yaml"
+    ]
+  },
+  "profile": {
+    "inputs": [
+      "WebSocket manifest documents in JSON or YAML (dialect bskel-websocket-manifest)"
+    ],
+    "dialects": [
+      "bskel-websocket-manifest/1",
+      "bskel-websocket-manifest/999"
+    ],
+    "scan_status": "partial",
+    "versions": {
+      "manifest_dialect": "bskel-websocket-manifest/<version>; version 1 when the manifest version is absent or falsy",
+      "rfc": "RFC 6455 (December 2011, Proposed Standard, updated by RFC 7936, RFC 8307 and RFC 8441); WebSocket protocol version 13 is not modeled by the manifest dialect",
+      "library_candidate": "ws 8.22.0 (not selected)",
+      "suite_candidate": "Autobahn|Testsuite v25.10.1 (not selected)"
+    }
+  },
+  "pins": {
+    "libraries": [
+      {
+        "id": "lib-yaml-2.9.0",
+        "name": "yaml",
+        "version": "2.9.0",
+        "integrity": "sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==",
+        "published": "2026-05-11T10:16:24.045Z",
+        "role": "importer runtime dependency (YAML and JSON document decoding), version from the root lock",
+        "selected": true,
+        "recomputable_from": "package-lock.json"
+      },
+      {
+        "id": "lib-ws-8.22.0",
+        "name": "ws",
+        "version": "8.22.0",
+        "integrity": "sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg==",
+        "published": "2026-09-26T15:00:57.748Z",
+        "role": "WebSocket library candidate for a future runtime oracle",
+        "selected": false,
+        "why_not": "no WebSocket peer is exercised in this record (blocked on the T16 runtime plane); pinning a library without running it would imply support",
+        "recomputable_from": null
+      }
+    ],
+    "documents": [
+      {
+        "id": "doc-rfc6455",
+        "kind": "rfc",
+        "number": 6455,
+        "title": "The WebSocket Protocol",
+        "source_url": "https://www.rfc-editor.org/rfc/rfc6455.txt",
+        "metadata_url": "https://www.rfc-editor.org/rfc/rfc6455.json",
+        "pub_date": "December 2011",
+        "status": "PROPOSED STANDARD",
+        "updated_by": [
+          "RFC7936",
+          "RFC8307",
+          "RFC8441"
+        ],
+        "sha256": "765775326aee0ecca9b04bde3fd1f52932d498e33e34e428bd61b8a24da0fa3b",
+        "bytes": 162067,
+        "phrases": [
+          {
+            "clause": "3",
+            "text": "MUST NOT be used on these URIs"
+          },
+          {
+            "clause": "4.1",
+            "text": "The value of this header field MUST be 13"
+          },
+          {
+            "clause": "4.1",
+            "text": "ordered by preference"
+          },
+          {
+            "clause": "4.1",
+            "text": "MUST all be unique strings"
+          }
+        ],
+        "offline_recomputable": false,
+        "verify_with": "test/protocol-next/tools/verify-target-pins.mjs"
+      }
+    ],
+    "tags": [
+      {
+        "id": "tag-autobahn-testsuite-v25.10.1",
+        "repo": "https://github.com/crossbario/autobahn-testsuite",
+        "tag": "v25.10.1",
+        "commit": "6ed6f439dc7ed0d7432fe2cf7481b110905ecc5c",
+        "selected": false,
+        "why_not": "a wire conformance suite needs a live WebSocket peer, which belongs to the blocked T16 runtime plane; nothing was run"
+      }
+    ],
+    "absent_tags": []
+  },
+  "supported": [
+    {
+      "id": "S-WS-MANIFEST-RECORDS",
+      "statement": "A JSON or YAML manifest (dialect bskel-websocket-manifest/<version>, default 1) with connections (id, endpoint, subprotocols) and messages (connection_id, name, direction, schema_ref, correlation_field) is recorded as connection and message records.",
+      "fixtures": [
+        "ws-n01-json-manifest",
+        "ws-n02-yaml-manifest",
+        "ws-n03-connection-only",
+        "ws-n04-message-without-connection"
+      ]
+    },
+    {
+      "id": "S-WS-SERIALIZATION-ORDER-INDEPENDENT",
+      "statement": "JSON and YAML spellings of one manifest give the same records, and the order of manifest arrays does not change the contract planes.",
+      "fixtures": [
+        "ws-n01-json-manifest",
+        "ws-n02-yaml-manifest"
+      ]
+    },
+    {
+      "id": "S-WS-DIRECTION-VOCABULARY",
+      "statement": "The direction values client-to-server, server-to-client and bidirectional are recorded; any other value raises a warning and the message is skipped.",
+      "fixtures": [
+        "ws-n01-json-manifest",
+        "ws-c05a-unsupported-direction-skipped",
+        "ws-c05b-only-unsupported-direction",
+        "ws-c05c-direction-control"
+      ]
+    },
+    {
+      "id": "S-WS-BLOCKED-AND-ERRORS",
+      "statement": "A manifest without connections and messages is blocked and cannot produce a protocol contract; non-object documents, invalid JSON and remote $ref values raise errors.",
+      "fixtures": [
+        "ws-x01-empty-object",
+        "ws-x02-top-level-array",
+        "ws-x03-invalid-json",
+        "ws-x04-remote-ref-denied",
+        "ws-x05-scalar-document"
+      ]
+    }
+  ],
+  "unsupported": [
+    {
+      "id": "U-WS-MANIFEST-ONLY",
+      "behavior": "not-discovered",
+      "statement": "Messages and connections exist only when a manifest declares them: WebSocket usage in source code, frames, close events or traffic is never discovered, and a JavaScript source file is not an input.",
+      "fixtures": [
+        "ws-c08-source-code-not-discovered",
+        "ws-n04-message-without-connection",
+        "ws-x01-empty-object"
+      ]
+    },
+    {
+      "id": "U-WS-STATE-MACHINE",
+      "behavior": "dropped",
+      "statement": "No connection state machine (connecting, open, closing, closed), close codes, heartbeat or reconnect model: manifest keys for them are ignored, and the flow layer does not require a connection step before a message step or check message direction against step order.",
+      "fixtures": [
+        "ws-c01-lifecycle-keys-ignored",
+        "ws-c01b-lifecycle-keys-absent",
+        "ws-f01-connect-then-subscribe-ordering",
+        "ws-f02-message-step-without-connection-step",
+        "ws-f03-server-push-ordered-before-request",
+        "ws-f05-lifecycle-fields-dropped",
+        "ws-f07-ordering-cycle-rejected"
+      ]
+    },
+    {
+      "id": "U-WS-RETRY-IDEMPOTENCY",
+      "behavior": "dropped",
+      "statement": "Retry, reconnect and idempotency are caller declarations on flow steps with no tie to the manifest: manifest-level retry and idempotency keys are ignored, a retry is accepted on a server push, and ack, state and close-code step fields are silently dropped.",
+      "fixtures": [
+        "ws-c01-lifecycle-keys-ignored",
+        "ws-c01b-lifecycle-keys-absent",
+        "ws-f04-retry-and-idempotency-on-server-push",
+        "ws-f05-lifecycle-fields-dropped",
+        "ws-f06-reconnect-retry-on-connection-step",
+        "ws-f08-backoff-negative-rejected"
+      ]
+    },
+    {
+      "id": "U-WS-ENDPOINT-VALIDATION",
+      "behavior": "accepted",
+      "statement": "The endpoint is a free string: the RFC 6455 section 3 rules (ws or wss scheme, absolute URI, no fragment) are not checked.",
+      "fixtures": [
+        "ws-c02a-endpoint-http-scheme",
+        "ws-c02b-endpoint-fragment",
+        "ws-c02c-endpoint-relative",
+        "ws-c02d-endpoint-empty-string"
+      ]
+    },
+    {
+      "id": "U-WS-VERSION-NOT-VALIDATED",
+      "behavior": "accepted",
+      "statement": "The manifest version is not validated: any truthy value selects the dialect bskel-websocket-manifest/<value>, while a falsy value (0) or no version selects bskel-websocket-manifest/1. It is unrelated to the RFC 6455 protocol version 13.",
+      "fixtures": [
+        "ws-c03a-version-999",
+        "ws-c03b-version-zero",
+        "ws-c03c-version-absent"
+      ]
+    },
+    {
+      "id": "U-WS-SUBPROTOCOL-RULES",
+      "behavior": "accepted",
+      "statement": "Subprotocols are stringified and sorted; RFC 6455 section 4.1 rules (non-empty token strings, no duplicates, order of preference) are not checked, and the declared preference order is lost.",
+      "fixtures": [
+        "ws-c10-subprotocol-order-and-uniqueness",
+        "ws-n01-json-manifest"
+      ]
+    },
+    {
+      "id": "U-WS-DIRECTION-DEFAULT",
+      "behavior": "defaulted",
+      "statement": "A message without a direction is recorded as bidirectional; the manifest schema marks direction optional and does not name a default.",
+      "fixtures": [
+        "ws-c04-direction-defaults-to-bidirectional"
+      ]
+    },
+    {
+      "id": "U-WS-MANIFEST-SCHEMA-NOT-ENFORCED",
+      "behavior": "accepted",
+      "statement": "websocket-manifest.schema.json is not applied by the loader or the importer: manifests the schema rejects (unknown keys, non-string or duplicate subprotocols, wrong types, an unknown direction) are still imported.",
+      "fixtures": [
+        "ws-c01-lifecycle-keys-ignored",
+        "ws-c05a-unsupported-direction-skipped",
+        "ws-c09-malformed-entries-skipped-silently",
+        "ws-c10-subprotocol-order-and-uniqueness"
+      ]
+    },
+    {
+      "id": "U-WS-DIAGNOSTICS",
+      "behavior": "misleading",
+      "statement": "An unresolved connection reference or a duplicate connection id blocks the scan with the misleading warning WEBSOCKET_MANIFEST_EMPTY, and malformed entries are skipped without any warning.",
+      "fixtures": [
+        "ws-c06-unresolved-connection",
+        "ws-c07-duplicate-connection-id",
+        "ws-c09-malformed-entries-skipped-silently"
+      ]
+    },
+    {
+      "id": "U-WS-RFC6455-WIRE",
+      "behavior": "not-modeled",
+      "statement": "No RFC 6455 wire behaviour is modeled: opening handshake, frame format, opcodes, masking, fragmentation, ping and pong, the closing handshake and extensions. Manifest keys that name them (opcode, close_codes) are ignored.",
+      "fixtures": [
+        "ws-c01-lifecycle-keys-ignored",
+        "ws-c08-source-code-not-discovered"
+      ]
+    }
+  ],
+  "counterexamples": [
+    {
+      "fixture": "ws-c01-lifecycle-keys-ignored",
+      "claim_ids": [
+        "U-WS-MANIFEST-SCHEMA-NOT-ENFORCED",
+        "U-WS-RETRY-IDEMPOTENCY",
+        "U-WS-RFC6455-WIRE",
+        "U-WS-STATE-MACHINE"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-c01b-lifecycle-keys-absent",
+      "claim_ids": [
+        "U-WS-RETRY-IDEMPOTENCY",
+        "U-WS-STATE-MACHINE"
+      ],
+      "control": "ws-c01-lifecycle-keys-ignored"
+    },
+    {
+      "fixture": "ws-c02a-endpoint-http-scheme",
+      "claim_ids": [
+        "U-WS-ENDPOINT-VALIDATION"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-c02b-endpoint-fragment",
+      "claim_ids": [
+        "U-WS-ENDPOINT-VALIDATION"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-c02c-endpoint-relative",
+      "claim_ids": [
+        "U-WS-ENDPOINT-VALIDATION"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-c02d-endpoint-empty-string",
+      "claim_ids": [
+        "U-WS-ENDPOINT-VALIDATION"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-c03a-version-999",
+      "claim_ids": [
+        "U-WS-VERSION-NOT-VALIDATED"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-c03b-version-zero",
+      "claim_ids": [
+        "U-WS-VERSION-NOT-VALIDATED"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-c03c-version-absent",
+      "claim_ids": [
+        "U-WS-VERSION-NOT-VALIDATED"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-c04-direction-defaults-to-bidirectional",
+      "claim_ids": [
+        "U-WS-DIRECTION-DEFAULT"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-c05a-unsupported-direction-skipped",
+      "claim_ids": [
+        "S-WS-DIRECTION-VOCABULARY",
+        "U-WS-MANIFEST-SCHEMA-NOT-ENFORCED"
+      ],
+      "control": "ws-c05c-direction-control"
+    },
+    {
+      "fixture": "ws-c05b-only-unsupported-direction",
+      "claim_ids": [
+        "S-WS-DIRECTION-VOCABULARY"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-c06-unresolved-connection",
+      "claim_ids": [
+        "U-WS-DIAGNOSTICS"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-c07-duplicate-connection-id",
+      "claim_ids": [
+        "U-WS-DIAGNOSTICS"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-c08-source-code-not-discovered",
+      "claim_ids": [
+        "U-WS-MANIFEST-ONLY",
+        "U-WS-RFC6455-WIRE"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-c09-malformed-entries-skipped-silently",
+      "claim_ids": [
+        "U-WS-DIAGNOSTICS",
+        "U-WS-MANIFEST-SCHEMA-NOT-ENFORCED"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-c10-subprotocol-order-and-uniqueness",
+      "claim_ids": [
+        "U-WS-MANIFEST-SCHEMA-NOT-ENFORCED",
+        "U-WS-SUBPROTOCOL-RULES"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-f01-connect-then-subscribe-ordering",
+      "claim_ids": [
+        "U-WS-STATE-MACHINE"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-f02-message-step-without-connection-step",
+      "claim_ids": [
+        "U-WS-STATE-MACHINE"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-f03-server-push-ordered-before-request",
+      "claim_ids": [
+        "U-WS-STATE-MACHINE"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-f04-retry-and-idempotency-on-server-push",
+      "claim_ids": [
+        "U-WS-RETRY-IDEMPOTENCY"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-f05-lifecycle-fields-dropped",
+      "claim_ids": [
+        "U-WS-RETRY-IDEMPOTENCY",
+        "U-WS-STATE-MACHINE"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-f06-reconnect-retry-on-connection-step",
+      "claim_ids": [
+        "U-WS-RETRY-IDEMPOTENCY"
+      ],
+      "control": "ws-c01b-lifecycle-keys-absent"
+    },
+    {
+      "fixture": "ws-f07-ordering-cycle-rejected",
+      "claim_ids": [
+        "U-WS-STATE-MACHINE"
+      ],
+      "control": null
+    },
+    {
+      "fixture": "ws-f08-backoff-negative-rejected",
+      "claim_ids": [
+        "U-WS-RETRY-IDEMPOTENCY"
+      ],
+      "control": null
+    }
+  ],
+  "fixture_corpus": {
+    "path": "test/protocol-next/fixtures/targets/websocket.fixtures.json",
+    "canonical_sha256": "af4ae73ea51183f6efe73e06d49fe2a7417278083fa7811a2741671079820822",
+    "cases": 27,
+    "flow_cases": 8,
+    "kinds": {
+      "normal": 4,
+      "counterexample": 17,
+      "control": 1,
+      "negative": 5
+    }
+  },
+  "runtime_oracle": {
+    "runtime_tested": false,
+    "runtime": {
+      "status": "BLOCKED",
+      "reason": "No WebSocket peer is started or connected to, and no frame is exchanged. The isolated runtime oracle (T18-05) is itself blocked on the T16 runtime plane (adapters/protocol-next/docs/T18_TO_T16_PROTOCOL_ORACLE_HANDOFF.md), so no Runtime-tested claim exists.",
+      "blocked_by": [
+        "T18-05",
+        "T16"
+      ]
+    },
+    "oracle": {
+      "status": "BLOCKED",
+      "reason": "The manifest dialect is defined by this repository, so there is no independent reference implementation of it, and RFC 6455 wire conformance (for example the Autobahn|Testsuite) needs a live WebSocket peer, which belongs to the blocked T16 runtime plane. No library or suite was run; the candidates are recorded in the pins as not selected."
+    }
+  },
+  "pin_verification": {
+    "tool": "test/protocol-next/tools/verify-target-pins.mjs",
+    "tool_lf_sha256": "eff6fefc390e0f3d0da5027c21153ce053d433574fc74837cc7b0222f34f13ab",
+    "run_on": "2026-10-08",
+    "exit_code": 0,
+    "node": "v24.19.0",
+    "checks": [
+      {
+        "pin": "lib-yaml-2.9.0 integrity",
+        "status": "ok"
+      },
+      {
+        "pin": "lib-yaml-2.9.0 published",
+        "status": "ok"
+      },
+      {
+        "pin": "lib-ws-8.22.0 integrity",
+        "status": "ok"
+      },
+      {
+        "pin": "lib-ws-8.22.0 published",
+        "status": "ok"
+      },
+      {
+        "pin": "tag-autobahn-testsuite-v25.10.1 tag",
+        "status": "ok"
+      },
+      {
+        "pin": "doc-rfc6455 text",
+        "status": "ok"
+      },
+      {
+        "pin": "doc-rfc6455 clause 3",
+        "status": "ok"
+      },
+      {
+        "pin": "doc-rfc6455 clause 4.1",
+        "status": "ok"
+      },
+      {
+        "pin": "doc-rfc6455 clause 4.1",
+        "status": "ok"
+      },
+      {
+        "pin": "doc-rfc6455 clause 4.1",
+        "status": "ok"
+      },
+      {
+        "pin": "doc-rfc6455 metadata",
+        "status": "ok"
+      }
+    ]
+  },
+  "claims_not_made": [
+    "Only messages and connections declared in a manifest exist: WebSocket usage in source code, frames, close events and traffic are never discovered.",
+    "No connection state machine, retry, reconnect or idempotency semantics are claimed; flow steps carry caller declarations that nothing ties to the manifest.",
+    "No RFC 6455 wire behavior is modeled or claimed; the RFC and library pins are references and candidates, not conformance statements.",
+    "The websocket manifest JSON schema is not enforced by the importer (see the unsupported list).",
+    "Not Runtime-tested: nothing was executed against a WebSocket peer."
+  ]
+}

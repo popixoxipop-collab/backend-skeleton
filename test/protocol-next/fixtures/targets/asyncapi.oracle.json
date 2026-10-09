@@ -1,0 +1,1063 @@
+{
+  "schema": "sbf.protocol-target-oracle-evidence/1",
+  "family": "asyncapi",
+  "generated_on": "2026-10-09",
+  "claim": "Static comparison of the real protocol importer with an independent reference implementation. This is not runtime evidence and not certification.",
+  "runtime_tested": false,
+  "environment": {
+    "node": "v24.19.0",
+    "npm": "11.17.0",
+    "platform": "darwin-arm64"
+  },
+  "tool": {
+    "path": "test/protocol-next/tools/target-oracle.mjs",
+    "lf_sha256": "a56d62fe67b77ef26221a41613cffe17adb24ec2769860d59c27599ca6920d1e"
+  },
+  "helpers": {
+    "path": "test/protocol-next/_target-helpers.mjs",
+    "lf_sha256": "cd6383f7bccf3e912b7ccb4f9da3138969571787e99e60aa8bb53ef3616c1122"
+  },
+  "fixtures": {
+    "path": "test/protocol-next/fixtures/targets/asyncapi.fixtures.json",
+    "compared_case_ids": [
+      "aapi-c00-control-minimal-send",
+      "aapi-c01-mqtt-qos-2",
+      "aapi-c01b-mqtt-qos-0",
+      "aapi-c02-kafka-amqp-bindings",
+      "aapi-c03-reply-and-correlation-id",
+      "aapi-c04-servers-broker-identity",
+      "aapi-c05-channel-level-messages-only",
+      "aapi-c06-oneof-messages",
+      "aapi-c07-relative-file-ref",
+      "aapi-c08-mixed-2x-and-3x-constructs",
+      "aapi-c09-missing-required-info",
+      "aapi-c10-retry-idempotency-delivery-declared",
+      "aapi-n01-v2.6.0-publish-subscribe",
+      "aapi-n02-v3.0.0-operations",
+      "aapi-n03-v3.1.0-operations",
+      "aapi-n04-v3.0.0-json-serialization",
+      "aapi-v-missing-empty-string",
+      "aapi-v-missing-key",
+      "aapi-v-missing-numeric-3",
+      "aapi-v-missing-unquoted-3.0",
+      "aapi-v-silent-2.6.1",
+      "aapi-v-silent-3.0.1",
+      "aapi-v-silent-3.9.9",
+      "aapi-v-supported-2.0.0",
+      "aapi-v-supported-2.1.0",
+      "aapi-v-supported-2.2.0",
+      "aapi-v-supported-2.3.0",
+      "aapi-v-supported-2.4.0",
+      "aapi-v-supported-2.5.0",
+      "aapi-v-supported-2.6.0",
+      "aapi-v-supported-3.0.0",
+      "aapi-v-supported-3.1.0",
+      "aapi-v-untested-1.2.0",
+      "aapi-v-untested-3.0.0-rc1",
+      "aapi-v-untested-4.0.0",
+      "aapi-v-untested-quoted-3.0",
+      "aapi-v-untested-v3.0.0",
+      "aapi-x01-empty-object",
+      "aapi-x02-version-only",
+      "aapi-x04-top-level-array",
+      "aapi-x05-invalid-yaml",
+      "aapi-x06-scalar-document"
+    ],
+    "compared_inputs_sha256": "67ae7cda2c3ae617a948003af845973199e249660c77f0747a298b49475bd20b"
+  },
+  "oracle_packages": [
+    {
+      "group": "aapi",
+      "install": {
+        "performed_by_tool": true,
+        "command": "npm install --ignore-scripts --no-audit --no-fund --save-exact @asyncapi/parser@3.6.3 @asyncapi/specs@6.11.1",
+        "exit_code": 0
+      },
+      "lockfile": {
+        "path": "test/protocol-next/fixtures/targets/oracle-locks/aapi.lock.json",
+        "lf_sha256": "ccd11ede70b56adc603f045e9ce29d48be58fb7ff4ee393e836a46b4bfed0e5a"
+      },
+      "packages": [
+        {
+          "name": "@asyncapi/parser",
+          "version": "3.6.3",
+          "integrity": "sha512-MUC8xIUMcS2qNvqrqyx/ie0txu3d/OdIsrXs7UCzawdyR6P07gh35DpOqPz/z57s1UA3vERVpcheZYl3h8cVtw=="
+        },
+        {
+          "name": "@asyncapi/specs",
+          "version": "6.11.1",
+          "integrity": "sha512-A3WBLqAKGoJ2+6FWFtpjBlCQ1oFCcs4GxF7zsIGvNqp/klGUHjlA3aAcZ9XMMpLGE8zPeYDz2x9FmO6DSuKraQ=="
+        }
+      ]
+    }
+  ],
+  "results": {
+    "aapi-n01-v2.6.0-publish-subscribe": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "2.6.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 2,
+          "operations": 2,
+          "components_messages": 2,
+          "all_messages": 2
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 2,
+          "operations": 2,
+          "messages": 2
+        }
+      }
+    },
+    "aapi-n02-v3.0.0-operations": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "3.0.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 1,
+          "operations": 2,
+          "components_messages": 1,
+          "all_messages": 1
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-n03-v3.1.0-operations": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "3.1.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 1,
+          "operations": 2,
+          "components_messages": 1,
+          "all_messages": 1
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-n04-v3.0.0-json-serialization": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "3.0.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 1,
+          "operations": 2,
+          "components_messages": 1,
+          "all_messages": 1
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-v-supported-2.0.0": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "2.0.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 2,
+          "operations": 2,
+          "components_messages": 2,
+          "all_messages": 2
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 2,
+          "operations": 2,
+          "messages": 2
+        }
+      }
+    },
+    "aapi-v-supported-2.1.0": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "2.1.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 2,
+          "operations": 2,
+          "components_messages": 2,
+          "all_messages": 2
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 2,
+          "operations": 2,
+          "messages": 2
+        }
+      }
+    },
+    "aapi-v-supported-2.2.0": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "2.2.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 2,
+          "operations": 2,
+          "components_messages": 2,
+          "all_messages": 2
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 2,
+          "operations": 2,
+          "messages": 2
+        }
+      }
+    },
+    "aapi-v-supported-2.3.0": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "2.3.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 2,
+          "operations": 2,
+          "components_messages": 2,
+          "all_messages": 2
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 2,
+          "operations": 2,
+          "messages": 2
+        }
+      }
+    },
+    "aapi-v-supported-2.4.0": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "2.4.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 2,
+          "operations": 2,
+          "components_messages": 2,
+          "all_messages": 2
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 2,
+          "operations": 2,
+          "messages": 2
+        }
+      }
+    },
+    "aapi-v-supported-2.5.0": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "2.5.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 2,
+          "operations": 2,
+          "components_messages": 2,
+          "all_messages": 2
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 2,
+          "operations": 2,
+          "messages": 2
+        }
+      }
+    },
+    "aapi-v-supported-2.6.0": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "2.6.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 2,
+          "operations": 2,
+          "components_messages": 2,
+          "all_messages": 2
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 2,
+          "operations": 2,
+          "messages": 2
+        }
+      }
+    },
+    "aapi-v-supported-3.0.0": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "3.0.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 1,
+          "operations": 2,
+          "components_messages": 1,
+          "all_messages": 1
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-v-supported-3.1.0": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "3.1.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 1,
+          "operations": 2,
+          "components_messages": 1,
+          "all_messages": 1
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-v-untested-4.0.0": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "asyncapi-is-asyncapi"
+        ],
+        "first_error": "Version \"4.0.0\" is not supported. Please use \"3.1.0\" (latest) version of the specification.",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-v-untested-1.2.0": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "asyncapi-is-asyncapi"
+        ],
+        "first_error": "Version \"1.2.0\" is not supported. Please use \"3.1.0\" (latest) version of the specification.",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-v-untested-3.0.0-rc1": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "asyncapi-is-asyncapi"
+        ],
+        "first_error": "Version \"3.0.0-rc1\" is not supported. Please use \"3.1.0\" (latest) version of the specification.",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-v-untested-v3.0.0": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "asyncapi-is-asyncapi"
+        ],
+        "first_error": "Version \"v3.0.0\" is not supported. Please use \"3.1.0\" (latest) version of the specification.",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-v-untested-quoted-3.0": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "uncaught-error"
+        ],
+        "first_error": "Error thrown during AsyncAPI document validation. Name: TypeError, message: Cannot read properties of undefined (reading 'split'), stack: TypeError: Cannot read properties of undefined (reading 'split')",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-v-missing-key": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "asyncapi-is-asyncapi"
+        ],
+        "first_error": "This is not an AsyncAPI document. The \"asyncapi\" field as string is missing.",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-v-missing-numeric-3": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "uncaught-error"
+        ],
+        "first_error": "Error thrown during AsyncAPI document validation. Name: TypeError, message: Cannot read properties of undefined (reading 'split'), stack: TypeError: Cannot read properties of undefined (reading 'split')",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-v-missing-empty-string": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "uncaught-error"
+        ],
+        "first_error": "Error thrown during AsyncAPI document validation. Name: TypeError, message: Cannot read properties of undefined (reading 'split'), stack: TypeError: Cannot read properties of undefined (reading 'split')",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-v-missing-unquoted-3.0": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "uncaught-error"
+        ],
+        "first_error": "Error thrown during AsyncAPI document validation. Name: TypeError, message: Cannot read properties of undefined (reading 'split'), stack: TypeError: Cannot read properties of undefined (reading 'split')",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-v-silent-2.6.1": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "asyncapi-document-resolved",
+          "asyncapi-is-asyncapi"
+        ],
+        "first_error": "Version \"2.6.1\" is not supported. Please use \"3.1.0\" (latest) version of the specification.",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 2,
+          "operations": 2,
+          "messages": 2
+        }
+      }
+    },
+    "aapi-v-silent-3.0.1": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "asyncapi-document-resolved",
+          "asyncapi-is-asyncapi"
+        ],
+        "first_error": "Version \"3.0.1\" is not supported. Please use \"3.1.0\" (latest) version of the specification.",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-v-silent-3.9.9": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "asyncapi-is-asyncapi"
+        ],
+        "first_error": "Version \"3.9.9\" is not supported. Please use \"3.1.0\" (latest) version of the specification.",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-c00-control-minimal-send": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "3.0.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 1,
+          "operations": 1,
+          "components_messages": 1,
+          "all_messages": 1
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 1,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-c01-mqtt-qos-2": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "3.0.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 1,
+          "operations": 1,
+          "components_messages": 1,
+          "all_messages": 1
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 1,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-c01b-mqtt-qos-0": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "3.0.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 1,
+          "operations": 1,
+          "components_messages": 1,
+          "all_messages": 1
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 1,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-c02-kafka-amqp-bindings": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "3.0.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 1,
+          "operations": 1,
+          "components_messages": 1,
+          "all_messages": 1
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 1,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-c03-reply-and-correlation-id": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "3.0.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 1,
+          "operations": 1,
+          "components_messages": 1,
+          "all_messages": 1
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 1,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-c04-servers-broker-identity": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "3.0.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 1,
+          "operations": 1,
+          "components_messages": 1,
+          "all_messages": 1
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 1,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-c05-channel-level-messages-only": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "3.0.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 1,
+          "operations": 1,
+          "components_messages": 0,
+          "all_messages": 2
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [
+          "all_messages"
+        ],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 1,
+          "messages": 0
+        }
+      }
+    },
+    "aapi-c06-oneof-messages": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "2.6.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 1,
+          "operations": 1,
+          "components_messages": 2,
+          "all_messages": 2
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 1,
+          "messages": 2
+        }
+      }
+    },
+    "aapi-c07-relative-file-ref": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "asyncapi3-operation-messages-from-referred-channel",
+          "asyncapi3-required-operation-channel-unambiguity",
+          "invalid-ref"
+        ],
+        "first_error": "The \"channel\" field of an operation under the root \"operations\" object must always reference a channel under the root \"channels\" object.",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 1,
+          "messages": 0
+        }
+      }
+    },
+    "aapi-c08-mixed-2x-and-3x-constructs": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "asyncapi-document-resolved"
+        ],
+        "first_error": "Property \"operations\" is not expected to be here",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 2,
+          "messages": 0
+        }
+      }
+    },
+    "aapi-c09-missing-required-info": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "asyncapi-document-resolved"
+        ],
+        "first_error": "Object must have required property \"info\"",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": false,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 1,
+          "messages": 0
+        }
+      }
+    },
+    "aapi-c10-retry-idempotency-delivery-declared": {
+      "oracle": {
+        "verdict": "valid",
+        "parsed_version": "3.0.0",
+        "error_codes": [],
+        "first_error": null,
+        "counts": {
+          "channels": 1,
+          "operations": 1,
+          "components_messages": 1,
+          "all_messages": 1
+        }
+      },
+      "comparison": {
+        "adapter_verdict": "accepted",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 1,
+          "operations": 1,
+          "messages": 1
+        }
+      }
+    },
+    "aapi-x01-empty-object": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "asyncapi-is-asyncapi"
+        ],
+        "first_error": "This is not an AsyncAPI document. The \"asyncapi\" field as string is missing.",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "blocked",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 0,
+          "operations": 0,
+          "messages": 0
+        }
+      }
+    },
+    "aapi-x02-version-only": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "asyncapi-document-resolved"
+        ],
+        "first_error": "Object must have required property \"info\"",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "blocked",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": {
+          "channels": 0,
+          "operations": 0,
+          "messages": 0
+        }
+      }
+    },
+    "aapi-x04-top-level-array": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "asyncapi-is-asyncapi"
+        ],
+        "first_error": "This is not an AsyncAPI document. The \"asyncapi\" field as string is missing.",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "error",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": null
+      }
+    },
+    "aapi-x05-invalid-yaml": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "asyncapi-document-resolved",
+          "parser"
+        ],
+        "first_error": "Object must have required property \"info\"",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "error",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": null
+      }
+    },
+    "aapi-x06-scalar-document": {
+      "oracle": {
+        "verdict": "invalid",
+        "parsed_version": null,
+        "error_codes": [
+          "asyncapi-is-asyncapi"
+        ],
+        "first_error": "This is not an AsyncAPI document. The \"asyncapi\" field as string is missing.",
+        "counts": null
+      },
+      "comparison": {
+        "adapter_verdict": "error",
+        "agrees_on_acceptance": true,
+        "divergent_categories": [],
+        "adapter_counts": null
+      }
+    }
+  },
+  "summary": {
+    "compared": 42,
+    "agree_on_acceptance": 27,
+    "adapter_accepts_oracle_rejects": [
+      "aapi-c07-relative-file-ref",
+      "aapi-c08-mixed-2x-and-3x-constructs",
+      "aapi-c09-missing-required-info",
+      "aapi-v-missing-empty-string",
+      "aapi-v-missing-key",
+      "aapi-v-missing-numeric-3",
+      "aapi-v-missing-unquoted-3.0",
+      "aapi-v-silent-2.6.1",
+      "aapi-v-silent-3.0.1",
+      "aapi-v-silent-3.9.9",
+      "aapi-v-untested-1.2.0",
+      "aapi-v-untested-3.0.0-rc1",
+      "aapi-v-untested-4.0.0",
+      "aapi-v-untested-quoted-3.0",
+      "aapi-v-untested-v3.0.0"
+    ],
+    "with_divergent_categories": [
+      "aapi-c05-channel-level-messages-only"
+    ]
+  }
+}

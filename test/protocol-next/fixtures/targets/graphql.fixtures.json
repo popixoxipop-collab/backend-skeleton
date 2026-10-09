@@ -1,0 +1,1410 @@
+{
+  "schema": "sbf.protocol-target-fixtures/1",
+  "family": "graphql",
+  "generated_on": "2026-10-08",
+  "cases": [
+    {
+      "id": "gql-n01-sdl-explicit-roots",
+      "kind": "normal",
+      "title": "SDL with an explicit schema definition and every declaration kind",
+      "claim_ids": [
+        "S-GQL-SDL-DECLARATIONS",
+        "S-GQL-SDL-FIELDS",
+        "S-GQL-SDL-ROOT-OPERATIONS",
+        "U-GQL-SPEC-EDITION"
+      ],
+      "input": {
+        "file": "schema.graphql",
+        "text": "schema {\n  query: RootQuery\n  mutation: RootMutation\n}\n\ntype RootQuery {\n  order(id: ID!, verbose: Boolean = false): Order\n  orders: [Order!]!\n}\n\ntype RootMutation {\n  createOrder(input: OrderInput!): Order\n}\n\ntype Order implements Node {\n  id: ID!\n  total: Float\n}\n\ninterface Node {\n  id: ID!\n}\n\ninput OrderInput {\n  total: Float!\n}\n\nenum Status {\n  OPEN\n  CLOSED\n}\n\nunion SearchResult = Order\n\nscalar DateTime\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [
+            "query=RootQuery mutation=RootMutation"
+          ],
+          "types": [
+            "enum Status",
+            "input OrderInput",
+            "interface Node",
+            "scalar DateTime",
+            "type Order",
+            "type RootMutation",
+            "type RootQuery",
+            "union SearchResult"
+          ],
+          "fields": [
+            "Node.id: ID!",
+            "Order.id: ID!",
+            "Order.total: Float",
+            "OrderInput.total: Float!",
+            "RootMutation.createOrder: Order",
+            "RootQuery.order: Order",
+            "RootQuery.orders: [Order!]!"
+          ],
+          "operations": [
+            "mutation RootMutation.createOrder: Order",
+            "query RootQuery.order: Order",
+            "query RootQuery.orders: [Order!]!"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl",
+        "divergence_note": "Field and operation texts differ only by field arguments: the SDL importer records none, the reference library lists them."
+      }
+    },
+    {
+      "id": "gql-n02-sdl-implicit-roots",
+      "kind": "normal",
+      "title": "SDL with implicit Query, Mutation and Subscription roots",
+      "claim_ids": [
+        "S-GQL-SDL-DECLARATIONS",
+        "S-GQL-SDL-FIELDS",
+        "S-GQL-SDL-ROOT-OPERATIONS"
+      ],
+      "input": {
+        "file": "schema.graphql",
+        "text": "type Query {\n  ping: String\n}\n\ntype Mutation {\n  reset(confirm: Boolean!): Boolean\n}\n\ntype Subscription {\n  ticks: Int\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "type Mutation",
+            "type Query",
+            "type Subscription"
+          ],
+          "fields": [
+            "Mutation.reset: Boolean",
+            "Query.ping: String",
+            "Subscription.ticks: Int"
+          ],
+          "operations": [
+            "mutation Mutation.reset: Boolean",
+            "query Query.ping: String",
+            "subscription Subscription.ticks: Int"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl",
+        "divergence_note": "Field and operation texts differ only by field arguments: the SDL importer records none, the reference library lists them."
+      }
+    },
+    {
+      "id": "gql-n03-sdl-comments-and-strings-masked",
+      "kind": "normal",
+      "title": "Declarations inside comments, block strings and descriptions are ignored",
+      "claim_ids": [
+        "S-GQL-COMMENTS-MASKED"
+      ],
+      "input": {
+        "file": "schema.graphql",
+        "text": "# type CommentedOut { a: Int }\n# schema { query: Ghost }\n\"\"\"\ntype DocBlock { b: Int }\n\"\"\"\ntype Query {\n  \"type InString { c: Int }\"\n  ping: String\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "type Query"
+          ],
+          "fields": [
+            "Query.ping: String"
+          ],
+          "operations": [
+            "query Query.ping: String"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl"
+      }
+    },
+    {
+      "id": "gql-n04-introspection-data-wrapper",
+      "kind": "normal",
+      "title": "Introspection result wrapped in a data object",
+      "claim_ids": [
+        "S-GQL-INTROSPECTION"
+      ],
+      "input": {
+        "file": "introspection.json",
+        "text": "{\n  \"data\": {\n    \"__schema\": {\n      \"queryType\": {\n        \"name\": \"Query\"\n      },\n      \"mutationType\": {\n        \"name\": \"Mutation\"\n      },\n      \"subscriptionType\": null,\n      \"types\": [\n        {\n          \"kind\": \"OBJECT\",\n          \"name\": \"Query\",\n          \"fields\": [\n            {\n              \"name\": \"order\",\n              \"args\": [\n                {\n                  \"name\": \"id\",\n                  \"type\": {\n                    \"kind\": \"NON_NULL\",\n                    \"ofType\": {\n                      \"kind\": \"SCALAR\",\n                      \"name\": \"ID\"\n                    }\n                  },\n                  \"defaultValue\": null\n                },\n                {\n                  \"name\": \"verbose\",\n                  \"type\": {\n                    \"kind\": \"SCALAR\",\n                    \"name\": \"Boolean\"\n                  },\n                  \"defaultValue\": \"false\"\n                }\n              ],\n              \"type\": {\n                \"kind\": \"OBJECT\",\n                \"name\": \"Order\"\n              },\n              \"isDeprecated\": false,\n              \"deprecationReason\": null\n            },\n            {\n              \"name\": \"orders\",\n              \"args\": [],\n              \"type\": {\n                \"kind\": \"NON_NULL\",\n                \"ofType\": {\n                  \"kind\": \"LIST\",\n                  \"ofType\": {\n                    \"kind\": \"NON_NULL\",\n                    \"ofType\": {\n                      \"kind\": \"OBJECT\",\n                      \"name\": \"Order\"\n                    }\n                  }\n                }\n              },\n              \"isDeprecated\": false,\n              \"deprecationReason\": null\n            }\n          ],\n          \"interfaces\": []\n        },\n        {\n          \"kind\": \"OBJECT\",\n          \"name\": \"Mutation\",\n          \"fields\": [\n            {\n              \"name\": \"createOrder\",\n              \"args\": [\n                {\n                  \"name\": \"input\",\n                  \"type\": {\n                    \"kind\": \"NON_NULL\",\n                    \"ofType\": {\n                      \"kind\": \"INPUT_OBJECT\",\n                      \"name\": \"OrderInput\"\n                    }\n                  },\n                  \"defaultValue\": null\n                }\n              ],\n              \"type\": {\n                \"kind\": \"OBJECT\",\n                \"name\": \"Order\"\n              },\n              \"isDeprecated\": true,\n              \"deprecationReason\": \"use placeOrder\"\n            }\n          ],\n          \"interfaces\": []\n        },\n        {\n          \"kind\": \"OBJECT\",\n          \"name\": \"Order\",\n          \"fields\": [\n            {\n              \"name\": \"id\",\n              \"args\": [],\n              \"type\": {\n                \"kind\": \"NON_NULL\",\n                \"ofType\": {\n                  \"kind\": \"SCALAR\",\n                  \"name\": \"ID\"\n                }\n              },\n              \"isDeprecated\": false,\n              \"deprecationReason\": null\n            },\n            {\n              \"name\": \"total\",\n              \"args\": [],\n              \"type\": {\n                \"kind\": \"SCALAR\",\n                \"name\": \"Float\"\n              },\n              \"isDeprecated\": false,\n              \"deprecationReason\": null\n            }\n          ],\n          \"interfaces\": []\n        },\n        {\n          \"kind\": \"INPUT_OBJECT\",\n          \"name\": \"OrderInput\",\n          \"inputFields\": [\n            {\n              \"name\": \"total\",\n              \"type\": {\n                \"kind\": \"NON_NULL\",\n                \"ofType\": {\n                  \"kind\": \"SCALAR\",\n                  \"name\": \"Float\"\n                }\n              },\n              \"defaultValue\": null\n            }\n          ]\n        },\n        {\n          \"kind\": \"ENUM\",\n          \"name\": \"Status\",\n          \"enumValues\": [\n            {\n              \"name\": \"OPEN\",\n              \"isDeprecated\": false,\n              \"deprecationReason\": null\n            },\n            {\n              \"name\": \"CLOSED\",\n              \"isDeprecated\": false,\n              \"deprecationReason\": null\n            }\n          ]\n        },\n        {\n          \"kind\": \"SCALAR\",\n          \"name\": \"ID\"\n        },\n        {\n          \"kind\": \"SCALAR\",\n          \"name\": \"String\"\n        },\n        {\n          \"kind\": \"SCALAR\",\n          \"name\": \"Boolean\"\n        },\n        {\n          \"kind\": \"SCALAR\",\n          \"name\": \"Float\"\n        }\n      ]\n    }\n  }\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-introspection-json",
+          "adapter": "graphql-introspection-object",
+          "warnings": [],
+          "schemas": [
+            "query=Query mutation=Mutation"
+          ],
+          "types": [
+            "enum Status",
+            "input_object OrderInput",
+            "object Mutation",
+            "object Order",
+            "object Query",
+            "scalar Boolean",
+            "scalar Float",
+            "scalar ID",
+            "scalar String"
+          ],
+          "fields": [
+            "Mutation.createOrder(input: OrderInput!): Order",
+            "Order.id: ID!",
+            "Order.total: Float",
+            "Query.order(id: ID!, verbose: Boolean = false): Order",
+            "Query.orders: [Order!]!"
+          ],
+          "operations": [
+            "mutation Mutation.createOrder(input: OrderInput!): Order",
+            "query Query.order(id: ID!, verbose: Boolean = false): Order",
+            "query Query.orders: [Order!]!"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "introspection",
+        "divergence_note": "The importer records the fields of object types only; the input object field OrderInput.total (introspection inputFields) is listed by the reference library alone."
+      }
+    },
+    {
+      "id": "gql-n05-introspection-bare-schema",
+      "kind": "normal",
+      "title": "Introspection result with a bare __schema",
+      "claim_ids": [
+        "S-GQL-INTROSPECTION"
+      ],
+      "input": {
+        "file": "introspection.json",
+        "text": "{\n  \"__schema\": {\n    \"queryType\": {\n      \"name\": \"Query\"\n    },\n    \"mutationType\": {\n      \"name\": \"Mutation\"\n    },\n    \"subscriptionType\": null,\n    \"types\": [\n      {\n        \"kind\": \"OBJECT\",\n        \"name\": \"Query\",\n        \"fields\": [\n          {\n            \"name\": \"order\",\n            \"args\": [\n              {\n                \"name\": \"id\",\n                \"type\": {\n                  \"kind\": \"NON_NULL\",\n                  \"ofType\": {\n                    \"kind\": \"SCALAR\",\n                    \"name\": \"ID\"\n                  }\n                },\n                \"defaultValue\": null\n              },\n              {\n                \"name\": \"verbose\",\n                \"type\": {\n                  \"kind\": \"SCALAR\",\n                  \"name\": \"Boolean\"\n                },\n                \"defaultValue\": \"false\"\n              }\n            ],\n            \"type\": {\n              \"kind\": \"OBJECT\",\n              \"name\": \"Order\"\n            },\n            \"isDeprecated\": false,\n            \"deprecationReason\": null\n          },\n          {\n            \"name\": \"orders\",\n            \"args\": [],\n            \"type\": {\n              \"kind\": \"NON_NULL\",\n              \"ofType\": {\n                \"kind\": \"LIST\",\n                \"ofType\": {\n                  \"kind\": \"NON_NULL\",\n                  \"ofType\": {\n                    \"kind\": \"OBJECT\",\n                    \"name\": \"Order\"\n                  }\n                }\n              }\n            },\n            \"isDeprecated\": false,\n            \"deprecationReason\": null\n          }\n        ],\n        \"interfaces\": []\n      },\n      {\n        \"kind\": \"OBJECT\",\n        \"name\": \"Mutation\",\n        \"fields\": [\n          {\n            \"name\": \"createOrder\",\n            \"args\": [\n              {\n                \"name\": \"input\",\n                \"type\": {\n                  \"kind\": \"NON_NULL\",\n                  \"ofType\": {\n                    \"kind\": \"INPUT_OBJECT\",\n                    \"name\": \"OrderInput\"\n                  }\n                },\n                \"defaultValue\": null\n              }\n            ],\n            \"type\": {\n              \"kind\": \"OBJECT\",\n              \"name\": \"Order\"\n            },\n            \"isDeprecated\": true,\n            \"deprecationReason\": \"use placeOrder\"\n          }\n        ],\n        \"interfaces\": []\n      },\n      {\n        \"kind\": \"OBJECT\",\n        \"name\": \"Order\",\n        \"fields\": [\n          {\n            \"name\": \"id\",\n            \"args\": [],\n            \"type\": {\n              \"kind\": \"NON_NULL\",\n              \"ofType\": {\n                \"kind\": \"SCALAR\",\n                \"name\": \"ID\"\n              }\n            },\n            \"isDeprecated\": false,\n            \"deprecationReason\": null\n          },\n          {\n            \"name\": \"total\",\n            \"args\": [],\n            \"type\": {\n              \"kind\": \"SCALAR\",\n              \"name\": \"Float\"\n            },\n            \"isDeprecated\": false,\n            \"deprecationReason\": null\n          }\n        ],\n        \"interfaces\": []\n      },\n      {\n        \"kind\": \"INPUT_OBJECT\",\n        \"name\": \"OrderInput\",\n        \"inputFields\": [\n          {\n            \"name\": \"total\",\n            \"type\": {\n              \"kind\": \"NON_NULL\",\n              \"ofType\": {\n                \"kind\": \"SCALAR\",\n                \"name\": \"Float\"\n              }\n            },\n            \"defaultValue\": null\n          }\n        ]\n      },\n      {\n        \"kind\": \"ENUM\",\n        \"name\": \"Status\",\n        \"enumValues\": [\n          {\n            \"name\": \"OPEN\",\n            \"isDeprecated\": false,\n            \"deprecationReason\": null\n          },\n          {\n            \"name\": \"CLOSED\",\n            \"isDeprecated\": false,\n            \"deprecationReason\": null\n          }\n        ]\n      },\n      {\n        \"kind\": \"SCALAR\",\n        \"name\": \"ID\"\n      },\n      {\n        \"kind\": \"SCALAR\",\n        \"name\": \"String\"\n      },\n      {\n        \"kind\": \"SCALAR\",\n        \"name\": \"Boolean\"\n      },\n      {\n        \"kind\": \"SCALAR\",\n        \"name\": \"Float\"\n      }\n    ]\n  }\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-introspection-json",
+          "adapter": "graphql-introspection-object",
+          "warnings": [],
+          "schemas": [
+            "query=Query mutation=Mutation"
+          ],
+          "types": [
+            "enum Status",
+            "input_object OrderInput",
+            "object Mutation",
+            "object Order",
+            "object Query",
+            "scalar Boolean",
+            "scalar Float",
+            "scalar ID",
+            "scalar String"
+          ],
+          "fields": [
+            "Mutation.createOrder(input: OrderInput!): Order",
+            "Order.id: ID!",
+            "Order.total: Float",
+            "Query.order(id: ID!, verbose: Boolean = false): Order",
+            "Query.orders: [Order!]!"
+          ],
+          "operations": [
+            "mutation Mutation.createOrder(input: OrderInput!): Order",
+            "query Query.order(id: ID!, verbose: Boolean = false): Order",
+            "query Query.orders: [Order!]!"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "introspection",
+        "divergence_note": "The importer records the fields of object types only; the input object field OrderInput.total (introspection inputFields) is listed by the reference library alone."
+      }
+    },
+    {
+      "id": "gql-c01-federation-subgraph",
+      "kind": "counterexample",
+      "title": "Federation 2 subgraph: extend schema @link, directive definitions, @key and @shareable",
+      "claim_ids": [
+        "U-GQL-DIRECTIVES",
+        "U-GQL-FEDERATION"
+      ],
+      "input": {
+        "file": "subgraph.graphql",
+        "text": "extend schema @link(url: \"https://specs.apollo.dev/federation/v2.3\", import: [\"@key\", \"@shareable\"])\n\ndirective @link(url: String!, import: [String]) repeatable on SCHEMA\ndirective @key(fields: String!) repeatable on OBJECT | INTERFACE\ndirective @shareable repeatable on OBJECT | FIELD_DEFINITION\n\nscalar _Any\n\nunion _Entity = Product\n\ntype _Service {\n  sdl: String\n}\n\ntype Query {\n  _service: _Service!\n  _entities(representations: [_Any!]!): [_Entity]!\n  product(id: ID!): Product\n}\n\ntype Product @key(fields: \"id\") {\n  id: ID!\n  name: String @shareable\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "scalar _Any",
+            "type Product",
+            "type Query",
+            "type _Service",
+            "union _Entity"
+          ],
+          "fields": [
+            "Product.id: ID!",
+            "Product.name: String",
+            "Query._entities: [_Entity]!",
+            "Query._service: _Service!",
+            "Query.product: Product",
+            "_Service.sdl: String"
+          ],
+          "operations": [
+            "query Query._entities: [_Entity]!",
+            "query Query._service: _Service!",
+            "query Query.product: Product"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl",
+        "divergence_note": "Both library versions accept the subgraph. Field and operation texts differ only by field arguments: the SDL importer records none, the reference library lists them."
+      }
+    },
+    {
+      "id": "gql-c01b-federation-v1-extend-type",
+      "kind": "counterexample",
+      "title": "Federation 1 entity extension: extend type with @key",
+      "claim_ids": [
+        "U-GQL-FEDERATION"
+      ],
+      "input": {
+        "file": "subgraph-v1.graphql",
+        "text": "type Review @key(fields: \"id\") {\n  id: ID!\n  body: String\n  product: Product\n}\n\nextend type Product @key(fields: \"upc\") {\n  upc: String! @external\n  reviews: [Review]\n}\n\nextend type Query {\n  topReviews(first: Int = 5): [Review]\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "type Product",
+            "type Query",
+            "type Review"
+          ],
+          "fields": [
+            "Product.reviews: [Review]",
+            "Product.upc: String!",
+            "Query.topReviews: [Review]",
+            "Review.body: String",
+            "Review.id: ID!",
+            "Review.product: Product"
+          ],
+          "operations": [
+            "query Query.topReviews: [Review]"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl",
+        "divergence_note": "Both library versions reject the document (Unknown directive \"@key\": the Federation directives are not defined in it); the importer accepts it because it performs no schema validation."
+      }
+    },
+    {
+      "id": "gql-c02-directives-not-recorded",
+      "kind": "counterexample",
+      "title": "Directive definition and usages on fields",
+      "claim_ids": [
+        "U-GQL-DIRECTIVES"
+      ],
+      "input": {
+        "file": "directives.graphql",
+        "text": "directive @auth(role: String!) on FIELD_DEFINITION\n\ntype Query {\n  secret: String @auth(role: \"admin\")\n  legacy: String @deprecated(reason: \"use secret\")\n  open: String\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "type Query"
+          ],
+          "fields": [
+            "Query.legacy: String",
+            "Query.open: String",
+            "Query.secret: String"
+          ],
+          "operations": [
+            "query Query.legacy: String",
+            "query Query.open: String",
+            "query Query.secret: String"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl"
+      }
+    },
+    {
+      "id": "gql-c02b-directives-stripped",
+      "kind": "counterexample",
+      "title": "Control: the same document with every directive removed",
+      "claim_ids": [
+        "U-GQL-DIRECTIVES"
+      ],
+      "input": {
+        "file": "directives.graphql",
+        "text": "# no directive definition or usage\n\ntype Query {\n  secret: String\n  legacy: String\n  open: String\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "type Query"
+          ],
+          "fields": [
+            "Query.legacy: String",
+            "Query.open: String",
+            "Query.secret: String"
+          ],
+          "operations": [
+            "query Query.legacy: String",
+            "query Query.open: String",
+            "query Query.secret: String"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl"
+      }
+    },
+    {
+      "id": "gql-c03-schema-definition-with-directive",
+      "kind": "counterexample",
+      "title": "Schema definition carrying a directive loses its root operations",
+      "claim_ids": [
+        "U-GQL-DIRECTIVES"
+      ],
+      "input": {
+        "file": "schema-directive.graphql",
+        "text": "directive @tag(name: String!) on SCHEMA\n\nschema @tag(name: \"orders\") {\n  query: RootQuery\n}\n\ntype RootQuery {\n  ping: String\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "type RootQuery"
+          ],
+          "fields": [
+            "RootQuery.ping: String"
+          ],
+          "operations": []
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl",
+        "divergence_note": "The importer does not recognise a schema definition that carries a directive, so the explicit root (query=RootQuery) and its operation are missing; the reference library reads both."
+      }
+    },
+    {
+      "id": "gql-c03b-schema-definition-without-directive",
+      "kind": "counterexample",
+      "title": "Control: the same schema definition without the directive",
+      "claim_ids": [
+        "S-GQL-SDL-ROOT-OPERATIONS",
+        "U-GQL-DIRECTIVES"
+      ],
+      "input": {
+        "file": "schema-directive.graphql",
+        "text": "directive @tag(name: String!) on SCHEMA\n\nschema {\n  query: RootQuery\n}\n\ntype RootQuery {\n  ping: String\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [
+            "query=RootQuery"
+          ],
+          "types": [
+            "type RootQuery"
+          ],
+          "fields": [
+            "RootQuery.ping: String"
+          ],
+          "operations": [
+            "query RootQuery.ping: String"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl"
+      }
+    },
+    {
+      "id": "gql-c04-brace-on-next-line",
+      "kind": "counterexample",
+      "title": "Opening brace on the next line drops fields and operations",
+      "claim_ids": [
+        "U-GQL-MULTILINE-DECLARATIONS"
+      ],
+      "input": {
+        "file": "brace.graphql",
+        "text": "type Query\n{\n  ping: String\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "type Query"
+          ],
+          "fields": [],
+          "operations": []
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl",
+        "divergence_note": "The line oriented importer drops the fields and operations of a declaration whose opening brace is on a later line; the reference library reads them."
+      }
+    },
+    {
+      "id": "gql-c04b-brace-on-same-line",
+      "kind": "counterexample",
+      "title": "Control: opening brace on the declaration line",
+      "claim_ids": [
+        "U-GQL-MULTILINE-DECLARATIONS"
+      ],
+      "input": {
+        "file": "brace.graphql",
+        "text": "type Query {\n  ping: String\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "type Query"
+          ],
+          "fields": [
+            "Query.ping: String"
+          ],
+          "operations": [
+            "query Query.ping: String"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl"
+      }
+    },
+    {
+      "id": "gql-c05-nested-list-type",
+      "kind": "counterexample",
+      "title": "Nested list types are truncated",
+      "claim_ids": [
+        "U-GQL-MULTILINE-DECLARATIONS"
+      ],
+      "input": {
+        "file": "nested-list.graphql",
+        "text": "type Query {\n  grid: [[Int]]\n  matrix: [[Int!]!]!\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "type Query"
+          ],
+          "fields": [
+            "Query.grid: [[Int]",
+            "Query.matrix: [[Int!]!"
+          ],
+          "operations": [
+            "query Query.grid: [[Int]",
+            "query Query.matrix: [[Int!]!"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl",
+        "divergence_note": "The importer truncates nested list types ([[Int]] is read as [[Int]); the reference library keeps them."
+      }
+    },
+    {
+      "id": "gql-c05b-single-list-type",
+      "kind": "counterexample",
+      "title": "Control: single-level list types",
+      "claim_ids": [
+        "U-GQL-MULTILINE-DECLARATIONS"
+      ],
+      "input": {
+        "file": "nested-list.graphql",
+        "text": "type Query {\n  grid: [Int]\n  matrix: [Int!]!\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "type Query"
+          ],
+          "fields": [
+            "Query.grid: [Int]",
+            "Query.matrix: [Int!]!"
+          ],
+          "operations": [
+            "query Query.grid: [Int]",
+            "query Query.matrix: [Int!]!"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl"
+      }
+    },
+    {
+      "id": "gql-c06-extend-type",
+      "kind": "counterexample",
+      "title": "extend type is recorded as a second type declaration",
+      "claim_ids": [
+        "U-GQL-TYPE-EXTENSIONS"
+      ],
+      "input": {
+        "file": "extend-vs-duplicate.graphql",
+        "text": "type Query {\n  a: String\n}\n\nextend type Query {\n  b: Int\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "type Query",
+            "type Query"
+          ],
+          "fields": [
+            "Query.a: String",
+            "Query.b: Int"
+          ],
+          "operations": [
+            "query Query.a: String",
+            "query Query.b: Int"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl",
+        "divergence_note": "The reference library merges extend type into the extended type; the importer records a second type Query declaration."
+      }
+    },
+    {
+      "id": "gql-c07-sdl-arguments-dropped",
+      "kind": "counterexample",
+      "title": "Field arguments and defaults in SDL are not recorded",
+      "claim_ids": [
+        "U-GQL-SDL-ARGUMENTS"
+      ],
+      "input": {
+        "file": "args.graphql",
+        "text": "type Query {\n  order(id: ID!, verbose: Boolean = false): Order\n  orders: [Order!]!\n}\n\ntype Order {\n  id: ID!\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "type Order",
+            "type Query"
+          ],
+          "fields": [
+            "Order.id: ID!",
+            "Query.order: Order",
+            "Query.orders: [Order!]!"
+          ],
+          "operations": [
+            "query Query.order: Order",
+            "query Query.orders: [Order!]!"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl",
+        "divergence_note": "Field and operation texts differ only by field arguments: the SDL importer records none, the reference library lists them."
+      }
+    },
+    {
+      "id": "gql-c07c-sdl-arguments-removed",
+      "kind": "counterexample",
+      "title": "Control: the SDL of the argument case with every argument removed",
+      "claim_ids": [
+        "U-GQL-SDL-ARGUMENTS"
+      ],
+      "input": {
+        "file": "args.graphql",
+        "text": "type Query {\n  order: Order\n  orders: [Order!]!\n}\n\ntype Order {\n  id: ID!\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "type Order",
+            "type Query"
+          ],
+          "fields": [
+            "Order.id: ID!",
+            "Query.order: Order",
+            "Query.orders: [Order!]!"
+          ],
+          "operations": [
+            "query Query.order: Order",
+            "query Query.orders: [Order!]!"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl"
+      }
+    },
+    {
+      "id": "gql-c07b-introspection-arguments-kept",
+      "kind": "counterexample",
+      "title": "Introspection input of the same schema keeps arguments and defaults",
+      "claim_ids": [
+        "S-GQL-INTROSPECTION",
+        "U-GQL-SDL-ARGUMENTS"
+      ],
+      "input": {
+        "file": "args.introspection.json",
+        "text": "{\n  \"__schema\": {\n    \"queryType\": {\n      \"name\": \"Query\"\n    },\n    \"mutationType\": null,\n    \"subscriptionType\": null,\n    \"types\": [\n      {\n        \"kind\": \"OBJECT\",\n        \"name\": \"Query\",\n        \"interfaces\": [],\n        \"fields\": [\n          {\n            \"name\": \"order\",\n            \"args\": [\n              {\n                \"name\": \"id\",\n                \"type\": {\n                  \"kind\": \"NON_NULL\",\n                  \"ofType\": {\n                    \"kind\": \"SCALAR\",\n                    \"name\": \"ID\"\n                  }\n                },\n                \"defaultValue\": null\n              },\n              {\n                \"name\": \"verbose\",\n                \"type\": {\n                  \"kind\": \"SCALAR\",\n                  \"name\": \"Boolean\"\n                },\n                \"defaultValue\": \"false\"\n              }\n            ],\n            \"type\": {\n              \"kind\": \"OBJECT\",\n              \"name\": \"Order\"\n            },\n            \"isDeprecated\": false,\n            \"deprecationReason\": null\n          },\n          {\n            \"name\": \"orders\",\n            \"args\": [],\n            \"type\": {\n              \"kind\": \"NON_NULL\",\n              \"ofType\": {\n                \"kind\": \"LIST\",\n                \"ofType\": {\n                  \"kind\": \"NON_NULL\",\n                  \"ofType\": {\n                    \"kind\": \"OBJECT\",\n                    \"name\": \"Order\"\n                  }\n                }\n              }\n            },\n            \"isDeprecated\": false,\n            \"deprecationReason\": null\n          }\n        ]\n      },\n      {\n        \"kind\": \"OBJECT\",\n        \"name\": \"Order\",\n        \"interfaces\": [],\n        \"fields\": [\n          {\n            \"name\": \"id\",\n            \"args\": [],\n            \"type\": {\n              \"kind\": \"NON_NULL\",\n              \"ofType\": {\n                \"kind\": \"SCALAR\",\n                \"name\": \"ID\"\n              }\n            },\n            \"isDeprecated\": false,\n            \"deprecationReason\": null\n          }\n        ]\n      },\n      {\n        \"kind\": \"SCALAR\",\n        \"name\": \"ID\"\n      },\n      {\n        \"kind\": \"SCALAR\",\n        \"name\": \"Boolean\"\n      },\n      {\n        \"kind\": \"SCALAR\",\n        \"name\": \"String\"\n      }\n    ]\n  }\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-introspection-json",
+          "adapter": "graphql-introspection-object",
+          "warnings": [],
+          "schemas": [
+            "query=Query"
+          ],
+          "types": [
+            "object Order",
+            "object Query",
+            "scalar Boolean",
+            "scalar ID",
+            "scalar String"
+          ],
+          "fields": [
+            "Order.id: ID!",
+            "Query.order(id: ID!, verbose: Boolean = false): Order",
+            "Query.orders: [Order!]!"
+          ],
+          "operations": [
+            "query Query.order(id: ID!, verbose: Boolean = false): Order",
+            "query Query.orders: [Order!]!"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "introspection"
+      }
+    },
+    {
+      "id": "gql-c09a-two-schema-definitions",
+      "kind": "counterexample",
+      "title": "Two schema definitions are both recorded",
+      "claim_ids": [
+        "U-GQL-SCHEMA-VALIDATION"
+      ],
+      "input": {
+        "file": "two-schemas.graphql",
+        "text": "schema {\n  query: Query\n}\n\nschema {\n  query: Other\n}\n\ntype Query {\n  a: String\n}\n\ntype Other {\n  b: String\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [
+            "query=Other",
+            "query=Query"
+          ],
+          "types": [
+            "type Other",
+            "type Query"
+          ],
+          "fields": [
+            "Other.b: String",
+            "Query.a: String"
+          ],
+          "operations": [
+            "query Other.b: String",
+            "query Query.a: String"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl",
+        "divergence_note": "Both library versions reject the document (Must provide only one schema definition.); the importer records both schema definitions without a warning."
+      }
+    },
+    {
+      "id": "gql-c09b-undefined-type-reference",
+      "kind": "counterexample",
+      "title": "A field referencing an undefined type is accepted",
+      "claim_ids": [
+        "U-GQL-SCHEMA-VALIDATION"
+      ],
+      "input": {
+        "file": "undefined-type.graphql",
+        "text": "type Query {\n  order: Missing\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "type Query"
+          ],
+          "fields": [
+            "Query.order: Missing"
+          ],
+          "operations": [
+            "query Query.order: Missing"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl",
+        "divergence_note": "Both library versions reject the document (Unknown type \"Missing\".); the importer accepts the dangling reference."
+      }
+    },
+    {
+      "id": "gql-c09c-duplicate-type-definition",
+      "kind": "counterexample",
+      "title": "A duplicate type definition is accepted",
+      "claim_ids": [
+        "U-GQL-SCHEMA-VALIDATION",
+        "U-GQL-TYPE-EXTENSIONS"
+      ],
+      "input": {
+        "file": "extend-vs-duplicate.graphql",
+        "text": "type Query {\n  a: String\n}\n\ntype Query {\n  b: Int\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "type Query",
+            "type Query"
+          ],
+          "fields": [
+            "Query.a: String",
+            "Query.b: Int"
+          ],
+          "operations": [
+            "query Query.a: String",
+            "query Query.b: Int"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl",
+        "divergence_note": "Both library versions reject the document (There can be only one type named \"Query\".); the importer records both declarations without a warning."
+      }
+    },
+    {
+      "id": "gql-c10-interface-named-as-root",
+      "kind": "counterexample",
+      "title": "An interface named Query is treated as the query root",
+      "claim_ids": [
+        "U-GQL-SCHEMA-VALIDATION"
+      ],
+      "input": {
+        "file": "interface-root.graphql",
+        "text": "interface Query {\n  a: String\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "interface Query"
+          ],
+          "fields": [
+            "Query.a: String"
+          ],
+          "operations": [
+            "query Query.a: String"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl",
+        "divergence_note": "Both library versions build the schema but report a validation error (Query root type must be Object type, it cannot be Query.); the importer accepts an interface as the query root."
+      }
+    },
+    {
+      "id": "gql-c11-oneof-input-edition-dependent",
+      "kind": "counterexample",
+      "title": "input with @oneOf (September 2025 edition syntax)",
+      "claim_ids": [
+        "U-GQL-SPEC-EDITION"
+      ],
+      "input": {
+        "file": "oneof.graphql",
+        "text": "input Choice @oneOf {\n  a: Int\n  b: String\n}\n\ntype Query {\n  pick(choice: Choice!): String\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "input Choice",
+            "type Query"
+          ],
+          "fields": [
+            "Choice.a: Int",
+            "Choice.b: String",
+            "Query.pick: String"
+          ],
+          "operations": [
+            "query Query.pick: String"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl",
+        "divergence_note": "Both library versions (16.14.2 and 17.0.2) accept @oneOf, so this is not a library version difference. Field and operation texts differ only by field arguments: the SDL importer records none, the reference library lists them."
+      }
+    },
+    {
+      "id": "gql-c12-implements-union-enum-members",
+      "kind": "counterexample",
+      "title": "implements clauses, union members and enum values",
+      "claim_ids": [
+        "U-GQL-TYPE-RELATIONS"
+      ],
+      "input": {
+        "file": "members.graphql",
+        "text": "type Query {\n  node: Node\n  search: SearchResult\n  status: Status\n}\n\ninterface Node {\n  id: ID!\n}\n\ntype Order implements Node {\n  id: ID!\n}\n\ntype Customer implements Node {\n  id: ID!\n}\n\nunion SearchResult = Order | Customer\n\nenum Status {\n  OPEN\n  CLOSED\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "enum Status",
+            "interface Node",
+            "type Customer",
+            "type Order",
+            "type Query",
+            "union SearchResult"
+          ],
+          "fields": [
+            "Customer.id: ID!",
+            "Node.id: ID!",
+            "Order.id: ID!",
+            "Query.node: Node",
+            "Query.search: SearchResult",
+            "Query.status: Status"
+          ],
+          "operations": [
+            "query Query.node: Node",
+            "query Query.search: SearchResult",
+            "query Query.status: Status"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl"
+      }
+    },
+    {
+      "id": "gql-c12b-members-replaced",
+      "kind": "counterexample",
+      "title": "Control: the same document with other implements, members and values",
+      "claim_ids": [
+        "U-GQL-TYPE-RELATIONS"
+      ],
+      "input": {
+        "file": "members.graphql",
+        "text": "type Query {\n  node: Node\n  search: SearchResult\n  status: Status\n}\n\ninterface Node {\n  id: ID!\n}\n\ntype Order {\n  id: ID!\n}\n\ntype Customer {\n  id: ID!\n}\n\nunion SearchResult = Customer\n\nenum Status {\n  PENDING\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "enum Status",
+            "interface Node",
+            "type Customer",
+            "type Order",
+            "type Query",
+            "union SearchResult"
+          ],
+          "fields": [
+            "Customer.id: ID!",
+            "Node.id: ID!",
+            "Order.id: ID!",
+            "Query.node: Node",
+            "Query.search: SearchResult",
+            "Query.status: Status"
+          ],
+          "operations": [
+            "query Query.node: Node",
+            "query Query.search: SearchResult",
+            "query Query.status: Status"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl"
+      }
+    },
+    {
+      "id": "gql-c13-type-text-not-canonicalized",
+      "kind": "counterexample",
+      "title": "Type text keeps its source spacing",
+      "claim_ids": [
+        "S-GQL-SDL-FIELDS"
+      ],
+      "input": {
+        "file": "spacing.graphql",
+        "text": "type Query {\n  tight: [Order!]!\n  spaced: [ Order! ]!\n}\n\ntype Order {\n  id: ID!\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "built",
+        "projection": {
+          "status": "partial",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [],
+          "schemas": [],
+          "types": [
+            "type Order",
+            "type Query"
+          ],
+          "fields": [
+            "Order.id: ID!",
+            "Query.spaced: [ Order! ]!",
+            "Query.tight: [Order!]!"
+          ],
+          "operations": [
+            "query Query.spaced: [ Order! ]!",
+            "query Query.tight: [Order!]!"
+          ]
+        }
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl"
+      }
+    },
+    {
+      "id": "gql-x01-empty-document",
+      "kind": "negative",
+      "title": "Empty document",
+      "claim_ids": [
+        "S-GQL-BLOCKED-ON-NO-DECLARATIONS"
+      ],
+      "input": {
+        "file": "empty.graphql",
+        "text": ""
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "throws",
+        "projection": {
+          "status": "blocked",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [
+            {
+              "code": "GRAPHQL_TYPES_NOT_FOUND",
+              "message": "no GraphQL type declarations were found"
+            }
+          ],
+          "schemas": [],
+          "types": [],
+          "fields": [],
+          "operations": []
+        },
+        "contract_error": "cannot emit a protocol contract from a blocked protocol scan"
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl"
+      }
+    },
+    {
+      "id": "gql-x02-comment-only-document",
+      "kind": "negative",
+      "title": "Comment-only document",
+      "claim_ids": [
+        "S-GQL-BLOCKED-ON-NO-DECLARATIONS"
+      ],
+      "input": {
+        "file": "comment.graphql",
+        "text": "# no declarations here\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "throws",
+        "projection": {
+          "status": "blocked",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [
+            {
+              "code": "GRAPHQL_TYPES_NOT_FOUND",
+              "message": "no GraphQL type declarations were found"
+            }
+          ],
+          "schemas": [],
+          "types": [],
+          "fields": [],
+          "operations": []
+        },
+        "contract_error": "cannot emit a protocol contract from a blocked protocol scan"
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl"
+      }
+    },
+    {
+      "id": "gql-x03-resolver-source-is-not-an-input",
+      "kind": "negative",
+      "title": "JavaScript resolver module",
+      "claim_ids": [
+        "U-GQL-RESOLVERS"
+      ],
+      "input": {
+        "file": "resolvers.js",
+        "text": "const resolvers = { Query: { ping: () => 'pong' } };\n"
+      },
+      "expect": {
+        "outcome": "error",
+        "error_prefix": "invalid YAML protocol document resolvers.js: "
+      },
+      "oracle": {
+        "compare": false,
+        "reason": "the reference library reads no JavaScript resolver modules; this case is an importer-side negative only"
+      }
+    },
+    {
+      "id": "gql-x04-introspection-without-schema",
+      "kind": "negative",
+      "title": "JSON object without __schema",
+      "claim_ids": [
+        "S-GQL-BLOCKED-ON-NO-DECLARATIONS"
+      ],
+      "input": {
+        "file": "not-introspection.json",
+        "text": "{\"data\":{\"hello\":\"world\"}}\n"
+      },
+      "expect": {
+        "outcome": "error",
+        "error_prefix": "GraphQL introspection object must contain __schema or data.__schema"
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "introspection"
+      }
+    },
+    {
+      "id": "gql-x05-introspection-invalid-json",
+      "kind": "negative",
+      "title": "Invalid JSON introspection input",
+      "claim_ids": [
+        "S-GQL-BLOCKED-ON-NO-DECLARATIONS"
+      ],
+      "input": {
+        "file": "broken.json",
+        "text": "{\"__schema\": {"
+      },
+      "expect": {
+        "outcome": "error",
+        "error_prefix": "invalid JSON protocol document broken.json: "
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "introspection"
+      }
+    },
+    {
+      "id": "gql-x06-executable-operation-document",
+      "kind": "negative",
+      "title": "Executable operation document",
+      "claim_ids": [
+        "S-GQL-BLOCKED-ON-NO-DECLARATIONS",
+        "U-GQL-EXECUTABLE-DOCUMENTS"
+      ],
+      "input": {
+        "file": "operation.graphql",
+        "text": "query OrderById($id: ID!) {\n  order(id: $id) {\n    id\n  }\n}\n"
+      },
+      "expect": {
+        "outcome": "scan",
+        "contract": "throws",
+        "projection": {
+          "status": "blocked",
+          "dialect": "graphql-sdl",
+          "adapter": "graphql-sdl-static",
+          "warnings": [
+            {
+              "code": "GRAPHQL_TYPES_NOT_FOUND",
+              "message": "no GraphQL type declarations were found"
+            }
+          ],
+          "schemas": [],
+          "types": [],
+          "fields": [],
+          "operations": []
+        },
+        "contract_error": "cannot emit a protocol contract from a blocked protocol scan"
+      },
+      "oracle": {
+        "compare": true,
+        "input_kind": "sdl"
+      }
+    }
+  ],
+  "equivalences": [
+    {
+      "id": "gql-eq-directives",
+      "kind": "planes",
+      "cases": [
+        "gql-c02-directives-not-recorded",
+        "gql-c02b-directives-stripped"
+      ],
+      "reason": "directive definitions and usages do not reach the contract"
+    },
+    {
+      "id": "gql-eq-type-relations",
+      "kind": "planes",
+      "cases": [
+        "gql-c12-implements-union-enum-members",
+        "gql-c12b-members-replaced"
+      ],
+      "reason": "implements, union members and enum values do not reach the contract"
+    },
+    {
+      "id": "gql-eq-sdl-arguments",
+      "kind": "planes",
+      "cases": [
+        "gql-c07-sdl-arguments-dropped",
+        "gql-c07c-sdl-arguments-removed"
+      ],
+      "reason": "SDL field arguments do not reach the contract"
+    }
+  ],
+  "contrasts": [
+    {
+      "id": "gql-ct-schema-directive",
+      "cases": [
+        "gql-c03-schema-definition-with-directive",
+        "gql-c03b-schema-definition-without-directive"
+      ],
+      "differ_in": [
+        "schemas",
+        "operations"
+      ]
+    },
+    {
+      "id": "gql-ct-brace-line",
+      "cases": [
+        "gql-c04-brace-on-next-line",
+        "gql-c04b-brace-on-same-line"
+      ],
+      "differ_in": [
+        "fields",
+        "operations"
+      ]
+    },
+    {
+      "id": "gql-ct-nested-list",
+      "cases": [
+        "gql-c05-nested-list-type",
+        "gql-c05b-single-list-type"
+      ],
+      "differ_in": [
+        "fields",
+        "operations"
+      ]
+    },
+    {
+      "id": "gql-ct-sdl-vs-introspection-arguments",
+      "cases": [
+        "gql-c07-sdl-arguments-dropped",
+        "gql-c07b-introspection-arguments-kept"
+      ],
+      "differ_in": [
+        "fields",
+        "operations",
+        "schemas",
+        "types"
+      ]
+    }
+  ],
+  "determinism": [
+    {
+      "id": "gql-det-n01",
+      "base_case": "gql-n01-sdl-explicit-roots",
+      "transforms": [
+        "crlf",
+        "no-final-newline"
+      ]
+    },
+    {
+      "id": "gql-det-n04",
+      "base_case": "gql-n04-introspection-data-wrapper",
+      "transforms": [
+        "crlf",
+        "reverse-json-keys"
+      ]
+    }
+  ],
+  "flow_cases": []
+}
