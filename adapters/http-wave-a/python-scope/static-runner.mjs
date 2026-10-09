@@ -32,13 +32,15 @@ export const STATIC_LAYER_SOURCES = {
   't12-django-drf-leaf': 'adapters/http-wave-a/django-drf.mjs',
 };
 
+// Lists every file below dir, sorted, with nothing skipped: a __pycache__ directory inside a fixture tree is a set of files
+// the verifier has to see (Python loads a .pyc whose recorded source size and mtime match instead of the source it hashed).
+// A symbolic link is listed as a file entry, whether it points at a file or a directory.
 export function walk(dir, rel = '') {
   return fs.readdirSync(path.join(dir, rel), { withFileTypes: true })
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
     .flatMap((entry) => {
       const next = rel ? `${rel}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) return entry.name === '__pycache__' ? [] : walk(dir, next);
-      return [next];
+      return entry.isDirectory() ? walk(dir, next) : [next];
     });
 }
 
@@ -111,7 +113,9 @@ function djangoLayers(dir) {
 
 const BUILDERS = { flask: flaskLayers, fastapi: fastapiLayers, django: djangoLayers };
 
-function canonical(value) {
+// Sorts every object's keys (default string order), so the stored document has one spelling; verify.mjs uses it to hold a
+// stored static.json to exactly the text this runner prints for the document it holds.
+export function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
   if (!value || typeof value !== 'object') return value;
   return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]));

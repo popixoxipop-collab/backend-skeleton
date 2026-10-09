@@ -323,9 +323,7 @@
       "id": "registry-litestar",
       "command": "curl -fsS https://pypi.org/pypi/litestar/json",
       "exit_code": 0,
-      "stdout_sha256": "bac801a97c693962e5273eff3a49e4c4efd2fd02ba8345e2da1446129e634033",
-      "stdout_bytes": 128485,
-      "stdout_unstored": "PyPI JSON API response at fetch time (volatile registry state); results/registry.json keeps the fields this record relies on"
+      "stdout_unstored": "PyPI JSON API response at fetch time. It is volatile registry state and is not stored, so this command carries no hash and no size. results/registry.json keeps the fields this record relies on and is bound by pin.registry.extract_sha256, and each pinned wheel hash must equal the hash pip downloaded."
     },
     {
       "id": "venv",
@@ -387,14 +385,15 @@
   "limits": [
     "Route-set evidence only: the oracle is the framework route table read at import time. Nothing in this record issued an HTTP request, so no entry is Runtime-tested.",
     "HEAD and OPTIONS are dropped from the stored expected pairs. A method the framework does not report is stored as \"-\"; a future scanner pair with a null method compares as \"-\" and counts as unresolved, never as an exact match.",
-    "CI does not reinstall the framework: the stored oracle output is bound by sha256, by the pin and by the sha256 of oracle.py. There is no scanner to re-run; the verifier fails when a scanner or adapter file named after the framework appears (adapter-appeared), so this record cannot outlive a new adapter unnoticed.",
+    "CI does not reinstall the framework: the stored oracle output is bound by sha256, by the pin and by the sha256 of oracle.py. There is no scanner to re-run; the verifier fails (adapter-appeared) when a scanner or adapter file named after the framework appears, or when a file other than SCOPE.json, results and fixtures appears in this record's own directory, so this record cannot outlive a new adapter unnoticed. It looks at file names only.",
     "Only the pinned version was run. Releases uploaded after the pinned wheel are listed per package and are not covered.",
-    "record_digest seals the whole record, so an edit that is not re-sealed fails. Prose is sealed, not recomputed: statement, reasons, limits, plan, oracle_range text, layer roles, construct and covers texts are not derived from evidence, so a re-sealed prose edit is not detected by the verifier and must be caught in review.",
-    "Litestar adds its own docs and schema handlers to every application (the same set of generated GET pairs in every fixture) and an automatic OPTIONS handler per path; oracle.py marks them generated and the comparison drops OPTIONS, so a future scanner is held to the non-generated pairs, plus the generated ones only for the generated-routes entry."
+    "record_digest seals the whole record, so an edit that is not re-sealed fails. Prose is sealed, not recomputed: statement, reasons, limits, plan, oracle_range text, layer roles, construct and covers texts and the stdout_unstored text are not derived from evidence, so a re-sealed prose edit is not detected by the verifier and must be caught in review.",
+    "Litestar adds its own docs and schema handlers to every application (the same set of generated GET pairs in every fixture) and an automatic OPTIONS handler per path; oracle.py marks them generated and the comparison drops OPTIONS, so a future scanner is held to the non-generated pairs, plus the generated ones only for the generated-routes entry.",
+    "Held to shape, order and the hash of the file, not recomputed from a second source: the values the comparisons do not read (in the registry extract the info_version, requires_python, size, upload time and yanked flag; in an oracle row the kind, name, view, regex and viewset_actions; in a generated group its name; in pip freeze the packages besides the pinned ones and the order of the lines), a method every comparison drops (HEAD, OPTIONS) and the path of a generated route that has no other method. The PyPI response is not stored, so a registry command states no hash and no size. A set of method and path pairs collapses a pair that two different routes register. The members of a SCOPE.json object may be reordered without changing the seal (it sorts keys); the order of the must-catch, limits and plan lists is sealed but is the author's."
   ],
   "plan": [
     "HTTP-python-litestar-02 (not started): T06 needs decorator/Router/Controller facts and a T13 adapter before any static comparison; the expected pairs stored per must-catch entry are the acceptance baseline. Until then the target stays unsupported.",
     "HTTP-python-litestar-03: Runtime-tested stays BLOCKED until a request-level verifier exists."
   ],
-  "record_digest": "6f1232abfd9948a8f0872b076d7bf459d639ad395ccb3066dd99a98a822af8e4"
+  "record_digest": "0f79044f2bfd3f56f88234a4deb32998c5f60f520229471694e511356bbb1f9d"
 }

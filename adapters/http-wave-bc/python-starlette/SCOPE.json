@@ -241,9 +241,7 @@
       "id": "registry-starlette",
       "command": "curl -fsS https://pypi.org/pypi/starlette/json",
       "exit_code": 0,
-      "stdout_sha256": "efa27d0ed98bc0f5ae5bd9ede971a34dabdcf5559506e33115cfe5aa308598d3",
-      "stdout_bytes": 240787,
-      "stdout_unstored": "PyPI JSON API response at fetch time (volatile registry state); results/registry.json keeps the fields this record relies on"
+      "stdout_unstored": "PyPI JSON API response at fetch time. It is volatile registry state and is not stored, so this command carries no hash and no size. results/registry.json keeps the fields this record relies on and is bound by pin.registry.extract_sha256, and each pinned wheel hash must equal the hash pip downloaded."
     },
     {
       "id": "venv",
@@ -305,14 +303,15 @@
   "limits": [
     "Route-set evidence only: the oracle is the framework route table read at import time. Nothing in this record issued an HTTP request, so no entry is Runtime-tested.",
     "HEAD and OPTIONS are dropped from the stored expected pairs. A method the framework does not report is stored as \"-\"; a future scanner pair with a null method compares as \"-\" and counts as unresolved, never as an exact match.",
-    "CI does not reinstall the framework: the stored oracle output is bound by sha256, by the pin and by the sha256 of oracle.py. There is no scanner to re-run; the verifier fails when a scanner or adapter file named after the framework appears (adapter-appeared), so this record cannot outlive a new adapter unnoticed.",
+    "CI does not reinstall the framework: the stored oracle output is bound by sha256, by the pin and by the sha256 of oracle.py. There is no scanner to re-run; the verifier fails (adapter-appeared) when a scanner or adapter file named after the framework appears, or when a file other than SCOPE.json, results and fixtures appears in this record's own directory, so this record cannot outlive a new adapter unnoticed. It looks at file names only.",
     "Only the pinned version was run. Releases uploaded after the pinned wheel are listed per package and are not covered.",
-    "record_digest seals the whole record, so an edit that is not re-sealed fails. Prose is sealed, not recomputed: statement, reasons, limits, plan, oracle_range text, layer roles, construct and covers texts are not derived from evidence, so a re-sealed prose edit is not detected by the verifier and must be caught in review.",
-    "A Mount of an ASGI app the framework ships (StaticFiles) appears in the oracle as a generated pair with an unknown method (\"-\"); a future scanner must keep it as unknown-method instead of inventing methods. oracle.py classifies a Mount or Host that has no child routes by the class of the app it serves: a framework class is generated, an app defined in the fixture is an ordinary route. A fixture that mounts an empty Router or Starlette is therefore reported as generated too."
+    "record_digest seals the whole record, so an edit that is not re-sealed fails. Prose is sealed, not recomputed: statement, reasons, limits, plan, oracle_range text, layer roles, construct and covers texts and the stdout_unstored text are not derived from evidence, so a re-sealed prose edit is not detected by the verifier and must be caught in review.",
+    "A Mount of an ASGI app the framework ships (StaticFiles) appears in the oracle as a generated pair with an unknown method (\"-\"); a future scanner must keep it as unknown-method instead of inventing methods. oracle.py classifies a Mount or Host that has no child routes by the class of the app it serves: a framework class is generated, an app defined in the fixture is an ordinary route. A fixture that mounts an empty Router or Starlette is therefore reported as generated too.",
+    "Held to shape, order and the hash of the file, not recomputed from a second source: the values the comparisons do not read (in the registry extract the info_version, requires_python, size, upload time and yanked flag; in an oracle row the kind, name, view, regex and viewset_actions; in a generated group its name; in pip freeze the packages besides the pinned ones and the order of the lines), a method every comparison drops (HEAD, OPTIONS) and the path of a generated route that has no other method. The PyPI response is not stored, so a registry command states no hash and no size. A set of method and path pairs collapses a pair that two different routes register. The members of a SCOPE.json object may be reordered without changing the seal (it sorts keys); the order of the must-catch, limits and plan lists is sealed but is the author's."
   ],
   "plan": [
     "HTTP-python-starlette-02 (not started): T06 needs Route/Mount/decorator facts and a T13 adapter before any static comparison; the expected pairs stored per must-catch entry are the acceptance baseline. Until then the target stays unsupported.",
     "HTTP-python-starlette-03: Runtime-tested stays BLOCKED until a request-level verifier exists."
   ],
-  "record_digest": "7f4ebc8c30c1d2d1912bc19e8ab42491251d24b808fcdde2749c066a1f003564"
+  "record_digest": "18c55680f8242e38651f6bfc46e587badce1252b93d35308fd2bddc5293ec67d"
 }

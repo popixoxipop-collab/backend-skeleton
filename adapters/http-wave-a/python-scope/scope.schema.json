@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://bskel.internal/schemas/python-http-scope-record/0",
   "title": "Python HTTP target scope record (HTTP-python-*-01)",
-  "description": "Shape only. verify.mjs recomputes every hash, pin, count and comparison the record states and checks record_digest over the whole record.",
+  "description": "Shape only, plus the two rules that keep a record from asserting what cannot be recomputed: a command whose output is not stored carries no hash and no byte count, every other command carries both. verify.mjs recomputes or compares exactly everything it can derive from the stored evidence and seals the whole record with record_digest; its header names the prose it cannot derive.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema", "item", "framework", "track", "claims", "runtime_tested", "evidence_level", "registration", "layers", "fixtures", "must_catch", "scope", "conformance", "pin", "oracle_tool", "oracle_range", "executed_commands", "limits", "plan", "record_digest"],
@@ -100,6 +100,7 @@
                 "flags": { "$ref": "#/$defs/strings" },
                 "covering_flags": {
                   "type": "array",
+                  "uniqueItems": true,
                   "items": {
                     "type": "object",
                     "additionalProperties": false,
@@ -150,10 +151,10 @@
             "additionalProperties": false,
             "required": ["pypi", "role", "version", "wheel", "wheel_sha256", "registry_sha256", "released_after_pin_not_covered"],
             "properties": {
-              "pypi": { "$ref": "#/$defs/text" },
+              "pypi": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
               "role": { "enum": ["framework", "companion"] },
               "version": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)*$" },
-              "wheel": { "$ref": "#/$defs/text" },
+              "wheel": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*[.]whl$" },
               "wheel_sha256": { "$ref": "#/$defs/sha256" },
               "registry_sha256": { "$ref": "#/$defs/sha256" },
               "released_after_pin_not_covered": { "$ref": "#/$defs/strings" }
@@ -165,7 +166,7 @@
           "type": "object",
           "additionalProperties": false,
           "required": ["fetched_utc", "extract_sha256"],
-          "properties": { "fetched_utc": { "$ref": "#/$defs/text" }, "extract_sha256": { "$ref": "#/$defs/sha256" } }
+          "properties": { "fetched_utc": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z[.][.][0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" }, "extract_sha256": { "$ref": "#/$defs/sha256" } }
         },
         "existing_profile_pin": {
           "oneOf": [
@@ -174,7 +175,15 @@
               "type": "object",
               "additionalProperties": false,
               "required": ["source", "value", "check_command"],
-              "properties": { "source": { "$ref": "#/$defs/text" }, "value": { "type": "object" }, "check_command": { "$ref": "#/$defs/text" } }
+              "properties": {
+                "source": { "$ref": "#/$defs/text" },
+                "value": {
+                  "type": "object",
+                  "required": ["repo", "ref"],
+                  "properties": { "repo": { "type": "string", "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$" }, "ref": { "type": "string", "pattern": "^[0-9a-f]{40}$" } }
+                },
+                "check_command": { "const": "profile-ref-check" }
+              }
             }
           ]
         }
@@ -203,7 +212,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "command", "exit_code", "stdout_sha256", "stdout_bytes"],
+        "required": ["id", "command", "exit_code"],
         "properties": {
           "id": { "$ref": "#/$defs/text" },
           "command": { "$ref": "#/$defs/text" },
@@ -214,7 +223,10 @@
           "stdout_inline": { "type": "string" },
           "stdout_empty": { "const": true },
           "stdout_unstored": { "$ref": "#/$defs/text" }
-        }
+        },
+        "if": { "required": ["stdout_unstored"], "properties": { "stdout_unstored": true } },
+        "then": { "properties": { "stdout_sha256": false, "stdout_bytes": false } },
+        "else": { "required": ["stdout_sha256", "stdout_bytes"], "properties": { "stdout_sha256": true, "stdout_bytes": true } }
       }
     },
     "limits": { "type": "array", "minItems": 3, "items": { "$ref": "#/$defs/text" } },
