@@ -51,7 +51,7 @@ test('commands: both recorded commands, the per-file counts and every fixture re
 	if (!L.needCommit(t, verdict)) return;
 	const dir = L.tmpDir('t09-baseline-');
 	L.extractCommit(ROOT, commit, record.files.map((f) => f.path), dir);
-	L.linkModules(ROOT, dir);
+	assert.deepEqual(L.linkModules(ROOT, dir, record.files.map((f) => f.path)), record.environment.loaded_packages);
 	const [direct, nested] = ['direct-tap', 'nested-runner'].map((id) => record.commands.find((c) => c.id === id));
 	const tap = L.runTapTests(dir, paths('test'));
 	assert.deepEqual([direct.command, direct.exit_code, direct.result], [L.tapCommand(paths('test')), tap.exit_code, tap.result]);
@@ -59,6 +59,28 @@ test('commands: both recorded commands, the per-file counts and every fixture re
 	assert.deepEqual([nested.exit_code, nested.first_line, nested.result], [run.exit_code, run.first_line, run.result]);
 	for (const f of record.files.filter((e) => e.role === 'test')) assert.equal(L.runTapTests(dir, [f.path]).result.tests, f.test_count, f.path);
 	assert.deepEqual(L.replayProblems(record, await L.replay(record, dir)), []);
+});
+
+test('negative: an installed version that differs from the pinned package-lock.json, a missing package and an import the lock lacks fail, and the copy is then not linked', () => {
+	const dir = L.tmpDir('t09-lock-');
+	const write = (rel, text) => { fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true }); fs.writeFileSync(path.join(dir, rel), text); };
+	const lock = { lockfileVersion: 3, packages: { '': {}, 'node_modules/alpha': { version: '1.0.0', dependencies: { beta: '^2.0.0' } }, 'node_modules/beta': { version: '2.1.0' }, 'node_modules/@scope/gamma': { version: '3.0.0' }, 'node_modules/unused': { version: '9.9.9' } } };
+	const source = "import alpha from 'alpha/lib/x.js';\nimport fs from 'node:fs';\nimport './local.mjs';\nconst lazy = () => import('@scope/gamma');\n// values come from 'not-an-import'\n";
+	const installed = { alpha: '1.0.0', beta: '2.1.0', '@scope/gamma': '3.0.0' };
+	const checkout = (name, versions) => { for (const [pkg, version] of Object.entries(versions)) write(`${name}/node_modules/${pkg}/package.json`, JSON.stringify({ name: pkg, version })); return path.join(dir, name); };
+	const copy = (name, text = source) => { write(`${name}/main.mjs`, text); write(`${name}/package-lock.json`, JSON.stringify(lock)); return path.join(dir, name); };
+	const link = (root, dest) => L.linkModules(root, dest, ['main.mjs', 'package-lock.json']);
+	const aligned = copy('copy-aligned');
+	assert.deepEqual(link(checkout('aligned', installed), aligned), { '@scope/gamma': '3.0.0', alpha: '1.0.0', beta: '2.1.0' });
+	assert.ok(fs.lstatSync(path.join(aligned, 'node_modules')).isSymbolicLink());
+	const refused = (name, root, pattern, text) => {
+		const dest = copy(name, text);
+		assert.throws(() => link(root, dest), pattern);
+		assert.equal(fs.existsSync(path.join(dest, 'node_modules')), false, `${name} must not be linked`);
+	};
+	refused('copy-newer', checkout('newer', { ...installed, beta: '2.1.1' }), /beta: installed 2\.1\.1, the pinned package-lock\.json states 2\.1\.0/);
+	refused('copy-missing', checkout('missing', { alpha: '1.0.0', '@scope/gamma': '3.0.0' }), /beta: node_modules\/beta\/package\.json cannot be read/);
+	refused('copy-extra', checkout('extra', installed), /delta \(required by main\.mjs\) has no node_modules\/delta entry/, `${source}import 'delta';\n`);
 });
 
 test('negative: an edit that is not re-sealed is reported through artifact_digest (swapped calls, limit text, limit fixtures, expect, class, status)', () => {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import { builtinModules } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -31,6 +32,7 @@ const COUNT_KEYS = ['tests', 'suites', 'pass', 'fail', 'cancelled', 'skipped', '
 const DIGEST_KEYS = ['bytes', 'git_blob_sha1', 'sha256'];
 const GENERATED = /(^|\/)(__pycache__|node_modules)(\/|$)|\.pyc$/;
 const BY_NUMBER = /#\d|\bPR\s*\d|\/pull\/\d/;
+const SCRIPT = /\.(mjs|cjs|js)$/;
 
 export function canonical(value) {
 	if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -136,6 +138,8 @@ export function verifyRecord(r, reading) {
 	}
 	if (!SHA1.test(r?.base_commit ?? '')) bad('base_commit must be a 40-hex commit id');
 	if (!SHA1.test(r?.base_tree ?? '')) bad('base_tree must be a 40-hex tree id');
+	const loaded = r?.environment?.loaded_packages;
+	if (!loaded || typeof loaded !== 'object' || Array.isArray(loaded) || Object.keys(loaded).length === 0 || !Object.values(loaded).every((v) => /^\d+\.\d+\.\d+/.test(v))) bad('environment.loaded_packages must map package names to versions');
 	const paths = new Set();
 	for (const f of Array.isArray(r?.files) ? r.files : []) {
 		const where = `files: ${f?.path}`;
@@ -343,12 +347,69 @@ export function extractCommit(root, commit, paths, dest) {
 	}
 }
 
+// The package a bare specifier names ('ajv/dist/2020.js' -> 'ajv', '@scope/name/x' -> '@scope/name'); relative, absolute,
+// node: and builtin specifiers name none.
+const packageOf = (specifier) => {
+	if (/^(\.|\/|node:|file:|data:)/.test(specifier)) return null;
+	const parts = specifier.split('/');
+	const name = specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
+	return builtinModules.includes(name) ? null : name;
+};
+
+// A textual scan: import and export clauses that start a line, side-effect imports, and import() and require() with a string
+// literal. A specifier that is built at run time is not seen.
+const IMPORT_FORMS = /^[ \t]*(?:import|export)\b[\w$*\s,{}]*?\bfrom\s*(['"])([^'"\n]+)\1|^[ \t]*import\s*(['"])([^'"\n]+)\3|\b(?:import|require)\s*\(\s*(['"])([^'"\n]+)\5\s*\)/gm;
+export const importedPackages = (source) => [...new Set([...source.matchAll(IMPORT_FORMS)].map((m) => packageOf(m[2] ?? m[4] ?? m[6])).filter(Boolean))].sort();
+
+// The packages the texts can load: what they import, then what those packages require (`dependencies`), each with the
+// version the lock states (lockfileVersion 3, flat node_modules/<name>). A package the lock does not state is a problem.
+export function lockedVersions(lock, texts) {
+	const found = new Map();
+	const seen = new Set();
+	const problems = [];
+	const queue = texts.flatMap(({ path: file, text }) => importedPackages(text).map((name) => [name, file]));
+	for (const [name, by] of queue) {
+		if (seen.has(name)) continue;
+		seen.add(name);
+		const entry = lock?.packages?.[`node_modules/${name}`];
+		if (typeof entry?.version !== 'string') {
+			problems.push(`${name} (required by ${by}) has no node_modules/${name} entry with a version in the pinned package-lock.json`);
+			continue;
+		}
+		found.set(name, entry.version);
+		for (const dep of Object.keys(entry.dependencies ?? {})) queue.push([dep, name]);
+	}
+	return { versions: Object.fromEntries([...found].sort(([a], [b]) => (a < b ? -1 : 1))), problems };
+}
+
+export function installedProblems(versions, modules) {
+	const problems = [];
+	for (const [name, want] of Object.entries(versions)) {
+		let have;
+		try {
+			have = JSON.parse(fs.readFileSync(path.join(modules, name, 'package.json'), 'utf8')).version;
+		} catch (error) {
+			problems.push(`${name}: node_modules/${name}/package.json cannot be read (${error.code ?? error.message}); the pinned package-lock.json states ${want}`);
+			continue;
+		}
+		if (have !== want) problems.push(`${name}: installed ${have}, the pinned package-lock.json states ${want}`);
+	}
+	return problems;
+}
+
 // The pinned modules import ajv (contracts/completeness.mjs -> lib/schema-validate.mjs), so a copy of the base commit runs
-// against the node_modules of this checkout; a missing node_modules fails loudly.
-export function linkModules(root, dest) {
+// against the node_modules of this checkout. That is evidence for the base commit only while every package the copy can
+// load is installed at the version the base commit's package-lock.json states; otherwise the copy is not linked and the
+// caller fails. A missing node_modules fails loudly too. Returns the checked versions.
+export function linkModules(root, dest, paths) {
 	const modules = path.join(root, 'node_modules');
 	if (!fs.existsSync(modules)) throw new Error(`${modules} does not exist; run npm ci first`);
+	const texts = paths.filter((p) => SCRIPT.test(p)).map((p) => ({ path: p, text: fs.readFileSync(path.join(dest, p), 'utf8') }));
+	const { versions, problems } = lockedVersions(JSON.parse(fs.readFileSync(path.join(dest, 'package-lock.json'), 'utf8')), texts);
+	problems.push(...installedProblems(versions, modules));
+	if (problems.length > 0) throw new Error(`node_modules of this checkout is not the dependency set of the base commit: ${problems.join('; ')}`);
 	fs.symlinkSync(modules, path.join(dest, 'node_modules'), 'dir');
+	return versions;
 }
 
 // The documents describe the pinned base commit, so every number they state is recomputed from the record: the table rows

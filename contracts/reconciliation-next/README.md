@@ -61,11 +61,14 @@ design, and observed defects); and limits, each with a status and the fixtures t
 
 `baseline-record.test.mjs` recomputes every size, hash, count, exit code, expected value, fixture output and file list from
 the working tree, from the pinned commit and from an extracted copy of it. It also compares the table, the test
-counts, the `NESTED_SUITE` line and the base commit named in this README and in `T09_STATUS.md` with the record. Not recomputed:
-the CI observation (read once through the read-only CI API), the machine description, the installed `ajv` files (the lockfile
-pins them), the synthetic support data, and the explanatory prose of the record and of these two documents. `artifact_digest`
-seals the whole record except its own value, so an edit that is not re-sealed is reported; an editor who re-seals the record is
-caught only by the recomputed values and by review of the diff.
+counts, the `NESTED_SUITE` line and the base commit named in this README and in `T09_STATUS.md` with the record. The extracted
+copy runs against the `node_modules` of the checkout only after the version of every package the pinned files import (and of
+the packages those require) equals the version the base commit's `package-lock.json` states; the record lists them as
+`environment.loaded_packages`, and a different or missing version fails the test. Not recomputed: the CI observation (read once
+through the read-only CI API), the machine description, the files inside the installed packages (only their versions are
+compared with the lockfile), the synthetic support data, and the explanatory prose of the record and of these two documents.
+`artifact_digest` seals the whole record except its own value, so an edit that is not re-sealed is reported; an editor who
+re-seals the record is caught only by the recomputed values and by review of the diff.
 
 ```bash
 npm ci
@@ -73,8 +76,9 @@ node --test test/reconciliation-next/baseline-record.test.mjs
 ```
 
 A commit that is not available (for example in a shallow checkout that cannot fetch it) fails the test;
-`BASELINE_ALLOW_UNVERIFIED=1` turns only that case into a visible skip. A changed baseline is a new record for a new commit,
-reviewed as a diff, not an edit in place.
+`BASELINE_ALLOW_UNVERIFIED=1` turns only that case into a visible skip, and never the dependency version check. A later
+dependency update that changes one of the loaded packages therefore fails the test until the baseline is replaced. A changed
+baseline is a new record for a new commit, reviewed as a diff, not an edit in place.
 
 ## T09-02 authority rules in this slice
 

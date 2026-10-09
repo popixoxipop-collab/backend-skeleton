@@ -11,7 +11,15 @@
   "environment": {
     "generated_with_node": "v24.19.0",
     "platform": "darwin",
-    "arch": "arm64"
+    "arch": "arm64",
+    "loaded_packages": {
+      "ajv": "8.20.0",
+      "ajv-formats": "3.0.1",
+      "fast-deep-equal": "3.1.3",
+      "fast-uri": "3.1.7",
+      "json-schema-traverse": "1.0.0",
+      "require-from-string": "2.0.2"
+    }
   },
   "source_dir": "contracts/reconciliation-next",
   "test_dir": "test/reconciliation-next",
@@ -7884,7 +7892,7 @@
     }
   ],
   "artifact_digest": {
-    "value": "52662b994d9c516076ae5c43eae66fcb21aab4e2d158affd079cc4bbdc459ab3"
+    "value": "37698c6a65315e1fa3e60adc66aa8b3e669fc9919bfaa8363d7801d74fe417ea"
   },
   "ci_observations": [
     {
@@ -8060,7 +8068,7 @@
     {
       "id": "ajv-installed-files-are-not-hashed",
       "status": "NOT_RECORDED",
-      "statement": "The pinned modules import ajv and ajv-formats (through contracts/completeness.mjs and lib/schema-validate.mjs). The commands run in an extracted copy of the base commit whose node_modules is linked to the node_modules of the checkout that runs them (installed by npm ci). package-lock.json is pinned, but the installed ajv files are not hashed."
+      "statement": "The pinned modules import ajv and ajv-formats (through contracts/completeness.mjs and lib/schema-validate.mjs). The commands run in an extracted copy of the base commit whose node_modules is linked to the node_modules of the checkout that runs them (installed by npm ci). Before the link is made, the version of every package the pinned files import, and of the packages those require, is compared with the version the pinned package-lock.json states (environment.loaded_packages), and a difference fails the test. The scan of the imports is textual, so a specifier that is built at run time is not seen, and the files inside the installed packages are not hashed: only their versions are compared."
     },
     {
       "id": "fixtures-are-minimal-synthetic-inputs",
@@ -8074,13 +8082,13 @@
     }
   ],
   "verification": {
-    "recomputed": "bytes, git_blob_sha1 and sha256 of every pinned file, per-file and total test counts, the exit code and counts of both commands, the first runner line, every fixture output hash and every expected value, the reference lists of the limits that carry them, and the per-file table, every test count, the NESTED_SUITE line and the base commit that the README and T09_STATUS.md state are compared by baseline-record.test.mjs with the values it recomputed, never with a copy kept in the documents.",
+    "recomputed": "bytes, git_blob_sha1 and sha256 of every pinned file, per-file and total test counts, the exit code and counts of both commands, the first runner line, every fixture output hash and every expected value, the reference lists of the limits that carry them, the installed version of every package in environment.loaded_packages against package-lock.json at the base commit, and the per-file table, every test count, the NESTED_SUITE line and the base commit that the README and T09_STATUS.md state are compared by baseline-record.test.mjs with the values it recomputed, never with a copy kept in the documents.",
     "levels": [
       "always: the record is well formed, and any single tampered hash, size, test count, exit code, expected value, limit status or commit id is reported; artifact_digest covers every field except its own value, so an edit of a limit statement, a fixture class, a call, a title or this text that is not re-sealed is reported",
       "live files: size, sha256 and blob id are recomputed from the checkout; a file that disagrees in one hash or in size alone is damage and fails; a file that matches neither hash is drift, which skips the live replays while the pinned commit decides",
       "pinned commit: the base commit is fetched once when absent and the sizes and digests of all pinned files, the runner included, are recomputed from its own blobs; if the commit is unavailable the test fails, and only BASELINE_ALLOW_UNVERIFIED=1 turns that into an explicit skip",
       "ancestry: a shallow checkout is deepened with git fetch --no-tags --unshallow origin and the base commit must be an ancestor of HEAD",
-      "commands: both recorded commands are re-run in an extracted copy of the base commit (node_modules linked from the checkout) and must reproduce exit code, counts, per-file counts and every fixture output",
+      "commands: both recorded commands are re-run in an extracted copy of the base commit (node_modules linked from the checkout once the installed versions equal environment.loaded_packages, which package-lock.json at the base commit states) and must reproduce exit code, counts, per-file counts and every fixture output",
       "references: the files outside the track directories that match each recorded pattern are recomputed with git grep at the pinned commit and must equal the list in the limit",
       "documents: the per-file table, every \"<n> tests\" figure, the NESTED_SUITE line and the base commit in README.md and T09_STATUS.md describe the pinned base commit and are compared with this record, whose counts and first runner line the commands level reproduces"
     ],
@@ -8088,7 +8096,7 @@
       "ci_observations: read once from the CI API (gh api, read-only) and kept for traceability; no test re-reads them",
       "environment: describes the machine this record was generated on",
       "prose: limit statements, fixture origins, the title and this text are bound only by artifact_digest, which reports an edit that is not re-sealed; an editor who re-seals the record is caught only by review of the diff and by the recomputed values above",
-      "ajv and ajv-formats: the installed files are not hashed; package-lock.json is pinned",
+      "the files inside the installed packages (ajv, ajv-formats and the packages they require): not hashed; only their versions are compared with package-lock.json at the base commit",
       "support data: the runtime evidence in the fixtures is synthetic and built by approved-evidence-fixture.mjs; its values are not independently checked",
       "README.md and T09_STATUS.md: only the numbers and the base commit named above are recomputed, not the explanatory text"
     ]
