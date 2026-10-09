@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:webgame-release-policy:1",
+  "title": "BSKEL webgame release policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "profile_id", "require_runtime", "require_performance"],
+  "properties": {
+    "schema": { "const": "sbf.webgame-release-policy/1" },
+    "profile_id": { "type": "string", "minLength": 1 },
+    "profile_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "require_runtime": { "type": "boolean" },
+    "require_performance": { "type": "boolean" },
+    "required_capabilities": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    }
+  }
+}
