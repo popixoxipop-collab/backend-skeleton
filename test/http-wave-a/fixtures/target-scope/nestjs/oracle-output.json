@@ -1,0 +1,224 @@
+{
+ "schema": "bskel.http-scope-oracle/2",
+ "command": [
+  "node",
+  "oracle.mjs"
+ ],
+ "startEnv": [
+  "HOME",
+  "LANG",
+  "NEXT_TELEMETRY_DISABLED",
+  "PATH",
+  "__CF_USER_TEXT_ENCODING",
+  "npm_config_update_notifier"
+ ],
+ "lock": {
+  "file": "package-lock.json",
+  "sha256": "15921b14da657914330dd56e2b7efa14c158677a2fb07b64233eda9d3e11945d",
+  "packages": 108,
+  "installed": 108
+ },
+ "framework": {
+  "name": "@nestjs/core",
+  "version": "12.0.1",
+  "packages": {
+   "@nestjs/common": "12.0.1",
+   "@nestjs/platform-express": "12.0.1",
+   "typescript": "6.0.3"
+  }
+ },
+ "scenarios": [
+  {
+   "id": "nestjs-normal",
+   "fixture": "normal",
+   "factory": "createApp",
+   "fixtureDigest": "61f69d4bef660bd79cfa856f7ee150ad09229d0ffd59832fb1ee75f380cedf97",
+   "env": {},
+   "probes": [
+    {
+     "method": "GET",
+     "route": "/health",
+     "sample": "/health",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/users",
+     "sample": "/users",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/users",
+     "sample": "/users",
+     "auth": "token",
+     "status": 201
+    },
+    {
+     "method": "GET",
+     "route": "/users/:id",
+     "sample": "/users/7",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "DELETE",
+     "route": "/users/:id",
+     "sample": "/users/7",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "PUT",
+     "route": "/users",
+     "sample": "/users",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/",
+     "sample": "/",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/api/users",
+     "sample": "/api/users",
+     "auth": "token",
+     "status": 404
+    }
+   ]
+  },
+  {
+   "id": "nestjs-counterexample",
+   "fixture": "counterexample",
+   "factory": "createApp",
+   "fixtureDigest": "63e5dcfadbd025345f87678b25dd551f442360bfaea59a31e4c5859a8e0c2aa0",
+   "env": {},
+   "probes": [
+    {
+     "method": "GET",
+     "route": "/open",
+     "sample": "/open",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/svc/open",
+     "sample": "/svc/open",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/secure/data",
+     "sample": "/secure/data",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/secure/data",
+     "sample": "/secure/data",
+     "auth": "anon",
+     "status": 401
+    },
+    {
+     "method": "GET",
+     "route": "/gen/item/alpha",
+     "sample": "/gen/item/alpha",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/widgets",
+     "sample": "/widgets",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/widgets",
+     "sample": "/widgets",
+     "auth": "token",
+     "status": 201
+    },
+    {
+     "method": "GET",
+     "route": "/",
+     "sample": "/",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/admin/reports",
+     "sample": "/admin/reports",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/reports",
+     "sample": "/reports",
+     "auth": "token",
+     "status": 404
+    }
+   ]
+  },
+  {
+   "id": "nestjs-counterexample-prefixed",
+   "fixture": "counterexample",
+   "factory": "createPrefixedApp",
+   "fixtureDigest": "63e5dcfadbd025345f87678b25dd551f442360bfaea59a31e4c5859a8e0c2aa0",
+   "env": {},
+   "probes": [
+    {
+     "method": "GET",
+     "route": "/svc/open",
+     "sample": "/svc/open",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/open",
+     "sample": "/open",
+     "auth": "token",
+     "status": 404
+    }
+   ]
+  },
+  {
+   "id": "nestjs-counterexample-prefixed-env-v2",
+   "fixture": "counterexample",
+   "factory": "createPrefixedApp",
+   "fixtureDigest": "63e5dcfadbd025345f87678b25dd551f442360bfaea59a31e4c5859a8e0c2aa0",
+   "env": {
+    "API_BASE": "/v2"
+   },
+   "probes": [
+    {
+     "method": "GET",
+     "route": "/v2/open",
+     "sample": "/v2/open",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/svc/open",
+     "sample": "/svc/open",
+     "auth": "token",
+     "status": 404
+    }
+   ]
+  }
+ ]
+}

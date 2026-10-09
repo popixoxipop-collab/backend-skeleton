@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "ES2023",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "esModuleInterop": true,
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "rootDir": ".",
+    "outDir": "dist"
+  },
+  "include": ["normal/src/**/*.ts", "counterexample/src/**/*.ts"]
+}

@@ -1,0 +1,780 @@
+{
+  "schema": "bskel.http-target-scope/1",
+  "item": "HTTP-node-koa-01",
+  "target": "HTTP-node-koa",
+  "track": "T13",
+  "recordDate": "2026-10-09",
+  "claim": {
+    "registrationAloneIsSupport": false,
+    "published": "synthetic-only-hold",
+    "scope": "Koa with @koa/router: a same-file Router mounted through app.use(router.routes()), literal per-verb calls, named routes and a literal constructor prefix are read statically. Verification basis is synthetic-only and promotion is held (HOLD_T19_T23); api.operations, api.request-shape, resource.fetch and codegen.handles are all false. Catalog registration does not make any construct outside supported[] supported.",
+    "registration": {
+      "adapterId": "node-koa",
+      "contract": "sbf.adapter/2",
+      "specificity": 54,
+      "verificationBasis": "synthetic-only",
+      "capabilities": {
+        "api.operations": false,
+        "api.request-shape": false,
+        "resource.fetch": false,
+        "codegen.handles": false
+      },
+      "profileState": "STATIC_EVIDENCE_GREEN",
+      "promotionState": "HOLD_T19_T23",
+      "profilePin": "15.7.0"
+    },
+    "runtimeTested": {
+      "frameworkOracleRun": true,
+      "scannerVsRuntimeCompared": true,
+      "scope": "koa 3.2.1 with @koa/router 15.7.0 imported from the committed fixtures, served through app.callback() on an ephemeral 127.0.0.1 port on Node v24.19.0, darwin-arm64, and probed with fetch; the live scanner output was compared route by route with the returned statuses.",
+      "notRun": [
+        "Koa or @koa/router versions other than 3.2.1 and 15.7.0",
+        "TypeScript sources (the fixtures are plain ESM JavaScript)",
+        "CommonJS and generic Router bindings that the profile also claims (the fixtures use ESM imports only)",
+        "host, method, sensitive and strict router options",
+        "Node 22 for the oracle (oracle ran on v24.19.0 only)"
+      ]
+    }
+  },
+  "scanner": {
+    "runner": "node-koa",
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "emitsUnknownMarkers": true
+  },
+  "supported": [
+    {
+      "id": "S1",
+      "construct": "Router without prefix, literal verb call, mounted in the same file with app.use(router.routes())",
+      "emits": [
+        "GET /"
+      ]
+    },
+    {
+      "id": "S2",
+      "construct": "Router with a literal constructor prefix and literal get/post/delete calls, including a parameterised path",
+      "emits": [
+        "GET /api/health",
+        "POST /api/users",
+        "GET /api/users/:id",
+        "DELETE /api/users/:id"
+      ]
+    },
+    {
+      "id": "S3",
+      "construct": "Named route form router.get(name, path, handler)",
+      "emits": [
+        "GET /api/users"
+      ]
+    }
+  ],
+  "unsupported": [
+    {
+      "id": "U1",
+      "construct": "Router built by a factory function in another file and mounted from a call expression",
+      "reason": "Detection and the router graph are same-file only. The factory file is not reported and nothing is emitted for the call-expression mount.",
+      "mustCatch": [
+        "M1"
+      ]
+    },
+    {
+      "id": "U2",
+      "construct": "Router-level middleware via router.use() (auth guards)",
+      "reason": "use() is observed and noted, never expanded or modelled; routes behind it are emitted without the guard.",
+      "mustCatch": [
+        "M2"
+      ]
+    },
+    {
+      "id": "U3",
+      "construct": "Template-literal (generated) route paths",
+      "reason": "Reported in scanNotes as non-literal and not emitted.",
+      "mustCatch": [
+        "M3"
+      ]
+    },
+    {
+      "id": "U4",
+      "construct": "Router prefix decided at start-up (non-literal constructor prefix)",
+      "reason": "Reported in scanNotes; none of that router's routes are emitted.",
+      "mustCatch": [
+        "M4"
+      ]
+    },
+    {
+      "id": "U5",
+      "construct": "Chained verb calls (router.get(p, h).post(p, h))",
+      "reason": "Only the first call on the tracked variable is read; later verbs on the chain are neither emitted nor noted.",
+      "mustCatch": [
+        "M5"
+      ]
+    },
+    {
+      "id": "U6",
+      "construct": "Method-agnostic router.all()",
+      "reason": "Observed and noted, not emitted.",
+      "mustCatch": [
+        "M6"
+      ]
+    },
+    {
+      "id": "U7",
+      "construct": "Array or RegExp route paths",
+      "reason": "Reported in scanNotes as outside the first slice and not emitted.",
+      "mustCatch": [
+        "M7"
+      ]
+    },
+    {
+      "id": "U8",
+      "construct": "prefix() mutation after routes were declared",
+      "reason": "Reported in scanNotes; all of that router's routes are withheld.",
+      "mustCatch": [
+        "M8"
+      ]
+    },
+    {
+      "id": "U9",
+      "construct": "Nested router mounted through router.use(path, child.routes())",
+      "reason": "use() is observed but not expanded and the child router is withheld as unmounted; both are reported.",
+      "mustCatch": [
+        "M9"
+      ]
+    },
+    {
+      "id": "U10",
+      "construct": "Koa or @koa/router versions other than 3.2.1 and 15.7.0, CommonJS bindings, non-Node runtimes",
+      "reason": "Not installed and not run.",
+      "mustCatch": []
+    }
+  ],
+  "mustCatch": [
+    {
+      "id": "M1",
+      "category": "dynamic-route-factory",
+      "construct": "Router produced by a function in another file and mounted from a call: app.use(crud('widgets').routes())",
+      "counterexample": {
+        "file": "src/server.js",
+        "contains": "app.use(crud('widgets').routes())"
+      },
+      "truth": [
+        {
+          "scenario": "koa-counterexample",
+          "route": "GET /widgets",
+          "exists": true
+        },
+        {
+          "scenario": "koa-counterexample",
+          "route": "POST /widgets",
+          "exists": true
+        },
+        {
+          "scenario": "koa-counterexample",
+          "route": "GET /",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /widgets",
+        "POST /widgets"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "silent-miss",
+      "note": "Both factory routes are served. The scanner emits neither and reports nothing about the factory file or the call-expression mount, so the gap is invisible in its output."
+    },
+    {
+      "id": "M2",
+      "category": "middleware-auth",
+      "construct": "Router-level auth middleware: secured.use(requireAuth) before secured.get(/data, ...)",
+      "counterexample": {
+        "file": "src/server.js",
+        "contains": "secured.use(requireAuth)"
+      },
+      "truth": [
+        {
+          "scenario": "koa-counterexample",
+          "route": "GET /secure/data",
+          "auth": "token",
+          "status": 200
+        },
+        {
+          "scenario": "koa-counterexample",
+          "route": "GET /secure/data",
+          "auth": "anon",
+          "status": 401
+        }
+      ],
+      "scannerShould": [
+        "GET /secure/data"
+      ],
+      "scannerEmitsInstead": [],
+      "unknownMarker": "server\\.js:18 router\\.use\\(\\)",
+      "expected": "caught",
+      "note": "The route is emitted and the use() is reported as observed-not-expanded. The auth requirement itself is not modelled, so an emitted route must not be read as an open route."
+    },
+    {
+      "id": "M3",
+      "category": "generated-routes",
+      "construct": "Paths generated in a loop with a template literal: gen.get(`/gen/${name}`, ...)",
+      "counterexample": {
+        "file": "src/server.js",
+        "contains": "gen.get(`/gen/${name}`"
+      },
+      "truth": [
+        {
+          "scenario": "koa-counterexample",
+          "route": "GET /gen/alpha",
+          "exists": true
+        },
+        {
+          "scenario": "koa-counterexample",
+          "route": "GET /gen/beta",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /gen/alpha",
+        "GET /gen/beta"
+      ],
+      "scannerEmitsInstead": [],
+      "unknownMarker": "server\\.js:22 gen\\.get\\(\\) not emitted",
+      "expected": "left-unknown",
+      "note": "Both generated routes are served; the scanner emits neither and says the path is non-literal."
+    },
+    {
+      "id": "M4",
+      "category": "deployment-prefix",
+      "construct": "Router prefix decided at start-up by the environment: new Router({ prefix: process.env.API_BASE ?? '/svc' })",
+      "counterexample": {
+        "file": "src/server.js",
+        "contains": "process.env.API_BASE ?? '/svc'"
+      },
+      "truth": [
+        {
+          "scenario": "koa-counterexample",
+          "route": "GET /svc/ping",
+          "exists": true
+        },
+        {
+          "scenario": "koa-counterexample",
+          "route": "GET /ping",
+          "exists": false
+        },
+        {
+          "scenario": "koa-counterexample-env-v2",
+          "route": "GET /v2/ping",
+          "exists": true
+        },
+        {
+          "scenario": "koa-counterexample-env-v2",
+          "route": "GET /svc/ping",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /svc/ping"
+      ],
+      "scannerEmitsInstead": [],
+      "unknownMarker": "deployed: Router constructor prefix is non-literal",
+      "expected": "left-unknown",
+      "note": "The prefix depends on API_BASE (/svc by default, /v2 when set), so unknown is the right answer. The scanner emits nothing for that router, so no wrong path is published."
+    },
+    {
+      "id": "M5",
+      "category": "route-chain",
+      "construct": "Chained verb calls on one expression: misc.get('/chain', h).post('/chain', h)",
+      "counterexample": {
+        "file": "src/server.js",
+        "contains": ".post('/chain'"
+      },
+      "truth": [
+        {
+          "scenario": "koa-counterexample",
+          "route": "GET /chain",
+          "exists": true
+        },
+        {
+          "scenario": "koa-counterexample",
+          "route": "POST /chain",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /chain",
+        "POST /chain"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "silent-miss",
+      "note": "Only the first call of the chain is read: POST /chain is served but neither emitted nor reported unknown."
+    },
+    {
+      "id": "M6",
+      "category": "multi-method",
+      "construct": "Method-agnostic registration: misc.all('/any', ...)",
+      "counterexample": {
+        "file": "src/server.js",
+        "contains": "misc.all('/any'"
+      },
+      "truth": [
+        {
+          "scenario": "koa-counterexample",
+          "route": "GET /any",
+          "exists": true
+        },
+        {
+          "scenario": "koa-counterexample",
+          "route": "POST /any",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /any",
+        "POST /any"
+      ],
+      "scannerEmitsInstead": [],
+      "unknownMarker": "server\\.js:28 router\\.all\\(\\) represents all HTTP methods",
+      "expected": "left-unknown",
+      "note": "The route answers every probed method; the scanner reports all() as not emitted."
+    },
+    {
+      "id": "M7",
+      "category": "path-array",
+      "construct": "Array path: misc.get(['/a1', '/a2'], ...)",
+      "counterexample": {
+        "file": "src/server.js",
+        "contains": "misc.get(['/a1', '/a2']"
+      },
+      "truth": [
+        {
+          "scenario": "koa-counterexample",
+          "route": "GET /a1",
+          "exists": true
+        },
+        {
+          "scenario": "koa-counterexample",
+          "route": "GET /a2",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /a1",
+        "GET /a2"
+      ],
+      "scannerEmitsInstead": [],
+      "unknownMarker": "server\\.js:29 misc\\.get\\(\\) not emitted",
+      "expected": "left-unknown",
+      "note": "Both paths are served; the scanner reports the array path as outside the first slice."
+    },
+    {
+      "id": "M8",
+      "category": "router-prefix-mount",
+      "construct": "prefix() mutation after the routes were declared: legacy.get('/old', ...); legacy.prefix('/legacy')",
+      "counterexample": {
+        "file": "src/server.js",
+        "contains": "legacy.prefix('/legacy')"
+      },
+      "truth": [
+        {
+          "scenario": "koa-counterexample",
+          "route": "GET /legacy/old",
+          "exists": true
+        },
+        {
+          "scenario": "koa-counterexample",
+          "route": "GET /old",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /legacy/old"
+      ],
+      "scannerEmitsInstead": [],
+      "unknownMarker": "router legacy calls prefix\\(\\)",
+      "expected": "left-unknown",
+      "note": "The route is served only under /legacy; the scanner withholds the router instead of emitting the unprefixed path."
+    },
+    {
+      "id": "M9",
+      "category": "router-prefix-mount",
+      "construct": "Nested router mounted under a prefix: nested.use('/nested', child.routes())",
+      "counterexample": {
+        "file": "src/server.js",
+        "contains": "nested.use('/nested', child.routes())"
+      },
+      "truth": [
+        {
+          "scenario": "koa-counterexample",
+          "route": "GET /nested/leaf",
+          "exists": true
+        },
+        {
+          "scenario": "koa-counterexample",
+          "route": "GET /leaf",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /nested/leaf"
+      ],
+      "scannerEmitsInstead": [],
+      "unknownMarker": "server\\.js:35 router\\.use\\(\\)",
+      "expected": "left-unknown",
+      "note": "The leaf is served only under /nested; the scanner reports the use() as not expanded and withholds the child router instead of emitting GET /leaf."
+    }
+  ],
+  "framework": {
+    "name": "koa",
+    "version": "3.2.1",
+    "registry": "npm",
+    "packages": [
+      {
+        "name": "@koa/router",
+        "version": "15.7.0",
+        "integrity": "sha512-WaAlk4TOl/O0rhTpOR0l052gz03syPMmI6Pe2gd7v3ubjfv5UcSGcnb0Y/J5NNC/ln+5FiUqPJTc/a15I+XqAA==",
+        "lockFile": "test/http-wave-bc/fixtures/target-scope/koa/package-lock.json",
+        "lockKey": "node_modules/@koa/router",
+        "declared": {
+          "file": "test/http-wave-bc/fixtures/target-scope/koa/package.json",
+          "section": "dependencies"
+        }
+      },
+      {
+        "name": "koa",
+        "version": "3.2.1",
+        "integrity": "sha512-e7IpWJrnanNUroVK2taAgMxoEZvHLXdQiNjeExSu/DEIWm83jaKGBgb7tLmu2rMYpA027qFB3iLR/k3AVpFRnA==",
+        "lockFile": "test/http-wave-bc/fixtures/target-scope/koa/package-lock.json",
+        "lockKey": "node_modules/koa",
+        "declared": {
+          "file": "test/http-wave-bc/fixtures/target-scope/koa/package.json",
+          "section": "dependencies"
+        }
+      }
+    ],
+    "unverifiedRanges": [
+      "Koa and @koa/router versions other than 3.2.1 and 15.7.0 (one exact pair exercised; no range claim)",
+      "CommonJS and generic Router bindings",
+      "Node 22 (oracle run on v24.19.0 only)"
+    ]
+  },
+  "fixtures": {
+    "normal": {
+      "dir": "test/http-wave-bc/fixtures/target-scope/koa/normal",
+      "scenario": "koa-normal",
+      "files": [
+        {
+          "path": "package.json",
+          "sha256": "a3fbe5eb1b2b928f14d853de378c44886679c19ff774534dbf8c16ca70f09e0d",
+          "bytes": 127
+        },
+        {
+          "path": "src/server.js",
+          "sha256": "a4fd24b153ac2c1cd0e85977bcdcce22e41f8187005ad29f24d1a46418cc60bc",
+          "bytes": 612
+        }
+      ]
+    },
+    "counterexample": {
+      "dir": "test/http-wave-bc/fixtures/target-scope/koa/counterexample",
+      "scenario": "koa-counterexample",
+      "files": [
+        {
+          "path": "package.json",
+          "sha256": "6a85767f574cd2e4485c0e88cfc12883ece143deee81cd90e058d4a9f65da2ad",
+          "bytes": 135
+        },
+        {
+          "path": "src/auth.js",
+          "sha256": "79d488992c56c583528025ada7d6453d637125881a46e0714a4ef7507370081d",
+          "bytes": 132
+        },
+        {
+          "path": "src/factory.js",
+          "sha256": "74ae1304e94990ad48a682ccf781e6a0e9494b56a60f05a9b29ec764ef8be46a",
+          "bytes": 305
+        },
+        {
+          "path": "src/server.js",
+          "sha256": "040df035871108742f337526bd9e58754c0c299a098e757ee40ebd3ede682959",
+          "bytes": 1706
+        }
+      ]
+    }
+  },
+  "evidenceFiles": [
+    {
+      "role": "oracle-script",
+      "path": "test/http-wave-bc/fixtures/target-scope/koa/oracle.mjs",
+      "sha256": "62dd94db5bd7a8f524076e2200a5bd6e08f606ca1733278782896956e1b35b18",
+      "bytes": 5751
+    },
+    {
+      "role": "oracle-output",
+      "path": "test/http-wave-bc/fixtures/target-scope/koa/oracle-output.json",
+      "sha256": "f330c2ffdba3cbb9f40181169d4c93cf58d0c94c6f132301d3beebe3f8541711",
+      "bytes": 5245
+    },
+    {
+      "role": "lock",
+      "path": "test/http-wave-bc/fixtures/target-scope/koa/package-lock.json",
+      "sha256": "0b48b2c7f8c1bed4325da2a000367b361cd13bdccb30544abed40e3aaf2a2125",
+      "bytes": 16399
+    },
+    {
+      "role": "manifest",
+      "path": "test/http-wave-bc/fixtures/target-scope/koa/package.json",
+      "sha256": "4ddb264d3cb7c1916243043571e6f9f037f6cbf0efcc0acce207b2a9979ad886",
+      "bytes": 298
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-bc/fixtures/target-scope/koa/registry-_koa_router_15.7.0.json",
+      "sha256": "938d9c59594922b77395926c9fcd25c90abee0b39909e714389bff87c39b953f",
+      "bytes": 170
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-bc/fixtures/target-scope/koa/registry-koa_3.2.1.json",
+      "sha256": "1996d53c75314094338be21b00105da14526ae374d12210a9c466830ae9770c1",
+      "bytes": 161
+    }
+  ],
+  "oracle": {
+    "kind": "real koa 3.2.1 and @koa/router 15.7.0 served over a loopback HTTP port; HTTP status per candidate request",
+    "script": "test/http-wave-bc/fixtures/target-scope/koa/oracle.mjs",
+    "output": "test/http-wave-bc/fixtures/target-scope/koa/oracle-output.json",
+    "runIds": [
+      "oracle-1",
+      "oracle-2"
+    ],
+    "candidateSetLimit": "The probes cover an authored candidate list per scenario, so a served route that is not on the list is not discovered. \"Exists\" means a status other than 404 or 405."
+  },
+  "runs": [
+    {
+      "id": "registry-_koa_router_15.7.0",
+      "argv": [
+        "npm",
+        "view",
+        "@koa/router@15.7.0",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view @koa/router@15.7.0 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/koa",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:47Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-bc/fixtures/target-scope/koa/registry-_koa_router_15.7.0.json",
+        "sha256": "938d9c59594922b77395926c9fcd25c90abee0b39909e714389bff87c39b953f",
+        "bytes": 170
+      }
+    },
+    {
+      "id": "registry-koa_3.2.1",
+      "argv": [
+        "npm",
+        "view",
+        "koa@3.2.1",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view koa@3.2.1 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/koa",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:48Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-bc/fixtures/target-scope/koa/registry-koa_3.2.1.json",
+        "sha256": "1996d53c75314094338be21b00105da14526ae374d12210a9c466830ae9770c1",
+        "bytes": 161
+      }
+    },
+    {
+      "id": "install-1",
+      "argv": [
+        "npm",
+        "install",
+        "--package-lock-only",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm install --package-lock-only --ignore-scripts --no-audit --no-fund --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/koa",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:49Z",
+      "inputsSha256": "33fb0bce70dcb240cf01ad7344e99d337748f76b58b1235e4cfcca335e9d0ead",
+      "output": {
+        "kind": "file",
+        "file": "test/http-wave-bc/fixtures/target-scope/koa/package-lock.json",
+        "sha256": "0b48b2c7f8c1bed4325da2a000367b361cd13bdccb30544abed40e3aaf2a2125",
+        "bytes": 16399
+      }
+    },
+    {
+      "id": "install-2",
+      "argv": [
+        "npm",
+        "ci",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm ci --ignore-scripts --no-audit --no-fund --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/koa",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:49Z",
+      "inputsSha256": "aa629ec27fb5cb952bbda53712bb1c7db831bec5dbedfd2271ce0de5f48099cc",
+      "output": {
+        "kind": "file",
+        "file": "test/http-wave-bc/fixtures/target-scope/koa/package-lock.json",
+        "sha256": "0b48b2c7f8c1bed4325da2a000367b361cd13bdccb30544abed40e3aaf2a2125",
+        "bytes": 16399
+      }
+    },
+    {
+      "id": "oracle-1",
+      "argv": [
+        "node",
+        "oracle.mjs"
+      ],
+      "command": "node oracle.mjs",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/koa",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:50Z",
+      "inputsSha256": "aa629ec27fb5cb952bbda53712bb1c7db831bec5dbedfd2271ce0de5f48099cc",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-bc/fixtures/target-scope/koa/oracle-output.json",
+        "sha256": "f330c2ffdba3cbb9f40181169d4c93cf58d0c94c6f132301d3beebe3f8541711",
+        "bytes": 5245
+      }
+    },
+    {
+      "id": "oracle-2",
+      "argv": [
+        "node",
+        "oracle.mjs"
+      ],
+      "command": "node oracle.mjs",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/koa",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:50Z",
+      "inputsSha256": "aa629ec27fb5cb952bbda53712bb1c7db831bec5dbedfd2271ce0de5f48099cc",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-bc/fixtures/target-scope/koa/oracle-output.json",
+        "sha256": "f330c2ffdba3cbb9f40181169d4c93cf58d0c94c6f132301d3beebe3f8541711",
+        "bytes": 5245
+      }
+    }
+  ],
+  "runEnv": {
+    "policy": "cleared-environment",
+    "variables": {
+      "PATH": "<node-bin>:/usr/bin:/bin",
+      "HOME": "<scratch>/home",
+      "LANG": "C",
+      "NEXT_TELEMETRY_DISABLED": "1",
+      "npm_config_update_notifier": "false"
+    },
+    "platformInjected": [
+      "__CF_USER_TEXT_ENCODING"
+    ]
+  },
+  "conformance": {
+    "status": "RUN",
+    "method": "The in-repo scanner module runs live on each committed fixture directory (twice, for determinism). Each endpoint is canonicalised to \"VERB /path\" and looked up in the oracle output: a probe answering 404 or 405 makes it a false route. A must-catch is \"caught\" when every scannerShould route is emitted, \"left-unknown\" when a matching scanNotes entry is reported, else \"silent-miss\"; every unknownMarker must also still be reported.",
+    "emitted": {
+      "normal": [
+        "DELETE /api/users/:id",
+        "GET /",
+        "GET /api/health",
+        "GET /api/users",
+        "GET /api/users/:id",
+        "POST /api/users"
+      ],
+      "counterexample": [
+        "GET /api/status",
+        "GET /chain",
+        "GET /secure/data"
+      ]
+    },
+    "falseRoutes": {
+      "normal": [],
+      "counterexample": []
+    },
+    "verdictCounts": {
+      "caught": 1,
+      "left-unknown": 6,
+      "silent-miss": 2
+    }
+  },
+  "limits": [
+    {
+      "id": "candidate-list",
+      "status": "UNKNOWN",
+      "text": "The oracle probes a candidate list over a loopback port; it does not enumerate the routes the app serves."
+    },
+    {
+      "id": "fixture-scope",
+      "status": "UNSUPPORTED",
+      "text": "Fixtures are ESM JavaScript only; CommonJS and generic Router bindings, host/method/sensitive/strict options and TypeScript sources are outside this record."
+    },
+    {
+      "id": "promotion-held",
+      "status": "BLOCKED",
+      "text": "Promotion stays held (HOLD_T19_T23) and this record does not change it."
+    },
+    {
+      "id": "no-ci-replay",
+      "status": "NOT_RECORDED",
+      "text": "CI does not replay the recorded framework runs; it recomputes every hash and pin and re-runs the in-repo scanner on the committed fixtures."
+    },
+    {
+      "id": "single-platform",
+      "status": "NOT_RECORDED",
+      "text": "Every recorded run used one platform and one Node version (v24.19.0, darwin-arm64); the verifier requires them to be identical across runs. Other platforms and Node versions were not run."
+    },
+    {
+      "id": "not-run",
+      "status": "NOT_RECORDED",
+      "text": "Not run: Koa or @koa/router versions other than 3.2.1 and 15.7.0; TypeScript sources (the fixtures are plain ESM JavaScript); CommonJS and generic Router bindings that the profile also claims (the fixtures use ESM imports only); host, method, sensitive and strict router options; Node 22 for the oracle (oracle ran on v24.19.0 only)."
+    }
+  ],
+  "seal": {
+    "algorithm": "sha256 over canonical JSON (object keys sorted, no whitespace)",
+    "covers": "every field of this record except seal",
+    "sha256": "950e5f99485ffe4e1a057efe2cb0a4d13de9f6a3b9508c9584d3d632fb63a450",
+    "notRecomputed": [
+      "The framework runs themselves (npm view, npm install, npm ci, build, oracle) are not replayed: exit codes, timestamps and the Node and platform strings are taken from the record. CI re-derives each run's argv, input hashes and output hashes, the lock, the registry answers and the oracle output.",
+      "Prose (constructs, reasons, notes, limit texts) is covered by the seal against silent edits but is not recomputed; the facts it states are checked through the fields they cite.",
+      "The live npm registry and the upstream example commits are not queried in CI; the registry files are the recorded answers of the registry steps."
+    ]
+  }
+}

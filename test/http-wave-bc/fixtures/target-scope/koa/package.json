@@ -1,0 +1,10 @@
+{
+  "name": "bskel-target-scope-koa-run",
+  "private": true,
+  "type": "module",
+  "description": "Pins the framework run behind the HTTP-node-koa-01 scope record. Reproduce: npm ci --ignore-scripts, then node oracle.mjs.",
+  "dependencies": {
+    "@koa/router": "15.7.0",
+    "koa": "3.2.1"
+  }
+}

@@ -1,0 +1,965 @@
+{
+  "schema": "bskel.http-target-scope/1",
+  "item": "HTTP-javascript-express-01",
+  "target": "HTTP-javascript-express",
+  "track": "T11",
+  "recordDate": "2026-10-09",
+  "claim": {
+    "registrationAloneIsSupport": false,
+    "published": "scoped-community-sample",
+    "scope": "Express 4 route registration in javascript read by a regex/ripgrep adapter: verb calls with a single literal path, resolved through literal app.use/router.use mounts over imported routers. Published only as a community-sample adapter (specificity 80) without api.operations or api.request-shape; registering the adapter does not make any construct outside supported[] supported.",
+    "registration": {
+      "adapterId": "javascript-express",
+      "contract": "sbf.adapter/2",
+      "specificity": 80,
+      "verificationBasis": "community-sample",
+      "capabilities": {
+        "api.operations": false,
+        "api.request-shape": false,
+        "resource.fetch": false,
+        "codegen.handles": false
+      }
+    },
+    "runtimeTested": {
+      "frameworkOracleRun": true,
+      "scannerVsRuntimeCompared": true,
+      "scope": "express 4.22.3 served the committed javascript normal and counterexample fixtures (TypeScript compiled with typescript 5.9.3) on Node v24.19.0, darwin-arm64; the live scanner output was compared route by route with the served status codes.",
+      "notRun": [
+        "Express 5.x",
+        "Express 4.x versions other than 4.22.3",
+        "Node 22 for the oracle run (oracle ran on v24.19.0 only)",
+        "the real-world repositories pinned in test/fixtures/oracle-manifest.json (not re-run by this record)",
+        "authentication enforcement (the scanner emits no auth field)"
+      ]
+    }
+  },
+  "scanner": {
+    "runner": "javascript-express",
+    "module": "scanners/adapters/javascript-express.mjs",
+    "emitsUnknownMarkers": false
+  },
+  "supported": [
+    {
+      "id": "S1",
+      "construct": "Verb call with an inline handler on a router created in app.js and mounted by app.use with a literal prefix (app.use('/api', route))",
+      "emits": [
+        "GET /api/ping"
+      ]
+    },
+    {
+      "id": "S2",
+      "construct": "GET calls with literal and parameterised paths on ESM default-imported child routers mounted with literal router.use('/user'|'/order') prefixes below the app prefix",
+      "emits": [
+        "GET /api/order/search",
+        "GET /api/order/:orderId",
+        "GET /api/user/list",
+        "GET /api/user/:userUid"
+      ]
+    },
+    {
+      "id": "S3",
+      "construct": "Non-GET verb (PATCH) on a parameterised path of a mounted child router",
+      "emits": [
+        "PATCH /api/user/:userUid"
+      ]
+    }
+  ],
+  "unsupported": [
+    {
+      "id": "U1",
+      "construct": "Routers built by a function call (router factories) and mounted",
+      "reason": "Imports are followed, call results are not; inner routes are emitted at the factory's own root.",
+      "mustCatch": [
+        "M1"
+      ]
+    },
+    {
+      "id": "U2",
+      "construct": "Authentication and authorization semantics (router.use(middleware), route-level middleware)",
+      "reason": "Routes behind middleware are emitted, the middleware is not modelled and no unknown marker is attached.",
+      "mustCatch": [
+        "M2"
+      ]
+    },
+    {
+      "id": "U3",
+      "construct": "Programmatically generated paths (loops, template literals)",
+      "reason": "Only literal first arguments of verb calls are read.",
+      "mustCatch": [
+        "M3"
+      ]
+    },
+    {
+      "id": "U4",
+      "construct": "Mount prefixes decided at run time (environment or configuration)",
+      "reason": "The mount argument must be a string literal; otherwise the router's own paths are emitted unprefixed.",
+      "mustCatch": [
+        "M4"
+      ]
+    },
+    {
+      "id": "U5",
+      "construct": "Chained route() registration",
+      "reason": "Only verb calls directly on a router or app are read.",
+      "mustCatch": [
+        "M5"
+      ]
+    },
+    {
+      "id": "U6",
+      "construct": "Method-agnostic all()",
+      "reason": "all() is not among the verbs read.",
+      "mustCatch": [
+        "M6"
+      ]
+    },
+    {
+      "id": "U7",
+      "construct": "Path arrays and any non-literal path argument",
+      "reason": "Only a single string literal path is read.",
+      "mustCatch": [
+        "M7"
+      ]
+    },
+    {
+      "id": "U8",
+      "construct": "Routers re-exported under an alias before mounting",
+      "reason": "Mount resolution does not follow the alias, so the mount prefix is dropped.",
+      "mustCatch": [
+        "M8"
+      ]
+    },
+    {
+      "id": "U9",
+      "construct": "Express 5 route-path semantics",
+      "reason": "Not installed and not run; only Express 4.22.3 was exercised.",
+      "mustCatch": []
+    }
+  ],
+  "mustCatch": [
+    {
+      "id": "M1",
+      "category": "dynamic-route-factory",
+      "construct": "Router produced by a function call and mounted with a literal prefix: app.use('/widgets', crud('widgets'))",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "app.use('/widgets', crud('widgets'))"
+      },
+      "truth": [
+        {
+          "scenario": "js-counterexample",
+          "route": "GET /widgets",
+          "exists": true
+        },
+        {
+          "scenario": "js-counterexample",
+          "route": "POST /widgets",
+          "exists": true
+        },
+        {
+          "scenario": "js-counterexample",
+          "route": "GET /",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /widgets",
+        "POST /widgets"
+      ],
+      "scannerEmitsInstead": [
+        "GET /",
+        "POST /"
+      ],
+      "expected": "silent-miss",
+      "note": "The scanner follows imports, not call results: the factory's inner routes are emitted at the root, where the live app answers 404, and the real /widgets routes are missing."
+    },
+    {
+      "id": "M2",
+      "category": "middleware-auth",
+      "construct": "Router-wide auth middleware: router.use(requireAuth) guards every route registered below it",
+      "counterexample": {
+        "file": "src/routes/index.js",
+        "contains": "router.use(requireAuth)"
+      },
+      "truth": [
+        {
+          "scenario": "js-counterexample",
+          "route": "GET /secret",
+          "auth": "token",
+          "status": 200
+        },
+        {
+          "scenario": "js-counterexample",
+          "route": "GET /secret",
+          "auth": "anon",
+          "status": 401
+        }
+      ],
+      "scannerShould": [
+        "GET /secret"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "caught",
+      "note": "Only the route is caught. The auth requirement is not modelled and not flagged unknown (api.operations=false, no auth field), so an emitted route must not be read as an open route."
+    },
+    {
+      "id": "M3",
+      "category": "generated-routes",
+      "construct": "Paths generated in a loop with a template literal: for (const name of [...]) router.get(`/gen/${name}`, handler)",
+      "counterexample": {
+        "file": "src/routes/index.js",
+        "contains": "router.get(`/gen/${name}`, handler)"
+      },
+      "truth": [
+        {
+          "scenario": "js-counterexample",
+          "route": "GET /gen/alpha",
+          "exists": true
+        },
+        {
+          "scenario": "js-counterexample",
+          "route": "GET /gen/beta",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /gen/alpha",
+        "GET /gen/beta"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "silent-miss",
+      "note": "Both generated routes are served; the scanner emits neither and leaves no unknown marker."
+    },
+    {
+      "id": "M4",
+      "category": "deployment-prefix",
+      "construct": "Mount path decided at start-up by the environment: const base = process.env.API_BASE ?? '/svc'; app.use(base, ping)",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "app.use(base, ping)"
+      },
+      "truth": [
+        {
+          "scenario": "js-counterexample",
+          "route": "GET /svc/ping",
+          "exists": true
+        },
+        {
+          "scenario": "js-counterexample",
+          "route": "GET /ping",
+          "exists": false
+        },
+        {
+          "scenario": "js-counterexample-env-v2",
+          "route": "GET /v2/ping",
+          "exists": true
+        },
+        {
+          "scenario": "js-counterexample-env-v2",
+          "route": "GET /svc/ping",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /svc/ping"
+      ],
+      "scannerEmitsInstead": [
+        "GET /ping"
+      ],
+      "expected": "silent-miss",
+      "note": "The served prefix depends on API_BASE (/svc by default, /v2 when set), so the right output is \"unknown prefix\". The scanner emits the router's own path /ping, which no deployment serves."
+    },
+    {
+      "id": "M5",
+      "category": "route-chain",
+      "construct": "Chained route(): router.route('/chain').get(handler).post(handler)",
+      "counterexample": {
+        "file": "src/routes/index.js",
+        "contains": "router.route('/chain').get(handler).post(handler)"
+      },
+      "truth": [
+        {
+          "scenario": "js-counterexample",
+          "route": "GET /chain",
+          "exists": true
+        },
+        {
+          "scenario": "js-counterexample",
+          "route": "POST /chain",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /chain",
+        "POST /chain"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "silent-miss",
+      "note": "Both verbs are served; the scanner emits neither."
+    },
+    {
+      "id": "M6",
+      "category": "multi-method",
+      "construct": "Method-agnostic registration: router.all('/any', handler)",
+      "counterexample": {
+        "file": "src/routes/index.js",
+        "contains": "router.all('/any', handler)"
+      },
+      "truth": [
+        {
+          "scenario": "js-counterexample",
+          "route": "GET /any",
+          "exists": true
+        },
+        {
+          "scenario": "js-counterexample",
+          "route": "POST /any",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /any",
+        "POST /any"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "silent-miss",
+      "note": "The route answers every method; the scanner emits nothing for it."
+    },
+    {
+      "id": "M7",
+      "category": "path-array",
+      "construct": "Array of paths in one verb call: router.get(['/a1', '/a2'], handler)",
+      "counterexample": {
+        "file": "src/routes/index.js",
+        "contains": "router.get(['/a1', '/a2'], handler)"
+      },
+      "truth": [
+        {
+          "scenario": "js-counterexample",
+          "route": "GET /a1",
+          "exists": true
+        },
+        {
+          "scenario": "js-counterexample",
+          "route": "GET /a2",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /a1",
+        "GET /a2"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "silent-miss",
+      "note": "Both paths are served; the scanner emits neither."
+    },
+    {
+      "id": "M8",
+      "category": "router-prefix-mount",
+      "construct": "Mounted router exported under an alias (export { router as legacyRouter }) and mounted with app.use('/legacy', legacyRouter)",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "app.use('/legacy', legacyRouter)"
+      },
+      "truth": [
+        {
+          "scenario": "js-counterexample",
+          "route": "GET /legacy/old",
+          "exists": true
+        },
+        {
+          "scenario": "js-counterexample",
+          "route": "GET /old",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /legacy/old"
+      ],
+      "scannerEmitsInstead": [
+        "GET /old"
+      ],
+      "expected": "silent-miss",
+      "note": "The prefix is lost: the route is emitted at /old, which the live app answers 404, instead of /legacy/old."
+    },
+    {
+      "id": "M9",
+      "category": "app-level-mount",
+      "construct": "Application-level mount prefix over an imported router: app.use('/api', apiRouter)",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "app.use('/api', apiRouter)"
+      },
+      "truth": [
+        {
+          "scenario": "js-counterexample",
+          "route": "GET /api/status",
+          "exists": true
+        },
+        {
+          "scenario": "js-counterexample",
+          "route": "GET /status",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /api/status"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "caught",
+      "note": "The audit text calls app.use-level mount prefixes a known limit; this run did not reproduce it for a literal prefix over an imported router. The failing prefix cases are M4 and M8."
+    }
+  ],
+  "framework": {
+    "name": "express",
+    "version": "4.22.3",
+    "registry": "npm",
+    "packages": [
+      {
+        "name": "@types/express",
+        "version": "4.17.25",
+        "integrity": "sha512-dVd04UKsfpINUnK0yBoYHDF3xu7xVH4BuDotC/xGuycx4CgbP48X/KF/586bcObxT0HENHXEU8Nqtu6NR+eKhw==",
+        "lockFile": "test/http-legacy-next/fixtures/target-scope/express/package-lock.json",
+        "lockKey": "node_modules/@types/express",
+        "declared": {
+          "file": "test/http-legacy-next/fixtures/target-scope/express/package.json",
+          "section": "devDependencies"
+        }
+      },
+      {
+        "name": "@types/node",
+        "version": "22.20.5",
+        "integrity": "sha512-U2+DNr+wSjpsTS/wZGYHq7GcwfuSmKiKvoPvK22zwTlRhU91yOniN4qRR5KhIjvif7ysw/dz/hKmfDH0Ris4aA==",
+        "lockFile": "test/http-legacy-next/fixtures/target-scope/express/package-lock.json",
+        "lockKey": "node_modules/@types/node",
+        "declared": {
+          "file": "test/http-legacy-next/fixtures/target-scope/express/package.json",
+          "section": "devDependencies"
+        }
+      },
+      {
+        "name": "express",
+        "version": "4.22.3",
+        "integrity": "sha512-Bdcs4+3qlpVlx2NRn6fgX2Ue2/gGRaPeawebgclM0ERSCqDpA+owF1fdPwjJUTAJWMTuAaxjDf+hzb0/4eKvvw==",
+        "lockFile": "test/http-legacy-next/fixtures/target-scope/express/package-lock.json",
+        "lockKey": "node_modules/express",
+        "declared": {
+          "file": "test/http-legacy-next/fixtures/target-scope/express/package.json",
+          "section": "dependencies"
+        }
+      },
+      {
+        "name": "typescript",
+        "version": "5.9.3",
+        "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",
+        "lockFile": "test/http-legacy-next/fixtures/target-scope/express/package-lock.json",
+        "lockKey": "node_modules/typescript",
+        "declared": {
+          "file": "test/http-legacy-next/fixtures/target-scope/express/package.json",
+          "section": "devDependencies"
+        }
+      }
+    ],
+    "unverifiedRanges": [
+      "Express 5.x (not installed, not run)",
+      "Express 4.x other than 4.22.3 (one exact version exercised; no range claim)",
+      "Node 22 (oracle run on v24.19.0 only)"
+    ]
+  },
+  "fixtures": {
+    "normal": {
+      "dir": "test/http-legacy-next/fixtures/target-scope/express/javascript/normal",
+      "scenario": "js-normal",
+      "files": [
+        {
+          "path": "package.json",
+          "sha256": "4350b04809995fdb48ff74bf9f938d0bf2a28c12a4119a23b57d4b3ebfc8fb47",
+          "bytes": 130
+        },
+        {
+          "path": "src/app.js",
+          "sha256": "bba6627ff3e1efec8a33f876e3da382171a3c926730ff9654a654c2e0c94bee1",
+          "bytes": 374
+        },
+        {
+          "path": "src/controllers/handlers.js",
+          "sha256": "fbf3aa982c81a114e53217c4500c6ce5572d52262aedcd3f0c5a3009372f7e4b",
+          "bytes": 216
+        },
+        {
+          "path": "src/middleware/verifyToken.js",
+          "sha256": "e7aa51b7cb0576bd21c970dd7c2554c966ee3edf6b0e8b40762d3a09cce9bb1f",
+          "bytes": 230
+        },
+        {
+          "path": "src/routes/order.route.js",
+          "sha256": "b3ea4adc8e031ddf3ee94426cf4a9a0f8f33075d4328e09ff19d034d35807303",
+          "bytes": 226
+        },
+        {
+          "path": "src/routes/user.route.js",
+          "sha256": "2ebefbf6f1d628945d2f353c9c6b42c2fc80104e249934e7ed2eac43a3839b36",
+          "bytes": 481
+        }
+      ]
+    },
+    "counterexample": {
+      "dir": "test/http-legacy-next/fixtures/target-scope/express/javascript/counterexample",
+      "scenario": "js-counterexample",
+      "files": [
+        {
+          "path": "package.json",
+          "sha256": "711a741484399cfb3994b955e58fccd4635693f4f20f6524a250aba62fed378d",
+          "bytes": 138
+        },
+        {
+          "path": "src/app.js",
+          "sha256": "e260794ad859650ea648b0a33df7dd3f075e123a0ae30294e1d9ee67dd2893dc",
+          "bytes": 775
+        },
+        {
+          "path": "src/controllers.js",
+          "sha256": "5b8123ab77e0f729da1c595bcd06bb6d202c970cb5f8d2eaa90b80f0ede2c7e7",
+          "bytes": 81
+        },
+        {
+          "path": "src/middleware/requireAuth.js",
+          "sha256": "b9e275b05cd53ab12090780a14c3f26b478da3935d755a8c5f9f41f8239cc5d2",
+          "bytes": 143
+        },
+        {
+          "path": "src/routes/api.js",
+          "sha256": "f22a55c4d519654711bcf69abf5ee5e939a3a50562adc4abd98291c181ab6f79",
+          "bytes": 161
+        },
+        {
+          "path": "src/routes/factory.js",
+          "sha256": "31eed06b733238740caa8c0a796c1323f8b226d4eba91a1c6dfdcc76f7a6daae",
+          "bytes": 217
+        },
+        {
+          "path": "src/routes/index.js",
+          "sha256": "7f84e2fa696267a33eef63f4dd9d589071a95da71f36f05d207fdb1ca7426a03",
+          "bytes": 650
+        },
+        {
+          "path": "src/routes/legacy.js",
+          "sha256": "9f4d3349b5dc13ca2fc09473e8cd485d7ae6edbd3dcb0871e0e4a7a9b3b9f32c",
+          "bytes": 170
+        },
+        {
+          "path": "src/routes/ping.js",
+          "sha256": "d74c20c7389402a93195d51fe49ccd8a41c37eaf2e6ad0cff6816d6c01ccb8cc",
+          "bytes": 159
+        }
+      ]
+    }
+  },
+  "evidenceFiles": [
+    {
+      "role": "oracle-script",
+      "path": "test/http-legacy-next/fixtures/target-scope/express/oracle.mjs",
+      "sha256": "f4b6bc8ccc105559e0e479c37531a19af1348608eba0891c01468c07de135388",
+      "bytes": 7253
+    },
+    {
+      "role": "oracle-output",
+      "path": "test/http-legacy-next/fixtures/target-scope/express/oracle-output.json",
+      "sha256": "028fae9d323f3a4622adcffa8028c9eab441ef42705c14e1e2c3bc2c62c60c8d",
+      "bytes": 10591
+    },
+    {
+      "role": "lock",
+      "path": "test/http-legacy-next/fixtures/target-scope/express/package-lock.json",
+      "sha256": "9b5d8c9df90741eeed2faa8ca75feb58cc526e4bcde60479dbf5ce35ab7a5dd9",
+      "bytes": 35063
+    },
+    {
+      "role": "manifest",
+      "path": "test/http-legacy-next/fixtures/target-scope/express/package.json",
+      "sha256": "fd4f932c8cadc1b18a4d590dcf2072d7170e45d0848c28e222067799728d7795",
+      "bytes": 441
+    },
+    {
+      "role": "compiler-config",
+      "path": "test/http-legacy-next/fixtures/target-scope/express/tsconfig.json",
+      "sha256": "98c7ffa537da5461c6e9cd9d12341c0e9e9fe4c69ea5c14b993ea9c84c730a1d",
+      "bytes": 295
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-legacy-next/fixtures/target-scope/express/registry-_types_express_4.17.25.json",
+      "sha256": "72a53732da89b2995db329054510e14e2f29faa0e3be0ce787d398e142c2ed60",
+      "bytes": 174
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-legacy-next/fixtures/target-scope/express/registry-_types_node_22.20.5.json",
+      "sha256": "cdf2bf6d5feb78833074ce2b4911475830bad9e40b5c97336ae850f2a271a881",
+      "bytes": 171
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-legacy-next/fixtures/target-scope/express/registry-express_4.22.3.json",
+      "sha256": "2f4a039c470741ed987ad1bce4102d8ec8242bafc9643ba6820cfa23069e147e",
+      "bytes": 166
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-legacy-next/fixtures/target-scope/express/registry-typescript_5.9.3.json",
+      "sha256": "46cbd7f43f23e3a67f4931608efffb6375741fb8a095c619ff69f75283a19c87",
+      "bytes": 168
+    }
+  ],
+  "oracle": {
+    "kind": "real express 4.22.3 on a loopback ephemeral port; HTTP status per candidate route",
+    "script": "test/http-legacy-next/fixtures/target-scope/express/oracle.mjs",
+    "output": "test/http-legacy-next/fixtures/target-scope/express/oracle-output.json",
+    "runIds": [
+      "oracle-1",
+      "oracle-2"
+    ],
+    "candidateSetLimit": "The oracle probes an authored candidate list per scenario; it cannot discover a served route that is not on the list. \"Exists\" means a status other than 404 or 405.",
+    "buildArgv": [
+      "node_modules/.bin/tsc",
+      "-p",
+      "tsconfig.json"
+    ]
+  },
+  "runs": [
+    {
+      "id": "registry-express_4.22.3",
+      "argv": [
+        "npm",
+        "view",
+        "express@4.22.3",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view express@4.22.3 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-legacy-next/fixtures/target-scope/express",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:37Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-legacy-next/fixtures/target-scope/express/registry-express_4.22.3.json",
+        "sha256": "2f4a039c470741ed987ad1bce4102d8ec8242bafc9643ba6820cfa23069e147e",
+        "bytes": 166
+      }
+    },
+    {
+      "id": "registry-_types_express_4.17.25",
+      "argv": [
+        "npm",
+        "view",
+        "@types/express@4.17.25",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view @types/express@4.17.25 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-legacy-next/fixtures/target-scope/express",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:37Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-legacy-next/fixtures/target-scope/express/registry-_types_express_4.17.25.json",
+        "sha256": "72a53732da89b2995db329054510e14e2f29faa0e3be0ce787d398e142c2ed60",
+        "bytes": 174
+      }
+    },
+    {
+      "id": "registry-_types_node_22.20.5",
+      "argv": [
+        "npm",
+        "view",
+        "@types/node@22.20.5",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view @types/node@22.20.5 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-legacy-next/fixtures/target-scope/express",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:38Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-legacy-next/fixtures/target-scope/express/registry-_types_node_22.20.5.json",
+        "sha256": "cdf2bf6d5feb78833074ce2b4911475830bad9e40b5c97336ae850f2a271a881",
+        "bytes": 171
+      }
+    },
+    {
+      "id": "registry-typescript_5.9.3",
+      "argv": [
+        "npm",
+        "view",
+        "typescript@5.9.3",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view typescript@5.9.3 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-legacy-next/fixtures/target-scope/express",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:39Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-legacy-next/fixtures/target-scope/express/registry-typescript_5.9.3.json",
+        "sha256": "46cbd7f43f23e3a67f4931608efffb6375741fb8a095c619ff69f75283a19c87",
+        "bytes": 168
+      }
+    },
+    {
+      "id": "install-1",
+      "argv": [
+        "npm",
+        "install",
+        "--package-lock-only",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm install --package-lock-only --ignore-scripts --no-audit --no-fund --cache <scratch>/npm-cache",
+      "cwd": "test/http-legacy-next/fixtures/target-scope/express",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:40Z",
+      "inputsSha256": "f28c79d084e5af41e93410acd08889a7682e3fa2992e062145db8d8614ec551e",
+      "output": {
+        "kind": "file",
+        "file": "test/http-legacy-next/fixtures/target-scope/express/package-lock.json",
+        "sha256": "9b5d8c9df90741eeed2faa8ca75feb58cc526e4bcde60479dbf5ce35ab7a5dd9",
+        "bytes": 35063
+      }
+    },
+    {
+      "id": "install-2",
+      "argv": [
+        "npm",
+        "ci",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm ci --ignore-scripts --no-audit --no-fund --cache <scratch>/npm-cache",
+      "cwd": "test/http-legacy-next/fixtures/target-scope/express",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:41Z",
+      "inputsSha256": "bb845287ee17b81d498fb617a8c22b5b77f30165b3fc666e662b9c6ccd5f4b49",
+      "output": {
+        "kind": "file",
+        "file": "test/http-legacy-next/fixtures/target-scope/express/package-lock.json",
+        "sha256": "9b5d8c9df90741eeed2faa8ca75feb58cc526e4bcde60479dbf5ce35ab7a5dd9",
+        "bytes": 35063
+      }
+    },
+    {
+      "id": "build-1",
+      "argv": [
+        "node_modules/.bin/tsc",
+        "-p",
+        "tsconfig.json"
+      ],
+      "command": "node_modules/.bin/tsc -p tsconfig.json",
+      "cwd": "test/http-legacy-next/fixtures/target-scope/express",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:42Z",
+      "inputsSha256": "bb845287ee17b81d498fb617a8c22b5b77f30165b3fc666e662b9c6ccd5f4b49",
+      "output": {
+        "kind": "stdout",
+        "file": null,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    {
+      "id": "oracle-1",
+      "argv": [
+        "node",
+        "oracle.mjs"
+      ],
+      "command": "node oracle.mjs",
+      "cwd": "test/http-legacy-next/fixtures/target-scope/express",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:42Z",
+      "inputsSha256": "bb845287ee17b81d498fb617a8c22b5b77f30165b3fc666e662b9c6ccd5f4b49",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-legacy-next/fixtures/target-scope/express/oracle-output.json",
+        "sha256": "028fae9d323f3a4622adcffa8028c9eab441ef42705c14e1e2c3bc2c62c60c8d",
+        "bytes": 10591
+      }
+    },
+    {
+      "id": "build-2",
+      "argv": [
+        "node_modules/.bin/tsc",
+        "-p",
+        "tsconfig.json"
+      ],
+      "command": "node_modules/.bin/tsc -p tsconfig.json",
+      "cwd": "test/http-legacy-next/fixtures/target-scope/express",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:43Z",
+      "inputsSha256": "bb845287ee17b81d498fb617a8c22b5b77f30165b3fc666e662b9c6ccd5f4b49",
+      "output": {
+        "kind": "stdout",
+        "file": null,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    {
+      "id": "oracle-2",
+      "argv": [
+        "node",
+        "oracle.mjs"
+      ],
+      "command": "node oracle.mjs",
+      "cwd": "test/http-legacy-next/fixtures/target-scope/express",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:43Z",
+      "inputsSha256": "bb845287ee17b81d498fb617a8c22b5b77f30165b3fc666e662b9c6ccd5f4b49",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-legacy-next/fixtures/target-scope/express/oracle-output.json",
+        "sha256": "028fae9d323f3a4622adcffa8028c9eab441ef42705c14e1e2c3bc2c62c60c8d",
+        "bytes": 10591
+      }
+    }
+  ],
+  "runEnv": {
+    "policy": "cleared-environment",
+    "variables": {
+      "PATH": "<node-bin>:/usr/bin:/bin",
+      "HOME": "<scratch>/home",
+      "LANG": "C",
+      "NEXT_TELEMETRY_DISABLED": "1",
+      "npm_config_update_notifier": "false"
+    },
+    "platformInjected": [
+      "__CF_USER_TEXT_ENCODING"
+    ]
+  },
+  "conformance": {
+    "status": "RUN",
+    "method": "The in-repo scanner module runs live on each committed fixture directory (twice, for determinism). Each endpoint is canonicalised to \"VERB /path\" (regex constraints and trailing slash dropped) and looked up in the oracle output: a probe answering 404/405 makes it a false route. A must-catch is \"caught\" when every scannerShould route is emitted, \"left-unknown\" when a matching unknown marker is reported, else \"silent-miss\".",
+    "emitted": {
+      "normal": [
+        "GET /api/order/:orderId",
+        "GET /api/order/search",
+        "GET /api/ping",
+        "GET /api/user/:userUid",
+        "GET /api/user/list",
+        "PATCH /api/user/:userUid"
+      ],
+      "counterexample": [
+        "GET /",
+        "GET /api/status",
+        "GET /inline",
+        "GET /old",
+        "GET /open",
+        "GET /ping",
+        "GET /secret",
+        "POST /"
+      ]
+    },
+    "falseRoutes": {
+      "normal": [],
+      "counterexample": [
+        "GET /",
+        "GET /old",
+        "GET /ping",
+        "POST /"
+      ]
+    },
+    "verdictCounts": {
+      "caught": 2,
+      "left-unknown": 0,
+      "silent-miss": 7
+    }
+  },
+  "limits": [
+    {
+      "id": "no-unknown-channel",
+      "status": "UNSUPPORTED",
+      "text": "The legacy Express scanners have no unknown channel: constructs they cannot read are dropped or emitted at a wrong path, never flagged. Fixing that is outside this record."
+    },
+    {
+      "id": "shared-run",
+      "status": "NOT_RECORDED",
+      "text": "Both Express records share one install and one oracle run (one pinned express 4.22.3), recorded under identical run ids."
+    },
+    {
+      "id": "no-ci-replay",
+      "status": "NOT_RECORDED",
+      "text": "CI does not replay the recorded framework runs; it recomputes every hash and pin and re-runs the in-repo scanner on the committed fixtures."
+    },
+    {
+      "id": "single-platform",
+      "status": "NOT_RECORDED",
+      "text": "Results come from one platform (darwin-arm64) and one Node version (v24.19.0); the second oracle run follows a clean npm ci and hashes identically."
+    },
+    {
+      "id": "candidate-list",
+      "status": "UNKNOWN",
+      "text": "The oracle sends an authored list of candidate requests per scenario; it cannot discover a served route that is not on the list. \"Exists\" means a status other than 404 or 405."
+    },
+    {
+      "id": "not-run",
+      "status": "NOT_RECORDED",
+      "text": "Not run: Express 5.x; Express 4.x versions other than 4.22.3; Node 22 for the oracle run (oracle ran on v24.19.0 only); the real-world repositories pinned in test/fixtures/oracle-manifest.json (not re-run by this record); authentication enforcement (the scanner emits no auth field)."
+    }
+  ],
+  "seal": {
+    "algorithm": "sha256 over canonical JSON (object keys sorted, no whitespace)",
+    "covers": "every field of this record except seal",
+    "sha256": "14e633ff1dd4b9ab9c3011b62d7c4ba5f3ee27695c9af46b99bdd10d8165b610",
+    "notRecomputed": [
+      "The framework runs themselves (npm view, npm install, npm ci, build, oracle) are not replayed: exit codes, timestamps and the Node and platform strings are taken from the record. CI re-derives each run's argv, input hashes and output hashes, the lock, the registry answers and the oracle output.",
+      "Prose (constructs, reasons, notes, limit texts) is covered by the seal against silent edits but is not recomputed; the facts it states are checked through the fields they cite.",
+      "The live npm registry and the upstream example commits are not queried in CI; the registry files are the recorded answers of the registry steps."
+    ]
+  }
+}

@@ -1,0 +1,281 @@
+{
+ "schema": "bskel.http-scope-oracle/2",
+ "command": [
+  "node",
+  "oracle.mjs"
+ ],
+ "startEnv": [
+  "HOME",
+  "LANG",
+  "NEXT_TELEMETRY_DISABLED",
+  "PATH",
+  "__CF_USER_TEXT_ENCODING",
+  "npm_config_update_notifier"
+ ],
+ "lock": {
+  "file": "package-lock.json",
+  "sha256": "cf19b7378455fdeb51e9a0ac79a212ba3dc79ee7d971d7610c627072fbc6228d",
+  "packages": 48,
+  "installed": 48
+ },
+ "framework": {
+  "name": "fastify",
+  "version": "5.12.5"
+ },
+ "scenarios": [
+  {
+   "id": "fastify-normal",
+   "fixture": "normal",
+   "fixtureDigest": "d2479a7be2719caf67ce25217ff035090d50398c7696dcf45b4923e7af36f39a",
+   "env": {},
+   "routeTree": [
+    "├── /health (GET, HEAD)",
+    "└── /users (GET, HEAD, POST)",
+    "    └── / (GET, HEAD, POST)",
+    "        └── :id (GET, HEAD)"
+   ],
+   "probes": [
+    {
+     "method": "GET",
+     "route": "/health",
+     "sample": "/health",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/users",
+     "sample": "/users",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/users",
+     "sample": "/users",
+     "auth": "token",
+     "status": 201
+    },
+    {
+     "method": "GET",
+     "route": "/users/:id",
+     "sample": "/users/7",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "PUT",
+     "route": "/users",
+     "sample": "/users",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/",
+     "sample": "/",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/api/users",
+     "sample": "/api/users",
+     "auth": "token",
+     "status": 404
+    }
+   ]
+  },
+  {
+   "id": "fastify-counterexample",
+   "fixture": "counterexample",
+   "fixtureDigest": "5273f5f2ca656a8979db34b074030dfe7ada8b5788b1a0681aa6622e77d9fd53",
+   "env": {},
+   "routeTree": [
+    "├── /open (GET, HEAD)",
+    "├── /gen/alpha (GET, HEAD)",
+    "├── /gen/beta (GET, HEAD)",
+    "├── /multi (GET, POST, HEAD)",
+    "├── /any (GET, HEAD, TRACE, DELETE, OPTIONS, PATCH, PUT, POST, QUERY)",
+    "├── /admin/data (GET, HEAD)",
+    "├── /admin/v1/reports (GET, HEAD)",
+    "├── /explicit (GET, HEAD)",
+    "├── /widgets (GET, HEAD, POST)",
+    "│   └── / (GET, HEAD, POST)",
+    "└── /svc/ping (GET, HEAD)"
+   ],
+   "probes": [
+    {
+     "method": "GET",
+     "route": "/open",
+     "sample": "/open",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/admin/data",
+     "sample": "/admin/data",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/admin/data",
+     "sample": "/admin/data",
+     "auth": "anon",
+     "status": 401
+    },
+    {
+     "method": "GET",
+     "route": "/admin/v1/reports",
+     "sample": "/admin/v1/reports",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/admin/v1/reports",
+     "sample": "/admin/v1/reports",
+     "auth": "anon",
+     "status": 401
+    },
+    {
+     "method": "GET",
+     "route": "/reports",
+     "sample": "/reports",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/data",
+     "sample": "/data",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/gen/alpha",
+     "sample": "/gen/alpha",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/gen/beta",
+     "sample": "/gen/beta",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/widgets",
+     "sample": "/widgets",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/widgets",
+     "sample": "/widgets",
+     "auth": "token",
+     "status": 201
+    },
+    {
+     "method": "GET",
+     "route": "/",
+     "sample": "/",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/svc/ping",
+     "sample": "/svc/ping",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/ping",
+     "sample": "/ping",
+     "auth": "token",
+     "status": 404
+    },
+    {
+     "method": "GET",
+     "route": "/multi",
+     "sample": "/multi",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/multi",
+     "sample": "/multi",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/any",
+     "sample": "/any",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "POST",
+     "route": "/any",
+     "sample": "/any",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/explicit",
+     "sample": "/explicit",
+     "auth": "token",
+     "status": 200
+    }
+   ]
+  },
+  {
+   "id": "fastify-counterexample-env-v2",
+   "fixture": "counterexample",
+   "fixtureDigest": "5273f5f2ca656a8979db34b074030dfe7ada8b5788b1a0681aa6622e77d9fd53",
+   "env": {
+    "API_BASE": "/v2"
+   },
+   "routeTree": [
+    "├── /open (GET, HEAD)",
+    "├── /gen/alpha (GET, HEAD)",
+    "├── /gen/beta (GET, HEAD)",
+    "├── /multi (GET, POST, HEAD)",
+    "├── /any (GET, HEAD, TRACE, DELETE, OPTIONS, PATCH, PUT, POST, QUERY)",
+    "├── /admin/data (GET, HEAD)",
+    "├── /admin/v1/reports (GET, HEAD)",
+    "├── /explicit (GET, HEAD)",
+    "├── /widgets (GET, HEAD, POST)",
+    "│   └── / (GET, HEAD, POST)",
+    "└── /v2/ping (GET, HEAD)"
+   ],
+   "probes": [
+    {
+     "method": "GET",
+     "route": "/v2/ping",
+     "sample": "/v2/ping",
+     "auth": "token",
+     "status": 200
+    },
+    {
+     "method": "GET",
+     "route": "/svc/ping",
+     "sample": "/svc/ping",
+     "auth": "token",
+     "status": 404
+    }
+   ]
+  }
+ ]
+}

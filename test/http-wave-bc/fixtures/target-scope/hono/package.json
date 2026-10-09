@@ -1,0 +1,9 @@
+{
+  "name": "bskel-target-scope-hono-run",
+  "private": true,
+  "type": "module",
+  "description": "Pins the framework run behind the HTTP-node-hono-01 scope record. Reproduce: npm ci --ignore-scripts, then node oracle.mjs.",
+  "dependencies": {
+    "hono": "4.13.9"
+  }
+}

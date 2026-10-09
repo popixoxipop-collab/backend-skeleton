@@ -1,0 +1,9 @@
+{
+  "name": "bskel-target-scope-fastify-run",
+  "private": true,
+  "type": "module",
+  "description": "Pins the framework run behind the HTTP-node-fastify-01 scope record. Reproduce: npm ci --ignore-scripts, then node oracle.mjs.",
+  "dependencies": {
+    "fastify": "5.12.5"
+  }
+}

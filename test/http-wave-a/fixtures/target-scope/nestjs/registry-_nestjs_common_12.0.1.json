@@ -1,0 +1,5 @@
+{
+  "name": "@nestjs/common",
+  "version": "12.0.1",
+  "dist.integrity": "sha512-v0zTaRCTV2K2xSnb3GnJoQKtaR6VxouJtm+P2gpr5w61dlXeWpXl1WVknCSzUqx2QwTV10tBkHETxvQvkf2Exg=="
+}

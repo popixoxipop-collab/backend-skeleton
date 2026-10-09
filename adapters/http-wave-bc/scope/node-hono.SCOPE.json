@@ -1,0 +1,761 @@
+{
+  "schema": "bskel.http-target-scope/1",
+  "item": "HTTP-node-hono-01",
+  "target": "HTTP-node-hono",
+  "track": "T13",
+  "recordDate": "2026-10-09",
+  "claim": {
+    "registrationAloneIsSupport": false,
+    "published": "synthetic-only-hold",
+    "scope": "Hono literal per-verb routes, literal basePath() and a bounded route() graph (same file or relative import) read statically. Verification basis is synthetic-only and promotion is held (HOLD_T19_T23); api.operations, api.request-shape, resource.fetch and codegen.handles are all false. Catalog registration does not make any construct outside supported[] supported.",
+    "registration": {
+      "adapterId": "node-hono",
+      "contract": "sbf.adapter/2",
+      "specificity": 55,
+      "verificationBasis": "synthetic-only",
+      "capabilities": {
+        "api.operations": false,
+        "api.request-shape": false,
+        "resource.fetch": false,
+        "codegen.handles": false
+      },
+      "profileState": "STATIC_EVIDENCE_GREEN",
+      "promotionState": "HOLD_T19_T23",
+      "profilePin": "4.13.9"
+    },
+    "runtimeTested": {
+      "frameworkOracleRun": true,
+      "scannerVsRuntimeCompared": true,
+      "scope": "hono 4.13.9 imported from the committed fixtures and driven through app.request() on Node v24.19.0, darwin-arm64 (no HTTP server, no network); the live scanner output was compared route by route with the returned statuses; app.routes is recorded as extra oracle data.",
+      "notRun": [
+        "Hono versions other than 4.13.9",
+        "Hono on Workers, Deno or Bun",
+        "TypeScript sources (the fixtures are plain ESM JavaScript)",
+        "showRoutes() output parsing (covered by the existing hono-show-routes test, not by this record)",
+        "Node 22 for the oracle (oracle ran on v24.19.0 only)"
+      ]
+    }
+  },
+  "scanner": {
+    "runner": "node-hono",
+    "module": "adapters/http-wave-bc/node-hono/adapter.mjs",
+    "emitsUnknownMarkers": true
+  },
+  "supported": [
+    {
+      "id": "S1",
+      "construct": "Literal per-verb call on a tracked new Hono() variable",
+      "emits": [
+        "GET /health"
+      ]
+    },
+    {
+      "id": "S2",
+      "construct": "route('/users', users): a relative-import child app mounted at a literal path, with literal and parameterised child routes",
+      "emits": [
+        "GET /users",
+        "POST /users",
+        "GET /users/:id"
+      ]
+    },
+    {
+      "id": "S3",
+      "construct": "Literal basePath('/v1') on a child app combined with a literal route('/api', v1) mount",
+      "emits": [
+        "GET /api/v1/status",
+        "DELETE /api/v1/sessions/:sid"
+      ]
+    }
+  ],
+  "unsupported": [
+    {
+      "id": "U1",
+      "construct": "route() mount of a sub-app built by a function call",
+      "reason": "The mount child must be an identifier that resolves to a local or relative-imported Hono app; the mount is reported in scanNotes, but the factory file's own router is also emitted at its own root.",
+      "mustCatch": [
+        "M1"
+      ]
+    },
+    {
+      "id": "U2",
+      "construct": "Middleware via use() (auth guards)",
+      "reason": "use() is observed and noted, never emitted or modelled; routes behind it are emitted without the guard.",
+      "mustCatch": [
+        "M2"
+      ]
+    },
+    {
+      "id": "U3",
+      "construct": "Template-literal (generated) route paths",
+      "reason": "Reported in scanNotes and not emitted.",
+      "mustCatch": [
+        "M3"
+      ]
+    },
+    {
+      "id": "U4",
+      "construct": "Mount path decided at start-up (route(base, child))",
+      "reason": "The mount is reported in scanNotes, but the child app's own routes are still emitted at the child's root.",
+      "mustCatch": [
+        "M4"
+      ]
+    },
+    {
+      "id": "U5",
+      "construct": "Chained verb calls (app.get(p, h).post(p, h))",
+      "reason": "Only the call made directly on a tracked variable is read; later verbs on the chain are neither emitted nor noted.",
+      "mustCatch": [
+        "M5"
+      ]
+    },
+    {
+      "id": "U6",
+      "construct": "Method-agnostic all() registration",
+      "reason": "Observed and noted, not emitted.",
+      "mustCatch": [
+        "M6"
+      ]
+    },
+    {
+      "id": "U7",
+      "construct": "on() with method or path lists",
+      "reason": "Observed and noted, not emitted.",
+      "mustCatch": [
+        "M7"
+      ]
+    },
+    {
+      "id": "U8",
+      "construct": "mount() of a foreign fetch handler",
+      "reason": "Observed and noted, not emitted.",
+      "mustCatch": [
+        "M8"
+      ]
+    },
+    {
+      "id": "U9",
+      "construct": "Hono versions other than 4.13.9 and non-Node runtimes",
+      "reason": "Not installed and not run.",
+      "mustCatch": []
+    }
+  ],
+  "mustCatch": [
+    {
+      "id": "M1",
+      "category": "dynamic-route-factory",
+      "construct": "Sub-app produced by a function call and mounted: app.route('/widgets', crud('widgets'))",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "app.route('/widgets', crud('widgets'))"
+      },
+      "truth": [
+        {
+          "scenario": "hono-counterexample",
+          "route": "GET /widgets",
+          "exists": true
+        },
+        {
+          "scenario": "hono-counterexample",
+          "route": "POST /widgets",
+          "exists": true
+        },
+        {
+          "scenario": "hono-counterexample",
+          "route": "GET /",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /widgets",
+        "POST /widgets"
+      ],
+      "scannerEmitsInstead": [
+        "GET /",
+        "POST /"
+      ],
+      "unknownMarker": "route\\(\\) mount at app\\.js:18 \\(/widgets, crud\\) could not be resolved",
+      "expected": "left-unknown",
+      "note": "The unresolved mount is reported, but the factory file's router is emitted at its own root as GET / and POST /, which the live app answers 404 (no note on those routes)."
+    },
+    {
+      "id": "M2",
+      "category": "middleware-auth",
+      "construct": "Auth middleware guarding a subtree: app.use('/secret/*', ...) before app.get('/secret/data', ...)",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "app.use('/secret/*'"
+      },
+      "truth": [
+        {
+          "scenario": "hono-counterexample",
+          "route": "GET /secret/data",
+          "auth": "token",
+          "status": 200
+        },
+        {
+          "scenario": "hono-counterexample",
+          "route": "GET /secret/data",
+          "auth": "anon",
+          "status": 401
+        }
+      ],
+      "scannerShould": [
+        "GET /secret/data"
+      ],
+      "scannerEmitsInstead": [],
+      "unknownMarker": "use\\(\\) at app\\.js:10",
+      "expected": "caught",
+      "note": "The route is emitted and the use() is reported as observed-not-emitted. The auth requirement itself is not modelled, so an emitted route must not be read as an open route."
+    },
+    {
+      "id": "M3",
+      "category": "generated-routes",
+      "construct": "Paths generated in a loop with a template literal: app.get(`/gen/${name}`, ...)",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "app.get(`/gen/${name}`"
+      },
+      "truth": [
+        {
+          "scenario": "hono-counterexample",
+          "route": "GET /gen/alpha",
+          "exists": true
+        },
+        {
+          "scenario": "hono-counterexample",
+          "route": "GET /gen/beta",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /gen/alpha",
+        "GET /gen/beta"
+      ],
+      "scannerEmitsInstead": [],
+      "unknownMarker": "interpolated template route at app\\.js:16 is not emitted",
+      "expected": "left-unknown",
+      "note": "Both generated routes are served; the scanner emits neither and says so."
+    },
+    {
+      "id": "M4",
+      "category": "deployment-prefix",
+      "construct": "Mount path decided at start-up by the environment: const base = process.env.API_BASE ?? '/svc'; app.route(base, ping)",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "app.route(base, ping)"
+      },
+      "truth": [
+        {
+          "scenario": "hono-counterexample",
+          "route": "GET /svc/ping",
+          "exists": true
+        },
+        {
+          "scenario": "hono-counterexample",
+          "route": "GET /ping",
+          "exists": false
+        },
+        {
+          "scenario": "hono-counterexample-env-v2",
+          "route": "GET /v2/ping",
+          "exists": true
+        },
+        {
+          "scenario": "hono-counterexample-env-v2",
+          "route": "GET /svc/ping",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /svc/ping"
+      ],
+      "scannerEmitsInstead": [
+        "GET /ping"
+      ],
+      "unknownMarker": "route\\(\\) at app\\.js:19 has a dynamic path",
+      "expected": "left-unknown",
+      "note": "The prefix depends on API_BASE (/svc by default, /v2 when set), so unknown is the right answer for the mount. The child app's own route is still emitted at its root as GET /ping, which no deployment serves."
+    },
+    {
+      "id": "M5",
+      "category": "route-chain",
+      "construct": "Chained verb calls on one expression: app.get('/chain', h).post('/chain', h)",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": ".post('/chain'"
+      },
+      "truth": [
+        {
+          "scenario": "hono-counterexample",
+          "route": "GET /chain",
+          "exists": true
+        },
+        {
+          "scenario": "hono-counterexample",
+          "route": "POST /chain",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /chain",
+        "POST /chain"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "silent-miss",
+      "note": "Only the first call of the chain is read: POST /chain is served but neither emitted nor reported unknown."
+    },
+    {
+      "id": "M6",
+      "category": "multi-method",
+      "construct": "Method-agnostic registration: app.all('/any', ...)",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "app.all('/any'"
+      },
+      "truth": [
+        {
+          "scenario": "hono-counterexample",
+          "route": "GET /any",
+          "exists": true
+        },
+        {
+          "scenario": "hono-counterexample",
+          "route": "POST /any",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /any",
+        "POST /any"
+      ],
+      "scannerEmitsInstead": [],
+      "unknownMarker": "all\\(\\) at app\\.js:22",
+      "expected": "left-unknown",
+      "note": "The route answers every probed method; the scanner reports all() as observed-not-emitted."
+    },
+    {
+      "id": "M7",
+      "category": "path-array",
+      "construct": "Method and path lists: app.on('GET', ['/a1', '/a2'], ...)",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "app.on('GET', ['/a1', '/a2']"
+      },
+      "truth": [
+        {
+          "scenario": "hono-counterexample",
+          "route": "GET /a1",
+          "exists": true
+        },
+        {
+          "scenario": "hono-counterexample",
+          "route": "GET /a2",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /a1",
+        "GET /a2"
+      ],
+      "scannerEmitsInstead": [],
+      "unknownMarker": "on\\(\\) at app\\.js:23",
+      "expected": "left-unknown",
+      "note": "Both paths are served; on() is reported as observed-not-emitted."
+    },
+    {
+      "id": "M8",
+      "category": "router-prefix-mount",
+      "construct": "Foreign fetch handler mounted under a prefix: app.mount('/legacy', handler)",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "app.mount('/legacy'"
+      },
+      "truth": [
+        {
+          "scenario": "hono-counterexample",
+          "route": "GET /legacy/old",
+          "exists": true
+        },
+        {
+          "scenario": "hono-counterexample",
+          "route": "GET /old",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /legacy/old"
+      ],
+      "scannerEmitsInstead": [],
+      "unknownMarker": "mount\\(\\) at app\\.js:24",
+      "expected": "left-unknown",
+      "note": "Everything under /legacy is answered by the mounted handler; the scanner reports mount() as observed-not-emitted."
+    },
+    {
+      "id": "M9",
+      "category": "parameterised-mount",
+      "construct": "Parameterised literal mount path over an imported sub-app: app.route('/orgs/:org', members)",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "app.route('/orgs/:org', members)"
+      },
+      "truth": [
+        {
+          "scenario": "hono-counterexample",
+          "route": "GET /orgs/:org/list",
+          "exists": true
+        },
+        {
+          "scenario": "hono-counterexample",
+          "route": "GET /list",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /orgs/:org/list"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "caught",
+      "note": "A mount path with a parameter is a literal string to the scanner and is composed with the child route."
+    }
+  ],
+  "framework": {
+    "name": "hono",
+    "version": "4.13.9",
+    "registry": "npm",
+    "packages": [
+      {
+        "name": "hono",
+        "version": "4.13.9",
+        "integrity": "sha512-7dMkQmZoC4E6F7AtaQSPhlWAdnBti+j7rreMZl8QB4jFiEhP9TWbGWUMi8WYzBCgmgulxuvLQupKqo+Co6Omyg==",
+        "lockFile": "test/http-wave-bc/fixtures/target-scope/hono/package-lock.json",
+        "lockKey": "node_modules/hono",
+        "declared": {
+          "file": "test/http-wave-bc/fixtures/target-scope/hono/package.json",
+          "section": "dependencies"
+        }
+      }
+    ],
+    "unverifiedRanges": [
+      "Hono versions other than 4.13.9 (one exact version exercised; no range claim)",
+      "Hono on Workers, Deno or Bun",
+      "Node 22 (oracle run on v24.19.0 only)"
+    ]
+  },
+  "fixtures": {
+    "normal": {
+      "dir": "test/http-wave-bc/fixtures/target-scope/hono/normal",
+      "scenario": "hono-normal",
+      "files": [
+        {
+          "path": "package.json",
+          "sha256": "f8728d664e6a168f38edcae846531e141e1a18ef9bae3421d1ad5acbe496c538",
+          "bytes": 105
+        },
+        {
+          "path": "src/app.js",
+          "sha256": "96ede64651f9b550e9744d3ba62e5e975de7c4f44f0b00ae26efba24d3b71fab",
+          "bytes": 242
+        },
+        {
+          "path": "src/users.js",
+          "sha256": "ca0a48b767d3ac9d31a7524afae556656a86fd434b3c7aa1696dbb9303d715b1",
+          "bytes": 216
+        },
+        {
+          "path": "src/v1.js",
+          "sha256": "82958e9e3a4b58d18c4a53dd8ba796898106e6558b70d6bf925e69b0229654e6",
+          "bytes": 184
+        }
+      ]
+    },
+    "counterexample": {
+      "dir": "test/http-wave-bc/fixtures/target-scope/hono/counterexample",
+      "scenario": "hono-counterexample",
+      "files": [
+        {
+          "path": "package.json",
+          "sha256": "1da6cfa43637b40265068bf7454609fd107e744571dd374cb3af920a932d637c",
+          "bytes": 113
+        },
+        {
+          "path": "src/app.js",
+          "sha256": "ba6ce60b9892fef6875bfe634e7b9ab16a451920b2f9fed5476e1dc215b7c589",
+          "bytes": 1230
+        },
+        {
+          "path": "src/factory.js",
+          "sha256": "e449888e7dfc498307334302a8e012bdd06d7b247d7985d69423d47f768a08ba",
+          "bytes": 223
+        },
+        {
+          "path": "src/members.js",
+          "sha256": "58f7164cf3f07085cdf92c3cd9bb938460d79b9eebd19a236471c464061fe17c",
+          "bytes": 107
+        },
+        {
+          "path": "src/ping.js",
+          "sha256": "fe4e8a5b56e7aa49cc2410033b1b2f69c3eb91d27dc168d4ddbbdb31a93a7fc7",
+          "bytes": 113
+        }
+      ]
+    }
+  },
+  "evidenceFiles": [
+    {
+      "role": "oracle-script",
+      "path": "test/http-wave-bc/fixtures/target-scope/hono/oracle.mjs",
+      "sha256": "50de3958afdaa304346af7ef8df42ade7a9f9be47faf52cdb1c185f76bbcdc56",
+      "bytes": 5484
+    },
+    {
+      "role": "oracle-output",
+      "path": "test/http-wave-bc/fixtures/target-scope/hono/oracle-output.json",
+      "sha256": "189f70e908d9ea9d3cda86fe0d36d2afc97d33994394d731477ac24c67f5bdea",
+      "bytes": 5978
+    },
+    {
+      "role": "lock",
+      "path": "test/http-wave-bc/fixtures/target-scope/hono/package-lock.json",
+      "sha256": "fbf433c4e22faf82b26ea85c37f0cfe90cb46d4b87e8fdc0b97e3440b9fdcd13",
+      "bytes": 555
+    },
+    {
+      "role": "manifest",
+      "path": "test/http-wave-bc/fixtures/target-scope/hono/package.json",
+      "sha256": "a7c9b6c2ceeda0ff9a2a14d19b7a39c98e404f4ffa9b5f4f5ec745a519aa4913",
+      "bytes": 273
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-bc/fixtures/target-scope/hono/registry-hono_4.13.9.json",
+      "sha256": "ef927037c5f5df5542864dc2f919c6acf3cc04d5ed36b761800ab6eedc2693a1",
+      "bytes": 163
+    }
+  ],
+  "oracle": {
+    "kind": "real hono 4.13.9 driven in process through app.request(); HTTP status per candidate request plus the registered route table",
+    "script": "test/http-wave-bc/fixtures/target-scope/hono/oracle.mjs",
+    "output": "test/http-wave-bc/fixtures/target-scope/hono/oracle-output.json",
+    "runIds": [
+      "oracle-1",
+      "oracle-2"
+    ],
+    "candidateSetLimit": "The probes cover an authored candidate list per scenario; only the recorded app.routes table is independent of that list. \"Exists\" means a status other than 404 or 405."
+  },
+  "runs": [
+    {
+      "id": "registry-hono_4.13.9",
+      "argv": [
+        "npm",
+        "view",
+        "hono@4.13.9",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view hono@4.13.9 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/hono",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:45Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-bc/fixtures/target-scope/hono/registry-hono_4.13.9.json",
+        "sha256": "ef927037c5f5df5542864dc2f919c6acf3cc04d5ed36b761800ab6eedc2693a1",
+        "bytes": 163
+      }
+    },
+    {
+      "id": "install-1",
+      "argv": [
+        "npm",
+        "install",
+        "--package-lock-only",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm install --package-lock-only --ignore-scripts --no-audit --no-fund --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/hono",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:45Z",
+      "inputsSha256": "9dbe9f63de125183c47df55a14cfcd3f04361db509c645a695918fdc3984657d",
+      "output": {
+        "kind": "file",
+        "file": "test/http-wave-bc/fixtures/target-scope/hono/package-lock.json",
+        "sha256": "fbf433c4e22faf82b26ea85c37f0cfe90cb46d4b87e8fdc0b97e3440b9fdcd13",
+        "bytes": 555
+      }
+    },
+    {
+      "id": "install-2",
+      "argv": [
+        "npm",
+        "ci",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm ci --ignore-scripts --no-audit --no-fund --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/hono",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:46Z",
+      "inputsSha256": "07a51043a5df4be5404bc884e46ab7d2dbdb7ff8b6247b6b3ee38d339b9677de",
+      "output": {
+        "kind": "file",
+        "file": "test/http-wave-bc/fixtures/target-scope/hono/package-lock.json",
+        "sha256": "fbf433c4e22faf82b26ea85c37f0cfe90cb46d4b87e8fdc0b97e3440b9fdcd13",
+        "bytes": 555
+      }
+    },
+    {
+      "id": "oracle-1",
+      "argv": [
+        "node",
+        "oracle.mjs"
+      ],
+      "command": "node oracle.mjs",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/hono",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:46Z",
+      "inputsSha256": "07a51043a5df4be5404bc884e46ab7d2dbdb7ff8b6247b6b3ee38d339b9677de",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-bc/fixtures/target-scope/hono/oracle-output.json",
+        "sha256": "189f70e908d9ea9d3cda86fe0d36d2afc97d33994394d731477ac24c67f5bdea",
+        "bytes": 5978
+      }
+    },
+    {
+      "id": "oracle-2",
+      "argv": [
+        "node",
+        "oracle.mjs"
+      ],
+      "command": "node oracle.mjs",
+      "cwd": "test/http-wave-bc/fixtures/target-scope/hono",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:46Z",
+      "inputsSha256": "07a51043a5df4be5404bc884e46ab7d2dbdb7ff8b6247b6b3ee38d339b9677de",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-bc/fixtures/target-scope/hono/oracle-output.json",
+        "sha256": "189f70e908d9ea9d3cda86fe0d36d2afc97d33994394d731477ac24c67f5bdea",
+        "bytes": 5978
+      }
+    }
+  ],
+  "runEnv": {
+    "policy": "cleared-environment",
+    "variables": {
+      "PATH": "<node-bin>:/usr/bin:/bin",
+      "HOME": "<scratch>/home",
+      "LANG": "C",
+      "NEXT_TELEMETRY_DISABLED": "1",
+      "npm_config_update_notifier": "false"
+    },
+    "platformInjected": [
+      "__CF_USER_TEXT_ENCODING"
+    ]
+  },
+  "conformance": {
+    "status": "RUN",
+    "method": "The in-repo scanner module runs live on each committed fixture directory (twice, for determinism). Each endpoint is canonicalised to \"VERB /path\" and looked up in the oracle output: a probe answering 404 or 405 makes it a false route. A must-catch is \"caught\" when every scannerShould route is emitted, \"left-unknown\" when a matching scanNotes entry is reported, else \"silent-miss\"; every unknownMarker must also still be reported.",
+    "emitted": {
+      "normal": [
+        "DELETE /api/v1/sessions/:sid",
+        "GET /api/v1/status",
+        "GET /health",
+        "GET /users",
+        "GET /users/:id",
+        "POST /users"
+      ],
+      "counterexample": [
+        "GET /",
+        "GET /chain",
+        "GET /open",
+        "GET /orgs/:org/list",
+        "GET /ping",
+        "GET /secret/data",
+        "POST /"
+      ]
+    },
+    "falseRoutes": {
+      "normal": [],
+      "counterexample": [
+        "GET /",
+        "GET /ping",
+        "POST /"
+      ]
+    },
+    "verdictCounts": {
+      "caught": 2,
+      "left-unknown": 6,
+      "silent-miss": 1
+    }
+  },
+  "limits": [
+    {
+      "id": "oracle-layer",
+      "status": "NOT_RECORDED",
+      "text": "Hono is driven through app.request() only; no HTTP server, adapter or non-Node runtime layer is exercised."
+    },
+    {
+      "id": "promotion-held",
+      "status": "BLOCKED",
+      "text": "The showRoutes() parser is outside this record; promotion stays held (HOLD_T19_T23) and this record does not change it."
+    },
+    {
+      "id": "false-route-with-unknown",
+      "status": "UNKNOWN",
+      "text": "False routes remain even where a matching unknown is reported: a child app's own routes are emitted at its root when its mount is unknown."
+    },
+    {
+      "id": "no-ci-replay",
+      "status": "NOT_RECORDED",
+      "text": "CI does not replay the recorded framework runs; it recomputes every hash and pin and re-runs the in-repo scanner on the committed fixtures."
+    },
+    {
+      "id": "candidate-list",
+      "status": "UNKNOWN",
+      "text": "The oracle sends an authored list of candidate requests per scenario; it cannot discover a served route that is not on the list. \"Exists\" means a status other than 404 or 405."
+    },
+    {
+      "id": "single-platform",
+      "status": "NOT_RECORDED",
+      "text": "Every recorded run used one platform and one Node version (v24.19.0, darwin-arm64); the verifier requires them to be identical across runs. Other platforms and Node versions were not run."
+    },
+    {
+      "id": "not-run",
+      "status": "NOT_RECORDED",
+      "text": "Not run: Hono versions other than 4.13.9; Hono on Workers, Deno or Bun; TypeScript sources (the fixtures are plain ESM JavaScript); showRoutes() output parsing (covered by the existing hono-show-routes test, not by this record); Node 22 for the oracle (oracle ran on v24.19.0 only)."
+    }
+  ],
+  "seal": {
+    "algorithm": "sha256 over canonical JSON (object keys sorted, no whitespace)",
+    "covers": "every field of this record except seal",
+    "sha256": "a35588f84feeef3a89f59e83cac6795be04b70bfaa2ca64683a5f21ebffe96ee",
+    "notRecomputed": [
+      "The framework runs themselves (npm view, npm install, npm ci, build, oracle) are not replayed: exit codes, timestamps and the Node and platform strings are taken from the record. CI re-derives each run's argv, input hashes and output hashes, the lock, the registry answers and the oracle output.",
+      "Prose (constructs, reasons, notes, limit texts) is covered by the seal against silent edits but is not recomputed; the facts it states are checked through the fields they cite.",
+      "The live npm registry and the upstream example commits are not queried in CI; the registry files are the recorded answers of the registry steps."
+    ]
+  }
+}

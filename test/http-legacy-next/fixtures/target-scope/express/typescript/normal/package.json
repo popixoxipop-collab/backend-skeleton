@@ -1,0 +1,7 @@
+{
+  "name": "fixture-ts-express-normal",
+  "private": true,
+  "dependencies": {
+    "express": "4.22.3"
+  }
+}

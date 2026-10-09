@@ -1,0 +1,906 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bskel.http-target-scope/1",
+  "title": "HTTP target scope record (-01): fixed construct scope, must-catch counterexamples, runtime/oracle range, executed runs, conformance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "item",
+    "target",
+    "track",
+    "recordDate",
+    "claim",
+    "scanner",
+    "supported",
+    "unsupported",
+    "mustCatch",
+    "framework",
+    "fixtures",
+    "evidenceFiles",
+    "oracle",
+    "runs",
+    "conformance",
+    "limits",
+    "runEnv",
+    "seal"
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "route": {
+      "type": "string",
+      "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) /\\S*$"
+    },
+    "routes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/route"
+      }
+    },
+    "text": {
+      "type": "string",
+      "minLength": 8
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "bytes"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dir",
+        "scenario",
+        "files"
+      ],
+      "properties": {
+        "dir": {
+          "type": "string"
+        },
+        "scenario": {
+          "type": "string"
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/file"
+          }
+        }
+      }
+    },
+    "perKind": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "normal",
+        "counterexample"
+      ],
+      "properties": {
+        "normal": {
+          "$ref": "#/$defs/routes"
+        },
+        "counterexample": {
+          "$ref": "#/$defs/routes"
+        }
+      }
+    }
+  },
+  "properties": {
+    "schema": {
+      "const": "bskel.http-target-scope/1"
+    },
+    "item": {
+      "type": "string",
+      "pattern": "^HTTP-[a-z]+-[a-z]+-01$"
+    },
+    "target": {
+      "type": "string",
+      "pattern": "^HTTP-[a-z]+-[a-z]+$"
+    },
+    "track": {
+      "enum": [
+        "T11",
+        "T12",
+        "T13"
+      ]
+    },
+    "recordDate": {
+      "type": "string",
+      "pattern": "^2026-\\d\\d-\\d\\d$"
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registrationAloneIsSupport",
+        "published",
+        "scope",
+        "registration",
+        "runtimeTested"
+      ],
+      "properties": {
+        "registrationAloneIsSupport": {
+          "const": false
+        },
+        "published": {
+          "enum": [
+            "scoped-community-sample",
+            "synthetic-only-hold",
+            "blocked-upstream"
+          ]
+        },
+        "scope": {
+          "$ref": "#/$defs/text"
+        },
+        "registration": {
+          "type": "object",
+          "minProperties": 1
+        },
+        "runtimeTested": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "frameworkOracleRun",
+            "scannerVsRuntimeCompared",
+            "scope",
+            "notRun"
+          ],
+          "properties": {
+            "frameworkOracleRun": {
+              "type": "boolean"
+            },
+            "scannerVsRuntimeCompared": {
+              "type": "boolean"
+            },
+            "scope": {
+              "$ref": "#/$defs/text"
+            },
+            "notRun": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        }
+      }
+    },
+    "scanner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runner",
+        "module",
+        "emitsUnknownMarkers"
+      ],
+      "properties": {
+        "runner": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        },
+        "emitsUnknownMarkers": {
+          "type": "boolean"
+        }
+      }
+    },
+    "supported": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "construct",
+          "emits"
+        ],
+        "properties": {
+          "id": {
+            "pattern": "^S\\d+$"
+          },
+          "construct": {
+            "$ref": "#/$defs/text"
+          },
+          "emits": {
+            "$ref": "#/$defs/routes"
+          }
+        }
+      }
+    },
+    "unsupported": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "construct",
+          "reason",
+          "mustCatch"
+        ],
+        "properties": {
+          "id": {
+            "pattern": "^U\\d+$"
+          },
+          "construct": {
+            "$ref": "#/$defs/text"
+          },
+          "reason": {
+            "$ref": "#/$defs/text"
+          },
+          "mustCatch": {
+            "type": "array",
+            "items": {
+              "pattern": "^M\\d+$"
+            }
+          }
+        }
+      }
+    },
+    "mustCatch": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "category",
+          "construct",
+          "counterexample",
+          "truth",
+          "scannerShould",
+          "scannerEmitsInstead",
+          "expected",
+          "note"
+        ],
+        "properties": {
+          "id": {
+            "pattern": "^M\\d+$"
+          },
+          "category": {
+            "enum": [
+              "dynamic-route-factory",
+              "middleware-auth",
+              "generated-routes",
+              "deployment-prefix",
+              "router-prefix-mount",
+              "route-chain",
+              "multi-method",
+              "path-array",
+              "app-level-mount",
+              "parameterised-mount",
+              "dynamic-segment",
+              "route-group",
+              "config-driven"
+            ]
+          },
+          "construct": {
+            "$ref": "#/$defs/text"
+          },
+          "counterexample": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "file",
+              "contains"
+            ],
+            "properties": {
+              "file": {
+                "type": "string"
+              },
+              "contains": {
+                "type": "string",
+                "minLength": 3
+              }
+            }
+          },
+          "truth": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "scenario",
+                "route"
+              ],
+              "anyOf": [
+                {
+                  "required": [
+                    "exists"
+                  ]
+                },
+                {
+                  "required": [
+                    "status"
+                  ]
+                }
+              ],
+              "properties": {
+                "scenario": {
+                  "type": "string"
+                },
+                "route": {
+                  "$ref": "#/$defs/route"
+                },
+                "auth": {
+                  "enum": [
+                    "token",
+                    "anon"
+                  ]
+                },
+                "exists": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "scannerShould": {
+            "$ref": "#/$defs/routes"
+          },
+          "scannerEmitsInstead": {
+            "$ref": "#/$defs/routes"
+          },
+          "unknownMarker": {
+            "type": "string",
+            "minLength": 3
+          },
+          "expected": {
+            "enum": [
+              "caught",
+              "left-unknown",
+              "silent-miss",
+              "not-evaluated"
+            ]
+          },
+          "note": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      }
+    },
+    "framework": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version",
+        "registry",
+        "packages",
+        "unverifiedRanges"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(-[\\w.]+)?$"
+        },
+        "registry": {
+          "const": "npm"
+        },
+        "rangeQuery": {
+          "type": "string",
+          "pattern": "^\\S+@\\S+$"
+        },
+        "packages": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "version",
+              "integrity",
+              "lockFile",
+              "lockKey",
+              "declared"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d+\\.\\d+(-[\\w.]+)?$"
+              },
+              "integrity": {
+                "type": "string",
+                "pattern": "^sha512-"
+              },
+              "lockFile": {
+                "type": "string"
+              },
+              "lockKey": {
+                "type": "string"
+              },
+              "declared": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "file",
+                  "section"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string"
+                  },
+                  "section": {
+                    "enum": [
+                      "dependencies",
+                      "devDependencies"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "unverifiedRanges": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      }
+    },
+    "fixtures": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "normal",
+        "counterexample"
+      ],
+      "properties": {
+        "normal": {
+          "$ref": "#/$defs/fixture"
+        },
+        "counterexample": {
+          "$ref": "#/$defs/fixture"
+        }
+      }
+    },
+    "evidenceFiles": {
+      "type": "array",
+      "minItems": 4,
+      "allOf": [
+        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "oracle-script" } } } },
+        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "oracle-output" } } } },
+        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "lock" } } } },
+        { "contains": { "type": "object", "required": ["role"], "properties": { "role": { "const": "manifest" } } } }
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "role",
+          "path",
+          "sha256",
+          "bytes"
+        ],
+        "properties": {
+          "role": {
+            "enum": [
+              "oracle-script",
+              "oracle-output",
+              "lock",
+              "manifest",
+              "compiler-config",
+              "registry-resolution"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "script",
+        "output",
+        "runIds",
+        "candidateSetLimit"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "script": {
+          "type": "string"
+        },
+        "output": {
+          "type": "string"
+        },
+        "runIds": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "candidateSetLimit": {
+          "$ref": "#/$defs/text"
+        },
+        "buildArgv": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "runs": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "argv",
+          "command",
+          "cwd",
+          "exitCode",
+          "node",
+          "platform",
+          "at",
+          "inputsSha256",
+          "output"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]+$"
+          },
+          "argv": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "at": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          },
+          "inputsSha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "command": {
+            "type": "string",
+            "minLength": 3
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "exitCode": {
+            "type": "integer"
+          },
+          "node": {
+            "type": "string",
+            "pattern": "^v\\d+\\.\\d+\\.\\d+$"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "output": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "file",
+              "sha256",
+              "bytes"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "stdout",
+                  "file"
+                ]
+              },
+              "file": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    "conformance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "method"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "RUN",
+            "BLOCKED"
+          ]
+        },
+        "method": {
+          "$ref": "#/$defs/text"
+        },
+        "emitted": {
+          "$ref": "#/$defs/perKind"
+        },
+        "falseRoutes": {
+          "$ref": "#/$defs/perKind"
+        },
+        "verdictCounts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "caught",
+            "left-unknown",
+            "silent-miss"
+          ],
+          "properties": {
+            "caught": {
+              "type": "integer"
+            },
+            "left-unknown": {
+              "type": "integer"
+            },
+            "silent-miss": {
+              "type": "integer"
+            }
+          }
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_]+$"
+        },
+        "reason": {
+          "$ref": "#/$defs/text"
+        },
+        "oracleConfirmedNormal": {
+          "$ref": "#/$defs/routes"
+        },
+        "checks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "target",
+              "expect"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "expect": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "status": {
+              "const": "RUN"
+            }
+          },
+          "required": [
+            "emitted",
+            "falseRoutes",
+            "verdictCounts"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "code"
+                ]
+              },
+              {
+                "required": [
+                  "reason"
+                ]
+              },
+              {
+                "required": [
+                  "oracleConfirmedNormal"
+                ]
+              },
+              {
+                "required": [
+                  "checks"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "properties": {
+            "status": {
+              "const": "BLOCKED"
+            }
+          },
+          "required": [
+            "code",
+            "reason",
+            "oracleConfirmedNormal",
+            "checks"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "emitted"
+                ]
+              },
+              {
+                "required": [
+                  "falseRoutes"
+                ]
+              },
+              {
+                "required": [
+                  "verdictCounts"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "limits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "text"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "status": {
+            "enum": [
+              "BLOCKED",
+              "UNKNOWN",
+              "UNSUPPORTED",
+              "NOT_RECORDED"
+            ]
+          },
+          "text": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      }
+    },
+    "runEnv": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy",
+        "variables",
+        "platformInjected"
+      ],
+      "properties": {
+        "policy": {
+          "const": "cleared-environment"
+        },
+        "variables": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "platformInjected": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          }
+        }
+      }
+    },
+    "seal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "covers",
+        "sha256",
+        "notRecomputed"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "sha256 over canonical JSON (object keys sorted, no whitespace)"
+        },
+        "covers": {
+          "const": "every field of this record except seal"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "notRecomputed": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,663 @@
+{
+  "schema": "bskel.http-target-scope/1",
+  "item": "HTTP-node-fastify-01",
+  "target": "HTTP-node-fastify",
+  "track": "T12",
+  "recordDate": "2026-10-09",
+  "claim": {
+    "registrationAloneIsSupport": false,
+    "published": "blocked-upstream",
+    "scope": "Nothing is published as supported for Fastify. The profile is blocked-upstream-fact-gap with an empty supportedSyntax list, unregistered, not a production default and not runtime-tested. This record fixes the scope a future projector must meet (must-catch list, oracle-confirmed routes of the normal fixture) and pins an exact Fastify version; registration alone does not make any construct supported.",
+    "registration": {
+      "profileId": "node-fastify",
+      "state": "blocked-upstream-fact-gap",
+      "registration": "unregistered",
+      "productionDefault": false,
+      "runtimeTested": false,
+      "t19Review": "NOT_REVIEWED",
+      "supportedSyntax": [],
+      "versionPin": {
+        "repo": "fastify/example",
+        "path": "fastify-postgres",
+        "ref": "d3032da0b307afa8749e967aa0dbdf239c348341",
+        "framework": null,
+        "declaredRange": "^5.2.1"
+      }
+    },
+    "runtimeTested": {
+      "frameworkOracleRun": true,
+      "scannerVsRuntimeCompared": false,
+      "scope": "fastify 5.12.5 built from the committed fixtures and driven in process through app.inject() on Node v24.19.0, darwin-arm64 (no sockets). The in-repo profile was not compared with it: conformance is BLOCKED.",
+      "notRun": [
+        "Profile or projector output against the runtime (BLOCKED: no producer of Fastify receiver-identity facts exists)",
+        "Fastify versions other than 5.12.5",
+        "The upstream fastify/example pin itself (it carries only the range ^5.2.1; its server.js and test.js were not run)",
+        "TypeScript sources and the fastify-plugin wrapper",
+        "Node 22 for the oracle (oracle ran on v24.19.0 only)"
+      ]
+    }
+  },
+  "scanner": {
+    "runner": "node-fastify",
+    "module": "adapters/http-wave-a/fastify.mjs",
+    "emitsUnknownMarkers": true
+  },
+  "supported": [],
+  "unsupported": [
+    {
+      "id": "U1",
+      "construct": "Every Fastify route construct (root get/post/route/all, register with prefix, hooks)",
+      "reason": "The profile lists no supported syntax: Fastify instance and plugin receiver identity is not provable from the current T04 fact surface, so its projection is blocked.",
+      "mustCatch": [
+        "M1",
+        "M2",
+        "M3",
+        "M4",
+        "M5",
+        "M6",
+        "M7",
+        "M8"
+      ]
+    },
+    {
+      "id": "U2",
+      "construct": "Fastify versions other than 5.12.5, Fastify 4 and earlier, non-Node runtimes",
+      "reason": "Not installed and not run.",
+      "mustCatch": []
+    }
+  ],
+  "mustCatch": [
+    {
+      "id": "M1",
+      "category": "dynamic-route-factory",
+      "construct": "Plugin produced by a factory function and registered with a prefix: app.register(crud('widgets'), { prefix: '/widgets' })",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "app.register(crud('widgets'), { prefix: '/widgets' })"
+      },
+      "truth": [
+        {
+          "scenario": "fastify-counterexample",
+          "route": "GET /widgets",
+          "exists": true
+        },
+        {
+          "scenario": "fastify-counterexample",
+          "route": "POST /widgets",
+          "exists": true
+        },
+        {
+          "scenario": "fastify-counterexample",
+          "route": "GET /",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /widgets",
+        "POST /widgets"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "not-evaluated",
+      "note": "Both factory routes are served under the registered prefix; a projector must emit them or leave the registration unknown."
+    },
+    {
+      "id": "M2",
+      "category": "middleware-auth",
+      "construct": "Plugin-level auth hook: fastify.addHook('onRequest', ...) guarding every route of the plugin",
+      "counterexample": {
+        "file": "src/admin.js",
+        "contains": "fastify.addHook('onRequest'"
+      },
+      "truth": [
+        {
+          "scenario": "fastify-counterexample",
+          "route": "GET /admin/data",
+          "auth": "token",
+          "status": 200
+        },
+        {
+          "scenario": "fastify-counterexample",
+          "route": "GET /admin/data",
+          "auth": "anon",
+          "status": 401
+        }
+      ],
+      "scannerShould": [
+        "GET /admin/data"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "not-evaluated",
+      "note": "The hook makes the same route answer 401 without a token; an emitted route must not be read as an open route."
+    },
+    {
+      "id": "M3",
+      "category": "generated-routes",
+      "construct": "Paths generated in a loop with a template literal: app.get(`/gen/${name}`, ...)",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "app.get(`/gen/${name}`"
+      },
+      "truth": [
+        {
+          "scenario": "fastify-counterexample",
+          "route": "GET /gen/alpha",
+          "exists": true
+        },
+        {
+          "scenario": "fastify-counterexample",
+          "route": "GET /gen/beta",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /gen/alpha",
+        "GET /gen/beta"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "not-evaluated",
+      "note": "Both generated routes are served; a projector must leave them unknown rather than drop them."
+    },
+    {
+      "id": "M4",
+      "category": "deployment-prefix",
+      "construct": "Plugin prefix decided at start-up by the environment: app.register(members, { prefix: base }) with base = process.env.API_BASE ?? '/svc'",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "app.register(members, { prefix: base })"
+      },
+      "truth": [
+        {
+          "scenario": "fastify-counterexample",
+          "route": "GET /svc/ping",
+          "exists": true
+        },
+        {
+          "scenario": "fastify-counterexample",
+          "route": "GET /ping",
+          "exists": false
+        },
+        {
+          "scenario": "fastify-counterexample-env-v2",
+          "route": "GET /v2/ping",
+          "exists": true
+        },
+        {
+          "scenario": "fastify-counterexample-env-v2",
+          "route": "GET /svc/ping",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /svc/ping"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "not-evaluated",
+      "note": "The prefix depends on API_BASE (/svc by default, /v2 when set), so unknown is the only honest answer; the plugin file alone would suggest GET /ping, which no deployment serves."
+    },
+    {
+      "id": "M5",
+      "category": "multi-method",
+      "construct": "One route() call declaring several methods: app.route({ method: ['GET', 'POST'], url: '/multi', ... })",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "method: ['GET', 'POST']"
+      },
+      "truth": [
+        {
+          "scenario": "fastify-counterexample",
+          "route": "GET /multi",
+          "exists": true
+        },
+        {
+          "scenario": "fastify-counterexample",
+          "route": "POST /multi",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /multi",
+        "POST /multi"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "not-evaluated",
+      "note": "Both methods are served by a single registration."
+    },
+    {
+      "id": "M6",
+      "category": "multi-method",
+      "construct": "Method-agnostic registration: app.all('/any', ...)",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "app.all('/any'"
+      },
+      "truth": [
+        {
+          "scenario": "fastify-counterexample",
+          "route": "GET /any",
+          "exists": true
+        },
+        {
+          "scenario": "fastify-counterexample",
+          "route": "POST /any",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /any",
+        "POST /any"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "not-evaluated",
+      "note": "Fastify's route tree lists GET, HEAD, TRACE, DELETE, OPTIONS, PATCH, PUT, POST and QUERY for it; a projector must not expand ANY into a guessed method list."
+    },
+    {
+      "id": "M7",
+      "category": "router-prefix-mount",
+      "construct": "Nested plugin with its own prefix inside a prefixed plugin: fastify.register(reports, { prefix: '/v1' }) within register(admin, { prefix: '/admin' })",
+      "counterexample": {
+        "file": "src/admin.js",
+        "contains": "fastify.register(reports, { prefix: '/v1' })"
+      },
+      "truth": [
+        {
+          "scenario": "fastify-counterexample",
+          "route": "GET /admin/v1/reports",
+          "exists": true
+        },
+        {
+          "scenario": "fastify-counterexample",
+          "route": "GET /reports",
+          "exists": false
+        }
+      ],
+      "scannerShould": [
+        "GET /admin/v1/reports"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "not-evaluated",
+      "note": "The route is served only under the composed prefix of two registrations in two files."
+    },
+    {
+      "id": "M8",
+      "category": "config-driven",
+      "construct": "Object-form route declaration: app.route({ method: 'GET', url: '/explicit', handler })",
+      "counterexample": {
+        "file": "src/app.js",
+        "contains": "url: '/explicit'"
+      },
+      "truth": [
+        {
+          "scenario": "fastify-counterexample",
+          "route": "GET /explicit",
+          "exists": true
+        }
+      ],
+      "scannerShould": [
+        "GET /explicit"
+      ],
+      "scannerEmitsInstead": [],
+      "expected": "not-evaluated",
+      "note": "A literal route declared through the options object instead of a verb shortcut."
+    }
+  ],
+  "framework": {
+    "name": "fastify",
+    "version": "5.12.5",
+    "registry": "npm",
+    "rangeQuery": "fastify@^5.2.1",
+    "packages": [
+      {
+        "name": "fastify",
+        "version": "5.12.5",
+        "integrity": "sha512-OB2k1dlxs5/NAABqeKV2FUHkSD2BbENsCak8yULVcymn3fHIPDVa9TI3SDnJSWYSllZmSYuZXy2gTnsT+Sut1A==",
+        "lockFile": "test/http-wave-a/fixtures/target-scope/fastify/package-lock.json",
+        "lockKey": "node_modules/fastify",
+        "declared": {
+          "file": "test/http-wave-a/fixtures/target-scope/fastify/package.json",
+          "section": "dependencies"
+        }
+      }
+    ],
+    "unverifiedRanges": [
+      "Fastify 5.x versions other than 5.12.5 (the profile declares ^5.2.1 and its pinned upstream commit has no lock file; this record resolved the highest listed version on the record date and exercised that one)",
+      "Fastify 4 and earlier",
+      "Node 22 (oracle run on v24.19.0 only)"
+    ]
+  },
+  "fixtures": {
+    "normal": {
+      "dir": "test/http-wave-a/fixtures/target-scope/fastify/normal",
+      "scenario": "fastify-normal",
+      "files": [
+        {
+          "path": "package.json",
+          "sha256": "30fda294969a41744dc4b8743b75c8941420f16247952d9db1cb4908df1627fb",
+          "bytes": 111
+        },
+        {
+          "path": "src/app.js",
+          "sha256": "b953219b81c25ef4df29b4dcdcd0bdd3cb977a0d0c1f094d1d17406a027476b7",
+          "bytes": 226
+        },
+        {
+          "path": "src/users.js",
+          "sha256": "5e3bbe4fe6419b21c66ad1c0ea8d7295015d833dedf0dd86be466dd7c7ffb5a6",
+          "bytes": 244
+        }
+      ]
+    },
+    "counterexample": {
+      "dir": "test/http-wave-a/fixtures/target-scope/fastify/counterexample",
+      "scenario": "fastify-counterexample",
+      "files": [
+        {
+          "path": "package.json",
+          "sha256": "a5cfe8c3fb5efbaf2dd752338ed5514e7f9a3519125d8dbebc02bc285d3615d0",
+          "bytes": 119
+        },
+        {
+          "path": "src/admin.js",
+          "sha256": "eb9abd372b6573ff636934e62ed75bc5318267206d5eac9aa9adc2ed9e91e738",
+          "bytes": 421
+        },
+        {
+          "path": "src/app.js",
+          "sha256": "486178203305f51e0fd9578225881b5e2a05755f8fe1db60c08d9907bc22105f",
+          "bytes": 950
+        },
+        {
+          "path": "src/crud.js",
+          "sha256": "483fd7a44856b5481418520451b8575aea5088a31fbd696691fc7f0ae734b178",
+          "bytes": 231
+        },
+        {
+          "path": "src/members.js",
+          "sha256": "ea1591fbdae96e0b8342bec1089d5b72c791de79b34734b96f80dd2e8d06b890",
+          "bytes": 105
+        }
+      ]
+    }
+  },
+  "evidenceFiles": [
+    {
+      "role": "oracle-script",
+      "path": "test/http-wave-a/fixtures/target-scope/fastify/oracle.mjs",
+      "sha256": "1f180b09eb6452a833f576407e434548eff1c74c12563e5db7f702504911c0f8",
+      "bytes": 5430
+    },
+    {
+      "role": "oracle-output",
+      "path": "test/http-wave-a/fixtures/target-scope/fastify/oracle-output.json",
+      "sha256": "7fb1ff33b9a779f052008bbbfd491b6ef44ee10a30e292ace8e923da91cef499",
+      "bytes": 5885
+    },
+    {
+      "role": "lock",
+      "path": "test/http-wave-a/fixtures/target-scope/fastify/package-lock.json",
+      "sha256": "cf19b7378455fdeb51e9a0ac79a212ba3dc79ee7d971d7610c627072fbc6228d",
+      "bytes": 22818
+    },
+    {
+      "role": "manifest",
+      "path": "test/http-wave-a/fixtures/target-scope/fastify/package.json",
+      "sha256": "f7598f1f3aab2177f7938ba1883ab6858cf1b09fa38db3573e9246d080b6d66d",
+      "bytes": 282
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-a/fixtures/target-scope/fastify/registry-fastify_5.12.5.json",
+      "sha256": "ec170506b35c06272b8e5070793687c04b262889691ece0ac238894c40c15f53",
+      "bytes": 166
+    },
+    {
+      "role": "registry-resolution",
+      "path": "test/http-wave-a/fixtures/target-scope/fastify/registry-range.json",
+      "sha256": "9419f0101821eeacb5fd7b202cf4ce919c590bf4663363c4d61632ed65c8458f",
+      "bytes": 388
+    }
+  ],
+  "oracle": {
+    "kind": "real fastify 5.12.5 driven in process through app.inject(); HTTP status per candidate request plus the printRoutes() tree",
+    "script": "test/http-wave-a/fixtures/target-scope/fastify/oracle.mjs",
+    "output": "test/http-wave-a/fixtures/target-scope/fastify/oracle-output.json",
+    "runIds": [
+      "oracle-1",
+      "oracle-2"
+    ],
+    "candidateSetLimit": "The probes cover an authored candidate list per scenario; only the recorded route tree is independent of that list. \"Exists\" means a status other than 404 or 405."
+  },
+  "runs": [
+    {
+      "id": "registry-fastify_5.12.5",
+      "argv": [
+        "npm",
+        "view",
+        "fastify@5.12.5",
+        "name",
+        "version",
+        "dist.integrity",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view fastify@5.12.5 name version dist.integrity --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-a/fixtures/target-scope/fastify",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:50Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-a/fixtures/target-scope/fastify/registry-fastify_5.12.5.json",
+        "sha256": "ec170506b35c06272b8e5070793687c04b262889691ece0ac238894c40c15f53",
+        "bytes": 166
+      }
+    },
+    {
+      "id": "registry-range",
+      "argv": [
+        "npm",
+        "view",
+        "fastify@^5.2.1",
+        "version",
+        "--json",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm view fastify@^5.2.1 version --json --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-a/fixtures/target-scope/fastify",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:51Z",
+      "inputsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-a/fixtures/target-scope/fastify/registry-range.json",
+        "sha256": "9419f0101821eeacb5fd7b202cf4ce919c590bf4663363c4d61632ed65c8458f",
+        "bytes": 388
+      }
+    },
+    {
+      "id": "install-1",
+      "argv": [
+        "npm",
+        "install",
+        "--package-lock-only",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm install --package-lock-only --ignore-scripts --no-audit --no-fund --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-a/fixtures/target-scope/fastify",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:52Z",
+      "inputsSha256": "dce5ed4d0fe5599523b05c79c7f04484bbe2880e6592b7d49c2652f53fa1426e",
+      "output": {
+        "kind": "file",
+        "file": "test/http-wave-a/fixtures/target-scope/fastify/package-lock.json",
+        "sha256": "cf19b7378455fdeb51e9a0ac79a212ba3dc79ee7d971d7610c627072fbc6228d",
+        "bytes": 22818
+      }
+    },
+    {
+      "id": "install-2",
+      "argv": [
+        "npm",
+        "ci",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--cache",
+        "<scratch>/npm-cache"
+      ],
+      "command": "npm ci --ignore-scripts --no-audit --no-fund --cache <scratch>/npm-cache",
+      "cwd": "test/http-wave-a/fixtures/target-scope/fastify",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:53Z",
+      "inputsSha256": "632e979f807f7697228dc50a78a7244f2dab1485d6bb19d11c2de583775b3f14",
+      "output": {
+        "kind": "file",
+        "file": "test/http-wave-a/fixtures/target-scope/fastify/package-lock.json",
+        "sha256": "cf19b7378455fdeb51e9a0ac79a212ba3dc79ee7d971d7610c627072fbc6228d",
+        "bytes": 22818
+      }
+    },
+    {
+      "id": "oracle-1",
+      "argv": [
+        "node",
+        "oracle.mjs"
+      ],
+      "command": "node oracle.mjs",
+      "cwd": "test/http-wave-a/fixtures/target-scope/fastify",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:54Z",
+      "inputsSha256": "632e979f807f7697228dc50a78a7244f2dab1485d6bb19d11c2de583775b3f14",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-a/fixtures/target-scope/fastify/oracle-output.json",
+        "sha256": "7fb1ff33b9a779f052008bbbfd491b6ef44ee10a30e292ace8e923da91cef499",
+        "bytes": 5885
+      }
+    },
+    {
+      "id": "oracle-2",
+      "argv": [
+        "node",
+        "oracle.mjs"
+      ],
+      "command": "node oracle.mjs",
+      "cwd": "test/http-wave-a/fixtures/target-scope/fastify",
+      "exitCode": 0,
+      "node": "v24.19.0",
+      "platform": "darwin-arm64",
+      "at": "2026-10-09T14:30:54Z",
+      "inputsSha256": "632e979f807f7697228dc50a78a7244f2dab1485d6bb19d11c2de583775b3f14",
+      "output": {
+        "kind": "stdout",
+        "file": "test/http-wave-a/fixtures/target-scope/fastify/oracle-output.json",
+        "sha256": "7fb1ff33b9a779f052008bbbfd491b6ef44ee10a30e292ace8e923da91cef499",
+        "bytes": 5885
+      }
+    }
+  ],
+  "runEnv": {
+    "policy": "cleared-environment",
+    "variables": {
+      "PATH": "<node-bin>:/usr/bin:/bin",
+      "HOME": "<scratch>/home",
+      "LANG": "C",
+      "NEXT_TELEMETRY_DISABLED": "1",
+      "npm_config_update_notifier": "false"
+    },
+    "platformInjected": [
+      "__CF_USER_TEXT_ENCODING"
+    ]
+  },
+  "conformance": {
+    "status": "BLOCKED",
+    "method": "No scanner or projector output exists to compare with the oracle. Each check below is recomputed from the repo on every verification; if the profile stops reporting the blocked code, gains supported syntax or the pin leaves the declared range, the BLOCKED record fails and must be rewritten as a RUN record.",
+    "code": "FASTIFY_UPSTREAM_RECEIVER_FACT_MISSING",
+    "reason": "The Fastify profile is blocked-upstream-fact-gap: projectFastifyFacts() returns the unknown FASTIFY_UPSTREAM_RECEIVER_FACT_MISSING because no T04/T02-owned fact binds Fastify instance and plugin receiver identity or registration ownership, and supportedSyntax is empty. There is no in-repo scanner output to compare with the runtime, so the oracle run only fixes the routes a future projector must reproduce.",
+    "oracleConfirmedNormal": [
+      "GET /health",
+      "GET /users",
+      "GET /users/:id",
+      "POST /users"
+    ],
+    "checks": [
+      {
+        "kind": "projection",
+        "target": "projectFastifyFacts",
+        "expect": "blocked:FASTIFY_UPSTREAM_RECEIVER_FACT_MISSING"
+      },
+      {
+        "kind": "supported-syntax-count",
+        "target": "node-fastify",
+        "expect": "0"
+      },
+      {
+        "kind": "range-listing",
+        "target": "test/http-wave-a/fixtures/target-scope/fastify/registry-range.json",
+        "expect": "^5.2.1 includes 5.12.5"
+      }
+    ]
+  },
+  "limits": [
+    {
+      "id": "oracle-layer",
+      "status": "NOT_RECORDED",
+      "text": "Fastify is driven in process through app.inject(); no socket, HTTP/2 or non-Node runtime layer is exercised."
+    },
+    {
+      "id": "upstream-no-lock",
+      "status": "NOT_RECORDED",
+      "text": "The pinned upstream example (fastify/example at d3032da, fastify-postgres) has no lock file, so the exact version here is this record's own pin inside the declared range, not the version that example ran."
+    },
+    {
+      "id": "no-ci-replay",
+      "status": "NOT_RECORDED",
+      "text": "CI does not replay the recorded framework runs; it recomputes every hash and pin, re-reads the profile and checks the blocked facts against the repo."
+    },
+    {
+      "id": "candidate-list",
+      "status": "UNKNOWN",
+      "text": "The oracle sends an authored list of candidate requests per scenario; it cannot discover a served route that is not on the list. \"Exists\" means a status other than 404 or 405."
+    },
+    {
+      "id": "single-platform",
+      "status": "NOT_RECORDED",
+      "text": "Every recorded run used one platform and one Node version (v24.19.0, darwin-arm64); the verifier requires them to be identical across runs. Other platforms and Node versions were not run."
+    },
+    {
+      "id": "not-run",
+      "status": "NOT_RECORDED",
+      "text": "Not run: Profile or projector output against the runtime (BLOCKED: no producer of Fastify receiver-identity facts exists); Fastify versions other than 5.12.5; The upstream fastify/example pin itself (it carries only the range ^5.2.1; its server.js and test.js were not run); TypeScript sources and the fastify-plugin wrapper; Node 22 for the oracle (oracle ran on v24.19.0 only)."
+    },
+    {
+      "id": "conformance-blocked",
+      "status": "BLOCKED",
+      "text": "FASTIFY_UPSTREAM_RECEIVER_FACT_MISSING: The Fastify profile is blocked-upstream-fact-gap: projectFastifyFacts() returns the unknown FASTIFY_UPSTREAM_RECEIVER_FACT_MISSING because no T04/T02-owned fact binds Fastify instance and plugin receiver identity or registration ownership, and supportedSyntax is empty. There is no in-repo scanner output to compare with the runtime, so the oracle run only fixes the routes a future projector must reproduce."
+    }
+  ],
+  "seal": {
+    "algorithm": "sha256 over canonical JSON (object keys sorted, no whitespace)",
+    "covers": "every field of this record except seal",
+    "sha256": "b01c42d0cbdd78296b2b3c8bc74f22acbc6357960fb4ad67cebf19614ddd91b8",
+    "notRecomputed": [
+      "The framework runs themselves (npm view, npm install, npm ci, build, oracle) are not replayed: exit codes, timestamps and the Node and platform strings are taken from the record. CI re-derives each run's argv, input hashes and output hashes, the lock, the registry answers and the oracle output.",
+      "Prose (constructs, reasons, notes, limit texts) is covered by the seal against silent edits but is not recomputed; the facts it states are checked through the fields they cite.",
+      "The live npm registry and the upstream example commits are not queried in CI; the registry files are the recorded answers of the registry steps."
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "fixture-js-express-counterexample",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "express": "4.22.3"
+  }
+}
