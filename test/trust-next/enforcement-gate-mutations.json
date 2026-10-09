@@ -1,0 +1,192 @@
+{
+  "contract": "sbf.qa-product-mutation-catalog/1",
+  "mutants": [
+    {
+      "id": "PMUT-GATE-ENFORCE-SWITCH-OFF",
+      "vector_id": "NEG-TRUST-08",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "if (enforcedFor(mode, operation)) refuse(operation, reason, target);",
+      "replace": "if (false) refuse(operation, reason, target);",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs", "test/trust-next/enforcement-gate-real.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "In enforce mode a denied request is refused before any effect; the central refusal switch cannot be bypassed."
+    },
+    {
+      "id": "PMUT-GATE-DEFAULT-MODE-SHADOW",
+      "vector_id": "NEG-TRUST-08",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "mode = 'enforce', clock = Date.now",
+      "replace": "mode = 'shadow', clock = Date.now",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A gate built without an explicit mode enforces; shadow mode must be asked for."
+    },
+    {
+      "id": "PMUT-GATE-CANONICAL-GRANT-SKIPPED",
+      "vector_id": "NEG-TRUST-02",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "if (!can(canonical)) {",
+      "replace": "if (false && !can(canonical)) {",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs", "test/trust-next/enforcement-gate-real.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "The canonical path that the host returns must itself be inside the grant, so a link from one granted root into a place outside every grant is refused."
+    },
+    {
+      "id": "PMUT-GATE-ESCAPE-ROOT-ALLOWED",
+      "vector_id": "NEG-TRUST-02",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "if (canonical === null) return { decision: grantFailure(operation, 'PATH_ESCAPES_ROOT', target), use: path };",
+      "replace": "if (canonical === null) return { decision: allow(operation, target), use: path };",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs", "test/trust-next/enforcement-gate-real.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A path that canonicalises outside the repository root (symbolic link or dangling link) is refused, not allowed."
+    },
+    {
+      "id": "PMUT-GATE-USES-LEXICAL-PATH",
+      "vector_id": "NEG-TRUST-02",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "use: canonical };",
+      "replace": "use: path };",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs", "test/trust-next/enforcement-gate-real.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "The file that is opened is the canonical path that was checked, never the lexical path that was asked for."
+    },
+    {
+      "id": "PMUT-GATE-NON-PUBLIC-ADDRESS-ALLOWED",
+      "vector_id": "NEG-TRUST-03",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "const blocked = addresses.filter((address) => classifyAddress(address) !== 'public' && !policy.canConnect(policyHost(address), port));",
+      "replace": "const blocked = [];",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs", "test/trust-next/enforcement-gate-real.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A granted name that resolves to a loopback, private, link-local or otherwise non-public address is refused unless that literal address is itself granted."
+    },
+    {
+      "id": "PMUT-GATE-LISTEN-GRANT-IGNORED",
+      "vector_id": "NEG-TRUST-03",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "const decision = policy.canListen(hostname, port) ? allow('listen', target) : grantFailure('listen', 'NOT_GRANTED', target);",
+      "replace": "const decision = allow('listen', target);",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A listener is opened only for a granted loopback host and port; a wide or ungranted listener is refused."
+    },
+    {
+      "id": "PMUT-GATE-AMBIENT-ENV-LEAKS-TO-CHILD",
+      "vector_id": "NEG-TRUST-04",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "env: { ...approved },",
+      "replace": "env: { ...approved, ...ambientEnv },",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs", "test/trust-next/enforcement-gate-real.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A child receives exactly the approved environment; ambient variables, credentials and preload options are not passed on."
+    },
+    {
+      "id": "PMUT-GATE-ENV-READ-GRANT-IGNORED",
+      "vector_id": "NEG-TRUST-04",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "if (!policy.canReadEnv(name)) refuse('env', 'NOT_GRANTED', { name });",
+      "replace": "if (false) refuse('env', 'NOT_GRANTED', { name });",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs", "test/trust-next/enforcement-gate-limits.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "An environment variable can be read through the gate only when its name is granted."
+    },
+    {
+      "id": "PMUT-GATE-SECRET-GRANT-IGNORED",
+      "vector_id": "NEG-TRUST-04",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "if (!policy.canUseSecret(ref)) refuse('secret', 'NOT_GRANTED', { ref });",
+      "replace": "if (false) refuse('secret', 'NOT_GRANTED', { ref });",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs", "test/trust-next/enforcement-gate-limits.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A secret reference that is not granted is never resolved, and the host is not asked for it."
+    },
+    {
+      "id": "PMUT-GATE-DEVICE-GRANT-IGNORED",
+      "vector_id": "NEG-TRUST-08",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "if (!policy.canUseDevice(deviceClass)) refuse('device', 'NOT_GRANTED', { device: deviceClass });",
+      "replace": "if (false) refuse('device', 'NOT_GRANTED', { device: deviceClass });",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs", "test/trust-next/enforcement-gate-limits.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A device class that is not granted is never opened."
+    },
+    {
+      "id": "PMUT-GATE-EXECUTABLE-NOT-PINNED",
+      "vector_id": "NEG-TRUST-08",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "const file = await host.resolveExecutable(executable);",
+      "replace": "const file = executable;",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs", "test/trust-next/enforcement-gate-real.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A granted executable name is resolved by the host to a pinned file, and that file is what starts, not a name that a search path can redirect."
+    },
+    {
+      "id": "PMUT-GATE-MAX-CHILDREN-IGNORED",
+      "vector_id": "NEG-TRUST-08",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "else if (activeChildren >= spec.process.max_children) reason = 'PROCESS_CAPACITY_EXCEEDED';",
+      "replace": "else if (false) reason = 'PROCESS_CAPACITY_EXCEEDED';",
+      "test_files": ["test/trust-next/enforcement-gate-limits.test.mjs", "test/trust-next/enforcement-gate-real.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "No more than max_children children run at once."
+    },
+    {
+      "id": "PMUT-GATE-UNKNOWN-OPERATION-ALLOWED",
+      "vector_id": "NEG-TRUST-08",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "if (!GATE_OPERATIONS.includes(operation)) refuse(String(operation).slice(0, 64), 'UNKNOWN_OPERATION', {});",
+      "replace": "if (false) refuse(String(operation).slice(0, 64), 'UNKNOWN_OPERATION', {});",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "An operation that the gate does not know is refused, in every mode, so a new handle type is never granted by omission."
+    },
+    {
+      "id": "PMUT-GATE-WALL-TIMEOUT-NOT-REPORTED",
+      "vector_id": "NEG-TRUST-08",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "state.timedOut = true; stop('wall_ms');",
+      "replace": "stop('wall_ms');",
+      "test_files": ["test/trust-next/enforcement-gate-limits.test.mjs", "test/trust-next/enforcement-gate-real.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A child that outlives wall_ms is killed and the result says that it timed out."
+    },
+    {
+      "id": "PMUT-GATE-WALL-LIMIT-IGNORED",
+      "vector_id": "NEG-TRUST-08",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "Math.min(spec.limits.wall_ms, MAX_TIMER_MS)",
+      "replace": "MAX_TIMER_MS",
+      "test_files": ["test/trust-next/enforcement-gate-real.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "The wall limit of the manifest, not the largest timer value, bounds a real child."
+    },
+    {
+      "id": "PMUT-GATE-OUTPUT-CAP-NOT-CUMULATIVE",
+      "vector_id": "NEG-TRUST-07",
+      "critical": false,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "const room = Math.max(0, cap - used);",
+      "replace": "const room = cap;",
+      "test_files": ["test/trust-next/enforcement-gate-output.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "stdout and stderr are cut at the manifest cap summed over all chunks, flagged as truncated, and the child is stopped."
+    }
+  ]
+}
