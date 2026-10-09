@@ -1,0 +1,2222 @@
+{
+  "schema": "bskel.track-baseline-record/2",
+  "schema_status": "provisional",
+  "track": "T05 JVM language facts",
+  "item": "T05-01",
+  "suite_id": "T05",
+  "title": "Exact-revision baseline of the current JVM language-layer behaviour and its failure cases",
+  "base_commit": "24fe7e59e96fb98b18c1319e8a81da86e93e43dc",
+  "base_tree": "94d7674c7f87838db40f55cb8d6b92cc3120e15c",
+  "observed_on": "2026-10-09",
+  "environment": {
+    "generated_with_node": "v24.19.0",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "source_dir": "scanners/language/jvm",
+  "test_dir": "test/language-jvm",
+  "files": [
+    {
+      "role": "source",
+      "path": "scanners/language/jvm/annotation-graph.mjs",
+      "bytes": 6813,
+      "git_blob_sha1": "a3278a5f27a7768b0f02007ecda23d13ab0971e8",
+      "sha256": "95d991d16859f9daa501467ff4d7ccbb3810643ffdea0bf94247952e5fbdc6b5"
+    },
+    {
+      "role": "source",
+      "path": "scanners/language/jvm/framework-profiles.mjs",
+      "bytes": 5681,
+      "git_blob_sha1": "505d5bb41bf6500d963dedfc2550d6283b0719a4",
+      "sha256": "c160a1d0b8a4ac1690ad6c361fc691f2b277f8bd972301054e82514080c39a07"
+    },
+    {
+      "role": "source",
+      "path": "scanners/language/jvm/java-syntax-facts.mjs",
+      "bytes": 11816,
+      "git_blob_sha1": "e24d94240f9bb515c2673a7fac19dc5b6f2e0aea",
+      "sha256": "bef2488bb19d3039f2e973127699e6ade404e2debd91dc8c20a87a66ed96fcde"
+    },
+    {
+      "role": "source",
+      "path": "scanners/language/jvm/jpa-direct-facts.mjs",
+      "bytes": 3973,
+      "git_blob_sha1": "49ab25c0b23933f01d721d7e01d035ec30aa27e2",
+      "sha256": "54bba52fae20f163e4f2fbe54e1473ad5cb3bb8a888e6f85c6ee54d1d37cd87c"
+    },
+    {
+      "role": "source",
+      "path": "scanners/language/jvm/member-facts.mjs",
+      "bytes": 8713,
+      "git_blob_sha1": "30f40f6af0478d6ef301aea35d546d75e9e98317",
+      "sha256": "fb903e1e84dd5e45a1f57052d2531c4e979bff34db99e8089ccd68e81272cee5"
+    },
+    {
+      "role": "source",
+      "path": "scanners/language/jvm/method-facts.mjs",
+      "bytes": 6445,
+      "git_blob_sha1": "a8a076329505f862c7f368184c31d8e05cb3aafc",
+      "sha256": "ebbcfcbb5c65037e4268da48aa9c7c87d7fbf3d28f9e2f32f6dd52b3680a699d"
+    },
+    {
+      "role": "source",
+      "path": "scanners/language/jvm/protocol.mjs",
+      "bytes": 6879,
+      "git_blob_sha1": "93f0b507405ad30976baf935118812fd84af9cbc",
+      "sha256": "4f5715bdf67e3c00e10e5630ab4bfd10635ffaa1a23df31352282d43d67aab7f"
+    },
+    {
+      "role": "source",
+      "path": "scanners/language/jvm/semantic-backend.mjs",
+      "bytes": 13611,
+      "git_blob_sha1": "075dc7ad89f94d07e61c96dc51f3446cbdd64ac2",
+      "sha256": "ed7d4136de62a06b802d09c4db8f8d69351df0de958e9cbcf5f319c2b4858ee7"
+    },
+    {
+      "role": "source",
+      "path": "scanners/language/jvm/spring-shadow.mjs",
+      "bytes": 4277,
+      "git_blob_sha1": "eb83ca6faa34630e32d82ff6df2563df6e3684b7",
+      "sha256": "263a98e64a1d7d2badcd5be9766f54a47965151ae0f5c6d1c85ef11996c55e3a"
+    },
+    {
+      "role": "test",
+      "path": "test/language-jvm/jvm-annotation-graph.test.mjs",
+      "bytes": 3795,
+      "git_blob_sha1": "8988dca2b0a8c59d14cbf71cb2b2cfc34ab2e58f",
+      "sha256": "ea244996baa4c14701416b02eaccf1d548f102e581c1d91aaab5f3de178652c2",
+      "test_count": 7
+    },
+    {
+      "role": "test",
+      "path": "test/language-jvm/jvm-foundation.test.mjs",
+      "bytes": 6258,
+      "git_blob_sha1": "2fcb10bf3aa09dd20427e0267bdd7c71cca0e86a",
+      "sha256": "aeb007ff197dbfb7d055def44aec40b852a51c3c6aae687e10906eee5c996ba8",
+      "test_count": 11
+    },
+    {
+      "role": "test",
+      "path": "test/language-jvm/jvm-framework-profiles.test.mjs",
+      "bytes": 2466,
+      "git_blob_sha1": "6f4f1c05e6249e52a169d543fe568800eda3d082",
+      "sha256": "df6427bbb240afadf3b57e21effae01176d062607ee9156abce9554dfcde55d0",
+      "test_count": 5
+    },
+    {
+      "role": "test",
+      "path": "test/language-jvm/jvm-member-facts.test.mjs",
+      "bytes": 4386,
+      "git_blob_sha1": "2709821e20b767bb8fd22cd3ce9a7fa74eb52f9f",
+      "sha256": "56d7d375e660e300bbeb84a93bc3686a417c8f16992bd251cb7496b31f94f6f9",
+      "test_count": 7
+    },
+    {
+      "role": "test",
+      "path": "test/language-jvm/jvm-semantic-backend.test.mjs",
+      "bytes": 15327,
+      "git_blob_sha1": "19057cdc312eb0a175cb2e8a60dfad196421f3d8",
+      "sha256": "74a0b198aab29d519cbfe0d0da90fce362fa13d2a33aa6d6eaca28ba04be898e",
+      "test_count": 12
+    },
+    {
+      "role": "test",
+      "path": "test/language-jvm/jvm-spring-shadow.test.mjs",
+      "bytes": 3463,
+      "git_blob_sha1": "eb156db495660a20fc747ad99c37c0767bcfa273",
+      "sha256": "3d97258f688b6fb5886b5f451548b9c687a3f110233b559cdc721c927693c799",
+      "test_count": 5
+    },
+    {
+      "role": "test_support",
+      "path": "test/language-jvm/fixtures.mjs",
+      "bytes": 1258,
+      "git_blob_sha1": "df2b3de376213a398b21705df4fc6038b4b592cd",
+      "sha256": "fceb36df139467b5c0932ea948546527c084d30c795b4051e8e785d1759ed7f0"
+    },
+    {
+      "role": "test_support",
+      "path": "test/language-jvm/fixtures/interface-mapping/Api.java",
+      "bytes": 346,
+      "git_blob_sha1": "44294160b322e68fc5c3824be99ee2613716bb12",
+      "sha256": "70c6224153539bfab274ef2e9058ed2d4f72e1bace5c6a605cb08447343cb603"
+    },
+    {
+      "role": "test_support",
+      "path": "test/language-jvm/fixtures/manifest.json",
+      "bytes": 1829,
+      "git_blob_sha1": "08c583fede9404cab38d4f55184d71459a9f614e",
+      "sha256": "06eaf6a136bfbc06249e2aa26e504ad12350731ef840ed1ac2076b8645c6bf32"
+    },
+    {
+      "role": "test_support",
+      "path": "test/language-jvm/fixtures/mapped-superclass/BaseEntity.java",
+      "bytes": 194,
+      "git_blob_sha1": "cb440b46696c92805add074c1d3e5f3869d16bf1",
+      "sha256": "c0447e23475ca02d95836222a04501fd5e4c509d7d4366166a854061f40d3398"
+    },
+    {
+      "role": "test_support",
+      "path": "test/language-jvm/fixtures/mapped-superclass/Widget.java",
+      "bytes": 212,
+      "git_blob_sha1": "ef6123302abcde099b6cc97e063149a2903b68e5",
+      "sha256": "3d07594028cb1e4a974bb60d7438462d71e7a32d9567b0d8cbe540ad2fc56c09"
+    },
+    {
+      "role": "test_support",
+      "path": "test/language-jvm/fixtures/meta-annotation/Cycle.java",
+      "bytes": 66,
+      "git_blob_sha1": "ba72ffc56c062b0625fc0179407ce371aff78280",
+      "sha256": "a1770812a477c30456af98c7b5424b6ca43368d155ce32f2dbe2462d59175b86"
+    },
+    {
+      "role": "test_support",
+      "path": "test/language-jvm/fixtures/meta-annotation/ReadOnlyEndpoint.java",
+      "bytes": 460,
+      "git_blob_sha1": "0e633dd3a24c9c172890eae8dbbc4ed0d7e76c06",
+      "sha256": "6d05c7e736be3765407c88560fcc5045ab4cebb069348bb883b0ec3318d806c7"
+    },
+    {
+      "role": "test_support",
+      "path": "test/language-jvm/fixtures/multi-top-level/Multi.java",
+      "bytes": 218,
+      "git_blob_sha1": "1b049125782bc65e6164ddfab24be537d87105f4",
+      "sha256": "a9a758f90bce79de5115467a7559d561941c89dc47a4b5895c1efef9692ec307"
+    },
+    {
+      "role": "test_support",
+      "path": "test/language-jvm/fixtures/record-generic/PageEnvelope.java",
+      "bytes": 222,
+      "git_blob_sha1": "290961a627fae71888f3c2541d33d3eb533d5537",
+      "sha256": "9fc26b1087e6b9152b570c6f4bf0479e1f88ddc3831566f036f3608f2b56e64e"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/adapters/_java-spring-analyzer.mjs",
+      "bytes": 19285,
+      "git_blob_sha1": "1427eae0d8d75884bb1a4ceb83060d8f27795725",
+      "sha256": "852ab6874a3bd855f05feee466249726b65da8c30ebf21cae185dd7e7720518e"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/text-util.mjs",
+      "bytes": 3372,
+      "git_blob_sha1": "26df2e47019d3fea20dfd20b83be93a7f33c19ed",
+      "sha256": "293383368952be98c7f868847c8184ebc5df49615a3bdd7861613a372e8d2198"
+    },
+    {
+      "role": "runner",
+      "path": "scripts/run-next-nested-tests.mjs",
+      "bytes": 6886,
+      "git_blob_sha1": "daccc6c9112e1db2f8353d5ac38fd3d44f48e41e",
+      "sha256": "acb8db06506f5bb1d52ff4f82b54b9a4db9fd3d45409a02da4d546c55c0dacac"
+    }
+  ],
+  "commands": [
+    {
+      "id": "direct-tap",
+      "command": "node --test test/language-jvm/jvm-annotation-graph.test.mjs test/language-jvm/jvm-foundation.test.mjs test/language-jvm/jvm-framework-profiles.test.mjs test/language-jvm/jvm-member-facts.test.mjs test/language-jvm/jvm-semantic-backend.test.mjs test/language-jvm/jvm-spring-shadow.test.mjs",
+      "revision": "24fe7e59e96fb98b18c1319e8a81da86e93e43dc",
+      "exit_code": 0,
+      "result": {
+        "tests": 47,
+        "suites": 0,
+        "pass": 47,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "id": "nested-runner",
+      "command": "node scripts/run-next-nested-tests.mjs T05",
+      "revision": "24fe7e59e96fb98b18c1319e8a81da86e93e43dc",
+      "exit_code": 0,
+      "runner_files": 6,
+      "first_line": "NESTED_SUITE T05 RUN 6 files",
+      "result": {
+        "tests": 47,
+        "suites": 0,
+        "pass": 47,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "syntax-interface-mapping",
+      "class": "normal",
+      "origin": "pinned fixture file interface-mapping/Api.java",
+      "call": {
+        "module": "scanners/language/jvm/java-syntax-facts.mjs",
+        "fn": "analyzeJavaSyntax",
+        "args": [
+          {
+            "$file": "test/language-jvm/fixtures/interface-mapping/Api.java"
+          },
+          {
+            "path": "interface-mapping/Api.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/schema",
+          "sbf.jvm.syntax-facts/0-draft"
+        ],
+        [
+          "/packageName",
+          "com.example.api"
+        ],
+        [
+          "/imports/length",
+          2
+        ],
+        [
+          "/topLevelTypes/length",
+          3
+        ],
+        [
+          "/topLevelTypes/0/kind",
+          "interface"
+        ],
+        [
+          "/topLevelTypes/0/name",
+          "WidgetApi"
+        ],
+        [
+          "/topLevelTypes/0/annotations/0/name",
+          "RequestMapping"
+        ],
+        [
+          "/topLevelTypes/0/annotations/0/argsText",
+          "\"/widgets\""
+        ],
+        [
+          "/topLevelTypes/0/extendsTypes",
+          [
+            "BaseApi<WidgetDto>"
+          ]
+        ],
+        [
+          "/topLevelTypes/2/kind",
+          "record"
+        ],
+        [
+          "/topLevelTypes/2/recordComponentsText",
+          "String id"
+        ],
+        [
+          "/diagnostics",
+          []
+        ]
+      ],
+      "output_sha256": "012c0fad20168d28e5304d869e3001812c7f4dbcc52003ea4379697015fa2208"
+    },
+    {
+      "id": "syntax-record-generic",
+      "class": "normal",
+      "origin": "pinned fixture file record-generic/PageEnvelope.java (only the correct facts are asserted here)",
+      "call": {
+        "module": "scanners/language/jvm/java-syntax-facts.mjs",
+        "fn": "analyzeJavaSyntax",
+        "args": [
+          {
+            "$file": "test/language-jvm/fixtures/record-generic/PageEnvelope.java"
+          },
+          {
+            "path": "record-generic/PageEnvelope.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/packageName",
+          "com.example.dto"
+        ],
+        [
+          "/imports/length",
+          2
+        ],
+        [
+          "/topLevelTypes/length",
+          1
+        ],
+        [
+          "/topLevelTypes/0/kind",
+          "record"
+        ],
+        [
+          "/topLevelTypes/0/name",
+          "PageEnvelope"
+        ],
+        [
+          "/topLevelTypes/0/modifiers",
+          [
+            "public"
+          ]
+        ],
+        [
+          "/topLevelTypes/0/implementsTypes",
+          [
+            "java.io.Serializable"
+          ]
+        ],
+        [
+          "/topLevelTypes/0/recordComponentsText",
+          "\n        List<T> items,\n        Map<String, List<T>> grouped\n"
+        ],
+        [
+          "/diagnostics",
+          []
+        ]
+      ],
+      "output_sha256": "42af4e1ab334d8a3b30751df12e9045b979cf8c506e55ae1c7b16cc8834fac7e"
+    },
+    {
+      "id": "syntax-multi-top-level",
+      "class": "normal",
+      "origin": "pinned fixture file multi-top-level/Multi.java",
+      "call": {
+        "module": "scanners/language/jvm/java-syntax-facts.mjs",
+        "fn": "analyzeJavaSyntax",
+        "args": [
+          {
+            "$file": "test/language-jvm/fixtures/multi-top-level/Multi.java"
+          },
+          {
+            "path": "multi-top-level/Multi.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/packageName",
+          "com.example.multi"
+        ],
+        [
+          "/topLevelTypes/length",
+          3
+        ],
+        [
+          "/topLevelTypes/0/kind",
+          "class"
+        ],
+        [
+          "/topLevelTypes/0/name",
+          "First"
+        ],
+        [
+          "/topLevelTypes/0/line",
+          4
+        ],
+        [
+          "/topLevelTypes/1/kind",
+          "record"
+        ],
+        [
+          "/topLevelTypes/1/name",
+          "Second"
+        ],
+        [
+          "/topLevelTypes/1/line",
+          9
+        ],
+        [
+          "/topLevelTypes/1/recordComponentsText",
+          "String value"
+        ],
+        [
+          "/topLevelTypes/2/kind",
+          "annotation"
+        ],
+        [
+          "/topLevelTypes/2/name",
+          "Marker"
+        ],
+        [
+          "/topLevelTypes/2/line",
+          11
+        ],
+        [
+          "/diagnostics",
+          []
+        ]
+      ],
+      "output_sha256": "ceb08f2e331961e534d846efc009f3c2a750805e869443f81919aec6ec3386b9"
+    },
+    {
+      "id": "members-mapped-superclass",
+      "class": "normal",
+      "origin": "pinned fixture file mapped-superclass/BaseEntity.java",
+      "call": {
+        "module": "scanners/language/jvm/member-facts.mjs",
+        "fn": "analyzeJavaMemberFacts",
+        "args": [
+          {
+            "$file": "test/language-jvm/fixtures/mapped-superclass/BaseEntity.java"
+          },
+          {
+            "path": "mapped-superclass/BaseEntity.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/schema",
+          "sbf.jvm.member-facts/0-draft"
+        ],
+        [
+          "/types/length",
+          1
+        ],
+        [
+          "/types/0/fqn",
+          "com.example.domain.BaseEntity"
+        ],
+        [
+          "/types/0/fields/length",
+          1
+        ],
+        [
+          "/types/0/fields/0/name",
+          "id"
+        ],
+        [
+          "/types/0/fields/0/rawType",
+          "ID"
+        ],
+        [
+          "/types/0/fields/0/modifiers",
+          [
+            "protected"
+          ]
+        ],
+        [
+          "/types/0/fields/0/annotations/0/name",
+          "Id"
+        ],
+        [
+          "/diagnostics",
+          []
+        ]
+      ],
+      "output_sha256": "9edbb866039b1794eeeefbf8eccf08e7d8331ed1099c9476a907f5a420803bb7"
+    },
+    {
+      "id": "methods-interface-mapping",
+      "class": "normal",
+      "origin": "pinned fixture file interface-mapping/Api.java",
+      "call": {
+        "module": "scanners/language/jvm/method-facts.mjs",
+        "fn": "analyzeJavaMethodFacts",
+        "args": [
+          {
+            "$file": "test/language-jvm/fixtures/interface-mapping/Api.java"
+          },
+          {
+            "path": "interface-mapping/Api.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/types/length",
+          3
+        ],
+        [
+          "/types/0/fqn",
+          "com.example.api.WidgetApi"
+        ],
+        [
+          "/types/0/kind",
+          "interface"
+        ],
+        [
+          "/types/0/methods/length",
+          1
+        ],
+        [
+          "/types/0/methods/0/name",
+          "get"
+        ],
+        [
+          "/types/0/methods/0/returnType",
+          "WidgetDto"
+        ],
+        [
+          "/types/0/methods/0/paramsText",
+          "String id"
+        ],
+        [
+          "/types/0/methods/0/annotations/0/name",
+          "GetMapping"
+        ],
+        [
+          "/types/0/methods/0/annotations/0/argsText",
+          "\"/{id}\""
+        ],
+        [
+          "/types/1/fqn",
+          "com.example.api.BaseApi"
+        ],
+        [
+          "/types/1/methods/length",
+          0
+        ],
+        [
+          "/types/2/kind",
+          "record"
+        ],
+        [
+          "/diagnostics",
+          []
+        ]
+      ],
+      "output_sha256": "989818a95d9dfc48e3b8077b5094eee6823293e65e225ae24d1fcba3006d5941"
+    },
+    {
+      "id": "jpa-mapped-superclass",
+      "class": "normal",
+      "origin": "pinned fixture files mapped-superclass/BaseEntity.java and Widget.java",
+      "call": {
+        "module": "scanners/language/jvm/jpa-direct-facts.mjs",
+        "fn": "analyzeJvmJpaDirectFacts",
+        "args": [
+          [
+            {
+              "path": "test/language-jvm/fixtures/mapped-superclass/BaseEntity.java",
+              "source": {
+                "$file": "test/language-jvm/fixtures/mapped-superclass/BaseEntity.java"
+              }
+            },
+            {
+              "path": "test/language-jvm/fixtures/mapped-superclass/Widget.java",
+              "source": {
+                "$file": "test/language-jvm/fixtures/mapped-superclass/Widget.java"
+              }
+            }
+          ]
+        ]
+      },
+      "expect": [
+        [
+          "/types/length",
+          3
+        ],
+        [
+          "/types/0/fqn",
+          "com.example.domain.BaseEntity"
+        ],
+        [
+          "/types/0/typeAnnotations/0/persistenceFqn",
+          "jakarta.persistence.MappedSuperclass"
+        ],
+        [
+          "/types/0/fields/0/directKeyAnnotations",
+          [
+            "jakarta.persistence.Id"
+          ]
+        ],
+        [
+          "/types/0/directPrimaryKeyFields",
+          [
+            "id"
+          ]
+        ],
+        [
+          "/types/0/inheritedPrimaryKey",
+          "not-evaluated"
+        ],
+        [
+          "/types/1/fqn",
+          "com.example.domain.Widget"
+        ],
+        [
+          "/types/1/typeAnnotations/0/persistenceFqn",
+          "jakarta.persistence.Entity"
+        ],
+        [
+          "/types/1/directPrimaryKeyFields",
+          []
+        ],
+        [
+          "/types/1/inheritedPrimaryKey",
+          "not-evaluated"
+        ],
+        [
+          "/types/2/kind",
+          "interface"
+        ],
+        [
+          "/diagnostics",
+          []
+        ]
+      ],
+      "output_sha256": "0d6ceee216a0e702e6e06914341dec892638f0e354dae4c467380371295d439e"
+    },
+    {
+      "id": "graph-meta-annotation-nodes",
+      "class": "normal",
+      "origin": "pinned fixture files meta-annotation/Cycle.java and ReadOnlyEndpoint.java",
+      "call": {
+        "module": "scanners/language/jvm/annotation-graph.mjs",
+        "fn": "buildJvmAnnotationGraph",
+        "args": [
+          [
+            {
+              "path": "test/language-jvm/fixtures/meta-annotation/Cycle.java",
+              "source": {
+                "$file": "test/language-jvm/fixtures/meta-annotation/Cycle.java"
+              }
+            },
+            {
+              "path": "test/language-jvm/fixtures/meta-annotation/ReadOnlyEndpoint.java",
+              "source": {
+                "$file": "test/language-jvm/fixtures/meta-annotation/ReadOnlyEndpoint.java"
+              }
+            }
+          ]
+        ]
+      },
+      "expect": [
+        [
+          "/nodes/$map/length",
+          3
+        ],
+        [
+          "/nodes/$map/0/0",
+          "com.example.meta.A"
+        ],
+        [
+          "/nodes/$map/0/1/metaAnnotations/0/resolution/fqn",
+          "com.example.meta.B"
+        ],
+        [
+          "/nodes/$map/0/1/metaAnnotations/0/resolution/basis",
+          "same-package-project-type"
+        ],
+        [
+          "/nodes/$map/2/0",
+          "com.example.meta.ReadOnlyEndpoint"
+        ],
+        [
+          "/nodes/$map/2/1/metaAnnotations/length",
+          3
+        ],
+        [
+          "/nodes/$map/2/1/metaAnnotations/2/resolution/fqn",
+          "org.springframework.web.bind.annotation.RequestMapping"
+        ],
+        [
+          "/diagnostics",
+          []
+        ],
+        [
+          "/index/diagnostics",
+          []
+        ]
+      ],
+      "output_sha256": "1387c722027db75ec42c3774b2434b3bc04c699affcd716b6dc83db8277ac859"
+    },
+    {
+      "id": "graph-meta-annotation-cycle",
+      "class": "normal",
+      "origin": "pinned fixture files meta-annotation/Cycle.java and ReadOnlyEndpoint.java, expand(A)",
+      "call": {
+        "module": "scanners/language/jvm/annotation-graph.mjs",
+        "fn": "buildJvmAnnotationGraph",
+        "args": [
+          [
+            {
+              "path": "test/language-jvm/fixtures/meta-annotation/Cycle.java",
+              "source": {
+                "$file": "test/language-jvm/fixtures/meta-annotation/Cycle.java"
+              }
+            },
+            {
+              "path": "test/language-jvm/fixtures/meta-annotation/ReadOnlyEndpoint.java",
+              "source": {
+                "$file": "test/language-jvm/fixtures/meta-annotation/ReadOnlyEndpoint.java"
+              }
+            }
+          ]
+        ],
+        "chain": [
+          {
+            "method": "expand",
+            "args": [
+              "com.example.meta.A"
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/status",
+          "cycle"
+        ],
+        [
+          "/startFqn",
+          "com.example.meta.A"
+        ],
+        [
+          "/edges/length",
+          2
+        ],
+        [
+          "/cycles",
+          [
+            [
+              "com.example.meta.A",
+              "com.example.meta.B",
+              "com.example.meta.A"
+            ]
+          ]
+        ],
+        [
+          "/truncated",
+          false
+        ]
+      ],
+      "output_sha256": "28893506844bca0c531873f0df61820ef2082467b9db6e905435629601859384"
+    },
+    {
+      "id": "graph-meta-annotation-expand",
+      "class": "normal",
+      "origin": "pinned fixture files meta-annotation/Cycle.java and ReadOnlyEndpoint.java, expand(ReadOnlyEndpoint)",
+      "call": {
+        "module": "scanners/language/jvm/annotation-graph.mjs",
+        "fn": "buildJvmAnnotationGraph",
+        "args": [
+          [
+            {
+              "path": "test/language-jvm/fixtures/meta-annotation/Cycle.java",
+              "source": {
+                "$file": "test/language-jvm/fixtures/meta-annotation/Cycle.java"
+              }
+            },
+            {
+              "path": "test/language-jvm/fixtures/meta-annotation/ReadOnlyEndpoint.java",
+              "source": {
+                "$file": "test/language-jvm/fixtures/meta-annotation/ReadOnlyEndpoint.java"
+              }
+            }
+          ]
+        ],
+        "chain": [
+          {
+            "method": "expand",
+            "args": [
+              "com.example.meta.ReadOnlyEndpoint"
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/status",
+          "resolved"
+        ],
+        [
+          "/startFqn",
+          "com.example.meta.ReadOnlyEndpoint"
+        ],
+        [
+          "/edges/length",
+          3
+        ],
+        [
+          "/edges/2/to",
+          "org.springframework.web.bind.annotation.RequestMapping"
+        ],
+        [
+          "/cycles",
+          []
+        ],
+        [
+          "/truncated",
+          false
+        ]
+      ],
+      "output_sha256": "23723d8094f946334abe295d74d70d70fc29757f601f373285d55d50ee17e3cf"
+    },
+    {
+      "id": "shadow-plain-mapping-matches",
+      "class": "normal",
+      "origin": "inline controller with one plain @GetMapping",
+      "call": {
+        "module": "scanners/language/jvm/spring-shadow.mjs",
+        "fn": "compareJavaSpringSourceShadow",
+        "args": [
+          "package p;\nimport org.springframework.web.bind.annotation.*;\nclass C {\n  @GetMapping(\"/x\")\n  public String x() { return \"\"; }\n}\n",
+          {
+            "path": "C.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          true
+        ],
+        [
+          "/mismatches",
+          []
+        ],
+        [
+          "/checks/2/name",
+          "method-mappings"
+        ],
+        [
+          "/checks/2/status",
+          "match"
+        ],
+        [
+          "/checks/2/next/0/verb",
+          "GET"
+        ]
+      ],
+      "output_sha256": "c8cb8d3ab364bef9f0021d331765dca753da8ad657080d07590003a1a663dfbb"
+    },
+    {
+      "id": "request-valid-syntax-mode",
+      "class": "normal",
+      "origin": "inline syntax-mode request that satisfies the draft protocol",
+      "call": {
+        "module": "scanners/language/jvm/protocol.mjs",
+        "fn": "validateJvmAnalysisRequest",
+        "args": [
+          {
+            "schema": "sbf.jvm.analysis-request/0-draft",
+            "language": "java",
+            "languageLevel": 17,
+            "mode": "syntax",
+            "allowTargetExecution": false,
+            "project": {
+              "root": "backend-java",
+              "sourceRoots": [
+                "backend-java/src/main/java"
+              ],
+              "buildFiles": [
+                "backend-java/build.gradle"
+              ]
+            },
+            "files": [
+              {
+                "path": "backend-java/src/main/java/com/example/Widget.java",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          true
+        ],
+        [
+          "/errors",
+          []
+        ]
+      ],
+      "output_sha256": "9bf51bb49a4e9d348a75b97904246717311391754b81fe8e94f1691646a03854"
+    },
+    {
+      "id": "facts-validator-accepts-own-output",
+      "class": "normal",
+      "origin": "validateJvmSyntaxFacts applied to analyzeJavaSyntax of a small file",
+      "call": {
+        "module": "scanners/language/jvm/protocol.mjs",
+        "fn": "validateJvmSyntaxFacts",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/jvm/java-syntax-facts.mjs",
+              "fn": "analyzeJavaSyntax",
+              "args": [
+                "package a;\nimport b.C;\nclass X {}",
+                {
+                  "path": "X.java"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          true
+        ],
+        [
+          "/errors",
+          []
+        ]
+      ],
+      "output_sha256": "9bf51bb49a4e9d348a75b97904246717311391754b81fe8e94f1691646a03854"
+    },
+    {
+      "id": "path-repo-relative-accepted",
+      "class": "normal",
+      "origin": "isRepoRelativePath on a plain relative path",
+      "call": {
+        "module": "scanners/language/jvm/protocol.mjs",
+        "fn": "isRepoRelativePath",
+        "args": [
+          "a/B.java"
+        ]
+      },
+      "expect": [
+        [
+          "",
+          true
+        ]
+      ],
+      "output_sha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+    },
+    {
+      "id": "profile-spring-facts-ready-is-not-supported",
+      "class": "normal",
+      "origin": "assessJvmFrameworkProfile with every required fact available",
+      "call": {
+        "module": "scanners/language/jvm/framework-profiles.mjs",
+        "fn": "assessJvmFrameworkProfile",
+        "args": [
+          "spring-web-java",
+          [
+            "syntax.top-level-types",
+            "syntax.imports",
+            "syntax.annotations",
+            "method.direct",
+            "annotation.resolve",
+            "annotation.meta-graph"
+          ]
+        ]
+      },
+      "expect": [
+        [
+          "/id",
+          "spring-web-java"
+        ],
+        [
+          "/status",
+          "facts-ready"
+        ],
+        [
+          "/missingFacts",
+          []
+        ],
+        [
+          "/knownBlockers/length",
+          2
+        ],
+        [
+          "/semanticAdapterImplemented",
+          false
+        ],
+        [
+          "/runtimeVerified",
+          false
+        ]
+      ],
+      "output_sha256": "0832ee4a8ed4a99bdbdeb0813ab0b355b01de6bc823d2f947796cc388aee5ca0"
+    },
+    {
+      "id": "neg-kotlin-text",
+      "class": "negative",
+      "origin": "observed defect: Kotlin source given to the Java syntax analyzer",
+      "call": {
+        "module": "scanners/language/jvm/java-syntax-facts.mjs",
+        "fn": "analyzeJavaSyntax",
+        "args": [
+          "package k\nfun main() { println(\"hi\") }\nclass K(val x: Int)\n",
+          {
+            "path": "K.kt"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/language",
+          "java"
+        ],
+        [
+          "/packageName",
+          null
+        ],
+        [
+          "/topLevelTypes",
+          []
+        ],
+        [
+          "/diagnostics/length",
+          1
+        ],
+        [
+          "/diagnostics/0/code",
+          "JVM_TYPE_BODY_UNRESOLVED"
+        ]
+      ],
+      "output_sha256": "d92b8b40b6a6add0ac5165f8f87319f8d179e5dd1b0ac1a90ba2304ba09f52bc"
+    },
+    {
+      "id": "neg-bounded-type-parameter-leaks-into-extends",
+      "class": "negative",
+      "origin": "observed defect: class with a bounded type parameter and a real extends clause",
+      "call": {
+        "module": "scanners/language/jvm/java-syntax-facts.mjs",
+        "fn": "analyzeJavaSyntax",
+        "args": [
+          "class Foo<T extends Bar<T>> extends Base<T> implements I<T> {}",
+          {
+            "path": "X.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/topLevelTypes/0/headerText",
+          "<T extends Bar<T>> extends Base<T> implements I<T>"
+        ],
+        [
+          "/topLevelTypes/0/extendsTypes",
+          [
+            "Bar<T>> extends Base<T>"
+          ]
+        ],
+        [
+          "/topLevelTypes/0/implementsTypes",
+          [
+            "I<T>"
+          ]
+        ]
+      ],
+      "output_sha256": "de7b8891891a90901eb6899072c879b608710ee71bef2621669f3169cc0f2afd"
+    },
+    {
+      "id": "neg-record-generic-bound-leaks-into-extends",
+      "class": "negative",
+      "origin": "observed defect: pinned fixture file record-generic/PageEnvelope.java: a record cannot extend, yet extendsTypes is filled",
+      "call": {
+        "module": "scanners/language/jvm/java-syntax-facts.mjs",
+        "fn": "analyzeJavaSyntax",
+        "args": [
+          {
+            "$file": "test/language-jvm/fixtures/record-generic/PageEnvelope.java"
+          },
+          {
+            "path": "record-generic/PageEnvelope.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/topLevelTypes/0/kind",
+          "record"
+        ],
+        [
+          "/topLevelTypes/0/extendsTypes/length",
+          1
+        ],
+        [
+          "/topLevelTypes/0/extendsTypes",
+          [
+            "Comparable<T>>(\n        List<T> items,\n        Map<String, List<T>> grouped\n)"
+          ]
+        ]
+      ],
+      "output_sha256": "42af4e1ab334d8a3b30751df12e9045b979cf8c506e55ae1c7b16cc8834fac7e"
+    },
+    {
+      "id": "neg-nested-types-not-listed",
+      "class": "negative",
+      "origin": "observed defect: class with nested class and interface",
+      "call": {
+        "module": "scanners/language/jvm/java-syntax-facts.mjs",
+        "fn": "analyzeJavaSyntax",
+        "args": [
+          "class Outer { class Inner {} interface I {} }\nclass Other {}",
+          {
+            "path": "X.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/topLevelTypes/length",
+          2
+        ],
+        [
+          "/topLevelTypes/0/name",
+          "Outer"
+        ],
+        [
+          "/topLevelTypes/1/name",
+          "Other"
+        ],
+        [
+          "/diagnostics",
+          []
+        ]
+      ],
+      "output_sha256": "71764da739fae4a49b914204d3b7b29e91683a20436af4f15505df500a8caf45"
+    },
+    {
+      "id": "neg-unterminated-string-no-diagnostic",
+      "class": "negative",
+      "origin": "observed defect: string literal that never closes",
+      "call": {
+        "module": "scanners/language/jvm/java-syntax-facts.mjs",
+        "fn": "analyzeJavaSyntax",
+        "args": [
+          "class A { String s = \"oops; }\nclass B {}",
+          {
+            "path": "X.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/topLevelTypes/length",
+          1
+        ],
+        [
+          "/topLevelTypes/0/name",
+          "A"
+        ],
+        [
+          "/diagnostics",
+          []
+        ]
+      ],
+      "output_sha256": "4e8d0d474e08ce5b657249a9892244b687c637d9074a19cc53242e3892ee00b2"
+    },
+    {
+      "id": "neg-unterminated-body-no-diagnostic",
+      "class": "negative",
+      "origin": "observed defect: class body that never closes",
+      "call": {
+        "module": "scanners/language/jvm/java-syntax-facts.mjs",
+        "fn": "analyzeJavaSyntax",
+        "args": [
+          "class A {\n  void f() {\n}",
+          {
+            "path": "X.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/topLevelTypes/length",
+          1
+        ],
+        [
+          "/topLevelTypes/0/name",
+          "A"
+        ],
+        [
+          "/diagnostics",
+          []
+        ]
+      ],
+      "output_sha256": "4e8d0d474e08ce5b657249a9892244b687c637d9074a19cc53242e3892ee00b2"
+    },
+    {
+      "id": "neg-unterminated-block-comment-no-diagnostic",
+      "class": "negative",
+      "origin": "observed defect: block comment that never closes",
+      "call": {
+        "module": "scanners/language/jvm/java-syntax-facts.mjs",
+        "fn": "analyzeJavaSyntax",
+        "args": [
+          "class A {}\n/* never closed\nclass B {}",
+          {
+            "path": "X.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/topLevelTypes/length",
+          1
+        ],
+        [
+          "/topLevelTypes/0/name",
+          "A"
+        ],
+        [
+          "/diagnostics",
+          []
+        ]
+      ],
+      "output_sha256": "4e8d0d474e08ce5b657249a9892244b687c637d9074a19cc53242e3892ee00b2"
+    },
+    {
+      "id": "neg-one-line-package-import-dropped",
+      "class": "negative",
+      "origin": "observed defect: package, import and class on one line",
+      "call": {
+        "module": "scanners/language/jvm/java-syntax-facts.mjs",
+        "fn": "analyzeJavaSyntax",
+        "args": [
+          "package b; import a.Ann; class U {}",
+          {
+            "path": "X.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/packageName",
+          "b"
+        ],
+        [
+          "/imports",
+          []
+        ],
+        [
+          "/topLevelTypes/0/name",
+          "U"
+        ],
+        [
+          "/diagnostics",
+          []
+        ]
+      ],
+      "output_sha256": "e704a294204c1433814238df23912c997a91ad18f5dd5affebb1f78df1f6e645"
+    },
+    {
+      "id": "neg-multi-declarator-field",
+      "class": "negative",
+      "origin": "observed defect: field declaring two variables",
+      "call": {
+        "module": "scanners/language/jvm/member-facts.mjs",
+        "fn": "analyzeJavaMemberFacts",
+        "args": [
+          "package p;\nclass E {\n  int[] arr, other;\n  String after;\n}",
+          {
+            "path": "E.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/types/0/fields/length",
+          1
+        ],
+        [
+          "/types/0/fields/0/name",
+          "after"
+        ],
+        [
+          "/diagnostics/length",
+          1
+        ],
+        [
+          "/diagnostics/0/code",
+          "JVM_MULTI_DECLARATOR_FIELD_UNSUPPORTED"
+        ]
+      ],
+      "output_sha256": "22c15dc1c37fc9217d37bfe817359eb41df4956c7639ffec50ef5f636239b0b0"
+    },
+    {
+      "id": "neg-field-brace-array-annotation-dropped",
+      "class": "negative",
+      "origin": "observed defect: field annotation whose argument is a brace array",
+      "call": {
+        "module": "scanners/language/jvm/member-facts.mjs",
+        "fn": "analyzeJavaMemberFacts",
+        "args": [
+          "package p;\nclass E {\n  @JoinColumns({@JoinColumn(name = \"a\"), @JoinColumn(name = \"b\")}) Other o;\n  String after;\n}",
+          {
+            "path": "E.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/types/0/fields/length",
+          1
+        ],
+        [
+          "/types/0/fields/0/name",
+          "after"
+        ],
+        [
+          "/diagnostics",
+          []
+        ]
+      ],
+      "output_sha256": "dc7867a645e0a9c7545333ae8f90cdb2497d17095048d1507775492fc8095a86"
+    },
+    {
+      "id": "neg-field-anonymous-class-initializer-dropped",
+      "class": "negative",
+      "origin": "observed defect: field initialised by an anonymous class",
+      "call": {
+        "module": "scanners/language/jvm/member-facts.mjs",
+        "fn": "analyzeJavaMemberFacts",
+        "args": [
+          "package p;\nclass E {\n  Map<String,String> m = new HashMap<>() {{ put(\"a\",\"b\"); }};\n  String after;\n}",
+          {
+            "path": "E.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/types/0/fields/length",
+          1
+        ],
+        [
+          "/types/0/fields/0/name",
+          "after"
+        ],
+        [
+          "/diagnostics",
+          []
+        ]
+      ],
+      "output_sha256": "dc7867a645e0a9c7545333ae8f90cdb2497d17095048d1507775492fc8095a86"
+    },
+    {
+      "id": "neg-field-lambda-initializer-dropped",
+      "class": "negative",
+      "origin": "observed defect: field initialised by a lambda",
+      "call": {
+        "module": "scanners/language/jvm/member-facts.mjs",
+        "fn": "analyzeJavaMemberFacts",
+        "args": [
+          "package p;\nclass E {\n  Runnable r = () -> { int z = 1; };\n  String after;\n}",
+          {
+            "path": "E.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/types/0/fields/length",
+          1
+        ],
+        [
+          "/types/0/fields/0/name",
+          "after"
+        ],
+        [
+          "/diagnostics",
+          []
+        ]
+      ],
+      "output_sha256": "dc7867a645e0a9c7545333ae8f90cdb2497d17095048d1507775492fc8095a86"
+    },
+    {
+      "id": "neg-field-array-initializer-dropped",
+      "class": "negative",
+      "origin": "observed defect: field initialised by an array initializer",
+      "call": {
+        "module": "scanners/language/jvm/member-facts.mjs",
+        "fn": "analyzeJavaMemberFacts",
+        "args": [
+          "package p;\nclass E {\n  int[] a = {1,2,3};\n  String after;\n}",
+          {
+            "path": "E.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/types/0/fields/length",
+          1
+        ],
+        [
+          "/types/0/fields/0/name",
+          "after"
+        ],
+        [
+          "/diagnostics",
+          []
+        ]
+      ],
+      "output_sha256": "dc7867a645e0a9c7545333ae8f90cdb2497d17095048d1507775492fc8095a86"
+    },
+    {
+      "id": "neg-method-brace-array-annotation-unterminated",
+      "class": "negative",
+      "origin": "observed defect: method annotation whose argument is a brace array",
+      "call": {
+        "module": "scanners/language/jvm/method-facts.mjs",
+        "fn": "analyzeJavaMethodFacts",
+        "args": [
+          "package p;\nimport org.springframework.web.bind.annotation.*;\nclass C {\n  @GetMapping(path = {\"/x\",\"/y\"})\n  public String x() { return \"\"; }\n}\n",
+          {
+            "path": "C.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/diagnostics/0/code",
+          "JVM_METHOD_ANNOTATION_UNTERMINATED"
+        ],
+        [
+          "/types/0/methods/0/name",
+          "x"
+        ],
+        [
+          "/types/0/methods/0/returnType",
+          ")\n  public String"
+        ],
+        [
+          "/types/0/methods/0/annotations",
+          []
+        ]
+      ],
+      "output_sha256": "37c7c1d303b7a8b78bebcd9b55496329d8d37a111a34620df210108a2d3d034f"
+    },
+    {
+      "id": "neg-shadow-brace-array-mapping-mismatch",
+      "class": "negative",
+      "origin": "observed defect: Spring shadow comparison of a brace-array mapping",
+      "call": {
+        "module": "scanners/language/jvm/spring-shadow.mjs",
+        "fn": "compareJavaSpringSourceShadow",
+        "args": [
+          "package p;\nimport org.springframework.web.bind.annotation.*;\nclass C {\n  @GetMapping(path = {\"/x\",\"/y\"})\n  public String x() { return \"\"; }\n}\n",
+          {
+            "path": "C.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          false
+        ],
+        [
+          "/mismatches/0/name",
+          "method-mappings"
+        ],
+        [
+          "/mismatches/0/legacy/0/argsText",
+          "path = {\"/x\",\"/y\"}"
+        ],
+        [
+          "/mismatches/0/next",
+          []
+        ]
+      ],
+      "output_sha256": "631a1ad9c1f77d87d6d5328d897c93e4673bf9d2f538c422673d5adf405db0ba"
+    },
+    {
+      "id": "neg-generic-method-return-type-folded",
+      "class": "negative",
+      "origin": "observed defect: generic method with a generic return type",
+      "call": {
+        "module": "scanners/language/jvm/method-facts.mjs",
+        "fn": "analyzeJavaMethodFacts",
+        "args": [
+          "package p;\nimport java.util.*;\nabstract class C { public static <T> List<T> g(final T... xs) throws Exception { return null; } }\n",
+          {
+            "path": "C.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/types/0/methods/0/name",
+          "g"
+        ],
+        [
+          "/types/0/methods/0/returnType",
+          "<T> List<T>"
+        ],
+        [
+          "/types/0/methods/0/paramsText",
+          "final T... xs"
+        ],
+        [
+          "/types/0/methods/0/modifiers",
+          [
+            "public",
+            "static"
+          ]
+        ]
+      ],
+      "output_sha256": "8566f844d45b26df69c213034c89ecd8948f44fdb0ebdf1df8279c283475b691"
+    },
+    {
+      "id": "neg-shadow-interface-mapping-mismatch",
+      "class": "negative",
+      "origin": "observed defect: Spring shadow comparison of the pinned interface-mapping file",
+      "call": {
+        "module": "scanners/language/jvm/spring-shadow.mjs",
+        "fn": "compareJavaSpringSourceShadow",
+        "args": [
+          {
+            "$file": "test/language-jvm/fixtures/interface-mapping/Api.java"
+          },
+          {
+            "path": "interface-mapping/Api.java"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          false
+        ],
+        [
+          "/mismatches/0/name",
+          "repository-interface"
+        ],
+        [
+          "/mismatches/0/legacy/name",
+          "WidgetApi"
+        ],
+        [
+          "/mismatches/0/legacy/superType",
+          "BaseApi<WidgetDto>"
+        ],
+        [
+          "/mismatches/0/next",
+          null
+        ]
+      ],
+      "output_sha256": "ddfec7674881c6d3a243dd62e1a4a384321c3ada55e2d17cc6defc536c3d779e"
+    },
+    {
+      "id": "neg-graph-max-depth-zero-throws",
+      "class": "negative",
+      "origin": "rejected by design: maxDepth 0 passed to buildJvmAnnotationGraph",
+      "call": {
+        "module": "scanners/language/jvm/annotation-graph.mjs",
+        "fn": "buildJvmAnnotationGraph",
+        "args": [
+          [
+            {
+              "path": "a/A.java",
+              "source": "class A {}"
+            }
+          ],
+          {
+            "maxDepth": 0
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "RangeError"
+        ],
+        [
+          "/threw/message",
+          "maxDepth must be an integer from 1 to 64"
+        ]
+      ],
+      "output_sha256": "80aa4104075b547fdc7452c1c3aa3ec793d9756fc4bf60200dcafc36c9e2156e"
+    },
+    {
+      "id": "neg-project-index-empty-files-throws",
+      "class": "negative",
+      "origin": "rejected by design: empty file list passed to buildJvmProjectIndex",
+      "call": {
+        "module": "scanners/language/jvm/annotation-graph.mjs",
+        "fn": "buildJvmProjectIndex",
+        "args": [
+          []
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "files must be a non-empty array"
+        ]
+      ],
+      "output_sha256": "c4c5f0dcab1da37fb89ac9943834dd9fb15d16e4133b669a10aae69eda7e7ef7"
+    },
+    {
+      "id": "neg-jpa-null-files-throws",
+      "class": "negative",
+      "origin": "rejected by design: null passed to analyzeJvmJpaDirectFacts",
+      "call": {
+        "module": "scanners/language/jvm/jpa-direct-facts.mjs",
+        "fn": "analyzeJvmJpaDirectFacts",
+        "args": [
+          null
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "files must be a non-empty array"
+        ]
+      ],
+      "output_sha256": "c4c5f0dcab1da37fb89ac9943834dd9fb15d16e4133b669a10aae69eda7e7ef7"
+    },
+    {
+      "id": "neg-request-kotlin-rejected",
+      "class": "negative",
+      "origin": "rejected by design: request that asks for Kotlin",
+      "call": {
+        "module": "scanners/language/jvm/protocol.mjs",
+        "fn": "validateJvmAnalysisRequest",
+        "args": [
+          {
+            "schema": "sbf.jvm.analysis-request/0-draft",
+            "language": "kotlin",
+            "languageLevel": 17,
+            "mode": "syntax",
+            "allowTargetExecution": false,
+            "project": {
+              "root": "backend-java",
+              "sourceRoots": [
+                "backend-java/src/main/java"
+              ],
+              "buildFiles": [
+                "backend-java/build.gradle"
+              ]
+            },
+            "files": [
+              {
+                "path": "backend-java/src/main/java/com/example/Widget.java",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          false
+        ],
+        [
+          "/errors",
+          [
+            "language must be java in the initial T05 draft; Kotlin is a separate future profile"
+          ]
+        ]
+      ],
+      "output_sha256": "a2608ab0c5e06fed08dd9a348504f1bf04123b2cd6c75e4176f013c508d54116"
+    },
+    {
+      "id": "neg-request-target-execution-rejected",
+      "class": "negative",
+      "origin": "rejected by design: request that allows target execution",
+      "call": {
+        "module": "scanners/language/jvm/protocol.mjs",
+        "fn": "validateJvmAnalysisRequest",
+        "args": [
+          {
+            "schema": "sbf.jvm.analysis-request/0-draft",
+            "language": "java",
+            "languageLevel": 17,
+            "mode": "syntax",
+            "allowTargetExecution": true,
+            "project": {
+              "root": "backend-java",
+              "sourceRoots": [
+                "backend-java/src/main/java"
+              ],
+              "buildFiles": [
+                "backend-java/build.gradle"
+              ]
+            },
+            "files": [
+              {
+                "path": "backend-java/src/main/java/com/example/Widget.java",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          false
+        ],
+        [
+          "/errors",
+          [
+            "allowTargetExecution must be exactly false"
+          ]
+        ]
+      ],
+      "output_sha256": "83583b30e9ca12344cddb11184fa740d7f75caeb2902bd23a81b0bc61f513a45"
+    },
+    {
+      "id": "neg-request-language-level-seven-rejected",
+      "class": "negative",
+      "origin": "rejected by design: request with language level 7",
+      "call": {
+        "module": "scanners/language/jvm/protocol.mjs",
+        "fn": "validateJvmAnalysisRequest",
+        "args": [
+          {
+            "schema": "sbf.jvm.analysis-request/0-draft",
+            "language": "java",
+            "languageLevel": 7,
+            "mode": "syntax",
+            "allowTargetExecution": false,
+            "project": {
+              "root": "backend-java",
+              "sourceRoots": [
+                "backend-java/src/main/java"
+              ],
+              "buildFiles": [
+                "backend-java/build.gradle"
+              ]
+            },
+            "files": [
+              {
+                "path": "backend-java/src/main/java/com/example/Widget.java",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          false
+        ],
+        [
+          "/errors",
+          [
+            "languageLevel must be an integer between 8 and 25"
+          ]
+        ]
+      ],
+      "output_sha256": "abe60e20138d47a23d0718c9724355b791e09a9bf2fc790ab33682d77a37d914"
+    },
+    {
+      "id": "neg-request-root-escape-rejected",
+      "class": "negative",
+      "origin": "rejected by design: request whose project root escapes the repository",
+      "call": {
+        "module": "scanners/language/jvm/protocol.mjs",
+        "fn": "validateJvmAnalysisRequest",
+        "args": [
+          {
+            "schema": "sbf.jvm.analysis-request/0-draft",
+            "language": "java",
+            "languageLevel": 17,
+            "mode": "syntax",
+            "allowTargetExecution": false,
+            "project": {
+              "root": "../escape",
+              "sourceRoots": [
+                "src/main/java"
+              ],
+              "buildFiles": []
+            },
+            "files": [
+              {
+                "path": "backend-java/src/main/java/com/example/Widget.java",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          false
+        ],
+        [
+          "/errors",
+          [
+            "project.root must be a repository-relative path or ."
+          ]
+        ]
+      ],
+      "output_sha256": "b5a69bb55058347773c9c84c42c2c87b41a449b761d9691cdc8e1e4d2d5c8820"
+    },
+    {
+      "id": "neg-request-duplicate-file-rejected",
+      "class": "negative",
+      "origin": "rejected by design: request that lists one file twice",
+      "call": {
+        "module": "scanners/language/jvm/protocol.mjs",
+        "fn": "validateJvmAnalysisRequest",
+        "args": [
+          {
+            "schema": "sbf.jvm.analysis-request/0-draft",
+            "language": "java",
+            "languageLevel": 17,
+            "mode": "syntax",
+            "allowTargetExecution": false,
+            "project": {
+              "root": "backend-java",
+              "sourceRoots": [
+                "backend-java/src/main/java"
+              ],
+              "buildFiles": [
+                "backend-java/build.gradle"
+              ]
+            },
+            "files": [
+              {
+                "path": "a/X.java",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              {
+                "path": "a/X.java",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          false
+        ],
+        [
+          "/errors",
+          [
+            "files contains a duplicate path: a/X.java"
+          ]
+        ]
+      ],
+      "output_sha256": "acda26c1ec47ad5dbfe8fa50396d9d482d8b47563bf6499633548cff7f76b31e"
+    },
+    {
+      "id": "neg-request-semantic-without-fingerprint-rejected",
+      "class": "negative",
+      "origin": "rejected by design: semantic-mode request without a classpath fingerprint",
+      "call": {
+        "module": "scanners/language/jvm/protocol.mjs",
+        "fn": "validateJvmAnalysisRequest",
+        "args": [
+          {
+            "schema": "sbf.jvm.analysis-request/0-draft",
+            "language": "java",
+            "languageLevel": 17,
+            "mode": "semantic",
+            "allowTargetExecution": false,
+            "project": {
+              "root": "backend-java",
+              "sourceRoots": [
+                "backend-java/src/main/java"
+              ],
+              "buildFiles": [
+                "backend-java/build.gradle"
+              ]
+            },
+            "files": [
+              {
+                "path": "backend-java/src/main/java/com/example/Widget.java",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          false
+        ],
+        [
+          "/errors",
+          [
+            "semantic mode requires classpathFingerprint as lowercase sha256 hex"
+          ]
+        ]
+      ],
+      "output_sha256": "597c208bee8386045c4d27f1668493d26e768346717acb41d11fd686c021c3c3"
+    },
+    {
+      "id": "neg-facts-validator-rejects-damaged-facts",
+      "class": "negative",
+      "origin": "rejected by design: syntax facts with a wrong schema, language, path and types",
+      "call": {
+        "module": "scanners/language/jvm/protocol.mjs",
+        "fn": "validateJvmSyntaxFacts",
+        "args": [
+          {
+            "schema": "x",
+            "language": "kotlin",
+            "path": "/abs",
+            "packageName": 3,
+            "imports": "x",
+            "topLevelTypes": [
+              {
+                "kind": "weird",
+                "name": "",
+                "annotations": 1,
+                "modifiers": [],
+                "extendsTypes": [],
+                "implementsTypes": [],
+                "permitsTypes": [],
+                "byteSpan": {
+                  "start": 5,
+                  "end": 1
+                }
+              }
+            ],
+            "diagnostics": null
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          false
+        ],
+        [
+          "/errors/length",
+          10
+        ],
+        [
+          "/errors/0",
+          "schema must be sbf.jvm.syntax-facts/0-draft"
+        ],
+        [
+          "/errors/1",
+          "language must be java"
+        ],
+        [
+          "/errors/9",
+          "topLevelTypes[0].byteSpan.end must be >= start"
+        ]
+      ],
+      "output_sha256": "28f135cb792f57f446c9404fe772a0e9eb5bbc191d1089d272de24d26aed6707"
+    },
+    {
+      "id": "neg-path-absolute-rejected",
+      "class": "negative",
+      "origin": "rejected by design: isRepoRelativePath on an absolute path",
+      "call": {
+        "module": "scanners/language/jvm/protocol.mjs",
+        "fn": "isRepoRelativePath",
+        "args": [
+          "/abs/B.java"
+        ]
+      },
+      "expect": [
+        [
+          "",
+          false
+        ]
+      ],
+      "output_sha256": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa"
+    },
+    {
+      "id": "neg-profile-ktor-blocked",
+      "class": "negative",
+      "origin": "rejected by design: assessJvmFrameworkProfile for the Kotlin/Ktor profile",
+      "call": {
+        "module": "scanners/language/jvm/framework-profiles.mjs",
+        "fn": "assessJvmFrameworkProfile",
+        "args": [
+          "ktor-kotlin",
+          []
+        ]
+      },
+      "expect": [
+        [
+          "/id",
+          "ktor-kotlin"
+        ],
+        [
+          "/status",
+          "blocked"
+        ],
+        [
+          "/knownBlockers/0",
+          "T05 draft language protocol currently accepts Java only"
+        ],
+        [
+          "/semanticAdapterImplemented",
+          false
+        ],
+        [
+          "/runtimeVerified",
+          false
+        ]
+      ],
+      "output_sha256": "14a8cea390a8c6a39452b76e1d2da22a6c3c0e45414a3d0def5bc0cfecf13ddd"
+    },
+    {
+      "id": "neg-profile-unknown-throws",
+      "class": "negative",
+      "origin": "rejected by design: getJvmFrameworkProfile with an unknown id",
+      "call": {
+        "module": "scanners/language/jvm/framework-profiles.mjs",
+        "fn": "getJvmFrameworkProfile",
+        "args": [
+          "no-such-profile"
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "Error"
+        ],
+        [
+          "/threw/message",
+          "unknown JVM framework profile: no-such-profile"
+        ]
+      ],
+      "output_sha256": "d13a499c13b6a4f96795c1439086a8467de451415a53953cbae616d4b3da9c1e"
+    }
+  ],
+  "artifact_digest": {
+    "value": "0e9691e6da437961a70af8d269a5ea6d4f5380cb6a4186898998dd4618fbdd32"
+  },
+  "ci_observations": [],
+  "limits": [
+    {
+      "id": "kotlin-ktor-blocked",
+      "status": "BLOCKED",
+      "statement": "Kotlin and Ktor are not supported and nothing here claims they are: validateJvmAnalysisRequest rejects language kotlin, the ktor-kotlin profile assesses as blocked, and the Java syntax analyzer finds no types in Kotlin text and reports one unresolved body. Ktor routing is a Kotlin DSL and needs its own profile.",
+      "fixtures": [
+        "neg-request-kotlin-rejected",
+        "neg-profile-ktor-blocked",
+        "neg-kotlin-text"
+      ]
+    },
+    {
+      "id": "real-javaparser-jdk-run-blocked",
+      "status": "BLOCKED",
+      "statement": "No JavaParser, JDK or gradle run is recorded. The semantic backend is only exercised with injected fakes (the semantic-backend tests), this machine has no JDK, and semantic mode (classpath and type resolution) was never observed against a real compiler."
+    },
+    {
+      "id": "facts-ready-is-not-supported",
+      "status": "UNKNOWN",
+      "statement": "A profile whose required facts are all available reports facts-ready with semanticAdapterImplemented false and runtimeVerified false, so it is not a support claim. The inherited primary key is not-evaluated for every type: the Widget entity key lives in its mapped superclass and is not reported for Widget.",
+      "fixtures": [
+        "profile-spring-facts-ready-is-not-supported",
+        "jpa-mapped-superclass"
+      ]
+    },
+    {
+      "id": "generic-bounds-leak-into-extends",
+      "status": "UNSUPPORTED",
+      "statement": "A type-parameter bound is not separated from the extends clause: the bound text and the rest of the header land in extendsTypes, also for a record, which cannot extend anything.",
+      "fixtures": [
+        "neg-bounded-type-parameter-leaks-into-extends",
+        "neg-record-generic-bound-leaks-into-extends"
+      ]
+    },
+    {
+      "id": "nested-types-not-listed",
+      "status": "UNSUPPORTED",
+      "statement": "Only top-level types are listed; nested classes and interfaces are invisible to every fact module.",
+      "fixtures": [
+        "neg-nested-types-not-listed"
+      ]
+    },
+    {
+      "id": "unterminated-input-silent",
+      "status": "UNSUPPORTED",
+      "statement": "An unterminated string literal, type body or block comment produces no diagnostic and the type after the damage is silently missing, so empty diagnostics do not mean the source was read completely.",
+      "fixtures": [
+        "neg-unterminated-string-no-diagnostic",
+        "neg-unterminated-body-no-diagnostic",
+        "neg-unterminated-block-comment-no-diagnostic"
+      ]
+    },
+    {
+      "id": "one-line-package-import-dropped",
+      "status": "UNSUPPORTED",
+      "statement": "When package, import and class share one line the import is dropped without a diagnostic.",
+      "fixtures": [
+        "neg-one-line-package-import-dropped"
+      ]
+    },
+    {
+      "id": "member-facts-silent-gaps",
+      "status": "UNSUPPORTED",
+      "statement": "Multi-declarator fields are dropped with a diagnostic; a field with a brace-array annotation argument, an anonymous-class initializer, a lambda initializer or an array initializer is dropped without any diagnostic.",
+      "fixtures": [
+        "neg-multi-declarator-field",
+        "neg-field-brace-array-annotation-dropped",
+        "neg-field-anonymous-class-initializer-dropped",
+        "neg-field-lambda-initializer-dropped",
+        "neg-field-array-initializer-dropped"
+      ]
+    },
+    {
+      "id": "method-facts-gaps",
+      "status": "UNSUPPORTED",
+      "statement": "A brace-array annotation argument leaves the method annotation unterminated and corrupts the return type, and the type parameters of a generic method are folded into its return type.",
+      "fixtures": [
+        "neg-method-brace-array-annotation-unterminated",
+        "neg-generic-method-return-type-folded"
+      ]
+    },
+    {
+      "id": "spring-shadow-gaps",
+      "status": "UNSUPPORTED",
+      "statement": "The Spring shadow comparison reports a mismatch for a brace-array mapping and for an interface-based mapping file, so ok:false is the current answer for both.",
+      "fixtures": [
+        "neg-shadow-brace-array-mapping-mismatch",
+        "neg-shadow-interface-mapping-mismatch"
+      ]
+    },
+    {
+      "id": "not-integrated-draft-layer",
+      "status": "UNKNOWN",
+      "statement": "Nothing outside the layer imports it: at the base commit the only files outside scanners/language/jvm and test/language-jvm that mention the layer paths are the references listed here (the nested-runner suite row and the CI step), so no production behaviour is derived from it yet.",
+      "references": {
+        "pattern": "language/jvm|language-jvm",
+        "paths": [
+          ".github/workflows/ci.yml",
+          "scripts/run-next-nested-tests.mjs"
+        ]
+      }
+    },
+    {
+      "id": "no-real-corpus",
+      "status": "NOT_RECORDED",
+      "statement": "Only hand-written fixtures and inline snippets are recorded; behaviour on real Spring or JPA repositories, and any performance or scale figure, is not recorded."
+    },
+    {
+      "id": "ci-not-observed-at-base",
+      "status": "NOT_RECORDED",
+      "statement": "No completed CI run for the base commit was observed when this record was generated, so no CI result is recorded for it."
+    },
+    {
+      "id": "hashes-generated-on-one-platform",
+      "status": "NOT_RECORDED",
+      "statement": "The recorded outputs, hashes and counts were generated on one machine (macOS arm64, one Node major); other platforms were not observed."
+    }
+  ],
+  "verification": {
+    "recomputed": "bytes, git_blob_sha1 and sha256 of every pinned file, per-file and total test counts, the exit code and counts of both commands, the first runner line, every fixture output hash and every expected value are recomputed by baseline-record.test.mjs and never read back from the record.",
+    "levels": [
+      "always: the record is well formed and any edit that is not re-sealed is reported, because artifact_digest is a SHA-256 over the canonical serialization of the whole record except its own value (fixture calls, expected values, classes and origins, limit statements, statuses and fixture lists, hashes, sizes, counts, exit codes, commit ids and every other field)",
+      "live files: size, sha256 and blob id are recomputed from the checkout; a file that disagrees in one hash or in size alone is damage and fails; a file that matches neither hash is drift, which skips the live replays while the pinned commit decides",
+      "pinned commit: the base commit is fetched once when absent and the sizes and digests of all pinned files, the runner included, are recomputed from its own blobs; if the commit is unavailable the test fails, and only BASELINE_ALLOW_UNVERIFIED=1 turns that into an explicit skip",
+      "ancestry: a shallow checkout is deepened with git fetch --no-tags --unshallow origin and the base commit must be an ancestor of HEAD",
+      "commands: both recorded commands are re-run in an extracted copy of the base commit and must reproduce exit code, counts, per-file counts and every fixture output",
+      "references: the files outside the track directories that mention the layer paths are recomputed with git grep at the pinned commit and must equal the list in the limit"
+    ],
+    "not_recomputed": [
+      "ci_observations: read once from the CI API (gh api, read-only) and kept for traceability; no test re-reads them",
+      "environment: describes the machine this record was generated on",
+      "artifact_digest: tamper evidence, not proof. An edit that is not re-sealed is reported, but whoever edits and re-seals passes it, so the recomputations above are the independent check. Fixture output hashes are recomputed from the calls; limit statements, limit fixture lists, fixture classes and origins are prose that nothing derives from the code and that only the digest binds; a swap between two calls whose outputs are identical is invisible to the replay and is caught only by the digest"
+    ]
+  }
+}
