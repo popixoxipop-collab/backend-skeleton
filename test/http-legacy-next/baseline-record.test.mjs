@@ -6,23 +6,22 @@ import path from 'node:path';
 import { inspectSuite, SUITES } from '../../scripts/run-next-nested-tests.mjs';
 import * as lib from './baseline-record-lib.mjs';
 
-// T11-01: BASELINE.json pins what the five legacy HTTP adapters and the T11 modules did at one exact commit. Everything it
-// records is recomputed here from real files, real scans and real commands; a well-formed value is never evidence.
-const { REPO_ROOT } = lib;
+// T11-01: BASELINE.json pins what the five legacy HTTP adapters and the T11 modules did at one exact commit. Everything is recomputed
+// from real files, scans and commands; every list and key set is compared with the literal tables of the library (EXPECTED).
+const { REPO_ROOT, flip } = lib;
 const record = lib.readRecord();
 const live = lib.classifyLive(record);
 const copy = (edit) => { const r = structuredClone(record); edit(r); return r; };
 const reseal = (edit) => { const r = copy(edit); r.artifact_digest.value = lib.artifactDigest(r); return r; };
-const STATUSES = { 'no-next-contract-emission': 'UNSUPPORTED', 'shadow-projectors-are-test-doubles': 'UNSUPPORTED', 'cutover-gates-are-hand-written': 'UNKNOWN', 'sparse-checkout-two-adapters-only': 'UNSUPPORTED', 'scanner-pins-are-the-static-closure': 'NOT_RECORDED', 'single-runtime-observed': 'NOT_RECORDED', 'ci-observation-not-recomputable': 'NOT_RECORDED', 'real-repository-corpus': 'UNKNOWN', 'identity-and-capability-interfaces-not-frozen': 'BLOCKED' };
-const { flip } = lib;
+const at = (r, p) => p.split('.').filter(Boolean).reduce((x, k) => x[k], r);
 const inScratch = async (name, fn) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `bskel-${name}-`));
   try { await fn(dir); } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 };
+const replayOf = async (dir) => { const m = await lib.loadModules(dir); return [...lib.expectationProblems(m), ...lib.replayProblems(record, lib.replay(record, m))]; };
 
-// The pinned commit is always required, also while the live tree equals the record: matching file hashes say nothing about
-// base_commit, base_tree, ancestry or the archived commands. It is fetched when absent (--depth=1 in a shallow checkout), its
-// absence fails, and only BASELINE_ALLOW_UNVERIFIED=1 turns that into a diagnostic.
+// The pinned commit is always required: matching live hashes say nothing about base_commit, base_tree, ancestry or the archived commands.
+// It is fetched when absent (--depth=1 in a shallow checkout), its absence fails, and only BASELINE_ALLOW_UNVERIFIED=1 makes that a diagnostic.
 function pinnedAvailable(t) {
   const v = lib.commitVerdict(REPO_ROOT, record.base_commit);
   if (v.verdict === 'fail') assert.fail(v.message);
@@ -33,7 +32,6 @@ function pinnedAvailable(t) {
 test('T11-01 the record is consistent, claims nothing as supported, and every pin is recomputed', (t) => {
   assert.deepEqual(lib.verifyRecord(record), []);
   assert.doesNotMatch(JSON.stringify(record), /"(?:SUPPORTED|supported|certified|runtime-tested)"/);
-  assert.deepEqual(Object.fromEntries(record.limits.map((l) => [l.id, l.status])), STATUSES, 'each limit keeps the status this test fixes');
   assert.deepEqual(live.corrupt, [], 'a record that disagrees with a file in only one hash is damaged, not moved');
   t.diagnostic(live.fresh ? 'live tree equals the recorded revision' : `live tree moved: ${live.moved.join(', ')}`);
   if (live.fresh) assert.deepEqual(lib.verifyRecord(record, lib.liveReader(REPO_ROOT), 'live'), []);
@@ -49,21 +47,20 @@ test('T11-01 the nested runner still collects every recorded test file and this 
 
 test('T11-01 replaying the fixtures on the live tree reproduces every recorded output hash', async (t) => {
   if (!live.fresh) return t.diagnostic('live tree moved: the replay on the pinned commit below decides');
-  assert.deepEqual(lib.replayProblems(record, lib.replay(record, await lib.loadModules(REPO_ROOT))), []);
+  assert.deepEqual(await replayOf(REPO_ROOT), []);
 });
 
 test('T11-01 the pinned commit has the recorded tree and files, and an export of it reproduces replay, counts and exit codes', async (t) => {
   if (!pinnedAvailable(t)) return;
   const { base_commit: commit } = record;
   assert.equal(lib.revParse(REPO_ROOT, `${commit}^{tree}`), record.base_tree);
-  const listed = (dir, keep) => lib.listAtCommit(REPO_ROOT, commit, dir).filter(keep);
-  assert.deepEqual(listed(record.source_dir, (p) => p.endsWith('.mjs')), record.sources.map((x) => x.path).sort());
-  assert.deepEqual(listed(record.test_dir, (p) => p.endsWith('.test.mjs')), record.tests.map((x) => x.path).sort());
-  assert.deepEqual(listed(record.scanner_dir, (p) => p.endsWith('.mjs')), record.scanner_files.map((x) => x.path).filter((p) => p.startsWith(`${record.scanner_dir}/`)).sort());
-  for (const g of record.inputs) {
-    assert.equal(lib.revParse(REPO_ROOT, `${commit}:${g.dir}`), g.git_tree_id, g.id);
-    assert.deepEqual(listed(g.dir, () => true), g.files.map((x) => x.path).sort(), g.id);
-  }
+  const tree = lib.commitTree(REPO_ROOT, commit);
+  assert.deepEqual(lib.treeProblems(record, tree), [], 'modules, tests, scanner files and closure, and the five fixture trees equal the tables');
+  const edited = (dir, edit) => ({ ...tree, list: (d) => (d === dir ? edit(tree.list(d)) : tree.list(d)) });
+  const registry = (p) => (p === 'scanners/registry.mjs' ? Buffer.concat([tree.read(p), Buffer.from("\nimport './extra.mjs';\n")]) : tree.read(p));
+  for (const [dir, edit] of [[record.source_dir, (l) => [...l, 'extra.mjs']], [record.test_dir, (l) => l.slice(1)], [record.scanner_dir, (l) => [...l, 'extra.mjs']], [record.inputs[0].dir, (l) => l.slice(1)]]) assert.notDeepEqual(lib.treeProblems(record, edited(dir, edit)), [], dir);
+  assert.match(lib.treeProblems(record, { ...tree, read: registry }).join('\n'), /scanner closure: unexpected scanners\/extra.mjs/);
+  assert.notDeepEqual(lib.treeProblems(record, { ...tree, id: () => 'f'.repeat(40) }), [], 'a wrong tree id');
   if (lib.isShallow(REPO_ROOT)) t.diagnostic('shallow checkout: ancestry of the pinned commit is not claimed');
   else assert.ok(lib.isAncestor(REPO_ROOT, commit), 'the pinned commit must be an ancestor of HEAD');
 
@@ -78,33 +75,41 @@ test('T11-01 the pinned commit has the recorded tree and files, and an export of
     }
     assert.equal(nested.stdout_first_line, command('nested-runner').stdout_first_line);
     perFile.forEach((run, i) => assert.equal(run.result.tests, record.tests[i].test_count, files[i]));
-    assert.deepEqual(lib.replayProblems(record, lib.replay(record, await lib.loadModules(dest))), []);
+    assert.deepEqual(await replayOf(dest), []);
   });
 });
 
-test('T11-01 negative: edits fail verification re-sealed (recomputed checks) and not re-sealed (the whole-record seal)', () => {
+test('T11-01 negative: edits fail verification re-sealed (recomputed and exact checks) and not re-sealed (the whole-record seal)', () => {
   const checked = [
     ['recorded input', (r) => { r.fixtures[0].input.adapter = 'ruby-rails'; }, /input_sha256/],
     ['failures under exit code 0', (r) => { r.commands[0].result.fail = 1; }, /exit_code 0 contradicts/],
     ['per-file test count', (r) => { r.tests[0].test_count += 1; }, /direct-tap tests/],
     ['runner file count', (r) => { r.commands[0].runner_files = 5; }, /runner_files/],
-    ['third command that nothing replays', (r) => { r.commands.push({ ...r.commands[1], id: 'extra' }); }, /exactly nested-runner and direct-tap/],
-    ['repeated command id', (r) => { r.commands.push(structuredClone(r.commands[1])); }, /exactly nested-runner and direct-tap/],
     ['base commit', (r) => { r.base_commit = 'abc123'; }, /40-hex commit/],
-    ['missing negative fixture', (r) => { r.fixtures = r.fixtures.filter((f) => f.class !== 'negative'); }, /at least one negative/],
     ['negative without a counterexample', (r) => { delete r.fixtures.find((f) => f.class === 'negative').counterexample; }, /counterexample/],
-    ['limit that reads as supported', (r) => { r.limits[0].status = 'SUPPORTED'; }, /status SUPPORTED/],
-    ['unpinned scanner registry', (r) => { r.scanner_files = r.scanner_files.filter((e) => !e.path.endsWith('registry.mjs')); }, /must pin scanners\/registry/]
+    ['limit that reads as supported', (r) => { r.limits[0].status = 'SUPPORTED'; }, /limits \(id status\): unexpected no-next-contract-emission SUPPORTED/],
+    ['fixtures removed, one normal and one negative kept', (r) => { r.fixtures = [r.fixtures[0], r.fixtures.at(-1)]; }, /fixtures \(id api class\): missing scan-ruby-rails/],
+    ['a normal fixture re-classed', (r) => { r.fixtures[0].class = 'negative'; }, /missing scan-java-spring scan normal/],
+    ['one of the five fixture trees kept', (r) => { r.inputs.splice(1); }, /inputs ids: missing ruby-rails, python-fastapi, typescript-express, javascript-express/],
+    ['a file dropped from a fixture tree', (r) => { r.inputs[0].files.pop(); }, /java-spring must pin exactly 37 files/],
+    ['artifact_digest without its covers text', (r) => { delete r.artifact_digest.covers; }, /artifact_digest keys: missing covers/]
   ];
-  const paths = [['title'], ['base_commit_note'], ['environment', 'node'], ['artifact_digest', 'covers'], ['ci_observations', 0, 'conclusion'], ['verification', 'not_recomputed', 0],
-    ['fixtures', 3, 'output_sha256'], ['fixtures', 0, 'class'], ['fixtures', 0, 'origin'], ['limits', 0, 'statement'], ['limits', 0, 'fixtures', 0]];
+  // One generated negative per exactness check: every list loses or repeats its first item, every object loses its last key or gains one.
+  const lists = 'sources tests scanner_files inputs inputs.4.files commands fixtures limits limits.0.fixtures ci_observations ci_observations.0.jobs verification.not_recomputed'.split(' ');
+  const objects = ['', 'environment', 'environment.package_lock', 'sources.0', 'tests.0', 'scanner_files.0', 'inputs.0', 'inputs.0.files.0', 'commands.0', 'commands.0.runner_script', 'commands.1', 'fixtures.0', 'fixtures.10', 'limits.0', 'limits.5', 'ci_observations.0', 'ci_observations.0.jobs.0', 'verification'];
+  const family = /: (?:missing|unexpected|repeated) |must pin exactly|must hold exactly|must be exactly/;
+  const sweep = [
+    ...lists.flatMap((p) => [[`${p} minus its first item`, (r) => at(r, p).shift(), family], [`${p} with its first item repeated`, (r) => at(r, p).push(structuredClone(at(r, p)[0])), family]]),
+    ...objects.flatMap((p) => [[`${p || 'record'} minus its last key`, (r) => { const o = at(r, p); delete o[Object.keys(o).at(-1)]; }, / keys: missing /], [`${p || 'record'} plus a key`, (r) => { at(r, p).extra = 1; }, / keys: unexpected extra/]])
+  ];
+  const paths = 'title base_commit_note environment.node artifact_digest.covers ci_observations.0.conclusion verification.not_recomputed.0 fixtures.3.output_sha256 fixtures.0.class fixtures.0.origin limits.0.statement limits.0.fixtures.0'.split(' ');
   const prose = [
-    ...paths.map((at) => [at.join('.'), (r) => { at.slice(0, -1).reduce((x, k) => x[k], r)[at.at(-1)] += ' (edited)'; }]),
+    ...paths.map((p) => [p, (r) => { at(r, p.replace(/\.?[^.]+$/, ''))[p.split('.').at(-1)] += ' (edited)'; }]),
     ...record.limits.flatMap((l, i) => ['UNSUPPORTED', 'UNKNOWN', 'BLOCKED', 'NOT_RECORDED'].filter((s) => s !== l.status).map((s) => [`${l.id} -> ${s}`, (r) => { r.limits[i].status = s; }]))
   ];
   assert.deepEqual(lib.verifyRecord(reseal(() => {})), [], 're-sealing an untouched record changes nothing');
-  for (const [name, edit, pattern] of checked) assert.match(lib.verifyRecord(reseal(edit)).join('\n'), pattern, `${name}, re-sealed`);
-  for (const [name, edit] of [...checked, ...prose]) assert.match(lib.verifyRecord(copy(edit)).join('\n'), /artifact_digest does not match the record/, `${name}, not re-sealed`);
+  for (const [name, edit, pattern] of [...checked, ...sweep]) assert.match(lib.verifyRecord(reseal(edit)).join('\n'), pattern, `${name}, re-sealed`);
+  for (const [name, edit] of [...checked, ...prose, ...sweep]) assert.match(lib.verifyRecord(copy(edit)).join('\n'), /artifact_digest/, `${name}, not re-sealed`);
 });
 
 test('T11-01 negative: a change to a report field the semantic snapshot omits still changes the recorded scan output hash', async () => {
@@ -147,6 +152,8 @@ test('T11-01 negative: recomputation catches same-length edits that a format che
   bad[1].output_sha256 = flip(bad[1].output_sha256);
   bad[2].deterministic = false;
   assert.equal(lib.replayProblems(record, bad).length, 3);
+  assert.match(lib.replayProblems(record, same.slice(0, 2)).join('\n'), /replayed fixture ids: missing/);
+  assert.match(lib.replayProblems({ ...record, fixtures: record.fixtures.slice(0, 2) }, same.slice(0, 2)).join('\n'), /replayed fixture ids: missing/, 'a record that lost fixtures replays only the survivors, which is not enough');
 });
 
 test('T11-01 negative: a re-sealed record with an invented base commit and tree fails in a shallow checkout although every live hash matches', (t) => inScratch('forged', async (dir) => {
@@ -166,7 +173,7 @@ test('T11-01 negative: a re-sealed record with an invented base commit and tree 
 test('T11-01 negative: a depth-1 checkout fetches the pinned commit, and an unfetchable one fails unless explicitly allowed', () => inScratch('depth1', (dir) => {
   const { checkout, record: small } = lib.depthOneCase(dir);
   assert.equal(lib.isShallow(checkout), true);
-  const { moved, corrupt } = lib.classifyLive(small, checkout);
+  const { moved, corrupt } = lib.classifyLive(small, checkout, []);
   assert.deepEqual([moved, corrupt], [['src/a.mjs', 'scan/new.mjs'], []], 'a changed source and a new scanner file both mean the tree moved on');
   assert.deepEqual(lib.commitVerdict(checkout, small.base_commit), { verdict: 'ok', via: 'fetch' });
   assert.deepEqual(lib.recomputeProblems(lib.pinnedEntries(small), lib.commitReader(checkout, small.base_commit), 'pinned'), []);

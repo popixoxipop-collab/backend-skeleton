@@ -17,8 +17,9 @@ table (`baselines.mjs`). It emits no contracts/next artifact, imports no T01 or 
 ## 2. Adapters in scope
 
 Exactly the five rows below. `legacyHttpBaseline` returns `{fixture, descriptor, inventory}`, or `null` for any other id
-(`generic-grep` included); `snapshotLegacyHttpAdapter` and `bridgeLegacyHttpScan` throw for it. The descriptor is the registry's
-legacy `sbf.adapter/2` record; the four capability columns are legacy booleans (section 5).
+(`generic-grep` included); `snapshotLegacyHttpAdapter` and `bridgeLegacyHttpScan` throw for it. The `adapter` argument is the registry's
+legacy `sbf.adapter/2` record; T11 never copies its `detect`, `scan`, `introspectRoutes`, `listReadSet` or `diagnostics` (section 3 lists
+the keys it does copy). The four capability columns are legacy booleans (section 5).
 
 | adapter | specificity | confidence | verificationBasis | api.operations | api.request-shape | resource.fetch | codegen.handles |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -33,20 +34,26 @@ legacy `sbf.adapter/2` record; the four capability columns are legacy booleans (
 | module | function | input | output |
 | --- | --- | --- | --- |
 | `baselines.mjs` | `legacyHttpBaseline` | adapter id | entry or `null` |
-| `bridge.mjs` | `snapshotLegacyHttpAdapter` | registry descriptor | detached copy of the descriptor |
-| `bridge.mjs` | `bridgeLegacyHttpScan` | descriptor and `report` | `{schema, mode, source_adapter, source_scan_schema, legacy_report}` |
+| `bridge.mjs` | `snapshotLegacyHttpAdapter` | registry record | `{contract, id, title, specificity, confidence, verificationBasis, capabilities}`, a detached copy |
+| `bridge.mjs` | `bridgeLegacyHttpScan` | `{adapter, report}` | `{schema, mode, source_adapter, source_scan_schema, legacy_report}` |
 | `bridge.mjs` | `summarizeLegacyHttpReport` | `report` | `{modules, moduleCount, controllerCount, entityCount, enumCount, dtoCount, endpointCount, filesReadCount}` |
 | `parity.mjs` | `legacyHttpSemanticSnapshot` | `report`, absolute `root` | `{schema, adapter, confidence, api_surface_source, verdict, path_prefix_signals, modules, files_read}` |
 | `parity.mjs` | `legacyHttpSemanticDigest` | snapshot, or `report` with `root` | sha256 hex of key sorted JSON |
 | `parity.mjs` | `compareLegacyHttpSemanticSnapshots`, `compareLegacyHttpReports` | two snapshots, or two reports with both roots | `{equal, diffs, truncated}` |
-| `shadow-projection.mjs` | `runLegacyHttpShadowProjection` | descriptor, `report`, sync `projector`, `projectorId`, `projectorContract`, `root` | `{schema, mode, adapter_id, projector_id, projector_contract, authoritative_source, legacy_semantic_sha256, projected_semantic_sha256, parity, promotion_allowed, notes}` |
+| `shadow-projection.mjs` | `runLegacyHttpShadowProjection` | `{adapter, report, projector, projectorId, projectorContract, maxDiffs, root}` | `{schema, mode, adapter_id, projector_id, projector_contract, authoritative_source, legacy_semantic_sha256, projected_semantic_sha256, parity, promotion_allowed, notes}` |
 | `cutover-readiness.mjs` | `evaluateLegacyHttpCutoverReadiness` | `{adapterId, checks}` | `{schema, adapter_id, checks, ready_for_t00_integration, apply_allowed, blockers, notes}` |
 | `checkout-completeness.mjs` | `inspectLegacyCorpusCheckout`, `assertLegacyCorpusCheckoutComplete` | `{repoRoot, adapterId, maxMissing}` | `{complete, mode, git_head, project_root, adapter_id, expected_tracked_read_files, materialized_read_files, missing_count, missing_paths}` and the conditional keys of section 5 |
 
-Nested shapes: snapshot modules `{module, controllers, entities, enums, dtos}`, controllers `{className, basePath, file, endpoints}`,
-endpoints `{method, verb, path, operationId, file}`, diffs `{path, kind, expected, actual}`. Inputs carry `sbf.adapter/2` and
-`sbf.scan-report/2`; outputs carry `sbf.http-legacy-bridge/1` and `sbf.http-legacy-semantic-snapshot/1`; the internal, unfrozen
-(suffix 0) outputs carry `bskel.internal.t11-shadow-projection/0` and `bskel.internal.t11-cutover-readiness/0`;
+Nested shapes; the test compares each key list with every such object that real scans of the five fixtures produce (diffs: those of a hand-made comparison):
+
+- baseline `descriptor` `{contract, title, specificity, confidence, verificationBasis, capabilities}` (no `id`); baseline `inventory` has the keys of `summarizeLegacyHttpReport`; `source_adapter` is the `snapshotLegacyHttpAdapter` copy.
+- snapshot modules `{module, controllers, entities, enums, dtos}`; controllers `{className, basePath, file, endpoints}`; endpoints `{method, verb, path, operationId, file}`.
+- entities `{className, table, idField, idFieldType, idFieldIsUuid, file}`; enums `{name, constants, file}`; DTOs `{className, file}`.
+  Keys the scan reports beyond these are dropped. A DTO may be a bare class name (then `file` is `null`) or an object whose `className` falls back to its `name`.
+- diffs `{path, kind, expected, actual}`; `path_prefix_signals` and `files_read` are copied as the scan reported them.
+
+Inputs carry `sbf.adapter/2` and `sbf.scan-report/2`; outputs carry `sbf.http-legacy-bridge/1` and `sbf.http-legacy-semantic-snapshot/1`;
+the internal, unfrozen (suffix 0) outputs carry `bskel.internal.t11-shadow-projection/0` and `bskel.internal.t11-cutover-readiness/0`;
 the constants `LEGACY_HTTP_ADAPTER_IDS`, `LEGACY_HTTP_BASELINES`, `LEGACY_HTTP_BRIDGE_SCHEMA`, `LEGACY_HTTP_SEMANTIC_SNAPSHOT_SCHEMA`, `T11_SHADOW_PROJECTION_SCHEMA` and `T11_CUTOVER_READINESS_SCHEMA` export the ids and tables above. A projector is synchronous:
 it gets a deep frozen `{bridge, legacy_semantic_snapshot}` and returns `{projector_contract, semantic_snapshot}`; a Promise or another contract is refused.
 

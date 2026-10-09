@@ -1424,7 +1424,7 @@
   "artifact_digest": {
     "algorithm": "sha256",
     "covers": "canonical JSON of this whole record except artifact_digest.value, so prose (limits and their statuses, fixture classes and origins, notes, CI observations) is bound too",
-    "value": "f2d6e5f3baf7cd7478f9cf7027631bb789efe723c1511a96efdebdf70de720e8"
+    "value": "0651ebd4e2f1660ffff84044919ac9d86462c9f6ac0c8f2fcc3e86865e2ed96e"
   },
   "ci_observations": [
     {
@@ -1535,11 +1535,11 @@
     "command": "node --test test/http-legacy-next/baseline-record.test.mjs",
     "unverified_override": "BASELINE_ALLOW_UNVERIFIED=1 skips only the checks that need the pinned commit, and the test then says so in its diagnostics",
     "not_recomputed": [
-      "ci_observations: read from the GitHub API on observed_on and not recomputable offline",
+      "ci_observations: read from the GitHub API on observed_on and not recomputable offline; the test fixes their shape, workflow, event, conclusion, job names and step statuses, not the run and job ids",
       "environment: toolchain versions of the recording machine; only package_lock is recomputed",
-      "limits: statements, fixture lists and statuses are prose; the test fixes the id-to-status map and artifact_digest binds the text",
-      "fixture classes, counterexample texts, title and notes: prose bound only by artifact_digest",
-      "artifact_digest is tamper evidence, not proof: whoever edits a field can re-seal it, so only the recomputed pins, replays and commands prove content"
+      "limits: the statements are prose bound only by artifact_digest; the test fixes the exact limit ids, statuses and fixture lists",
+      "counterexample texts, title and notes: prose bound only by artifact_digest; the fixture inputs are authored record content that the replay runs as given, and the test fixes only the fixture ids, apis and classes",
+      "artifact_digest is tamper evidence, not proof: whoever edits a field can re-seal it, so only the recomputed pins, replays and commands, the tables of baseline-record-lib.mjs and the pinned commit's tree prove content"
     ]
   }
 }

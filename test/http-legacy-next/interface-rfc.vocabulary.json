@@ -70,6 +70,9 @@
   "sbf.artifact-ref/1",
   "sbf.identity-envelope/1"
  ],
+ "foreign_keys": [
+  "contract_hash"
+ ],
  "exports": {
   "baselines": [
    "LEGACY_HTTP_ADAPTER_IDS",
@@ -193,12 +196,29 @@
    "descriptor",
    "inventory"
   ],
+  "baseline_descriptor": [
+   "contract",
+   "title",
+   "specificity",
+   "confidence",
+   "verificationBasis",
+   "capabilities"
+  ],
   "bridge": [
    "schema",
    "mode",
    "source_adapter",
    "source_scan_schema",
    "legacy_report"
+  ],
+  "adapter_snapshot": [
+   "contract",
+   "id",
+   "title",
+   "specificity",
+   "confidence",
+   "verificationBasis",
+   "capabilities"
   ],
   "report_summary": [
    "modules",
@@ -238,6 +258,23 @@
    "verb",
    "path",
    "operationId",
+   "file"
+  ],
+  "snapshot_entity": [
+   "className",
+   "table",
+   "idField",
+   "idFieldType",
+   "idFieldIsUuid",
+   "file"
+  ],
+  "snapshot_enum": [
+   "name",
+   "constants",
+   "file"
+  ],
+  "snapshot_dto": [
+   "className",
    "file"
   ],
   "compare": [
@@ -285,6 +322,47 @@
    "missing_paths"
   ]
  },
+ "input_keys": {
+  "bridgeLegacyHttpScan": [
+   "adapter",
+   "report"
+  ],
+  "evaluateLegacyHttpCutoverReadiness": [
+   "adapterId",
+   "checks"
+  ],
+  "inspectLegacyCorpusCheckout": [
+   "repoRoot",
+   "adapterId",
+   "maxMissing"
+  ],
+  "runLegacyHttpShadowProjection": [
+   "adapter",
+   "report",
+   "projector",
+   "projectorId",
+   "projectorContract",
+   "maxDiffs",
+   "root"
+  ]
+ },
+ "projector": {
+  "input": [
+   "bridge",
+   "legacy_semantic_snapshot"
+  ],
+  "output": [
+   "projector_contract",
+   "semantic_snapshot"
+  ]
+ },
+ "registry_only_keys": [
+  "detect",
+  "scan",
+  "introspectRoutes",
+  "listReadSet",
+  "diagnostics"
+ ],
  "owned_files": [
   "BASELINE.json",
   "INTEGRATION.md",

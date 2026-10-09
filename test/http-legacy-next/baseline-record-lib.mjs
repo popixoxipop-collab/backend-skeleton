@@ -12,13 +12,77 @@ export const OWN_TESTS = ['test/http-legacy-next/baseline-record.test.mjs', 'tes
 export const OWN_FILES = [...OWN_TESTS, 'test/http-legacy-next/baseline-record-lib.mjs', 'test/http-legacy-next/interface-rfc.vocabulary.json'];
 export const RUNNER_SCRIPT = 'scripts/run-next-nested-tests.mjs';
 export const AUTHORED = 'authored for this record';
-export const APIS = ['scan', 'bridge', 'snapshot-adapter', 'semantic-snapshot', 'shadow', 'cutover', 'checkout'];
 
 const SHA1 = /^[0-9a-f]{40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
-const LIMIT_STATUSES = ['UNSUPPORTED', 'UNKNOWN', 'BLOCKED', 'NOT_RECORDED'];
 const COUNT_KEYS = ['tests', 'suites', 'pass', 'fail', 'cancelled', 'skipped', 'todo'];
 const DIGEST_KEYS = ['bytes', 'git_blob_sha1', 'sha256'];
+const ENTRY_KEYS = ['path', ...DIGEST_KEYS];
+const words = (text) => text.split(' ');
+
+// Every set below is a literal in this reviewed file, so a re-sealed record cannot move it. The pinned commit's tree arbitrates
+// the file lists (treeProblems) and baselines.mjs arbitrates the adapter table (expectationProblems); the verifier iterates
+// these sets, never only what the record happens to contain.
+const FIXTURES = {
+  normal: {
+    scan: ['scan-java-spring', 'scan-ruby-rails', 'scan-python-fastapi', 'scan-typescript-express', 'scan-javascript-express'],
+    'semantic-snapshot': ['semantic-snapshot-root-relative-files'],
+    shadow: ['shadow-identity-java-spring'],
+    cutover: ['cutover-every-gate-true-ruby-rails'],
+    checkout: ['checkout-full-python-fastapi', 'checkout-sparse-rails-read-set-materialized']
+  },
+  negative: {
+    'snapshot-adapter': ['snapshot-adapter-contract-v3', 'snapshot-adapter-generic-grep'],
+    bridge: ['bridge-report-adapter-mismatch', 'bridge-report-schema-v1'],
+    'semantic-snapshot': ['semantic-snapshot-relative-root', 'semantic-snapshot-file-outside-root'],
+    shadow: ['shadow-first-verb-flipped', 'shadow-projector-contract-mismatch', 'shadow-async-projector'],
+    cutover: ['cutover-exact-head-ci-not-green', 'cutover-invented-gate'],
+    checkout: ['checkout-sparse-fastapi-file-missing', 'checkout-sparse-rails-lib-missing', 'checkout-sparse-javascript-express-unsupported']
+  }
+};
+const SRC = 'adapters/http-legacy-next';
+const TST = 'test/http-legacy-next';
+const FIXTURE_ROWS = Object.entries(FIXTURES).flatMap(([cls, apis]) => Object.entries(apis).flatMap(([api, ids]) => ids.map((id) => `${id} ${api} ${cls}`)));
+export const EXPECTED = {
+  record: words('schema schema_status track item suite_id title base_commit base_tree base_commit_note fixture_origin_note observed_on environment source_dir test_dir sources tests scanner_dir scanner_files inputs commands fixtures artifact_digest ci_observations limits verification'),
+  identity: { schema: RECORD_SCHEMA, track: 'T11', item: 'T11-01', suite_id: 'T11', source_dir: SRC, test_dir: TST, scanner_dir: 'scanners/adapters' },
+  environment: words('node platform arch os_release npm git package_lock'),
+  sources: ['baselines', 'bridge', 'checkout-completeness', 'cutover-readiness', 'parity', 'shadow-projection'].map((name) => `${SRC}/${name}.mjs`),
+  tests: Object.fromEntries(Object.entries({ baseline: 8, bridge: 5, 'checkout-completeness': 30, 'cutover-readiness': 12, parity: 26, 'shadow-projection': 18 }).map(([name, n]) => [`${TST}/${name}.test.mjs`, n])),
+  scanner: ['adapters/_express-shared', 'adapters/_java-spring-analyzer', 'adapters/generic-grep', 'adapters/java-spring', 'adapters/javascript-express', 'adapters/python-fastapi', 'adapters/ruby-rails', 'adapters/typescript-express', 'index', 'registry', 'text-util'].map((name) => `scanners/${name}.mjs`),
+  inputs: [['java-spring', 'test/fixtures/java-spring', 37], ['ruby-rails', 'test/fixtures/ruby-rails/backend', 9], ['python-fastapi', 'test/fixtures/python-fastapi/backend', 8], ['typescript-express', 'test/fixtures/typescript-express/backend', 11], ['javascript-express', 'test/fixtures/javascript-express/backend', 12]],
+  commands: { 'nested-runner': words('id command cwd revision exit_code stdout_first_line runner_files runner_script result'), 'direct-tap': words('id command cwd revision exit_code result') },
+  fixtureKeys: words('id class origin api input input_sha256 expected output_sha256'),
+  fixtures: FIXTURE_ROWS,
+  fixtureIds: FIXTURE_ROWS.map((row) => row.split(' ')[0]),
+  limits: [
+    ['no-next-contract-emission', 'UNSUPPORTED', FIXTURES.normal.scan],
+    ['shadow-projectors-are-test-doubles', 'UNSUPPORTED', [...FIXTURES.normal.shadow, ...FIXTURES.negative.shadow]],
+    ['cutover-gates-are-hand-written', 'UNKNOWN', [...FIXTURES.normal.cutover, ...FIXTURES.negative.cutover]],
+    ['sparse-checkout-two-adapters-only', 'UNSUPPORTED', ['checkout-sparse-javascript-express-unsupported']],
+    ['scanner-pins-are-the-static-closure', 'NOT_RECORDED', FIXTURES.normal.scan],
+    ['single-runtime-observed', 'NOT_RECORDED', []],
+    ['ci-observation-not-recomputable', 'NOT_RECORDED', []],
+    ['real-repository-corpus', 'UNKNOWN', []],
+    ['identity-and-capability-interfaces-not-frozen', 'BLOCKED', []]
+  ],
+  ci: { keys: words('command run_id run_number run_attempt workflow event head_sha conclusion jobs'), values: { workflow: 'CI', event: 'push', conclusion: 'success' }, jobKeys: words('id name runner conclusion step step_conclusion'), jobs: ['nested-next (22.x)', 'nested-next (24.x)'], job: { conclusion: 'success', step: 'T11 http-legacy-next', step_conclusion: 'success' } },
+  verification: { keys: words('command unverified_override not_recomputed'), command: `node --test ${OWN_TESTS[0]}`, labels: ['ci_observations:', 'environment:', 'limits:', 'counterexample texts, title and notes:', 'artifact_digest is tamper evidence'] }
+};
+
+// The mismatches between a list and its exact expected set: what is missing, unexpected or repeated. Never throws.
+export function exactSet(what, actual, expected) {
+  if (!Array.isArray(actual)) return [`${what}: must be a list`];
+  const tally = (items) => items.reduce((map, item) => map.set(String(item), (map.get(String(item)) ?? 0) + 1), new Map());
+  const [have, want] = [tally(actual), tally(expected)];
+  return [
+    ['missing', [...want.keys()].filter((k) => !have.has(k))],
+    ['unexpected', [...have.keys()].filter((k) => !want.has(k))],
+    ['repeated', [...have].filter(([k, n]) => want.has(k) && n > want.get(k)).map(([k]) => k)]
+  ].filter(([, names]) => names.length > 0).map(([kind, names]) => `${what}: ${kind} ${names.join(', ')}`);
+}
+
+export const exactKeys = (what, value, keys) => (value && typeof value === 'object' && !Array.isArray(value) ? exactSet(`${what} keys`, Object.keys(value), keys) : [`${what}: must be an object`]);
 
 export function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -109,92 +173,174 @@ export function classifyEntry(entry, buf) {
   return { state: 'corrupt', detail: `${entry?.path}: the record's ${wrong.join(' and ')} disagree with the file while its ${agree} agree` };
 }
 
-// Without `read` only the record itself is checked. With `read` (a path -> Buffer|null function over the live tree or the
-// pinned commit) the size and both digests of every pinned file, the runner script and the lock file are recomputed.
+// Without `read` only the record itself is checked, against the literal EXPECTED tables: the exact key sets, ids, directories,
+// counts and statuses, never "at least one" or "whatever is present". With `read` (a path -> Buffer|null function over the live
+// tree or the pinned commit) the size and both digests of every pinned file, the runner script and the lock file are recomputed too.
 export function verifyRecord(r, read, label = 'recompute') {
   const problems = [];
   const bad = (message) => problems.push(message);
+  const keys = (what, value, expected) => problems.push(...exactKeys(what, value, expected));
+  const sets = (what, actual, expected) => problems.push(...exactSet(what, actual, expected));
+  const is = (what, actual, expected) => { if (actual !== expected) bad(`${what} must be ${expected}, not ${actual}`); };
+  const text = (what, value) => { if (typeof value !== 'string' || value.trim() === '') bad(`${what} must be a non-empty string`); };
+  const list = (value) => (Array.isArray(value) ? value : []);
   const count = (n) => Number.isInteger(n) && n >= 0;
-  const entryOk = (e, dir) => typeof e?.path === 'string' && e.path.startsWith(`${dir}/`) && count(e.bytes) && SHA1.test(e.git_blob_sha1 ?? '') && SHA256.test(e.sha256 ?? '');
-  if (r?.schema !== RECORD_SCHEMA) bad(`schema must be ${RECORD_SCHEMA}`);
-  for (const key of ['track', 'item', 'suite_id', 'source_dir', 'test_dir']) {
-    if (typeof r?.[key] !== 'string' || r[key] === '') bad(`${key} must be a non-empty string`);
-  }
+  const entryOk = (e) => typeof e?.path === 'string' && count(e.bytes) && SHA1.test(e.git_blob_sha1 ?? '') && SHA256.test(e.sha256 ?? '');
+  const pins = (what, entries, paths, extra = []) => {
+    sets(`${what} paths`, list(entries).map((e) => e?.path), paths);
+    for (const e of list(entries)) {
+      keys(`${what} ${e?.path}`, e, [...ENTRY_KEYS, ...extra]);
+      if (!entryOk(e)) bad(`${what}: malformed entry ${e?.path}`);
+    }
+  };
+  keys('record', r, EXPECTED.record);
+  for (const [key, value] of Object.entries(EXPECTED.identity)) is(key, r?.[key], value);
+  for (const key of ['schema_status', 'title', 'base_commit_note', 'fixture_origin_note']) text(key, r?.[key]);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(r?.observed_on ?? '')) bad('observed_on must be a YYYY-MM-DD date');
   if (!SHA1.test(r?.base_commit ?? '')) bad('base_commit must be a 40-hex commit id');
   if (!SHA1.test(r?.base_tree ?? '')) bad('base_tree must be a 40-hex tree id');
-  for (const [group, dirKey] of [['sources', 'source_dir'], ['tests', 'test_dir']]) {
-    if (!Array.isArray(r?.[group]) || r[group].length === 0) { bad(`${group} must list at least one file`); continue; }
-    for (const e of r[group]) {
-      if (!entryOk(e, r[dirKey])) bad(`${group}: malformed entry ${e?.path}`);
-      if (group === 'tests' && !count(e?.test_count)) bad(`tests: ${e?.path} needs an integer test_count`);
+  keys('environment', r?.environment, EXPECTED.environment);
+  for (const key of EXPECTED.environment.filter((k) => k !== 'package_lock')) text(`environment.${key}`, r?.environment?.[key]);
+  pins('sources', r?.sources, EXPECTED.sources);
+  pins('tests', r?.tests, Object.keys(EXPECTED.tests), ['test_count']);
+  for (const e of list(r?.tests)) is(`tests: ${e?.path} test_count`, e?.test_count, EXPECTED.tests[e?.path]);
+  pins('scanner_files', r?.scanner_files, EXPECTED.scanner);
+  sets('inputs ids', list(r?.inputs).map((g) => g?.id), EXPECTED.inputs.map(([id]) => id));
+  for (const [id, dir, n] of EXPECTED.inputs) {
+    const g = list(r?.inputs).find((x) => x?.id === id);
+    if (!g) continue;
+    keys(`inputs ${id}`, g, ['id', 'dir', 'git_tree_id', 'files']);
+    is(`inputs: ${id} dir`, g.dir, dir);
+    if (!SHA1.test(g.git_tree_id ?? '')) bad(`inputs: ${id} git_tree_id must be a 40-hex tree id`);
+    if (list(g.files).length !== n) bad(`inputs: ${id} must pin exactly ${n} files, not ${list(g.files).length}`);
+    for (const e of list(g.files)) {
+      keys(`inputs ${id} ${e?.path}`, e, ENTRY_KEYS);
+      if (!entryOk(e) || !e.path.startsWith(`${dir}/`)) bad(`inputs: ${id}: malformed entry ${e?.path}`);
     }
   }
-  if (typeof r?.scanner_dir !== 'string' || r.scanner_dir === '') bad('scanner_dir must name the directory the registry loads adapters from');
-  if (!Array.isArray(r?.scanner_files) || r.scanner_files.length === 0) bad('scanner_files must list the stable scanner files');
-  for (const e of Array.isArray(r?.scanner_files) ? r.scanner_files : []) if (!entryOk(e, 'scanners')) bad(`scanner_files: malformed entry ${e?.path}`);
-  for (const wanted of ['scanners/index.mjs', 'scanners/registry.mjs']) if (!(r?.scanner_files ?? []).some((e) => e.path === wanted)) bad(`scanner_files must pin ${wanted}`);
-  if (!Array.isArray(r?.inputs) || r.inputs.length === 0) bad('inputs must list the fixture trees');
-  for (const g of Array.isArray(r?.inputs) ? r.inputs : []) {
-    if (typeof g?.id !== 'string' || typeof g?.dir !== 'string' || !SHA1.test(g?.git_tree_id ?? '') || !Array.isArray(g?.files) || g.files.length === 0) { bad(`inputs: malformed tree ${g?.id}`); continue; }
-    for (const e of g.files) if (!entryOk(e, g.dir)) bad(`inputs: ${g.id}: malformed entry ${e?.path}`);
-  }
-  const byId = new Map();
-  for (const c of r?.commands ?? []) {
-    byId.set(c.id, c);
-    if (typeof c.command !== 'string' || c.command.trim() === '') bad(`command ${c.id}: command text is empty`);
-    if (!Number.isInteger(c.exit_code)) bad(`command ${c.id}: exit_code must be an integer`);
-    if (c.revision !== r.base_commit) bad(`command ${c.id}: revision is not the base commit`);
-    if (!COUNT_KEYS.every((k) => count(c.result?.[k]))) bad(`command ${c.id}: result needs integer ${COUNT_KEYS.join('/')}`);
+  const commands = list(r?.commands);
+  const [runner, direct] = ['nested-runner', 'direct-tap'].map((id) => commands.find((c) => c?.id === id));
+  for (const c of commands) {
+    keys(`command ${c?.id}`, c, EXPECTED.commands[c?.id] ?? []);
+    text(`command ${c?.id}: command text`, c?.command);
+    if (!Number.isInteger(c?.exit_code)) bad(`command ${c?.id}: exit_code must be an integer`);
+    if (c?.revision !== r?.base_commit) bad(`command ${c?.id}: revision is not the base commit`);
+    if (!COUNT_KEYS.every((k) => count(c?.result?.[k]))) bad(`command ${c?.id}: result needs integer ${COUNT_KEYS.join('/')}`);
     else if (c.exit_code === 0 && (c.result.fail !== 0 || c.result.cancelled !== 0)) bad(`command ${c.id}: exit_code 0 contradicts failing tests`);
   }
-  const runner = byId.get('nested-runner');
-  const direct = byId.get('direct-tap');
   // The replay runs exactly these two commands, so a third or a repeated one would claim an exit code that nothing re-ran.
-  if (canonical((r?.commands ?? []).map((c) => c.id).sort()) !== canonical(['direct-tap', 'nested-runner'])) bad('commands must be exactly nested-runner and direct-tap, once each: the replay runs no other command');
+  if (canonical(commands.map((c) => c?.id).sort()) !== canonical(['direct-tap', 'nested-runner'])) bad('commands must be exactly nested-runner and direct-tap, once each: the replay runs no other command');
   else {
-    const names = (r.tests ?? []).map((t) => t.path);
-    const total = (r.tests ?? []).reduce((sum, t) => sum + (t.test_count ?? 0), 0);
+    const names = list(r.tests).map((t) => t?.path);
+    const total = list(r.tests).reduce((sum, t) => sum + (t?.test_count ?? 0), 0);
     if (runner.command !== `node scripts/run-next-nested-tests.mjs ${r.suite_id}`) bad('nested-runner command does not name the suite');
     if (runner.runner_files !== names.length) bad('nested-runner runner_files does not match the recorded test files');
     if (runner.stdout_first_line !== `NESTED_SUITE ${r.suite_id} RUN ${runner.runner_files} files`) bad('nested-runner stdout_first_line does not match the suite and file count');
-    if (runner.runner_script?.path !== RUNNER_SCRIPT || !entryOk(runner.runner_script, 'scripts')) bad(`nested-runner runner_script must pin ${RUNNER_SCRIPT} by size, blob id and sha256`);
+    if (runner.runner_script?.path !== RUNNER_SCRIPT || !entryOk(runner.runner_script)) bad(`nested-runner runner_script must pin ${RUNNER_SCRIPT} by size, blob id and sha256`);
+    keys('nested-runner runner_script', runner.runner_script, ENTRY_KEYS);
     if (direct.command !== tapCommand(names)) bad('direct-tap command does not list exactly the recorded test files');
     if (direct.result?.tests !== total) bad(`direct-tap tests ${direct.result?.tests} != sum of per-file test_count ${total}`);
     if (runner.result?.tests !== direct.result?.tests) bad('nested-runner and direct-tap disagree on the test count');
   }
   const lock = r?.environment?.package_lock;
-  if (lock?.path !== 'package-lock.json' || !count(lock.bytes) || !SHA1.test(lock.git_blob_sha1 ?? '') || !SHA256.test(lock.sha256 ?? '')) bad('environment.package_lock must pin package-lock.json by size, blob id and sha256');
-  const ids = new Set();
-  for (const f of r?.fixtures ?? []) {
-    if (ids.has(f.id)) bad(`duplicate fixture id ${f.id}`);
-    ids.add(f.id);
-    if (f.class !== 'normal' && f.class !== 'negative') bad(`${f.id}: class must be normal or negative`);
-    if (f.class === 'negative' && (typeof f.counterexample !== 'string' || f.counterexample === '')) bad(`${f.id}: a negative fixture must say what it is a counterexample of`);
-    if (!APIS.includes(f.api)) bad(`${f.id}: api ${f.api} is not one of ${APIS.join('/')}`);
-    if (!(f.origin === AUTHORED || /^\S+\.mjs:\d+ \(.+\)$/.test(f.origin ?? ''))) bad(`${f.id}: origin must cite a test file line or say it was authored for this record`);
-    if (sha256(canonical(f.input)) !== f.input_sha256) bad(`${f.id}: input_sha256 does not match the recorded input`);
-    if (!SHA256.test(f.output_sha256 ?? '')) bad(`${f.id}: output_sha256 must be a 64-hex digest`);
-    if (!f.expected || typeof f.expected !== 'object') bad(`${f.id}: expected summary is missing`);
+  keys('environment.package_lock', lock, ENTRY_KEYS);
+  if (lock?.path !== 'package-lock.json' || !entryOk(lock)) bad('environment.package_lock must pin package-lock.json by size, blob id and sha256');
+  const fixtures = list(r?.fixtures);
+  sets('fixtures (id api class)', fixtures.map((f) => `${f?.id} ${f?.api} ${f?.class}`), EXPECTED.fixtures);
+  for (const f of fixtures) {
+    keys(`fixture ${f?.id}`, f, f?.class === 'negative' ? [...EXPECTED.fixtureKeys, 'counterexample'] : EXPECTED.fixtureKeys);
+    if (f?.class === 'negative') text(`${f.id}: counterexample (what the negative fixture is a counterexample of)`, f.counterexample);
+    if (!(f?.origin === AUTHORED || /^\S+\.mjs:\d+ \(.+\)$/.test(f?.origin ?? ''))) bad(`${f?.id}: origin must cite a test file line or say it was authored for this record`);
+    if (sha256(canonical(f?.input)) !== f?.input_sha256) bad(`${f?.id}: input_sha256 does not match the recorded input`);
+    if (f?.api === 'scan' && canonical(f.input) !== canonical({ adapter: String(f.id).replace(/^scan-/, '') })) bad(`${f.id}: a scan fixture's input must be exactly its adapter id`);
+    if (!SHA256.test(f?.output_sha256 ?? '')) bad(`${f?.id}: output_sha256 must be a 64-hex digest`);
+    if (!f?.expected || typeof f.expected !== 'object') bad(`${f?.id}: expected summary is missing`);
   }
-  for (const cls of ['normal', 'negative']) {
-    if (!(r?.fixtures ?? []).some((f) => f.class === cls)) bad(`needs at least one ${cls} fixture`);
-  }
+  keys('artifact_digest', r?.artifact_digest, ['algorithm', 'covers', 'value']);
   if (r?.artifact_digest?.algorithm !== 'sha256' || !SHA256.test(r?.artifact_digest?.value ?? '')) bad('artifact_digest needs algorithm sha256 and a 64-hex value');
   else if (r.artifact_digest.value !== artifactDigest(r)) bad('artifact_digest does not match the record (it covers every field except its own value)');
-  const notRecomputed = r?.verification?.not_recomputed;
-  if (!Array.isArray(notRecomputed) || notRecomputed.length === 0 || !notRecomputed.every((x) => typeof x === 'string' && x !== '')) bad('verification.not_recomputed must list what the test does not recompute');
-  if (!Array.isArray(r?.limits) || r.limits.length === 0) bad('limits must record the remaining limits');
-  for (const l of r?.limits ?? []) {
-    if (!LIMIT_STATUSES.includes(l.status)) bad(`limit ${l.id}: status ${l.status} is not one of ${LIMIT_STATUSES.join('/')}`);
-    if (typeof l.statement !== 'string' || l.statement.trim() === '') bad(`limit ${l.id}: statement is empty`);
-    for (const id of l.fixtures ?? []) if (!ids.has(id)) bad(`limit ${l.id}: unknown fixture ${id}`);
+  const limits = list(r?.limits);
+  sets('limits (id status)', limits.map((l) => `${l?.id} ${l?.status}`), EXPECTED.limits.map(([id, status]) => `${id} ${status}`));
+  for (const [id, , fixtureIds] of EXPECTED.limits) {
+    const l = limits.find((x) => x?.id === id);
+    if (!l) continue;
+    keys(`limit ${id}`, l, ['id', 'status', 'statement', ...(fixtureIds.length ? ['fixtures'] : [])]);
+    text(`limit ${id}: statement`, l.statement);
+    if (fixtureIds.length) sets(`limit ${id} fixtures`, l.fixtures, fixtureIds);
   }
-  for (const o of r?.ci_observations ?? []) if (o.head_sha !== r.base_commit) bad(`ci run ${o.run_id}: head_sha is not the base commit`);
+  const { ci, verification: expectedVerification } = EXPECTED;
+  const observations = list(r?.ci_observations);
+  if (observations.length !== 1) bad(`ci_observations must hold exactly one observation, not ${observations.length}`);
+  for (const o of observations) {
+    keys('ci observation', o, ci.keys);
+    for (const [k, v] of Object.entries(ci.values)) is(`ci run ${o?.run_id}: ${k}`, o?.[k], v);
+    is(`ci run ${o?.run_id}: head_sha`, o?.head_sha, r?.base_commit);
+    for (const k of ['run_id', 'run_number', 'run_attempt']) if (!Number.isInteger(o?.[k]) || o[k] < 1) bad(`ci run ${o?.run_id}: ${k} must be a positive integer`);
+    text(`ci run ${o?.run_id}: command`, o?.command);
+    sets(`ci run ${o?.run_id} jobs`, list(o?.jobs).map((j) => j?.name), ci.jobs);
+    for (const j of list(o?.jobs)) {
+      keys(`ci job ${j?.name}`, j, ci.jobKeys);
+      if (!Number.isInteger(j?.id)) bad(`ci job ${j?.name}: id must be an integer`);
+      text(`ci job ${j?.name}: runner`, j?.runner);
+      for (const [k, v] of Object.entries(ci.job)) is(`ci job ${j?.name}: ${k}`, j?.[k], v);
+    }
+  }
+  keys('verification', r?.verification, expectedVerification.keys);
+  is('verification.command', r?.verification?.command, expectedVerification.command);
+  if (!String(r?.verification?.unverified_override).startsWith('BASELINE_ALLOW_UNVERIFIED=1')) bad('verification.unverified_override must name BASELINE_ALLOW_UNVERIFIED=1');
+  const notRecomputed = list(r?.verification?.not_recomputed);
+  if (!notRecomputed.every((x) => typeof x === 'string' && x.trim() !== '')) bad('verification.not_recomputed must list what the test does not recompute');
+  sets('verification.not_recomputed', notRecomputed.map((x) => expectedVerification.labels.find((l) => String(x).startsWith(l)) ?? x), expectedVerification.labels);
   if (read) {
     problems.push(...recomputeProblems([...pinnedEntries(r), ...gitOnlyPins(r)], read, label));
     problems.push(...originProblems(r, read));
   }
   return problems;
+}
+
+// What only the pinned commit can arbitrate. `tree` is {read(path) -> Buffer|null, list(dir) -> paths, id(dir) -> git tree id}.
+export const commitTree = (root, commit) => ({ read: commitReader(root, commit), list: (dir) => listAtCommit(root, commit, dir) ?? [], id: (dir) => revParse(root, `${commit}:${dir}`) });
+
+// Static import closure of the scanner: the entry points, every adapter the registry loads by directory listing (a leading
+// underscore marks a helper that is only reached by import), and each relative .mjs file they import.
+export function closureOf(tree) {
+  const seen = new Set();
+  const todo = ['scanners/index.mjs', 'scanners/registry.mjs', ...tree.list('scanners/adapters').filter((p) => p.endsWith('.mjs') && !path.posix.basename(p).startsWith('_'))];
+  while (todo.length > 0) {
+    const rel = todo.pop();
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+    const buf = tree.read(rel);
+    for (const spec of buf ? importsOf(buf.toString('utf8')).specs : []) if (/^\.\.?\/.+\.mjs$/.test(spec)) todo.push(path.posix.join(path.posix.dirname(rel), spec));
+  }
+  return [...seen].sort();
+}
+
+// The tables of this file against the pinned commit's tree: the modules, tests, scanner files (listing and import closure) and
+// fixture trees it holds, with their tree ids and file counts. The record is compared with the same tables by verifyRecord.
+export function treeProblems(r, tree) {
+  const files = (dir, suffix) => tree.list(dir).filter((p) => p.endsWith(suffix));
+  const problems = [
+    ...exactSet('pinned tree modules', files(EXPECTED.identity.source_dir, '.mjs'), EXPECTED.sources),
+    ...exactSet('pinned tree tests', files(EXPECTED.identity.test_dir, '.test.mjs'), Object.keys(EXPECTED.tests)),
+    ...exactSet('pinned tree scanner adapters', files(EXPECTED.identity.scanner_dir, '.mjs'), EXPECTED.scanner.filter((p) => p.startsWith(`${EXPECTED.identity.scanner_dir}/`))),
+    ...exactSet('pinned tree scanner closure', closureOf(tree), EXPECTED.scanner)
+  ];
+  for (const [id, dir, n] of EXPECTED.inputs) {
+    const [g, listed, treeId] = [(Array.isArray(r?.inputs) ? r.inputs : []).find((x) => x?.id === id), tree.list(dir), tree.id(dir)];
+    if (listed.length !== n) problems.push(`pinned tree ${dir}: ${listed.length} files, expected ${n}`);
+    problems.push(...exactSet(`${id} files, record against pinned tree`, (g?.files ?? []).map((e) => e?.path), listed));
+    if (g?.git_tree_id !== treeId) problems.push(`${id}: git_tree_id ${g?.git_tree_id} != pinned tree ${treeId}`);
+  }
+  return problems;
+}
+
+// The baselines.mjs of the tree under test must list exactly the adapters and fixture directories the tables name.
+export function expectationProblems(m) {
+  return [
+    ...exactSet('baselines.mjs LEGACY_HTTP_ADAPTER_IDS', m.baselines.LEGACY_HTTP_ADAPTER_IDS, EXPECTED.inputs.map(([id]) => id)),
+    ...EXPECTED.inputs.filter(([id, dir]) => m.baselines.legacyHttpBaseline(id)?.fixture !== dir).map(([id, dir]) => `baselines.mjs: ${id} fixture is not ${dir}`)
+  ];
 }
 
 // An origin of the form `path.mjs:LINE (title)` must name a recorded test file whose line LINE holds that title.
@@ -227,15 +373,17 @@ function listFiles(root, rel) {
 // The record is a baseline of base_commit. Every pinned file is compared with the live file by size, sha256 and blob id
 // (never by the record's own blob id alone): `corrupt` entries are damage and must fail the caller, `moved` files mean
 // the tree has left the baseline (live replays are skipped and the pinned commit decides), `fresh` means all agree.
-export function classifyLive(record, root = REPO_ROOT) {
+export function classifyLive(record, root = REPO_ROOT, inputDirs = EXPECTED.inputs.map(([, dir]) => dir)) {
   const read = liveReader(root);
   const states = [...pinnedEntries(record), ...gitOnlyPins(record)].map((e) => ({ path: e.path, ...classifyEntry(e, read(e.path)) }));
   const recorded = new Set(states.map((s) => s.path));
+  // The fixture trees come from the table as well as from the record, so a record that dropped a tree cannot hide a changed file in it.
+  const trees = new Set([...inputDirs, ...(Array.isArray(record.inputs) ? record.inputs : []).map((g) => g?.dir)].filter(Boolean));
   const extras = [
     ...listFiles(root, record.source_dir).filter((p) => !p.endsWith('.md') && p !== RECORD_FILE && !recorded.has(p)),
     ...(record.scanner_dir ? listFiles(root, record.scanner_dir) : []).filter((p) => p.endsWith('.mjs') && !recorded.has(p)),
     ...listFiles(root, record.test_dir).filter((p) => !recorded.has(p) && !OWN_FILES.includes(p)),
-    ...record.inputs.flatMap((g) => listFiles(root, g.dir).filter((p) => !recorded.has(p)))
+    ...[...trees].flatMap((dir) => listFiles(root, dir).filter((p) => !recorded.has(p)))
   ];
   const corrupt = states.filter((s) => s.state === 'corrupt').map((s) => s.detail);
   const moved = [...states.filter((s) => s.state === 'drift' || s.state === 'missing').map((s) => s.path), ...extras];
@@ -437,16 +585,16 @@ export function replay(record, modules) {
   });
 }
 
+// The replayed ids must be exactly the table's 24, so a record that lost fixtures cannot make the replay run only the survivors.
 export function replayProblems(record, computed) {
-  const problems = [];
-  if (computed.length !== record.fixtures.length) problems.push(`replayed ${computed.length} fixtures, record has ${record.fixtures.length}`);
-  record.fixtures.forEach((f, i) => {
-    const c = computed[i];
-    if (!c || c.id !== f.id) return problems.push(`${f.id}: not replayed`);
+  const problems = exactSet('replayed fixture ids', computed.map((c) => c.id), EXPECTED.fixtureIds);
+  for (const f of record.fixtures) {
+    const c = computed.find((x) => x.id === f.id);
+    if (!c) { problems.push(`${f.id}: not replayed`); continue; }
     if (!c.deterministic) problems.push(`${f.id}: two runs differ`);
     if (c.output_sha256 !== f.output_sha256) problems.push(`${f.id}: output sha256 ${c.output_sha256} != recorded ${f.output_sha256}`);
     if (canonical(c.expected) !== canonical(f.expected)) problems.push(`${f.id}: expected summary differs: ${canonical(c.expected)}`);
-  });
+  }
   return problems;
 }
 
