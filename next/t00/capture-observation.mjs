@@ -5,7 +5,7 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { REQUIRED_ARTIFACT_PATHS, REQUIRED_REPOSITORIES, RUNS_PAGE_SIZE, canonicalSha256 } from './verify-baseline.mjs';
+import { OBSERVATION_SCHEMA, REQUIRED_ARTIFACT_PATHS, REQUIRED_REPOSITORIES, RUNS_PAGE_SIZE, canonicalSha256 } from './verify-baseline.mjs';
 
 export const REPOS = REQUIRED_REPOSITORIES;
 export const ARTIFACT_PATHS = REQUIRED_ARTIFACT_PATHS;
@@ -106,7 +106,7 @@ export function captureInventory(repositories) {
 export function captureObservation(repos = REPOS, now = new Date()) {
   const repositories = repos.map((spec) => captureRepo(spec));
   return {
-    schema: 'bskel.t00-observation/1',
+    schema: OBSERVATION_SCHEMA,
     observed_at: now.toISOString(),
     source: 'GitHub REST API through an authenticated gh CLI, read-only',
     tooling: { node: process.version, gh: execFileSync('gh', ['--version'], { encoding: 'utf8' }).split('\n')[0] },

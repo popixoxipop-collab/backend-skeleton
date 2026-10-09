@@ -39,6 +39,12 @@ export const CASES = [
   { id: 'observation-page-count-inconsistent', mutation: 'observation: beval ci_runs_pages set to 2 for 8 runs, observation hash recomputed', flags: RECORD, exit: 2, codes: ['CI_RUNS_INCOMPLETE'], mutate: (l, o) => { pick(o, 'beval').ci_runs_pages = 2; l.capture.observation_sha256 = canonicalSha256(o); } },
   { id: 'lock-and-observation-both-lack-a-head-sha', mutation: 'lock and observation: bskel head_sha removed from both', flags: ['--remote'], exit: 2, codes: ['MALFORMED_RECORD'], mutate: (l, o) => { delete pick(l, 'bskel').head_sha; delete pick(o, 'bskel').head_sha; } },
   { id: 'lock-empties-the-required-artifacts', mutation: 'lock: bskel required_artifacts set to an empty list', flags: ['--remote'], exit: 2, codes: ['MALFORMED_RECORD'], mutate: (l) => { pick(l, 'bskel').required_artifacts = []; } },
+  { id: 'lock-and-observation-both-drop-the-beval-pin', mutation: 'lock and observation: the beval inventory pin removed from both, observation hash recomputed', flags: RECORD, exit: 2, codes: ['REPOSITORY_SET_MISMATCH'], mutate: (l, o) => { o.inventory.pins = o.inventory.pins.filter((p) => p.role !== 'beval'); l.inventory_pins = structuredClone(o.inventory); l.capture.observation_sha256 = canonicalSha256(o); } },
+  { id: 'lock-schema-changed', mutation: 'lock: schema set to bskel.t00-baseline-lock/2', flags: RECORD, exit: 2, codes: ['DERIVED_FACT_MISMATCH'], mutate: (l) => { l.schema = 'bskel.t00-baseline-lock/2'; } },
+  { id: 'lock-task-id-changed', mutation: 'lock: task_id set to T00-99', flags: RECORD, exit: 2, codes: ['DERIVED_FACT_MISMATCH'], mutate: (l) => { l.task_id = 'T00-99'; } },
+  { id: 'lock-observed-at-changed', mutation: 'lock: capture.observed_at set to 2026-01-01T00:00:00.000Z', flags: RECORD, exit: 2, codes: ['DERIVED_FACT_MISMATCH'], mutate: (l) => { l.capture.observed_at = '2026-01-01T00:00:00.000Z'; } },
+  { id: 'lock-required-artifacts-deleted', mutation: 'lock: bskel required_artifacts removed', flags: ['--remote'], exit: 2, codes: ['MALFORMED_RECORD'], mutate: (l) => { delete pick(l, 'bskel').required_artifacts; } },
+  { id: 'lock-required-artifacts-is-a-string', mutation: 'lock: bskel required_artifacts set to the string package.json', flags: ['--remote'], exit: 2, codes: ['MALFORMED_RECORD'], mutate: (l) => { pick(l, 'bskel').required_artifacts = 'package.json'; } },
   { id: 'usage-error', mutation: 'no arguments', flags: [], noFiles: true, exit: 1, codes: [], mutate() {} },
 ];
 

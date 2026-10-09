@@ -8,12 +8,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildLock } from '../next/t00/build-lock.mjs';
 import { ARTIFACT_PATHS, SEARCH_CAP, captureObservation, captureRepo, ghList } from '../next/t00/capture-observation.mjs';
 import { CASES, buildReport, verifyReport } from '../next/t00/make-negative-report.mjs';
 import {
   BASELINE_CODES, RECORD_CODES, REQUIRED_REPOSITORIES, RUNS_PAGE_SIZE,
-  canonicalSha256, cleanGitEnv, deriveLockRepository, observeCheckout, summarizeCi, verifyBaseline, verifyLockRecord,
+  canonicalSha256, cleanGitEnv, deriveLock, deriveLockRepository, observeCheckout, summarizeCi, verifyBaseline, verifyLockRecord,
 } from '../next/t00/verify-baseline.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -40,7 +39,13 @@ const withTemp = (prefix, fn) => {
 test('the lock is rebuilt from the recorded observation, and every hash and derived fact is recomputed', () => {
   assert.equal(path.resolve(ROOT, lock.capture.observation_file), OBSERVATION_FILE);
   assert.equal(lock.capture.observation_sha256, canonicalSha256(observation));
-  assert.deepEqual(buildLock(observation, lock.limits), lock);
+  assert.deepEqual(deriveLock(observation, lock.limits), lock);
+  withTemp('t00-build-', (dir) => {
+    const out = path.join(dir, 'lock.json');
+    const built = spawnSync(process.execPath, [path.join(T00, 'build-lock.mjs'), OBSERVATION_FILE, LOCK_FILE, out], { encoding: 'utf8' });
+    assert.equal(built.status, 0, built.stderr);
+    assert.equal(fs.readFileSync(out, 'utf8'), fs.readFileSync(LOCK_FILE, 'utf8'));
+  });
   assert.deepEqual(verifyLockRecord(lock, observation), { ok: true, errors: [] });
   assert.deepEqual(verifyBaseline(lock, observation, { remote: true }), { ok: true, errors: [] });
   assert.deepEqual(verifyBaseline(lock, observation).errors.map((e) => e.code), ['DIRTY_STATE_UNKNOWN', 'DIRTY_STATE_UNKNOWN', 'DIRTY_STATE_UNKNOWN']);
@@ -207,6 +212,139 @@ test('every recorded run list states the count GitHub reported and the pages it 
   }
 });
 
+// Edited by hand: the lock and observation as two files someone changed. Forged: the observation changed and the lock
+// rebuilt from it, so the recorded hash and every derived fact agree.
+const edited = (mutate) => {
+  const [l, o] = [structuredClone(lock), structuredClone(observation)];
+  mutate(l, o);
+  return [l, o];
+};
+const forged = (mutate) => {
+  const o = structuredClone(observation);
+  mutate(o);
+  return [deriveLock(o, lock.limits), o];
+};
+const writeDocs = (dir, l, o) => {
+  const files = [path.join(dir, 'lock.json'), path.join(dir, 'observation.json')];
+  fs.writeFileSync(files[0], JSON.stringify(l));
+  fs.writeFileSync(files[1], JSON.stringify(o));
+  return files;
+};
+
+test('the inventory pins of the lock and of the observation hold each baseline role exactly once', () => {
+  const dropPin = (role) => (o) => { o.inventory.pins = o.inventory.pins.filter((p) => p.role !== role); };
+  const table = [
+    ['the beval pin removed from both', dropPin('beval'), ['REPOSITORY_SET_MISMATCH']],
+    ['the bskel pin removed from both', dropPin('bskel'), ['REPOSITORY_SET_MISMATCH']],
+    ['the becoder pin listed twice in both', (o) => { o.inventory.pins.push(structuredClone(o.inventory.pins.find((p) => p.role === 'becoder'))); }, ['REPOSITORY_SET_MISMATCH']],
+    ['a pin for an unknown role in both', (o) => { o.inventory.pins.push({ ...structuredClone(o.inventory.pins[0]), role: 'gamma' }); }, ['REPOSITORY_SET_MISMATCH']],
+    ['a pin without a pinned_sha in both', (o) => { delete o.inventory.pins[0].pinned_sha; }, ['MALFORMED_RECORD']],
+    ['an inventory without a source in both', (o) => { delete o.inventory.source; }, ['MALFORMED_RECORD']],
+  ];
+  for (const [what, mutate, want] of table) {
+    const [l, o] = forged(mutate);
+    assert.deepEqual(codesOf(verifyLockRecord(l, o)), want, what);
+  }
+  const [l, o] = edited((lk) => { lk.inventory_pins.pins = lk.inventory_pins.pins.filter((p) => p.role !== 'beval'); });
+  assert.deepEqual(codesOf(verifyLockRecord(l, o)), ['DERIVED_FACT_MISMATCH', 'REPOSITORY_SET_MISMATCH'], 'only the lock lost the pin');
+  withTemp('t00-pins-', (dir) => {
+    const res = cli('--remote', '--record', ...writeDocs(dir, ...forged(dropPin('beval'))));
+    assert.equal(res.status, 2);
+    assert.match(res.stdout, /^FAIL REPOSITORY_SET_MISMATCH beval the lock inventory pins beval 0 times, expected once$/m);
+    assert.doesNotMatch(res.stdout, /^OK /m);
+  });
+});
+
+test('--record compares every field the builder derives, so only the hand-written limits may differ', () => {
+  const table = [
+    ['schema', (l) => { l.schema = 'bskel.t00-baseline-lock/2'; }, ['DERIVED_FACT_MISMATCH']],
+    ['task id', (l) => { l.task_id = 'T00-99'; }, ['DERIVED_FACT_MISMATCH']],
+    ['capture.observed_at', (l) => { l.capture.observed_at = '2026-01-01T00:00:00.000Z'; }, ['DERIVED_FACT_MISMATCH']],
+    ['capture.observation_file', (l) => { l.capture.observation_file = 'elsewhere/observation.json'; }, ['DERIVED_FACT_MISMATCH']],
+    ['capture.observation_sha256_method', (l) => { l.capture.observation_sha256_method = 'trust me'; }, ['DERIVED_FACT_MISMATCH']],
+    ['capture.commands', (l) => { l.capture.commands = ['true']; }, ['DERIVED_FACT_MISMATCH']],
+    ['an extra top-level claim', (l) => { l.verified = true; }, ['DERIVED_FACT_MISMATCH']],
+    ['an extra capture field', (l) => { l.capture.verified = true; }, ['DERIVED_FACT_MISMATCH']],
+    ['an extra repository field', (l) => { byRole(l, 'beval').verified = true; }, ['DERIVED_FACT_MISMATCH']],
+    ['the capture block removed', (l) => { delete l.capture; }, ['DERIVED_FACT_MISMATCH', 'OBSERVATION_HASH_MISMATCH']],
+    ['limits that are not a list', (l) => { l.limits = 'none'; }, ['MALFORMED_RECORD']],
+    ['limits with an empty statement', (l) => { l.limits[0] = ''; }, ['MALFORMED_RECORD']],
+  ];
+  for (const [what, mutate, want] of table) {
+    const [l, o] = edited(mutate);
+    assert.deepEqual(codesOf(verifyLockRecord(l, o)), want, what);
+  }
+  const [reworded, o] = edited((l) => { l.limits = l.limits.map((s) => `${s} (reworded)`); });
+  assert.deepEqual(verifyLockRecord(reworded, o), { ok: true, errors: [] }, 'the wording of the limits is checked by the limits test, not here');
+  for (const [what, mutate] of [['schema', (x) => { x.schema = 'bskel.t00-observation/2'; }], ['observed_at', (x) => { x.observed_at = 'yesterday'; }]]) {
+    const [l, x] = forged(mutate);
+    assert.deepEqual(codesOf(verifyLockRecord(l, x)), ['MALFORMED_RECORD'], `observation ${what}`);
+  }
+});
+
+test('a malformed list is reported as MALFORMED_RECORD with exit code 2, never as a stack trace', () => {
+  const table = [
+    ['required_artifacts deleted', (l) => { delete byRole(l, 'bskel').required_artifacts; }],
+    ['required_artifacts is a string', (l) => { byRole(l, 'bskel').required_artifacts = 'package.json'; }],
+    ['required_artifacts holds null', (l) => { byRole(l, 'bskel').required_artifacts = [null, null, null]; }],
+    ['the observation artifacts are a string', (l, o) => { byRole(o, 'beval').artifacts = 'x'; }],
+    ['the observation artifacts hold null', (l, o) => { byRole(o, 'beval').artifacts = [null]; }],
+    ['the observation lists an artifact twice', (l, o) => { byRole(o, 'beval').artifacts.push(structuredClone(byRole(o, 'beval').artifacts[0])); }],
+    ['the observation lists an unknown artifact', (l, o) => { byRole(o, 'beval').artifacts.push({ path: 'README.md', git_blob_sha: 'a'.repeat(40) }); }],
+    ['a lock repository entry is null', (l) => { l.repositories.push(null); }],
+    ['an observation repository entry is a string', (l, o) => { o.repositories.push('beval'); }],
+    ['a head_sha that is a one-element list in both documents', (l, o) => { for (const d of [l, o]) byRole(d, 'bskel').head_sha = [byRole(d, 'bskel').head_sha]; }],
+    ['the runs are not a list', (l, o) => { byRole(o, 'bskel').ci_runs_on_exact_head = 'none'; }],
+    ['a run is null', (l, o) => { byRole(o, 'bskel').ci_runs_on_exact_head.push(null); }],
+  ];
+  withTemp('t00-malformed-', (dir) => {
+    for (const [what, mutate] of table) {
+      const [l, o] = edited(mutate);
+      assert.doesNotThrow(() => { verifyBaseline(l, o, { remote: true }); verifyLockRecord(l, o); }, what);
+      const res = cli('--remote', '--record', ...writeDocs(dir, l, o));
+      assert.equal(res.status, 2, what);
+      assert.match(res.stdout, /^FAIL MALFORMED_RECORD /m, what);
+      assert.equal(res.stderr, '', `${what}: nothing but FAIL lines on stdout`);
+    }
+  });
+});
+
+// Every node of a document as a path of keys, and the same document with that node removed (an array slot becomes null).
+function* nodes(value, trail = []) {
+  yield trail;
+  if (value !== null && typeof value === 'object') for (const [k, v] of Object.entries(value)) yield* nodes(v, [...trail, Array.isArray(value) ? Number(k) : k]);
+}
+function remove(doc, trail) {
+  const parent = trail.slice(0, -1).reduce((x, k) => x[k], doc);
+  if (Array.isArray(parent)) parent[trail.at(-1)] = null; else delete parent[trail.at(-1)];
+}
+
+test('removing any member the verifier relies on fails verification and never throws, even when the lock is rebuilt to match', () => {
+  const verify = (l, o) => [...verifyBaseline(l, o, { remote: true }).errors, ...verifyLockRecord(l, o).errors];
+  const onDisk = (doc) => JSON.parse(JSON.stringify(doc));
+  const provenance = /^(source|tooling(\..*)?|routes(\.\d+)?|repositories\.\d+\.dirty(_note)?)$/; // never read by the comparison
+  const lockNodes = [...nodes(lock)].filter((t) => t.length > 0);
+  const observationNodes = [...nodes(observation)].filter((t) => t.length > 0 && !provenance.test(t.join('.')));
+  assert.ok(lockNodes.length > 300 && observationNodes.length > 300, 'the sweep is not vacuous: it visits every node of both documents');
+  for (const trail of lockNodes) {
+    const l = structuredClone(lock);
+    remove(l, trail);
+    assert.ok(verify(onDisk(l), observation).length > 0, `lock: ${trail.join('.')} removed`);
+  }
+  let rebuilt = 0;
+  for (const trail of observationNodes) {
+    const o = structuredClone(observation);
+    remove(o, trail);
+    assert.ok(verify(lock, onDisk(o)).length > 0, `observation: ${trail.join('.')} removed, lock kept`);
+    let forgedLock = null;
+    try { forgedLock = onDisk(deriveLock(o, lock.limits)); } catch { /* the builder itself refuses an observation this broken */ }
+    if (forgedLock === null) continue;
+    rebuilt += 1;
+    assert.ok(verify(forgedLock, onDisk(o)).length > 0, `observation: ${trail.join('.')} removed, lock rebuilt`);
+  }
+  assert.ok(rebuilt > 100, 'most removals leave an observation the builder still accepts, so the rebuilt-lock case is exercised');
+});
+
 const [HEAD, B1, B2, B3, INV, PIN] = ['a', 'b', 'c', 'd', 'e', 'f'].map((c) => c.repeat(40));
 const PKG = { name: 'n', version: '1.2.3', engines: { node: '>=20' }, scripts: { test: 'node --test', lint: 'eslint .' } };
 const b64 = (v) => Buffer.from(JSON.stringify(v)).toString('base64');
@@ -252,11 +390,11 @@ test('a head with more than 100 runs is read page by page, so an old failure on 
 
   const doc = structuredClone(observation);
   doc.repositories[doc.repositories.findIndex((x) => x.role === 'bskel')] = r;
-  assert.deepEqual(verifyLockRecord(buildLock(doc, lock.limits), doc), { ok: true, errors: [] });
+  assert.deepEqual(verifyLockRecord(deriveLock(doc, lock.limits), doc), { ok: true, errors: [] });
   // The same observation with the oldest page lost, and a lock and hash rebuilt from it, is the lie "all success".
   const cut = structuredClone(doc);
   byRole(cut, 'bskel').ci_runs_on_exact_head = byRole(cut, 'bskel').ci_runs_on_exact_head.slice(30);
-  const cutLock = buildLock(cut, lock.limits);
+  const cutLock = deriveLock(cut, lock.limits);
   assert.equal(byRole(cutLock, 'bskel').ci_on_exact_head.all_success, true);
   assert.deepEqual(codesOf(verifyLockRecord(cutLock, cut)), ['CI_RUNS_INCOMPLETE']);
 });

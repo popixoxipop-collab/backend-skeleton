@@ -8,7 +8,7 @@ and are not repeated here, so this page cannot drift from them.
 |---|---|
 | `capture-observation.mjs` | Read-only live capture through an authenticated `gh` (needs read access to all three repositories). Runs and jobs are read page by page (100 per page) until GitHub's `total_count` is reached, and the count and page number are recorded; a list the API cannot serve completely (a head search serves at most 1000 runs) or that changes while it is read fails the capture instead of recording fewer runs. |
 | `fixtures/observation.json` | The captured observation; the verifier's input and the source of every derived fact. |
-| `build-lock.mjs` | Derives `baseline.lock.json` from an observation; the `limits` sentences are carried over by hand. |
+| `build-lock.mjs` | CLI that writes `baseline.lock.json` from an observation with `deriveLock` of `verify-baseline.mjs`, the function `--record` re-derives the lock with; the `limits` sentences are carried over by hand. |
 | `baseline.lock.json` | The lock: heads, artifact blob SHAs, package facts, exact-head CI results, inventory pins, limits. |
 | `verify-baseline.mjs` | Verifier and CLI. |
 | `make-negative-report.mjs`, `negative-report.json` | Real CLI runs on mutated copies (exit code, error codes, stdout hash); `--check` recomputes them. |
@@ -31,8 +31,8 @@ fails with `DIRTY_STATE_UNKNOWN`, because a GitHub observation has no work tree.
 | Code | Raised when |
 |---|---|
 | `MISSING_REPOSITORY_OBSERVATION` | the observation has no entry for a locked role |
-| `REPOSITORY_SET_MISMATCH` | the set is fixed by the verifier, not by the files: the lock must pin bskel, becoder and beval once each under their repository names; the observation must not hold a repeated, renamed or unknown repository |
-| `MALFORMED_RECORD` | a lock or observation entry lacks a field the comparison reads (default branch, head SHA, artifact blob SHAs), or the lock's required artifacts are not exactly package.json, package-lock.json and .github/workflows/ci.yml |
+| `REPOSITORY_SET_MISMATCH` | the set is fixed by the verifier, not by the files: the lock must pin bskel, becoder and beval once each under their repository names, the observation must not hold a repeated, renamed or unknown repository, and the inventory pins of the lock and of the observation must hold each of the three roles exactly once |
+| `MALFORMED_RECORD` | a lock or observation entry lacks a field the comparison reads or holds it in the wrong shape: a missing or non-list `required_artifacts` or artifact list, an entry that is not an object, an artifact set that is not exactly package.json, package-lock.json and .github/workflows/ci.yml, an observation without the schema `bskel.t00-observation/1` or with a timestamp that is not UTC, a run, package or inventory pin of the wrong shape, `limits` that is not a list of statements |
 | `DIRTY_CHECKOUT` | the work tree has uncommitted or untracked changes |
 | `DIRTY_STATE_UNKNOWN` | cleanliness was not observed (null) and `--remote` is not given |
 | `DEFAULT_BRANCH_MISMATCH` | the observed branch is not the locked default branch |
@@ -40,13 +40,14 @@ fails with `DIRTY_STATE_UNKNOWN`, because a GitHub observation has no work tree.
 | `MISSING_ARTIFACT` | a locked artifact (package.json, package-lock.json, ci.yml) is absent |
 | `ARTIFACT_BLOB_MISMATCH` | an artifact's git blob SHA differs from the lock |
 | `OBSERVATION_HASH_MISMATCH` | `--record`: the lock's observation hash is not the canonical sha256 of the observation |
-| `DERIVED_FACT_MISMATCH` | `--record`: a fact in the lock is not what the observation derives, including the list of repositories |
+| `DERIVED_FACT_MISMATCH` | `--record`: the lock differs from what `deriveLock` builds from the observation in any field but `limits`: schema, task id, repositories, inventory pins, and every `capture` field except the hash (which has its own code); a field the builder never emits counts too |
 | `CI_RUNS_INCOMPLETE` | `--record`: GitHub's run count for the head (`ci_runs_total_count`) or the number of pages read (`ci_runs_pages`) is absent or does not match the runs the observation lists |
 
 ## What a pass means
 
-The lock is the output of `build-lock.mjs` for exactly this observation, and the observation matches the lock. The
-test also recomputes the bskel facts from git objects (head commit, artifact blobs, package scripts, inventory file
+The lock is what `deriveLock` builds from exactly this observation, field for field (the hand-written `limits` aside),
+and the observation matches the lock. In `--record` mode the verifier first checks the shape of both documents and
+reports a malformed list as `MALFORMED_RECORD` with exit code 2 instead of failing on it. The test also recomputes the bskel facts from git objects (head commit, artifact blobs, package scripts, inventory file
 and pins, pin ancestry and distance) and fails if those objects cannot be obtained. It does not prove that GitHub
 still reports the same facts: a lock committed to main is always behind the main that contains it, and the becoder and
 beval facts can only be re-checked by running the capture again from a session that can read those repositories.

@@ -158,7 +158,7 @@
         "REPOSITORY_SET_MISMATCH"
       ],
       "stdout_first_line": "FAIL REPOSITORY_SET_MISMATCH beval the lock pins beval 0 times, expected once",
-      "stdout_sha256": "27792b4699dd9c4907b6cb7aff57636bcc1ae1203cbcd27ca9fe5db13bc86c8d"
+      "stdout_sha256": "cccf9b9f1b4715146c91be2ede3c2dccce8d61fafd7efd91e83cd46b8c8a1050"
     },
     {
       "id": "lock-repository-renamed",
@@ -236,6 +236,72 @@
       ],
       "stdout_first_line": "FAIL MALFORMED_RECORD bskel lock: required_artifacts lists [], expected exactly [package.json,package-lock.json,.github/workflows/ci.yml]",
       "stdout_sha256": "286ee786f980fe6f7addaa4938fac441e2937520b74068592d1db39cf25d4dad"
+    },
+    {
+      "id": "lock-and-observation-both-drop-the-beval-pin",
+      "mutation": "lock and observation: the beval inventory pin removed from both, observation hash recomputed",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "REPOSITORY_SET_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL REPOSITORY_SET_MISMATCH beval the lock inventory pins beval 0 times, expected once",
+      "stdout_sha256": "1e72e2dc91286e968416561f28ada97697ae2bf2bbedc11d9607e829309774de"
+    },
+    {
+      "id": "lock-schema-changed",
+      "mutation": "lock: schema set to bskel.t00-baseline-lock/2",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "DERIVED_FACT_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL DERIVED_FACT_MISMATCH - schema does not match the observation",
+      "stdout_sha256": "89738ff3ba3556d3697b05187d234e1bd744a16bf77ff3b2b6a30b48effd6636"
+    },
+    {
+      "id": "lock-task-id-changed",
+      "mutation": "lock: task_id set to T00-99",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "DERIVED_FACT_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL DERIVED_FACT_MISMATCH - task_id does not match the observation",
+      "stdout_sha256": "e1116d7bfae4acfe74929e5c152a4b2a92c7e68f02477942e7a8771fb19b50a1"
+    },
+    {
+      "id": "lock-observed-at-changed",
+      "mutation": "lock: capture.observed_at set to 2026-01-01T00:00:00.000Z",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "DERIVED_FACT_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL DERIVED_FACT_MISMATCH - capture.observed_at is not what the builder derives from this observation",
+      "stdout_sha256": "c369a1bb10de5c477eea9ae184aedbcabff67f34cfc48ef3c783b584af216eea"
+    },
+    {
+      "id": "lock-required-artifacts-deleted",
+      "mutation": "lock: bskel required_artifacts removed",
+      "command": "node next/t00/verify-baseline.mjs --remote <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "MALFORMED_RECORD"
+      ],
+      "stdout_first_line": "FAIL MALFORMED_RECORD bskel lock: the artifact list is missing",
+      "stdout_sha256": "d3b59f13baad7ab2d979ca66b35a8726a80515b3d3ea57a7ba98e67316bfde42"
+    },
+    {
+      "id": "lock-required-artifacts-is-a-string",
+      "mutation": "lock: bskel required_artifacts set to the string package.json",
+      "command": "node next/t00/verify-baseline.mjs --remote <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "MALFORMED_RECORD"
+      ],
+      "stdout_first_line": "FAIL MALFORMED_RECORD bskel lock: the artifact list is missing",
+      "stdout_sha256": "d3b59f13baad7ab2d979ca66b35a8726a80515b3d3ea57a7ba98e67316bfde42"
     },
     {
       "id": "usage-error",
