@@ -1,0 +1,33 @@
+{
+  "facts": {
+    "columns": [
+      "heroes.id",
+      "heroes.name",
+      "heroes.secret_name",
+      "teams.id",
+      "teams.name"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "heroes(id)",
+      "teams(id)"
+    ],
+    "tables": [
+      "heroes",
+      "teams"
+    ],
+    "unmodeled": []
+  },
+  "inputs": {
+    "fixtures/normal/app/models/hero.rb": "d29c320f929c91143622c23f62cee8ae538c91407907555da51094ba1d0dc703",
+    "fixtures/normal/app/models/team.rb": "44eb708f7f52dce3c2a1340515f78b288351a4304899aacee84cf6e0423e0730",
+    "fixtures/normal/db/schema.rb": "758507d75c17501ccfe84d9400e36bbce44cf7f2934a2831b5ac69845ea8c639",
+    "oracle/introspect.rb": "2d91326bd485c6ae570ef7c5185280af6661eb6a1b994a367377809e17acdebf"
+  },
+  "oracle": "activerecord-sqlite3-memory",
+  "versions": {
+    "activerecord": "8.1.4",
+    "ruby": "4.0.7",
+    "sqlite3": "2.9.6"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "facts": {
+    "columns": [
+      "hero.id",
+      "hero.name",
+      "orderitem.id",
+      "orderitem.sku"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "hero(id)",
+      "orderitem(id)"
+    ],
+    "tables": [
+      "hero",
+      "orderitem"
+    ],
+    "unmodeled": []
+  },
+  "inputs": {
+    "fixtures/naming-default/models.py": "f55d3641afd973660f93365d0e5b80a0ae47491a1cfb1d79a009792e3fb732ab",
+    "oracle/introspect.py": "e809ae6af71ec343589975af67cabe5427baf008b339fcb2e0a1d738f7df30c5"
+  },
+  "oracle": "sqlalchemy-metadata",
+  "versions": {
+    "SQLAlchemy": "2.1.4",
+    "pydantic": "2.14.0",
+    "python": "3.14.8",
+    "sqlmodel": "0.0.48"
+  }
+}

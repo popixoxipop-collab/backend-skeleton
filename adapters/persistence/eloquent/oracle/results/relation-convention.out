@@ -1,0 +1,34 @@
+{
+    "facts": {
+        "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.team_id",
+            "teams.id",
+            "teams.name"
+        ],
+        "foreign_keys": [
+            "heroes(team_id)->teams(id)"
+        ],
+        "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+        ],
+        "tables": [
+            "heroes",
+            "teams"
+        ],
+        "unmodeled": []
+    },
+    "inputs": {
+        "fixtures/relation-convention/app/Models/Hero.php": "91622645b4a8d62128b7d579bf5ff32697e180594e2fc1497329ec422d7eab1e",
+        "fixtures/relation-convention/app/Models/Team.php": "3e9246f19dbc4e313f3811e3ce07e2900ec14fafb1e9289848fc000470401ce1",
+        "fixtures/relation-convention/database/schema.php": "9bcb068416482965674f4d1f0553e5f582a8bc196f3fa663bf426590614058c9",
+        "oracle/introspect.php": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+    },
+    "oracle": "eloquent-sqlite-memory",
+    "versions": {
+        "illuminate/database": "13.35.0",
+        "php": "8.5.8"
+    }
+}

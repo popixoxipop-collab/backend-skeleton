@@ -1,0 +1,28 @@
+{
+  "facts": {
+    "columns": [
+      "hero_team_links.hero_id",
+      "hero_team_links.joined_year",
+      "hero_team_links.team_id"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "hero_team_links(team_id,hero_id)"
+    ],
+    "tables": [
+      "hero_team_links"
+    ],
+    "unmodeled": []
+  },
+  "inputs": {
+    "fixtures/composite-key/models.py": "a23f5f00d1b680ff703cb655e6df1d8fea0acc332e3d392621558db33677ef9c",
+    "oracle/introspect.py": "e809ae6af71ec343589975af67cabe5427baf008b339fcb2e0a1d738f7df30c5"
+  },
+  "oracle": "sqlalchemy-metadata",
+  "versions": {
+    "SQLAlchemy": "2.1.4",
+    "pydantic": "2.14.0",
+    "python": "3.14.8",
+    "sqlmodel": "0.0.48"
+  }
+}

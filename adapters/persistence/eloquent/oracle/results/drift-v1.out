@@ -1,0 +1,27 @@
+{
+    "facts": {
+        "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.secret_name"
+        ],
+        "foreign_keys": [],
+        "primary_keys": [
+            "heroes(id)"
+        ],
+        "tables": [
+            "heroes"
+        ],
+        "unmodeled": []
+    },
+    "inputs": {
+        "fixtures/drift/v1/app/Models/Hero.php": "a61644fba6d89019e0bcc06e82bf578e64aed243b3d84594b4d69b808c2f8511",
+        "fixtures/drift/v1/database/schema.php": "d318d9ffcb520f544df92b17f6d419c25e5d1fbb267717b842f504f29ed3f72f",
+        "oracle/introspect.php": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+    },
+    "oracle": "eloquent-sqlite-memory",
+    "versions": {
+        "illuminate/database": "13.35.0",
+        "php": "8.5.8"
+    }
+}

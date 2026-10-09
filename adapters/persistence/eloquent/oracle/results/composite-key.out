@@ -1,0 +1,29 @@
+{
+    "facts": {
+        "columns": [
+            "hero_team_links.hero_id",
+            "hero_team_links.joined_year",
+            "hero_team_links.team_id"
+        ],
+        "foreign_keys": [],
+        "primary_keys": [
+            "hero_team_links(team_id,hero_id)"
+        ],
+        "tables": [
+            "hero_team_links"
+        ],
+        "unmodeled": [
+            "single-key-model-over-composite-primary-key"
+        ]
+    },
+    "inputs": {
+        "fixtures/composite-key/app/Models/HeroTeamLink.php": "8f8e8950b0faf676398bb39dfbf505657dc3421d3017373eeb5866dbc74e2f3f",
+        "fixtures/composite-key/database/schema.php": "ca26d0507c0246262bed32a3eec088b3e0d515527bd50f9b86087c74ea6db1f5",
+        "oracle/introspect.php": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+    },
+    "oracle": "eloquent-sqlite-memory",
+    "versions": {
+        "illuminate/database": "13.35.0",
+        "php": "8.5.8"
+    }
+}

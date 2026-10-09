@@ -1,0 +1,30 @@
+{
+  "facts": {
+    "columns": [
+      "heroes.id",
+      "heroes.name",
+      "heroes.secret_name",
+      "teams.id",
+      "teams.name"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "heroes(id)",
+      "teams(id)"
+    ],
+    "tables": [
+      "heroes",
+      "teams"
+    ],
+    "unmodeled": []
+  },
+  "inputs": {
+    "fixtures/normal/models.py": "ee53ad0ab4c535155e19962bb5a4ac601dc55c0ce8af23fe75dab56af6ce198d",
+    "oracle/introspect.py": "38abdd730a1c6b4b415e3a2948b17cc444033527d2d08ac2e6d41ecdb97100b5"
+  },
+  "oracle": "django-app-registry",
+  "versions": {
+    "Django": "6.1.2",
+    "python": "3.14.8"
+  }
+}

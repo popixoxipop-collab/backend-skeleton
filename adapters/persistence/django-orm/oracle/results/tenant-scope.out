@@ -1,0 +1,29 @@
+{
+  "facts": {
+    "columns": [
+      "invoices.id",
+      "invoices.tenant_id",
+      "invoices.total_cents"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "invoices(id)"
+    ],
+    "tables": [
+      "invoices"
+    ],
+    "unmodeled": [
+      "create-index",
+      "custom-default-manager"
+    ]
+  },
+  "inputs": {
+    "fixtures/tenant-scope/models.py": "531e2702fe215f0e16a4fbbb62a6341199f4593482a911c150f80a322ff465d0",
+    "oracle/introspect.py": "38abdd730a1c6b4b415e3a2948b17cc444033527d2d08ac2e6d41ecdb97100b5"
+  },
+  "oracle": "django-app-registry",
+  "versions": {
+    "Django": "6.1.2",
+    "python": "3.14.8"
+  }
+}

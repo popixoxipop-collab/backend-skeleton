@@ -1,0 +1,26 @@
+{
+    "facts": {
+        "columns": [
+            "acme_heroes.id",
+            "acme_heroes.name"
+        ],
+        "foreign_keys": [],
+        "primary_keys": [
+            "acme_heroes(id)"
+        ],
+        "tables": [
+            "acme_heroes"
+        ],
+        "unmodeled": []
+    },
+    "inputs": {
+        "fixtures/naming-custom/app/Models/Hero.php": "0cc90cd96ac83a1b627adc68b6659dedbd57f4cb2eca731a90f7f342e6677933",
+        "fixtures/naming-custom/database/schema.php": "7666dc0508f3d14ea2465633e8136410004253afe1010bc52222645faeb02260",
+        "oracle/introspect.php": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+    },
+    "oracle": "eloquent-sqlite-memory",
+    "versions": {
+        "illuminate/database": "13.35.0",
+        "php": "8.5.8"
+    }
+}

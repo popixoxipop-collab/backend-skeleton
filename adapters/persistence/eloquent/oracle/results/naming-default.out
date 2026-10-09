@@ -1,0 +1,31 @@
+{
+    "facts": {
+        "columns": [
+            "heroes.id",
+            "heroes.name",
+            "order_items.id",
+            "order_items.sku"
+        ],
+        "foreign_keys": [],
+        "primary_keys": [
+            "heroes(id)",
+            "order_items(id)"
+        ],
+        "tables": [
+            "heroes",
+            "order_items"
+        ],
+        "unmodeled": []
+    },
+    "inputs": {
+        "fixtures/naming-default/app/Models/Hero.php": "74a515248f726d879fe25972eb11406b977730cd8850853736ef2faa888fecd5",
+        "fixtures/naming-default/app/Models/OrderItem.php": "64232445eff80e38177961e9540bd815b40728f82312e6a6cccb545ce48b6faf",
+        "fixtures/naming-default/database/schema.php": "763b76fd772b1da81185d79072c9c94a61c705b3ccacac7ee294f5909d88143d",
+        "oracle/introspect.php": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+    },
+    "oracle": "eloquent-sqlite-memory",
+    "versions": {
+        "illuminate/database": "13.35.0",
+        "php": "8.5.8"
+    }
+}

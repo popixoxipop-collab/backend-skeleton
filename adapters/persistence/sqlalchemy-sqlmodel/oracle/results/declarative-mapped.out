@@ -1,0 +1,33 @@
+{
+  "facts": {
+    "columns": [
+      "heroes.id",
+      "heroes.team_id",
+      "teams.id",
+      "teams.name"
+    ],
+    "foreign_keys": [
+      "heroes(team_id)->teams(id)"
+    ],
+    "primary_keys": [
+      "heroes(id)",
+      "teams(id)"
+    ],
+    "tables": [
+      "heroes",
+      "teams"
+    ],
+    "unmodeled": []
+  },
+  "inputs": {
+    "fixtures/declarative-mapped/models.py": "9a008c02265403f589ba5289d1649d8ee50fad5eb10b367bf78e3dfb7e7f3491",
+    "oracle/introspect.py": "e809ae6af71ec343589975af67cabe5427baf008b339fcb2e0a1d738f7df30c5"
+  },
+  "oracle": "sqlalchemy-metadata",
+  "versions": {
+    "SQLAlchemy": "2.1.4",
+    "pydantic": "2.14.0",
+    "python": "3.14.8",
+    "sqlmodel": "0.0.48"
+  }
+}

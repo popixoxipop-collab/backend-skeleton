@@ -1,0 +1,30 @@
+{
+  "facts": {
+    "columns": [
+      "heroes.id",
+      "heroes.name",
+      "heroes.nickname",
+      "teams.id",
+      "teams.name"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "heroes(id)",
+      "teams(id)"
+    ],
+    "tables": [
+      "heroes",
+      "teams"
+    ],
+    "unmodeled": []
+  },
+  "inputs": {
+    "fixtures/drift/v2/models.py": "a31c83818ea38031ae059ef5118156bef8caa894b48f8310d720c6291d5b0932",
+    "oracle/introspect.py": "38abdd730a1c6b4b415e3a2948b17cc444033527d2d08ac2e6d41ecdb97100b5"
+  },
+  "oracle": "django-app-registry",
+  "versions": {
+    "Django": "6.1.2",
+    "python": "3.14.8"
+  }
+}

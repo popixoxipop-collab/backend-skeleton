@@ -1,0 +1,32 @@
+{
+    "facts": {
+        "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.secret_name",
+            "teams.id",
+            "teams.name"
+        ],
+        "foreign_keys": [],
+        "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+        ],
+        "tables": [
+            "heroes",
+            "teams"
+        ],
+        "unmodeled": []
+    },
+    "inputs": {
+        "fixtures/normal/app/Models/Hero.php": "a61644fba6d89019e0bcc06e82bf578e64aed243b3d84594b4d69b808c2f8511",
+        "fixtures/normal/app/Models/Team.php": "3e9246f19dbc4e313f3811e3ce07e2900ec14fafb1e9289848fc000470401ce1",
+        "fixtures/normal/database/schema.php": "1cf7b0cbe76972a1a2df67c55fb33efb7ede8c6b921361e78bbdadcc0b5fe583",
+        "oracle/introspect.php": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+    },
+    "oracle": "eloquent-sqlite-memory",
+    "versions": {
+        "illuminate/database": "13.35.0",
+        "php": "8.5.8"
+    }
+}

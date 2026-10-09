@@ -1,0 +1,28 @@
+{
+  "facts": {
+    "columns": [
+      "hero_team_links.hero_id",
+      "hero_team_links.joined_year",
+      "hero_team_links.team_id"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "hero_team_links(team_id,hero_id)"
+    ],
+    "tables": [
+      "hero_team_links"
+    ],
+    "unmodeled": []
+  },
+  "inputs": {
+    "fixtures/composite-key/app/models/hero_team_link.rb": "2866243b73dd478f883a35c2251a41c4e825a529d057b26672739b6ca2e6b568",
+    "fixtures/composite-key/db/schema.rb": "a5bf925da9b7a3a44425e1aa6ee6fa818a98f41093dfce9aff8e148c05e36f3b",
+    "oracle/introspect.rb": "2d91326bd485c6ae570ef7c5185280af6661eb6a1b994a367377809e17acdebf"
+  },
+  "oracle": "activerecord-sqlite3-memory",
+  "versions": {
+    "activerecord": "8.1.4",
+    "ruby": "4.0.7",
+    "sqlite3": "2.9.6"
+  }
+}

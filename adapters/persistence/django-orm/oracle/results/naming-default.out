@@ -1,0 +1,29 @@
+{
+  "facts": {
+    "columns": [
+      "shop_hero.id",
+      "shop_hero.name",
+      "shop_orderitem.id",
+      "shop_orderitem.sku"
+    ],
+    "foreign_keys": [],
+    "primary_keys": [
+      "shop_hero(id)",
+      "shop_orderitem(id)"
+    ],
+    "tables": [
+      "shop_hero",
+      "shop_orderitem"
+    ],
+    "unmodeled": []
+  },
+  "inputs": {
+    "fixtures/naming-default/models.py": "29e77ffc77e4271c7cbaa556e814d80a5f0b4818ee1d7967762746687eb9eff2",
+    "oracle/introspect.py": "38abdd730a1c6b4b415e3a2948b17cc444033527d2d08ac2e6d41ecdb97100b5"
+  },
+  "oracle": "django-app-registry",
+  "versions": {
+    "Django": "6.1.2",
+    "python": "3.14.8"
+  }
+}

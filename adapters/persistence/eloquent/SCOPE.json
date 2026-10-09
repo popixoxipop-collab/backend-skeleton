@@ -1,0 +1,1782 @@
+{
+  "contract": "bskel.internal.persistence-orm-scope-dyn/0",
+  "target_id": "ORM-eloquent-01",
+  "orm": "eloquent",
+  "catalog": {
+    "id": "eloquent",
+    "state": "implemented-draft",
+    "ingestion": "t07-model-facts",
+    "producer": "t07-ruby-php",
+    "requires_live_verification": true,
+    "limitations": [
+      "implicit Laravel naming and polymorphic targets remain unknown"
+    ]
+  },
+  "status": {
+    "support_completed": false,
+    "runtime_tested": false,
+    "evidence_level": "oracle-compared",
+    "statement": "Development target, not a completed support claim. The repository Eloquent model-fact extractor (extractEloquentModelFacts bridged by fromRubyPhpModelFacts, ingestion t07-model-facts in the persistence catalog) is compared with the schema facts that illuminate/database 13.35.0 reports for the same fixture models once each fixture database/schema.php has run against an in-memory SQLite database on PHP 8.5.8. Constructs marked supported match that oracle for the listed facets on the listed fixtures at the pinned versions; every other construct is listed with how the provider omits, leaves unknown or mishandles it. Nothing was run against a server database, a Laravel application or a migration command."
+  },
+  "profile": {
+    "id": "illuminate-database-13.35.0-php-8.5.8-sqlite-memory-offline",
+    "platform": "PHP 8.5.8 (static-php-cli common build) on darwin-arm64, in-memory SQLite database filled by each fixture database/schema.php, no server database; provider reads classes that extend Model with literal $table and $primaryKey; CI platform (Linux) not exercised",
+    "versions": [
+      "illuminate/database@13.35.0",
+      "php@8.5.8"
+    ],
+    "capabilities": [
+      "belongs-to-literal-class-and-foreign-key",
+      "literal-table-and-primary-key-properties"
+    ]
+  },
+  "pins": {
+    "checked_at": "2026-10-09T00:32:38Z",
+    "packages": [
+      {
+        "name": "illuminate/database",
+        "version": "13.35.0",
+        "role": "orm",
+        "oracle_install": true,
+        "registry_check": {
+          "command": "curl -fsS https://repo.packagist.org/p2/illuminate/database.json | jq -r '.packages[\"illuminate/database\"][] | select(.version==\"v13.35.0\") | .version | ltrimstr(\"v\")'",
+          "exit_code": 0,
+          "output": "13.35.0",
+          "output_sha256": "454e435e5ab49b484ee94e85460c65671f81ff103eaf1685d5730679254cd613"
+        }
+      },
+      {
+        "name": "php",
+        "version": "8.5.8",
+        "role": "runtime",
+        "oracle_install": true,
+        "registry_check": {
+          "command": "curl -fsS 'https://dl.static-php.dev/static-php-cli/common/?format=json' | jq -r '.[].name' | grep -Fx php-8.5.8-cli-macos-aarch64.tar.gz | sed -E 's/^php-([0-9.]+)-cli.*/\\1/'",
+          "exit_code": 0,
+          "output": "8.5.8",
+          "output_sha256": "46ffaba7142ab371766bc922973104510002a8ee93cd1baba2187fc5b5a40619"
+        }
+      }
+    ],
+    "not_covered": [
+      {
+        "name": "illuminate/database",
+        "version": "12.69.3",
+        "dist_tag": "12.x-line",
+        "reason": "the previous major line is still listed on Packagist next to 13.x; its schema builder and model behaviour was not exercised",
+        "registry_check": {
+          "command": "curl -fsS https://repo.packagist.org/p2/illuminate/database.json | jq -r '.packages[\"illuminate/database\"][].version' | grep -E '^v12\\.[0-9]+\\.[0-9]+$' | sort -V | tail -1 | sed 's/^v//'",
+          "exit_code": 0,
+          "output": "12.69.3",
+          "output_sha256": "a82efadab2906410e30380b3ef97b59d4ec9e3d2a33b17b4b0a7994e0209d942"
+        }
+      }
+    ]
+  },
+  "constructs": [
+    {
+      "id": "literal-table-and-primary-key-properties",
+      "category": "baseline",
+      "construct": "protected $table and protected $primaryKey set to string literals on a class extending Model",
+      "orm_behavior": "Eloquent maps the model to the named table and uses the named column as key (teams(id), heroes(id), invoices(id)); the provider reports the same tables and primary keys.",
+      "support": "supported",
+      "implementation": "implemented",
+      "gap_behavior": "none",
+      "facets": [
+        "tables",
+        "primary_keys"
+      ],
+      "cases": [
+        "normal",
+        "relation",
+        "relation-convention",
+        "tenant-scope"
+      ],
+      "planned_in": null
+    },
+    {
+      "id": "belongs-to-literal-class-and-foreign-key",
+      "category": "relation",
+      "construct": "belongsTo(Team::class, 'team_id') where the target model has a literal $table and $primaryKey",
+      "orm_behavior": "The schema carries the foreign key heroes(team_id)->teams(id); the provider reports the same foreign key.",
+      "support": "supported",
+      "implementation": "implemented",
+      "gap_behavior": "none",
+      "facets": [
+        "foreign_keys"
+      ],
+      "cases": [
+        "relation"
+      ],
+      "planned_in": null
+    },
+    {
+      "id": "columns-beyond-keys",
+      "category": "baseline",
+      "construct": "columns other than the key and literal belongsTo foreign keys",
+      "orm_behavior": "Every column of the table (heroes.name, heroes.secret_name, invoices.tenant_id) comes from the database schema, which the model class does not list; the provider emits the primary key and literal foreign key columns and reads no schema or migration file, so the other columns are missing without a diagnostic.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "silent-omission",
+      "facets": [
+        "columns"
+      ],
+      "cases": [
+        "normal",
+        "relation",
+        "relation-convention",
+        "tenant-scope"
+      ],
+      "planned_in": "ORM-eloquent-02"
+    },
+    {
+      "id": "implicit-table-name-and-key",
+      "category": "naming-strategy",
+      "construct": "model without $table and $primaryKey",
+      "orm_behavior": "Eloquent derives the table from the class name (Hero uses heroes, OrderItem uses order_items) and the key defaults to id; the provider does not apply that convention, so it reports the table and the primary key as unknown (persistence-table-unknown, persistence-primary-key-unknown) and emits nothing for the model.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "ir-unknown",
+      "facets": [
+        "tables",
+        "columns",
+        "primary_keys"
+      ],
+      "cases": [
+        "naming-default"
+      ],
+      "planned_in": "ORM-eloquent-02"
+    },
+    {
+      "id": "computed-table-property",
+      "category": "naming-strategy",
+      "construct": "protected $table = self::PREFIX . 'heroes'",
+      "orm_behavior": "The table is acme_heroes once the expression is evaluated; the provider reads string literals only, so it reports the table as unknown (persistence-table-unknown) and emits nothing for the model.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "ir-unknown",
+      "facets": [
+        "tables",
+        "columns",
+        "primary_keys"
+      ],
+      "cases": [
+        "naming-custom"
+      ],
+      "planned_in": "ORM-eloquent-02"
+    },
+    {
+      "id": "composite-primary-key",
+      "category": "composite-key",
+      "construct": "$table->primary(['team_id', 'hero_id']) under a model that declares $primaryKey = 'team_id'",
+      "orm_behavior": "A model names a single key column, while the schema key is hero_team_links(team_id,hero_id) (oracle token single-key-model-over-composite-primary-key); the provider reports the one declared column as the key, so the key it reports is incomplete, and emits no other column.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "wrong-value",
+      "facets": [
+        "columns",
+        "primary_keys"
+      ],
+      "cases": [
+        "composite-key"
+      ],
+      "planned_in": "ORM-eloquent-02"
+    },
+    {
+      "id": "belongs-to-without-foreign-key-argument",
+      "category": "relation",
+      "construct": "belongsTo(Team::class) without a foreign key argument",
+      "orm_behavior": "Eloquent derives team_id from the relation name and the schema carries the foreign key heroes(team_id)->teams(id); the provider needs the foreign key as a literal second argument, emits a diagnostic (persistence-relation-foreign-key-unknown) and no relation.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "diagnostic",
+      "facets": [
+        "foreign_keys"
+      ],
+      "cases": [
+        "relation-convention"
+      ],
+      "planned_in": "ORM-eloquent-02"
+    },
+    {
+      "id": "tenant-global-scope",
+      "category": "tenant-scope",
+      "construct": "static::addGlobalScope(new TenantScope()) in booted()",
+      "orm_behavior": "Every query on the model is narrowed by the scope when it runs; the schema only shows an ordinary indexed tenant_id column and the oracle can only report that a global scope exists (unmodeled token global-scope); the provider has no scope model.",
+      "support": "unsupported",
+      "implementation": "none",
+      "gap_behavior": "not-modeled",
+      "facets": [],
+      "cases": [
+        "tenant-scope"
+      ],
+      "planned_in": null
+    },
+    {
+      "id": "schema-version-change",
+      "category": "migration-drift",
+      "construct": "columns added or dropped, tables added between two versions of schema and models",
+      "orm_behavior": "The oracle snapshots differ by add-column, drop-column and create-table; the comparator sees the new table (create-table teams) but no column change because the provider emits no columns beyond the key.",
+      "support": "unsupported",
+      "implementation": "planned",
+      "gap_behavior": "silent-omission",
+      "facets": [
+        "changes"
+      ],
+      "cases": [
+        "drift"
+      ],
+      "planned_in": "ORM-eloquent-02"
+    },
+    {
+      "id": "live-database-drift",
+      "category": "migration-drift",
+      "construct": "model metadata compared with a live PostgreSQL database",
+      "orm_behavior": "Not run: no database server was available, so no live schema was read.",
+      "support": "unsupported",
+      "implementation": "blocked",
+      "gap_behavior": "not-modeled",
+      "facets": [],
+      "cases": [],
+      "planned_in": "ORM-eloquent-03"
+    }
+  ],
+  "cases": [
+    {
+      "id": "normal",
+      "category": "baseline",
+      "kind": "normal",
+      "purpose": "Two models with literal $table and $primaryKey and plain columns in database/schema.php: the baseline the provider is expected to reproduce.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/normal/database/schema.php",
+            "sha256": "1cf7b0cbe76972a1a2df67c55fb33efb7ede8c6b921361e78bbdadcc0b5fe583",
+            "role": "support",
+            "group": null
+          },
+          {
+            "path": "fixtures/normal/app/Models/Team.php",
+            "sha256": "3e9246f19dbc4e313f3811e3ce07e2900ec14fafb1e9289848fc000470401ce1",
+            "role": "model",
+            "group": null
+          },
+          {
+            "path": "fixtures/normal/app/Models/Hero.php",
+            "sha256": "a61644fba6d89019e0bcc06e82bf578e64aed243b3d84594b4d69b808c2f8511",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "normal"
+      ],
+      "expected": {
+        "normal": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.secret_name",
+            "teams.id",
+            "teams.name"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t07-model-facts",
+        "invocation": "extractEloquentModelFacts per fixture model file + fromRubyPhpModelFacts on the merged report",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "columns": [
+            "heroes.id",
+            "teams.id"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 2,
+          "oracle_only": [
+            "heroes.name",
+            "heroes.secret_name",
+            "teams.name"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "composite-key",
+      "category": "composite-key",
+      "kind": "counterexample",
+      "purpose": "A link table created with $table->primary([team_id, hero_id]) and a model that can name only one key column ($primaryKey = team_id, $incrementing = false).",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/composite-key/database/schema.php",
+            "sha256": "ca26d0507c0246262bed32a3eec088b3e0d515527bd50f9b86087c74ea6db1f5",
+            "role": "support",
+            "group": null
+          },
+          {
+            "path": "fixtures/composite-key/app/Models/HeroTeamLink.php",
+            "sha256": "8f8e8950b0faf676398bb39dfbf505657dc3421d3017373eeb5866dbc74e2f3f",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "composite-key"
+      ],
+      "expected": {
+        "composite-key": {
+          "columns": [
+            "hero_team_links.hero_id",
+            "hero_team_links.joined_year",
+            "hero_team_links.team_id"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "hero_team_links(team_id,hero_id)"
+          ],
+          "tables": [
+            "hero_team_links"
+          ],
+          "unmodeled": [
+            "single-key-model-over-composite-primary-key"
+          ]
+        }
+      },
+      "provider": {
+        "mode": "t07-model-facts",
+        "invocation": "extractEloquentModelFacts per fixture model file + fromRubyPhpModelFacts on the merged report",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "hero_team_links"
+          ],
+          "columns": [
+            "hero_team_links.team_id"
+          ],
+          "primary_keys": [
+            "hero_team_links(team_id)"
+          ],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 1,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 1,
+          "oracle_only": [
+            "hero_team_links.hero_id",
+            "hero_team_links.joined_year"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "mismatch",
+          "matched": 0,
+          "oracle_only": [
+            "hero_team_links(team_id,hero_id)"
+          ],
+          "provider_only": [
+            "hero_team_links(team_id)"
+          ]
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "diverges"
+    },
+    {
+      "id": "naming-default",
+      "category": "naming-strategy",
+      "kind": "counterexample",
+      "purpose": "Models without $table and $primaryKey: Eloquent derives the table from the class name (Hero uses heroes, OrderItem uses order_items).",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/naming-default/database/schema.php",
+            "sha256": "763b76fd772b1da81185d79072c9c94a61c705b3ccacac7ee294f5909d88143d",
+            "role": "support",
+            "group": null
+          },
+          {
+            "path": "fixtures/naming-default/app/Models/Hero.php",
+            "sha256": "74a515248f726d879fe25972eb11406b977730cd8850853736ef2faa888fecd5",
+            "role": "model",
+            "group": null
+          },
+          {
+            "path": "fixtures/naming-default/app/Models/OrderItem.php",
+            "sha256": "64232445eff80e38177961e9540bd815b40728f82312e6a6cccb545ce48b6faf",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "naming-default"
+      ],
+      "expected": {
+        "naming-default": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "order_items.id",
+            "order_items.sku"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "heroes(id)",
+            "order_items(id)"
+          ],
+          "tables": [
+            "heroes",
+            "order_items"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t07-model-facts",
+        "invocation": "extractEloquentModelFacts per fixture model file + fromRubyPhpModelFacts on the merged report",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [],
+          "columns": [],
+          "primary_keys": [],
+          "foreign_keys": []
+        },
+        "unknowns": [
+          "Hero: table unknown",
+          "OrderItem: table unknown"
+        ],
+        "inferred_tables": [],
+        "diagnostics": [
+          "model-facts-unknown",
+          "persistence-primary-key-unknown",
+          "persistence-table-unknown"
+        ],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "heroes",
+            "order_items"
+          ],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "heroes.id",
+            "heroes.name",
+            "order_items.id",
+            "order_items.sku"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "heroes(id)",
+            "order_items(id)"
+          ],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "naming-custom",
+      "category": "naming-strategy",
+      "kind": "counterexample",
+      "purpose": "A $table built from a class constant (self::PREFIX . \"heroes\"), so the literal in the source is not the table name.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/naming-custom/database/schema.php",
+            "sha256": "7666dc0508f3d14ea2465633e8136410004253afe1010bc52222645faeb02260",
+            "role": "support",
+            "group": null
+          },
+          {
+            "path": "fixtures/naming-custom/app/Models/Hero.php",
+            "sha256": "0cc90cd96ac83a1b627adc68b6659dedbd57f4cb2eca731a90f7f342e6677933",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "naming-custom"
+      ],
+      "expected": {
+        "naming-custom": {
+          "columns": [
+            "acme_heroes.id",
+            "acme_heroes.name"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "acme_heroes(id)"
+          ],
+          "tables": [
+            "acme_heroes"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t07-model-facts",
+        "invocation": "extractEloquentModelFacts per fixture model file + fromRubyPhpModelFacts on the merged report",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [],
+          "columns": [],
+          "primary_keys": [],
+          "foreign_keys": []
+        },
+        "unknowns": [
+          "Hero: table unknown"
+        ],
+        "inferred_tables": [],
+        "diagnostics": [
+          "model-facts-unknown",
+          "persistence-table-unknown"
+        ],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "acme_heroes"
+          ],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "acme_heroes.id",
+            "acme_heroes.name"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "acme_heroes(id)"
+          ],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "relation",
+      "category": "relation",
+      "kind": "normal",
+      "purpose": "belongsTo(Team::class, \"team_id\") on a table that has the foreign key (foreignId(\"team_id\")->constrained(\"teams\")).",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/relation/database/schema.php",
+            "sha256": "9bcb068416482965674f4d1f0553e5f582a8bc196f3fa663bf426590614058c9",
+            "role": "support",
+            "group": null
+          },
+          {
+            "path": "fixtures/relation/app/Models/Team.php",
+            "sha256": "3e9246f19dbc4e313f3811e3ce07e2900ec14fafb1e9289848fc000470401ce1",
+            "role": "model",
+            "group": null
+          },
+          {
+            "path": "fixtures/relation/app/Models/Hero.php",
+            "sha256": "4cd7754bdc92ee9d7d8d9f04a93647e6a6fc3e3be932cacea2d1de76b64b9ee9",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "relation"
+      ],
+      "expected": {
+        "relation": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.team_id",
+            "teams.id",
+            "teams.name"
+          ],
+          "foreign_keys": [
+            "heroes(team_id)->teams(id)"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t07-model-facts",
+        "invocation": "extractEloquentModelFacts per fixture model file + fromRubyPhpModelFacts on the merged report",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "columns": [
+            "heroes.id",
+            "heroes.team_id",
+            "teams.id"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "foreign_keys": [
+            "heroes(team_id)->teams(id)"
+          ]
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 3,
+          "oracle_only": [
+            "heroes.name",
+            "teams.name"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "match",
+          "matched": 1,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "relation-convention",
+      "category": "relation",
+      "kind": "counterexample",
+      "purpose": "The same schema with a conventional belongsTo(Team::class) that names no foreign key.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/relation-convention/database/schema.php",
+            "sha256": "9bcb068416482965674f4d1f0553e5f582a8bc196f3fa663bf426590614058c9",
+            "role": "support",
+            "group": null
+          },
+          {
+            "path": "fixtures/relation-convention/app/Models/Team.php",
+            "sha256": "3e9246f19dbc4e313f3811e3ce07e2900ec14fafb1e9289848fc000470401ce1",
+            "role": "model",
+            "group": null
+          },
+          {
+            "path": "fixtures/relation-convention/app/Models/Hero.php",
+            "sha256": "91622645b4a8d62128b7d579bf5ff32697e180594e2fc1497329ec422d7eab1e",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "relation-convention"
+      ],
+      "expected": {
+        "relation-convention": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.team_id",
+            "teams.id",
+            "teams.name"
+          ],
+          "foreign_keys": [
+            "heroes(team_id)->teams(id)"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t07-model-facts",
+        "invocation": "extractEloquentModelFacts per fixture model file + fromRubyPhpModelFacts on the merged report",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "columns": [
+            "heroes.id",
+            "teams.id"
+          ],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [
+          "persistence-relation-foreign-key-unknown"
+        ],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 2,
+          "oracle_only": [
+            "heroes.name",
+            "heroes.team_id",
+            "teams.name"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "match",
+          "matched": 2,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "provider-omits",
+          "matched": 0,
+          "oracle_only": [
+            "heroes(team_id)->teams(id)"
+          ],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "tenant-scope",
+      "category": "tenant-scope",
+      "kind": "counterexample",
+      "purpose": "A tenant_id column plus a global scope (TenantScope added in booted()); the isolation lives in the scope, not in the schema.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/tenant-scope/database/schema.php",
+            "sha256": "2a875b39ca39450839460395cc72d1551896a4a58e791f8da82d28879641b480",
+            "role": "support",
+            "group": null
+          },
+          {
+            "path": "fixtures/tenant-scope/app/Models/Scopes/TenantScope.php",
+            "sha256": "62dde338359d6d3038c2e32a32a8fd46c3387662e715e38be4829e8c59494441",
+            "role": "support",
+            "group": null
+          },
+          {
+            "path": "fixtures/tenant-scope/app/Models/Invoice.php",
+            "sha256": "c560f095063805e54d9a2581ea0c82db9152f3c26a9bec9079e2978c5b445105",
+            "role": "model",
+            "group": null
+          }
+        ]
+      },
+      "oracle_steps": [
+        "tenant-scope"
+      ],
+      "expected": {
+        "tenant-scope": {
+          "columns": [
+            "invoices.id",
+            "invoices.tenant_id",
+            "invoices.total_cents"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "invoices(id)"
+          ],
+          "tables": [
+            "invoices"
+          ],
+          "unmodeled": [
+            "create-index",
+            "global-scope"
+          ]
+        }
+      },
+      "provider": {
+        "mode": "t07-model-facts",
+        "invocation": "extractEloquentModelFacts per fixture model file + fromRubyPhpModelFacts on the merged report",
+        "admitted": true,
+        "blocker": null,
+        "facts": {
+          "tables": [
+            "invoices"
+          ],
+          "columns": [
+            "invoices.id"
+          ],
+          "primary_keys": [
+            "invoices(id)"
+          ],
+          "foreign_keys": []
+        },
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": null
+      },
+      "agreement": {
+        "tables": {
+          "result": "match",
+          "matched": 1,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "columns": {
+          "result": "provider-omits",
+          "matched": 1,
+          "oracle_only": [
+            "invoices.tenant_id",
+            "invoices.total_cents"
+          ],
+          "provider_only": []
+        },
+        "primary_keys": {
+          "result": "match",
+          "matched": 1,
+          "oracle_only": [],
+          "provider_only": []
+        },
+        "foreign_keys": {
+          "result": "empty",
+          "matched": 0,
+          "oracle_only": [],
+          "provider_only": []
+        }
+      },
+      "expected_changes": null,
+      "outcome": "omits"
+    },
+    {
+      "id": "drift",
+      "category": "migration-drift",
+      "kind": "counterexample",
+      "purpose": "A column replaced by another and a table added between two versions of schema and models (what a rename looks like); compared in both directions.",
+      "fixture": {
+        "files": [
+          {
+            "path": "fixtures/drift/v1/database/schema.php",
+            "sha256": "d318d9ffcb520f544df92b17f6d419c25e5d1fbb267717b842f504f29ed3f72f",
+            "role": "support",
+            "group": "v1"
+          },
+          {
+            "path": "fixtures/drift/v1/app/Models/Hero.php",
+            "sha256": "a61644fba6d89019e0bcc06e82bf578e64aed243b3d84594b4d69b808c2f8511",
+            "role": "model",
+            "group": "v1"
+          },
+          {
+            "path": "fixtures/drift/v2/database/schema.php",
+            "sha256": "a6aad78165d572615bacea881e4ef8cba42a5b76602bc3a382eb62691ce752fd",
+            "role": "support",
+            "group": "v2"
+          },
+          {
+            "path": "fixtures/drift/v2/app/Models/Team.php",
+            "sha256": "3e9246f19dbc4e313f3811e3ce07e2900ec14fafb1e9289848fc000470401ce1",
+            "role": "model",
+            "group": "v2"
+          },
+          {
+            "path": "fixtures/drift/v2/app/Models/Hero.php",
+            "sha256": "a61644fba6d89019e0bcc06e82bf578e64aed243b3d84594b4d69b808c2f8511",
+            "role": "model",
+            "group": "v2"
+          }
+        ]
+      },
+      "oracle_steps": [
+        "drift-v1",
+        "drift-v2"
+      ],
+      "expected": {
+        "drift-v1": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.secret_name"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "heroes(id)"
+          ],
+          "tables": [
+            "heroes"
+          ],
+          "unmodeled": []
+        },
+        "drift-v2": {
+          "columns": [
+            "heroes.id",
+            "heroes.name",
+            "heroes.nickname",
+            "teams.id",
+            "teams.name"
+          ],
+          "foreign_keys": [],
+          "primary_keys": [
+            "heroes(id)",
+            "teams(id)"
+          ],
+          "tables": [
+            "heroes",
+            "teams"
+          ],
+          "unmodeled": []
+        }
+      },
+      "provider": {
+        "mode": "t07-model-facts",
+        "invocation": "extractEloquentModelFacts per fixture model file + fromRubyPhpModelFacts on the merged report",
+        "admitted": true,
+        "blocker": null,
+        "facts": null,
+        "unknowns": [],
+        "inferred_tables": [],
+        "diagnostics": [],
+        "detected": true,
+        "changes": {
+          "call_expected_v2_observed_v1": {
+            "findings": [
+              "table-missing teams"
+            ],
+            "unknowns": []
+          },
+          "call_expected_v1_observed_v2": {
+            "findings": [],
+            "unknowns": []
+          },
+          "changes": [
+            "create-table teams"
+          ]
+        }
+      },
+      "agreement": {
+        "changes": {
+          "result": "provider-omits",
+          "matched": 1,
+          "oracle_only": [
+            "add-column heroes.nickname",
+            "drop-column heroes.secret_name"
+          ],
+          "provider_only": []
+        }
+      },
+      "expected_changes": [
+        "add-column heroes.nickname",
+        "create-table teams",
+        "drop-column heroes.secret_name"
+      ],
+      "outcome": "omits"
+    }
+  ],
+  "probes": {
+    "migration_plane": {
+      "status": "not-run",
+      "reason": "Laravel keeps migration classes under database/migrations/ and runs them with artisan; the fixtures hold only a schema.php file that the oracle runs through the schema builder, so no migration class exists and no artisan command was run. The repository migration scanner (scanners/db/migrations.mjs) reads Flyway and Liquibase layouts only, so no Laravel migration output exists to probe it with."
+    },
+    "live_database": {
+      "status": "blocked",
+      "reason": "No PostgreSQL server was available to the offline scratch install this record was produced in, so the checks that need one (comparing the models with a running database, scanners/db/introspect.mjs) were not run; the in-memory SQLite database is a stand-in for reading schema facts, not a live database check.",
+      "requires": "A reachable PostgreSQL service outside the scratch tools directory, provisioned separately from this record.",
+      "affected": [
+        "live-database-drift"
+      ]
+    }
+  },
+  "oracle": {
+    "scope": "The schema facts that illuminate/database 13.35.0 reports for the model classes of one fixture directory: oracle/introspect.php runs the fixture database/schema.php against an in-memory SQLite database through the schema builder, requires the fixture app/Models files and, for every concrete Model subclass, reads getTable(), the column listing, the primary-key index and the foreign keys of that table, plus tokens for schema-affecting constructs outside those four facets (indexes, global scopes, a single-key model over a composite primary key). Tables, columns, primary keys and foreign keys therefore come from the fixture schema file and the database layer, while the model classes decide the table name. The drift case compares two such snapshots. No file or server database is opened and no model query is run.",
+    "environment": {
+      "runtime": {
+        "name": "php",
+        "version": "8.5.8"
+      },
+      "platform": "darwin",
+      "arch": "arm64",
+      "recorded_by": "a scratch script outside this change ran every argv below from this directory with the scratch tools directory first on PATH ($ORACLE_VENV stands for it; it holds the static PHP binary unpacked from the downloaded archive, composer.phar and the Composer project whose vendor/ directory the oracle loads); oracle steps ran twice with identical output; reproduce by running the argv and comparing output_sha256 (download and install output varies by cache state and is stored only as evidence)"
+    },
+    "setup": [
+      {
+        "id": "setup-php-download",
+        "role": "setup",
+        "argv": [
+          "curl",
+          "-fsSL",
+          "-o",
+          "$ORACLE_VENV/php.tar.gz",
+          "https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-macos-aarch64.tar.gz"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/setup-php-download.out",
+        "exit_code": 0,
+        "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "output_bytes": 0,
+        "runs": 1,
+        "deterministic": null
+      },
+      {
+        "id": "setup-php-sha256",
+        "role": "setup",
+        "argv": [
+          "sh",
+          "-c",
+          "shasum -a 256 < \"$1\"",
+          "sh",
+          "$ORACLE_VENV/php.tar.gz"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/setup-php-sha256.out",
+        "exit_code": 0,
+        "output_sha256": "acba9814f0b4c8d6106ee4e9e67113b0651e421ecb479f968ae088a9930967a5",
+        "output_bytes": 68,
+        "runs": 1,
+        "deterministic": null
+      },
+      {
+        "id": "setup-php-extract",
+        "role": "setup",
+        "argv": [
+          "tar",
+          "-xzf",
+          "$ORACLE_VENV/php.tar.gz",
+          "-C",
+          "$ORACLE_VENV"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/setup-php-extract.out",
+        "exit_code": 0,
+        "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "output_bytes": 0,
+        "runs": 1,
+        "deterministic": null
+      },
+      {
+        "id": "setup-php-version",
+        "role": "setup",
+        "argv": [
+          "php",
+          "-v"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/setup-php-version.out",
+        "exit_code": 0,
+        "output_sha256": "60f64a4ecf676203f2dd31ba38d41efd6eb081c20736564adbfd2efe8cce7531",
+        "output_bytes": 241,
+        "runs": 1,
+        "deterministic": null
+      },
+      {
+        "id": "setup-composer-download",
+        "role": "setup",
+        "argv": [
+          "curl",
+          "-fsSL",
+          "-o",
+          "$ORACLE_VENV/composer.phar",
+          "https://getcomposer.org/download/2.10.3/composer.phar"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/setup-composer-download.out",
+        "exit_code": 0,
+        "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "output_bytes": 0,
+        "runs": 1,
+        "deterministic": null
+      },
+      {
+        "id": "setup-composer-require",
+        "role": "setup",
+        "argv": [
+          "env",
+          "COMPOSER_HOME=$ORACLE_VENV/composer-home",
+          "COMPOSER_CACHE_DIR=$ORACLE_VENV/composer-cache",
+          "php",
+          "$ORACLE_VENV/composer.phar",
+          "require",
+          "--no-progress",
+          "illuminate/database:13.35.0",
+          "--no-interaction",
+          "--working-dir=$ORACLE_VENV/project"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/setup-composer-require.out",
+        "exit_code": 0,
+        "output_sha256": "dac04dda7966b04d2eb83ba22b729e4025f820bba102192effa983b1fa377af8",
+        "output_bytes": 44,
+        "runs": 1,
+        "deterministic": null
+      },
+      {
+        "id": "setup-composer-show",
+        "role": "setup",
+        "argv": [
+          "env",
+          "COMPOSER_HOME=$ORACLE_VENV/composer-home",
+          "COMPOSER_CACHE_DIR=$ORACLE_VENV/composer-cache",
+          "php",
+          "$ORACLE_VENV/composer.phar",
+          "show",
+          "--no-interaction",
+          "--working-dir=$ORACLE_VENV/project"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/setup-composer-show.out",
+        "exit_code": 0,
+        "output_sha256": "708cc1fb41fe2ff418daa4281694265480a8403ce956887ecd396cc062a6e37f",
+        "output_bytes": 1851,
+        "runs": 1,
+        "deterministic": null
+      }
+    ],
+    "steps": [
+      {
+        "id": "normal",
+        "case": "normal",
+        "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/normal/app/Models/Hero.php",
+            "sha256": "a61644fba6d89019e0bcc06e82bf578e64aed243b3d84594b4d69b808c2f8511"
+          },
+          {
+            "path": "fixtures/normal/app/Models/Team.php",
+            "sha256": "3e9246f19dbc4e313f3811e3ce07e2900ec14fafb1e9289848fc000470401ce1"
+          },
+          {
+            "path": "fixtures/normal/database/schema.php",
+            "sha256": "1cf7b0cbe76972a1a2df67c55fb33efb7ede8c6b921361e78bbdadcc0b5fe583"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
+        "argv": [
+          "php",
+          "oracle/introspect.php",
+          "fixtures/normal",
+          "$ORACLE_VENV/project/vendor/autoload.php"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/normal.out",
+        "exit_code": 0,
+        "output_sha256": "8fda3d8755afa0fb812560f61579babac09e1dd3b4e7daf55fdcef21b08ae752",
+        "output_bytes": 1002,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "composite-key",
+        "case": "composite-key",
+        "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/composite-key/app/Models/HeroTeamLink.php",
+            "sha256": "8f8e8950b0faf676398bb39dfbf505657dc3421d3017373eeb5866dbc74e2f3f"
+          },
+          {
+            "path": "fixtures/composite-key/database/schema.php",
+            "sha256": "ca26d0507c0246262bed32a3eec088b3e0d515527bd50f9b86087c74ea6db1f5"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
+        "argv": [
+          "php",
+          "oracle/introspect.php",
+          "fixtures/composite-key",
+          "$ORACLE_VENV/project/vendor/autoload.php"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/composite-key.out",
+        "exit_code": 0,
+        "output_sha256": "668c0e939f8c56ac3ec63127c77cea26b7758d9fc6840916b4fb1285061a796c",
+        "output_bytes": 946,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "naming-default",
+        "case": "naming-default",
+        "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/naming-default/app/Models/Hero.php",
+            "sha256": "74a515248f726d879fe25972eb11406b977730cd8850853736ef2faa888fecd5"
+          },
+          {
+            "path": "fixtures/naming-default/app/Models/OrderItem.php",
+            "sha256": "64232445eff80e38177961e9540bd815b40728f82312e6a6cccb545ce48b6faf"
+          },
+          {
+            "path": "fixtures/naming-default/database/schema.php",
+            "sha256": "763b76fd772b1da81185d79072c9c94a61c705b3ccacac7ee294f5909d88143d"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
+        "argv": [
+          "php",
+          "oracle/introspect.php",
+          "fixtures/naming-default",
+          "$ORACLE_VENV/project/vendor/autoload.php"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/naming-default.out",
+        "exit_code": 0,
+        "output_sha256": "ed53b68f49b07945286252fb5f3837cc86d4a47bc786547fe4b20c46ac0cbe2e",
+        "output_bytes": 1020,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "naming-custom",
+        "case": "naming-custom",
+        "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/naming-custom/app/Models/Hero.php",
+            "sha256": "0cc90cd96ac83a1b627adc68b6659dedbd57f4cb2eca731a90f7f342e6677933"
+          },
+          {
+            "path": "fixtures/naming-custom/database/schema.php",
+            "sha256": "7666dc0508f3d14ea2465633e8136410004253afe1010bc52222645faeb02260"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
+        "argv": [
+          "php",
+          "oracle/introspect.php",
+          "fixtures/naming-custom",
+          "$ORACLE_VENV/project/vendor/autoload.php"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/naming-custom.out",
+        "exit_code": 0,
+        "output_sha256": "a231499565834ed2f2da74400e73a12322b51be877f6ab7db733d35a50b69025",
+        "output_bytes": 791,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "relation",
+        "case": "relation",
+        "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/relation/app/Models/Hero.php",
+            "sha256": "4cd7754bdc92ee9d7d8d9f04a93647e6a6fc3e3be932cacea2d1de76b64b9ee9"
+          },
+          {
+            "path": "fixtures/relation/app/Models/Team.php",
+            "sha256": "3e9246f19dbc4e313f3811e3ce07e2900ec14fafb1e9289848fc000470401ce1"
+          },
+          {
+            "path": "fixtures/relation/database/schema.php",
+            "sha256": "9bcb068416482965674f4d1f0553e5f582a8bc196f3fa663bf426590614058c9"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
+        "argv": [
+          "php",
+          "oracle/introspect.php",
+          "fixtures/relation",
+          "$ORACLE_VENV/project/vendor/autoload.php"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/relation.out",
+        "exit_code": 0,
+        "output_sha256": "84a1a536cc8e97216df409909b884eeca7045654fe344213f03d6503a934aee8",
+        "output_bytes": 1054,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "relation-convention",
+        "case": "relation-convention",
+        "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/relation-convention/app/Models/Hero.php",
+            "sha256": "91622645b4a8d62128b7d579bf5ff32697e180594e2fc1497329ec422d7eab1e"
+          },
+          {
+            "path": "fixtures/relation-convention/app/Models/Team.php",
+            "sha256": "3e9246f19dbc4e313f3811e3ce07e2900ec14fafb1e9289848fc000470401ce1"
+          },
+          {
+            "path": "fixtures/relation-convention/database/schema.php",
+            "sha256": "9bcb068416482965674f4d1f0553e5f582a8bc196f3fa663bf426590614058c9"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
+        "argv": [
+          "php",
+          "oracle/introspect.php",
+          "fixtures/relation-convention",
+          "$ORACLE_VENV/project/vendor/autoload.php"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/relation-convention.out",
+        "exit_code": 0,
+        "output_sha256": "74d968c4608e6d0c41972c29716aba6930d48aaed470c2042ec5bfb350e4a4c8",
+        "output_bytes": 1087,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "tenant-scope",
+        "case": "tenant-scope",
+        "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/tenant-scope/app/Models/Invoice.php",
+            "sha256": "c560f095063805e54d9a2581ea0c82db9152f3c26a9bec9079e2978c5b445105"
+          },
+          {
+            "path": "fixtures/tenant-scope/app/Models/Scopes/TenantScope.php",
+            "sha256": "62dde338359d6d3038c2e32a32a8fd46c3387662e715e38be4829e8c59494441"
+          },
+          {
+            "path": "fixtures/tenant-scope/database/schema.php",
+            "sha256": "2a875b39ca39450839460395cc72d1551896a4a58e791f8da82d28879641b480"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
+        "argv": [
+          "php",
+          "oracle/introspect.php",
+          "fixtures/tenant-scope",
+          "$ORACLE_VENV/project/vendor/autoload.php"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/tenant-scope.out",
+        "exit_code": 0,
+        "output_sha256": "2e6e49a9baa9d195f6c5843153176eb1cf1367f8d86abbbaf83d1f47e5681e3c",
+        "output_bytes": 1020,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "drift-v1",
+        "case": "drift",
+        "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/drift/v1/app/Models/Hero.php",
+            "sha256": "a61644fba6d89019e0bcc06e82bf578e64aed243b3d84594b4d69b808c2f8511"
+          },
+          {
+            "path": "fixtures/drift/v1/database/schema.php",
+            "sha256": "d318d9ffcb520f544df92b17f6d419c25e5d1fbb267717b842f504f29ed3f72f"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
+        "argv": [
+          "php",
+          "oracle/introspect.php",
+          "fixtures/drift/v1",
+          "$ORACLE_VENV/project/vendor/autoload.php"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/drift-v1.out",
+        "exit_code": 0,
+        "output_sha256": "e6fbffabac25391bcd3d9b0e8204ed948291ca420c4514cc8cb763bd24b5db8f",
+        "output_bytes": 795,
+        "runs": 2,
+        "deterministic": true
+      },
+      {
+        "id": "drift-v2",
+        "case": "drift",
+        "role": "expected-schema",
+        "inputs": [
+          {
+            "path": "fixtures/drift/v2/app/Models/Hero.php",
+            "sha256": "a61644fba6d89019e0bcc06e82bf578e64aed243b3d84594b4d69b808c2f8511"
+          },
+          {
+            "path": "fixtures/drift/v2/app/Models/Team.php",
+            "sha256": "3e9246f19dbc4e313f3811e3ce07e2900ec14fafb1e9289848fc000470401ce1"
+          },
+          {
+            "path": "fixtures/drift/v2/database/schema.php",
+            "sha256": "a6aad78165d572615bacea881e4ef8cba42a5b76602bc3a382eb62691ce752fd"
+          },
+          {
+            "path": "oracle/introspect.php",
+            "sha256": "0ce9c0365014279d982cbb8f9e07711dec1e528460de2d14bb44884cadefd4a2"
+          }
+        ],
+        "tool_versions": {
+          "illuminate/database": "13.35.0",
+          "php": "8.5.8"
+        },
+        "argv": [
+          "php",
+          "oracle/introspect.php",
+          "fixtures/drift/v2",
+          "$ORACLE_VENV/project/vendor/autoload.php"
+        ],
+        "expect_exit": 0,
+        "capture": [
+          {
+            "kind": "stdout"
+          }
+        ],
+        "result_file": "oracle/results/drift-v2.out",
+        "exit_code": 0,
+        "output_sha256": "dc3da284d14ed04babceee7c4e43ab19fe36656301c5dc981a8ea226099bf470",
+        "output_bytes": 1005,
+        "runs": 2,
+        "deterministic": true
+      }
+    ],
+    "blocked": [
+      {
+        "id": "live-database",
+        "reason": "No live database server was available to the offline scratch install, so no oracle output from a running PostgreSQL was recorded.",
+        "affects": [
+          "live-database-drift"
+        ]
+      }
+    ]
+  },
+  "evidence_plan": {
+    "ORM-eloquent-02": {
+      "goal": "Make the provider report what this record lists as planned instead of omitting or misreporting it: columns from the schema file, computed or conventional table names (as an explicit unknown unless the naming convention is implemented and checked against the oracle), composite primary keys, belongsTo without a foreign key argument and column and table changes between versions.",
+      "constructs": [
+        "columns-beyond-keys",
+        "implicit-table-name-and-key",
+        "computed-table-property",
+        "composite-primary-key",
+        "belongs-to-without-foreign-key-argument",
+        "schema-version-change"
+      ],
+      "depends_on": [
+        "ORM-eloquent-01",
+        "T10-02"
+      ],
+      "blocked_by": [],
+      "exit_criteria": [
+        "Each construct planned in this step matches the recorded oracle or is reported as unknown or as a diagnostic; none is omitted silently or reported with a wrong or incomplete value.",
+        "test/persistence-next/dyn-orm-scope.test.mjs recomputes the provider output from the committed fixtures and passes with those constructs promoted from planned.",
+        "The oracle results are re-recorded for illuminate/database 13.35.0 on PHP 8.5.8 and are unchanged."
+      ],
+      "evidence_level_after": "oracle-compared",
+      "runtime_note": "The step stays offline: no server database and no application run, so runtime-tested is not claimed."
+    },
+    "ORM-eloquent-03": {
+      "goal": "Cross-check the provider against a live PostgreSQL database and the migration plane (database/migrations classes for the fixtures), then issue a limited certification for the pinned versions and profile only.",
+      "constructs": [
+        "live-database-drift"
+      ],
+      "depends_on": [
+        "ORM-eloquent-02"
+      ],
+      "blocked_by": [
+        "live-database"
+      ],
+      "exit_criteria": [
+        "A PostgreSQL service is provisioned and the models are compared with its introspected schema.",
+        "A migration written for the fixtures is probed against the migration scanner.",
+        "The certification names the exact pinned versions and profile and nothing broader."
+      ],
+      "evidence_level_after": "oracle-compared",
+      "runtime_note": "Runtime-tested may be claimed only for the checks this step actually runs against the database."
+    }
+  },
+  "limits": [
+    "provider.detected means the provider returned at least one entity; for the drift case it means both versions returned one.",
+    "Only the two direct pins are verified. The dependencies of illuminate/database were resolved by Composer at install time and are listed in the setup-composer-show output, not locked; no composer.lock is committed.",
+    "The PHP runtime is a static-php-cli common build unpacked into a scratch directory; other PHP builds and the CI platform (Linux, Node 22.x and 24.x for the checks) were not exercised for the oracle.",
+    "Releases under pins.not_covered exist but were not exercised; no claim is made for them or for any version other than the pins.",
+    "Nothing here ran against a server database, a Laravel application or an artisan command: the oracle runs a schema file against an in-memory SQLite database and reads model and schema metadata, it runs no model query and no migration, so status.runtime_tested stays false.",
+    "The migration scanner reads Flyway and Liquibase layouts only (see probes.migration_plane); no database/migrations directory was used.",
+    "The oracle reports primary keys from the SQLite schema, not the key name a model declares; a model names one key column, so a composite primary key is visible only in the schema and through the unmodeled token single-key-model-over-composite-primary-key.",
+    "The drift comparator reports one direction per call; both calls are recorded. expected_changes is the set difference of two oracle snapshots, not the output of a migration tool, and a column with the same name but a different type is not seen.",
+    "Only SQL-visible constructs are compared (tables, columns, primary keys, foreign keys); defaults, indexes, casts, fillable lists, accessors, events and scopes are not. The oracle lists indexes and global scopes as unmodeled tokens only.",
+    "Each oracle result file is frozen output of one real run and is bound by sha256 to the files that produced it: the oracle script prints the digests of itself and of every fixture file it read, and the checker recomputes them from the repository, so a fixture or script edited without re-running the oracle is rejected. That binding does not prove the file was produced by running the command. Only running it again does, which the checker does when ORM_SCOPE_ORACLE_ELOQUENT names the pinned toolchain; otherwise each step is reported unverified (install transcripts always are) and no case counts as reproduced agreement."
+  ]
+}
