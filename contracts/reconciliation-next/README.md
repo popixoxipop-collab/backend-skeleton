@@ -40,6 +40,46 @@ The shadow layer has to preserve information gaps instead of silently repairing 
 6. `matched` or `adopted` proves only the fields that the current reconciliation established. It is
    not a blanket runtime conformance verdict.
 
+## T09-01 baseline record
+
+`BASELINE.json` pins what this layer does today, and where it fails, for one exact revision: the base commit
+`02e7d05e71bdb64d94c16e1adf7cbe38626ee58a`. It changes no module. Its schema, `bskel.track-baseline-record/2`, is provisional.
+
+Recorded: every pinned file (the source modules, the test files, the shared test fixture, the files the modules import
+from outside this directory, and the nested runner) with size, git blob id and sha256; two real commands run in an
+extracted copy of the base commit, with exit codes and counts (`node --test` on the seven test files, and
+`node scripts/run-next-nested-tests.mjs T09`, with its first line); named fixtures that call the pinned modules, each with its
+expected values and the sha256 of its output, split into normal fixtures and negative fixtures (cases the layer rejects by
+design, and observed defects); and limits, each with a status and the fixtures that bind its statement.
+
+| limit status | meaning |
+|---|---|
+| `UNSUPPORTED` | the layer does not do this at the base commit; nothing is marked supported |
+| `UNKNOWN` | the layer reports the field as unknown or skipped, or the record cannot decide it |
+| `BLOCKED` | cannot be observed here; the reason is stated (the runtime evidence in the fixtures is synthetic) |
+| `NOT_RECORDED` | not measured |
+
+`baseline-record.test.mjs` recomputes every size, hash, count, exit code, expected value, fixture output and file list from
+the working tree, from the pinned commit and from an extracted copy of it. It also compares the table, the test
+counts, the `NESTED_SUITE` line and the base commit named in this README and in `T09_STATUS.md` with the record. The extracted
+copy runs against the `node_modules` of the checkout only after the version of every package the pinned files import (and of
+the packages those require) equals the version the base commit's `package-lock.json` states; the record lists them as
+`environment.loaded_packages`, and a different or missing version fails the test. Not recomputed: the CI observation (read once
+through the read-only CI API), the machine description, the files inside the installed packages (only their versions are
+compared with the lockfile), the synthetic support data, and the explanatory prose of the record and of these two documents.
+`artifact_digest` seals the whole record except its own value, so an edit that is not re-sealed is reported; an editor who
+re-seals the record is caught only by the recomputed values and by review of the diff.
+
+```bash
+npm ci
+node --test test/reconciliation-next/baseline-record.test.mjs
+```
+
+A commit that is not available (for example in a shallow checkout that cannot fetch it) fails the test;
+`BASELINE_ALLOW_UNVERIFIED=1` turns only that case into a visible skip, and never the dependency version check. A later
+dependency update that changes one of the loaded packages therefore fails the test until the baseline is replaced. A changed
+baseline is a new record for a new commit, reviewed as a diff, not an edit in place.
+
 ## T09-02 authority rules in this slice
 
 | Field | Resolved authority | Conflict/unknown rule |
@@ -80,29 +120,39 @@ This is the stricter helper for T09 shadow promotion. It still does **not** cert
 
 ## Tests
 
-Run the whole T09 slice directly:
+Run the whole T09 slice through the nested runner, exactly as the required `nested-next` CI job does,
+or run the files directly:
 
 ```bash
+node scripts/run-next-nested-tests.mjs T09
 node --test test/reconciliation-next/*.test.mjs
 ```
 
 All T09 tests remain inside the leased `test/reconciliation-next/**` path. The legacy root
-`npm test` pattern still does not discover nested tests, and T09 does not own package/workflow
-wiring. T00/T23's required `nested-next` dispatcher now explicitly executes the T09 directory;
-exact-head evidence must show `NESTED_SUITE T09 RUN 7 files` and terminal counts on Node 22/24.
+`npm test` pattern (`node --test test/*.test.mjs`) does not discover nested tests, and T09 does not own
+package/workflow wiring. T00/T23's required `nested-next` dispatcher explicitly executes the T09 directory;
+exact-head evidence must show the `NESTED_SUITE T09 RUN <n> files` line, where `<n>` is the number of
+`*.test.mjs` files in the directory at that head, and terminal counts on Node 22/24.
 Generic root-test success alone is still not T09 focused evidence.
 
-The T09 suite at `main` `ad24e0d8` contains **113 tests** (the total the command above reports):
+At the pinned base commit `02e7d05e71bdb64d94c16e1adf7cbe38626ee58a` the seven original test files contain
+**113 tests** (the total both commands report there) and the nested runner prints `NESTED_SUITE T09 RUN 7 files`:
 
-- 19 field-decision regressions,
-- 4 real `indexOpenApiDocument -> reconcileModule -> decision graph` integration regressions,
-- 22 OpenAPI context/root/operation-security/duplicate-ID/schema-presence/context-provenance regressions,
-- 5 negative differential regressions for stale/missing/ambiguous OpenAPI,
-- 25 exact ArtifactRef/T16 binding/evidence regressions (22 when this slice was first integrated; 3 same-ID/different-content rejection tests were added later),
-- 22 bound runtime-route reconciliation regressions,
-- 16 policy-neutral promotion-readiness regressions.
+| file | tests | covers |
+|---|---|---|
+| `decision-graph.test.mjs` | 19 | field-decision regressions |
+| `differential.test.mjs` | 5 | negative differential regressions for stale/missing/ambiguous OpenAPI |
+| `evidence-binding.test.mjs` | 25 | exact ArtifactRef/T16 binding/evidence regressions |
+| `openapi-context.test.mjs` | 22 | OpenAPI context/root/operation-security/duplicate-ID/schema-presence/context-provenance regressions |
+| `openapi-integration.test.mjs` | 4 | real `indexOpenApiDocument -> reconcileModule -> decision graph` integration regressions |
+| `promotion-readiness.test.mjs` | 16 | policy-neutral promotion-readiness regressions |
+| `runtime-routes.test.mjs` | 22 | bound runtime-route reconciliation regressions |
 
-It covers matched/adopted/drift/missing/ambiguous/unresolved results, synthesized IDs, prefix proof,
+`baseline-record.test.mjs` (T09-01, below) checks the record instead of the modules, so it is not in the table
+and the nested runner counts one more file than at the base commit. The table and these figures describe the base
+commit; `baseline-record.test.mjs` compares them with `BASELINE.json`, whose counts it reproduces.
+
+The seven original files cover matched/adopted/drift/missing/ambiguous/unresolved results, synthesized IDs, prefix proof,
 schema resolved/unresolved/dialect-disabled/absent/media-skipped states, explicit and inherited declared security,
 duplicate operation IDs, provenance matching, route-only promotion, legacy-to-next integration, and stale-spec fail-closed behavior.
 
