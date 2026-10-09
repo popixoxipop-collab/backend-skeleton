@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { PERMISSION_MANIFEST_SCHEMA, validatePermissionManifest } from '../../lib/trust-next/permission-manifest.mjs';
 import { createArtifactStore } from '../../lib/artifact-store-next/store.mjs';
 import { parseStructuredProtocolText } from '../../adapters/protocol-next/scanners/protocol-loaders.mjs';
+import { emitUnits } from '../../handles/_engine.mjs';
 
 // Wave-2 product invariants owned by the T19 independent-QA track.
 //
@@ -82,4 +83,28 @@ test('wave-2 SCHEMA-03: structured protocol documents deeper than maxDepth are r
   assert.throws(() => parseStructuredProtocolText(nested(8), { file: 'deep.json', maxDepth: 3 }), /exceeds maxDepth=3/);
   assert.doesNotThrow(() => parseStructuredProtocolText(nested(2), { file: 'shallow.json', maxDepth: 3 }));
   assert.throws(() => parseStructuredProtocolText(nested(80), { file: 'default-depth.json' }), /exceeds maxDepth=64/, 'the default budget is enforced too');
+});
+
+test('wave-2 GEN-04: one user-edited generated infra file blocks the whole infra set, so no partial infra tree is written', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-wave2-infra-'));
+  try {
+    const unit = (name, rendered) => {
+      const templatePath = path.join(root, `${name}.tmpl`);
+      fs.writeFileSync(templatePath, `template ${name}\n`);
+      return { id: `${name}.tmpl`, templatePath, targetAbs: path.join(root, 'infra', `${name}.txt`), rendered };
+    };
+    const base = { repoRoot: root, featureId: '001-wave2', provider: 'wave2-test', resolverUnits: [], orphanScan: null };
+    const first = emitUnits({ ...base, infraUnits: [unit('a', 'a v1\n'), unit('b', 'b v1\n')] });
+    assert.equal(first.blocked, false);
+    assert.deepEqual([...first.written].sort(), ['infra/a.txt', 'infra/b.txt']);
+    fs.writeFileSync(path.join(root, 'infra', 'b.txt'), 'edited by the user\n');
+    const second = emitUnits({ ...base, infraUnits: [unit('a', 'a v2\n'), unit('b', 'b v2\n')] });
+    assert.equal(second.blocked, true, 'a diverged infra file must block the run');
+    assert.deepEqual(second.written, [], 'nothing may be written while the infra set has a conflict');
+    assert.equal(fs.readFileSync(path.join(root, 'infra', 'a.txt'), 'utf8'), 'a v1\n', 'the untouched sibling must not be upgraded on its own');
+    assert.equal(fs.readFileSync(path.join(root, 'infra', 'b.txt'), 'utf8'), 'edited by the user\n', 'the user edit must survive');
+    assert.deepEqual(second.conflicts.map((c) => c.path).sort(), ['infra/a.txt', 'infra/b.txt'], 'the whole set is reported as blocked');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

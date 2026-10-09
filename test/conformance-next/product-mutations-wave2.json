@@ -265,10 +265,9 @@
       "replace": "const infraHasConflict = false;",
       "test_files": [
         "test/handles-engine.test.mjs",
-        "test/handles-cli.test.mjs"
+        "test/conformance-next/product-wave2-invariants.test.mjs"
       ],
-      "invariant": "One conflicting generated infra file blocks the whole infra set, so a partial infra tree is not applied; this does not cover failures during the write itself.",
-      "timeout_ms": 120000
+      "invariant": "One conflicting generated infra file blocks the whole infra set, so a partial infra tree is not applied; this does not cover failures during the write itself. The owner CLI test (handles-cli) is too slow for the runner timeout on a loaded host and is not used as an oracle here."
     },
     {
       "id": "PMUT2-RELEASE-HEAD-BINDING-DROPPED",
