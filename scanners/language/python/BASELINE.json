@@ -1,0 +1,3605 @@
+{
+  "schema": "bskel.track-baseline-record/2",
+  "schema_status": "provisional",
+  "track": "T06 Python language facts",
+  "item": "T06-01",
+  "suite_id": "T06",
+  "title": "Exact-revision baseline of the current Python language-layer behaviour, its failure cases and one real-corpus run",
+  "base_commit": "24fe7e59e96fb98b18c1319e8a81da86e93e43dc",
+  "base_tree": "94d7674c7f87838db40f55cb8d6b92cc3120e15c",
+  "observed_on": "2026-10-09",
+  "environment": {
+    "generated_with_node": "v24.19.0",
+    "generated_with_python": "Python 3.14.8",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "source_dir": "scanners/language/python",
+  "test_dir": "test/language-python",
+  "files": [
+    {
+      "role": "source",
+      "path": "scanners/language/python/analyzer.mjs",
+      "bytes": 10253,
+      "git_blob_sha1": "3ed6aaf9a407619de1c9e8eb3270f4a508355c23",
+      "sha256": "295921c12d58f7d108a4a0a1f272e478295dd426fe0fa2b89c13266905f61b54"
+    },
+    {
+      "role": "source",
+      "path": "scanners/language/python/ast-helper.py",
+      "bytes": 11954,
+      "git_blob_sha1": "9e391af59b0fbf75d3425be9859d4aa6e0a1c027",
+      "sha256": "cddc9f5e31c0b621d8bd224a924aad08897e50a8d0ff8a0f82d6a60ecf207517"
+    },
+    {
+      "role": "source",
+      "path": "scanners/language/python/django-shadow.mjs",
+      "bytes": 8981,
+      "git_blob_sha1": "4286af32194d4f9da287373e765d5ffa83a2d3bf",
+      "sha256": "b85e8515242c40056b1123d9296b121b141546ba955b9cd13727a07b186432a6"
+    },
+    {
+      "role": "source",
+      "path": "scanners/language/python/fastapi-shadow.mjs",
+      "bytes": 9481,
+      "git_blob_sha1": "2525bc431292423f0057713e79cc0c76f8069100",
+      "sha256": "8533c25359c921455650ab827e227ad77a0113b07310c3c5d3b990e9b9881d87"
+    },
+    {
+      "role": "source",
+      "path": "scanners/language/python/flask-shadow.mjs",
+      "bytes": 5503,
+      "git_blob_sha1": "14d3e9c7b05751ee5506d1c4e926e9dbb20085e1",
+      "sha256": "785ff3ff4ebbe8a7cafe4a12674003b8441a3630a039ee58a02d464c92bc3169"
+    },
+    {
+      "role": "source",
+      "path": "scanners/language/python/model-shape.mjs",
+      "bytes": 6903,
+      "git_blob_sha1": "ef2c9f0e3e2f68cc7bb9b456f0bf61bdf6933c57",
+      "sha256": "bdc8a8deb635f9f443827d727c7929c57da193b221a11f89e4b175232435b43b"
+    },
+    {
+      "role": "source",
+      "path": "scanners/language/python/resolver.mjs",
+      "bytes": 8816,
+      "git_blob_sha1": "fbeab80c73250e85eb151546fc1cc6949381a2ba",
+      "sha256": "bc2d2841429deea095d388710060b521646a779936f9d1ae002f959a239b71f1"
+    },
+    {
+      "role": "source",
+      "path": "scanners/language/python/type-shape.mjs",
+      "bytes": 4640,
+      "git_blob_sha1": "5e32db2a21dcd659547f93bff739cde969b67258",
+      "sha256": "2fcf77c5835bf98291fd56e6f2fb5bafb02666c634e1dae108a80980e426b51e"
+    },
+    {
+      "role": "test",
+      "path": "test/language-python/python-analyzer-limits.test.mjs",
+      "bytes": 3662,
+      "git_blob_sha1": "4723da09d890c895e24fbd7e82118d3f60193fbb",
+      "sha256": "d8ab52b451be3f7d9067618ce676b4a0bf1a24a819f7132d36dcf3dc7d76e333",
+      "test_count": 5
+    },
+    {
+      "role": "test",
+      "path": "test/language-python/python-batch-analysis.test.mjs",
+      "bytes": 2519,
+      "git_blob_sha1": "a7cc494acaa2e6b0d0b15e69791faa9e47b1d379",
+      "sha256": "ae0f9fbd549d6960f84ba365b8b5632ebf0bbfdd2579259d12c6fc8b23f157ed",
+      "test_count": 3
+    },
+    {
+      "role": "test",
+      "path": "test/language-python/python-django-shadow.test.mjs",
+      "bytes": 9489,
+      "git_blob_sha1": "d0a3f6a69d7b7a60218e04b921da4e0db2c2be3b",
+      "sha256": "7a59ea13f2ed90160a8e0404f50f1f36e15b1c3987f106206025dda24a5f4dbd",
+      "test_count": 11
+    },
+    {
+      "role": "test",
+      "path": "test/language-python/python-fastapi-shadow.test.mjs",
+      "bytes": 5632,
+      "git_blob_sha1": "a768d40766f49080b74314601afed90839355382",
+      "sha256": "336175f84fa6bad5e384a57bbb1abd8d0b272114adb8f1caae4a91d0e6ab1058",
+      "test_count": 4
+    },
+    {
+      "role": "test",
+      "path": "test/language-python/python-flask-shadow.test.mjs",
+      "bytes": 3510,
+      "git_blob_sha1": "768af2859420b9911625b2cbd94dc6a13c9228f2",
+      "sha256": "bace29e548d1332037925f9f2bc559d359afb09502b38d6682b2a293f9003494",
+      "test_count": 4
+    },
+    {
+      "role": "test",
+      "path": "test/language-python/python-language-analyzer.test.mjs",
+      "bytes": 229,
+      "git_blob_sha1": "33f0ceb8db5c6d8d432d44d9690f502c2218700e",
+      "sha256": "a592db85fa126e8ee03c5009045da3df20b0037fb11c79dbc00401c9b0aa2362",
+      "test_count": 10
+    },
+    {
+      "role": "test",
+      "path": "test/language-python/python-model-projection.test.mjs",
+      "bytes": 6610,
+      "git_blob_sha1": "6ae08a74eb9912bbc41da49f0af9dc63a8d42d65",
+      "sha256": "40bfe9d3537c684c6c8d565540b659b84ccbe2f5489540019686b00daa4e81f0",
+      "test_count": 6
+    },
+    {
+      "role": "test",
+      "path": "test/language-python/python-numeric-semantics.test.mjs",
+      "bytes": 2456,
+      "git_blob_sha1": "687f7eb9c7245fd3d9c2cdd2e2e4f12cd15cc98f",
+      "sha256": "0b6114244a44656994331ca29221a1721c0486212f0972098405590faf53e4c8",
+      "test_count": 3
+    },
+    {
+      "role": "test",
+      "path": "test/language-python/python-package-boundary.test.mjs",
+      "bytes": 3743,
+      "git_blob_sha1": "c112420c04ee2bd179d0db6d4dcd9b498a4a966b",
+      "sha256": "839d137d5cf98971e80b147812375348277c8d68fd55f6c07e8078b59bdd24c1",
+      "test_count": 2
+    },
+    {
+      "role": "test",
+      "path": "test/language-python/python-real-corpus-integrity.test.mjs",
+      "bytes": 2498,
+      "git_blob_sha1": "d872088f34a6b379336fa0f49b008b92c4fe9637",
+      "sha256": "7ac30dea9f36eb532ce23c5a32f4d890d804d1117b6ab781ebfec3f1cfc863da",
+      "test_count": 3
+    },
+    {
+      "role": "test",
+      "path": "test/language-python/python-resolver-edgecases.test.mjs",
+      "bytes": 6412,
+      "git_blob_sha1": "70382838e3a3329c891097e63e109fad47feb1a3",
+      "sha256": "72340560edca208347c70d20516ebac77963d706b102860a619d40c7858afaf5",
+      "test_count": 7
+    },
+    {
+      "role": "test",
+      "path": "test/language-python/python-source-provenance.test.mjs",
+      "bytes": 2703,
+      "git_blob_sha1": "22f88fad679528adb5c8af1304b9dc386b4a97ba",
+      "sha256": "3d9ea68491c63f925f3d8f63fe307c2bf016d3cb238e3cba56a9fd60a48a9bf0",
+      "test_count": 2
+    },
+    {
+      "role": "test",
+      "path": "test/language-python/python-type-shape.test.mjs",
+      "bytes": 3080,
+      "git_blob_sha1": "39f5e7335df3bcf0048071c63aa07246ecc835e6",
+      "sha256": "cc7f4fb452cc55464f6213b48e826d4312b24e652371ab2ddc39bc18c1765488",
+      "test_count": 2
+    },
+    {
+      "role": "test_support",
+      "path": "test/language-python/python-analyzer.cases.mjs",
+      "bytes": 6846,
+      "git_blob_sha1": "4515356ad2255db892cddcaf2f9f9e2cc02a6160",
+      "sha256": "22417439269ad92c557109c1e888a37c0da4af356fc928e4a841f2648518eb2f"
+    },
+    {
+      "role": "test_support",
+      "path": "test/language-python/real-corpus-integrity.mjs",
+      "bytes": 2118,
+      "git_blob_sha1": "5cc9eb40c508c5f46de6c4d0568cd1df48dedb1b",
+      "sha256": "43b7cbd4d1e6b62169e86da57b3d4793c235bb78e1e038aea51bd4f93c1d8d13"
+    },
+    {
+      "role": "test_support",
+      "path": "test/language-python/real-corpus-runner.mjs",
+      "bytes": 5618,
+      "git_blob_sha1": "00b6c4809da962e430ba42cb2987236ed7d69d6f",
+      "sha256": "d787f2ade971c7af9a500fa1f9866935c8aa193bae465e8beadf19fe4ee3ca1e"
+    },
+    {
+      "role": "test_support",
+      "path": "test/language-python/real-corpus.manifest.json",
+      "bytes": 4064,
+      "git_blob_sha1": "8807c9b2b13d91a4ea9e91f31e42222a9bb2deea",
+      "sha256": "04b59c68464c4c5779fe2a5aebc3fe1f9655b930a1e099253040e2ce827bafa4"
+    },
+    {
+      "role": "external_dependency",
+      "path": "package.json",
+      "bytes": 2966,
+      "git_blob_sha1": "6fb97db43b6a4a04069749be4f6fc960f26cd7b8",
+      "sha256": "a48ff4cc4537c7cf31b0d0007eea905582eae09c2ca5f18a5272f9947c9784a5"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/adapters/python-fastapi.mjs",
+      "bytes": 28719,
+      "git_blob_sha1": "f769f36b081106c854bfc831afce44c7ab894831",
+      "sha256": "6601ad11625f40a6874662283b5c80d3cde6e56fc5b2cf3f36a3fc1ada30ee9e"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/text-util.mjs",
+      "bytes": 3372,
+      "git_blob_sha1": "26df2e47019d3fea20dfd20b83be93a7f33c19ed",
+      "sha256": "293383368952be98c7f868847c8184ebc5df49615a3bdd7861613a372e8d2198"
+    },
+    {
+      "role": "runner",
+      "path": "scripts/run-next-nested-tests.mjs",
+      "bytes": 6886,
+      "git_blob_sha1": "daccc6c9112e1db2f8353d5ac38fd3d44f48e41e",
+      "sha256": "acb8db06506f5bb1d52ff4f82b54b9a4db9fd3d45409a02da4d546c55c0dacac"
+    }
+  ],
+  "commands": [
+    {
+      "id": "direct-tap",
+      "command": "node --test test/language-python/python-analyzer-limits.test.mjs test/language-python/python-batch-analysis.test.mjs test/language-python/python-django-shadow.test.mjs test/language-python/python-fastapi-shadow.test.mjs test/language-python/python-flask-shadow.test.mjs test/language-python/python-language-analyzer.test.mjs test/language-python/python-model-projection.test.mjs test/language-python/python-numeric-semantics.test.mjs test/language-python/python-package-boundary.test.mjs test/language-python/python-real-corpus-integrity.test.mjs test/language-python/python-resolver-edgecases.test.mjs test/language-python/python-source-provenance.test.mjs test/language-python/python-type-shape.test.mjs",
+      "revision": "24fe7e59e96fb98b18c1319e8a81da86e93e43dc",
+      "exit_code": 0,
+      "result": {
+        "tests": 62,
+        "suites": 0,
+        "pass": 62,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "id": "nested-runner",
+      "command": "node scripts/run-next-nested-tests.mjs T06",
+      "revision": "24fe7e59e96fb98b18c1319e8a81da86e93e43dc",
+      "exit_code": 0,
+      "runner_files": 13,
+      "first_line": "NESTED_SUITE T06 RUN 13 files",
+      "result": {
+        "tests": 62,
+        "suites": 0,
+        "pass": 62,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "analyze-routes-aliases-annotated-classes",
+      "class": "normal",
+      "origin": "analyzer: relative import with alias, router decorator, Annotated argument, async function, class keywords and fields",
+      "call": {
+        "module": "scanners/language/python/analyzer.mjs",
+        "fn": "analyzePythonFile",
+        "args": [
+          {
+            "repoRoot": {
+              "$tree": {
+                "module.py": "\nfrom __future__ import annotations\nfrom typing import Annotated\nfrom fastapi import APIRouter, Depends, Path\nfrom .models import User as UserModel\n\nrouter: APIRouter = APIRouter(prefix=\"/users\")\n\n@router.get(\"/{user_id}\", response_model=UserRead)\nasync def get_user(user_id: Annotated[int, Path(gt=0)], current: UserModel = Depends(load_user)) -> UserRead:\n    raise RuntimeError(\"must never execute\")\n\nclass UserRead(BaseModel):\n    id: int\n    name: str = Field(alias=\"displayName\")\n\nclass User(SQLModel, table=True):\n    id: int = Field(primary_key=True)\n"
+              }
+            },
+            "file": "module.py"
+          }
+        ],
+        "omit": [
+          "/runtime",
+          "/results/*/runtime"
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          true
+        ],
+        [
+          "/protocol",
+          "bskel.python-ast.response/1"
+        ],
+        [
+          "/sourceEncoding",
+          "utf-8"
+        ],
+        [
+          "/source/sizeBytes",
+          559
+        ],
+        [
+          "/facts/imports/3/level",
+          1
+        ],
+        [
+          "/facts/imports/3/names/0/alias",
+          "UserModel"
+        ],
+        [
+          "/facts/functions/0/async",
+          true
+        ],
+        [
+          "/facts/functions/0/decorators/0/callee/name",
+          "router.get"
+        ],
+        [
+          "/facts/functions/0/arguments/0/annotation/base/name",
+          "Annotated"
+        ],
+        [
+          "/facts/classes/0/name",
+          "UserRead"
+        ],
+        [
+          "/facts/classes/1/keywords/0/name",
+          "table"
+        ],
+        [
+          "/facts/assignments/0/value/keywords/0/value/value",
+          "/users"
+        ]
+      ],
+      "output_sha256": "eb70e4d38f06aae8693f29e0bd4dfffcc2246698e5ef680be40b1c9a0d4615b4"
+    },
+    {
+      "id": "analyze-dynamic-expression-stays-unknown",
+      "class": "negative",
+      "origin": "rejected by design: analyzer: a computed prefix is an explicit unknown node, never evaluated",
+      "call": {
+        "module": "scanners/language/python/analyzer.mjs",
+        "fn": "analyzePythonFile",
+        "args": [
+          {
+            "repoRoot": {
+              "$tree": {
+                "module.py": "prefix = \"/\" + get_prefix()\nrouter = APIRouter(prefix=prefix)\n"
+              }
+            },
+            "file": "module.py"
+          }
+        ],
+        "omit": [
+          "/runtime",
+          "/results/*/runtime"
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          true
+        ],
+        [
+          "/facts/assignments/0/value/kind",
+          "unknown"
+        ],
+        [
+          "/facts/assignments/0/value/node",
+          "BinOp"
+        ],
+        [
+          "/facts/assignments/1/value/keywords/0/value/kind",
+          "symbol"
+        ]
+      ],
+      "output_sha256": "f1f15f13b6240435be153eb20098a775d4de302a4d84d20e0c325749ae4dd715"
+    },
+    {
+      "id": "analyze-comprehension-lambda-fstring-are-unknown",
+      "class": "negative",
+      "origin": "rejected by design: analyzer: comprehension, lambda and f-string values are explicit unknown nodes",
+      "call": {
+        "module": "scanners/language/python/analyzer.mjs",
+        "fn": "analyzePythonFile",
+        "args": [
+          {
+            "repoRoot": {
+              "$tree": {
+                "module.py": "squares = [i * i for i in range(3)]\nfn = lambda x: x\ntext = f\"{squares}\"\n"
+              }
+            },
+            "file": "module.py"
+          }
+        ],
+        "omit": [
+          "/runtime",
+          "/results/*/runtime"
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          true
+        ],
+        [
+          "/facts/assignments/0/value/kind",
+          "unknown"
+        ],
+        [
+          "/facts/assignments/0/value/node",
+          "ListComp"
+        ],
+        [
+          "/facts/assignments/1/value/node",
+          "Lambda"
+        ],
+        [
+          "/facts/assignments/2/value/node",
+          "JoinedStr"
+        ]
+      ],
+      "output_sha256": "527bb5f204461f66e33971b6d30b169371c9e7deb4008b30b6bac66f4e89cde0"
+    },
+    {
+      "id": "analyze-integers-outside-js-safe-range",
+      "class": "normal",
+      "origin": "analyzer: integers outside the JavaScript safe range are decimal strings",
+      "call": {
+        "module": "scanners/language/python/analyzer.mjs",
+        "fn": "analyzePythonFile",
+        "args": [
+          {
+            "repoRoot": {
+              "$tree": {
+                "module.py": "BIG = 9007199254740993\nNEG = -9007199254740993\n"
+              }
+            },
+            "file": "module.py"
+          }
+        ],
+        "omit": [
+          "/runtime",
+          "/results/*/runtime"
+        ]
+      },
+      "expect": [
+        [
+          "/facts/assignments/0/value/kind",
+          "integer"
+        ],
+        [
+          "/facts/assignments/0/value/decimal",
+          "9007199254740993"
+        ],
+        [
+          "/facts/assignments/1/value/decimal",
+          "-9007199254740993"
+        ]
+      ],
+      "output_sha256": "ee4f4048b518ae356d2d6ffeb61e042af3722144bcd267e0b19ef36eda7c3110"
+    },
+    {
+      "id": "analyze-non-finite-float-literal",
+      "class": "normal",
+      "origin": "analyzer: 1e999 is a float-special fact, not a number",
+      "call": {
+        "module": "scanners/language/python/analyzer.mjs",
+        "fn": "analyzePythonFile",
+        "args": [
+          {
+            "repoRoot": {
+              "$tree": {
+                "module.py": "HUGE = 1e999\n"
+              }
+            },
+            "file": "module.py"
+          }
+        ],
+        "omit": [
+          "/runtime",
+          "/results/*/runtime"
+        ]
+      },
+      "expect": [
+        [
+          "/facts/assignments/0/value/kind",
+          "float-special"
+        ],
+        [
+          "/facts/assignments/0/value/value",
+          "Infinity"
+        ]
+      ],
+      "output_sha256": "b33161992a054f4cf47c1a9b21a37fdaa18a211382a0eb3d9f05c5f9e063ce50"
+    },
+    {
+      "id": "analyze-positional-only-and-keyword-only",
+      "class": "normal",
+      "origin": "analyzer: argument kinds are kept apart",
+      "call": {
+        "module": "scanners/language/python/analyzer.mjs",
+        "fn": "analyzePythonFile",
+        "args": [
+          {
+            "repoRoot": {
+              "$tree": {
+                "module.py": "def route(a: int, /, b: str = \"x\", *, c: bool = True):\n    pass\n"
+              }
+            },
+            "file": "module.py"
+          }
+        ],
+        "omit": [
+          "/runtime",
+          "/results/*/runtime"
+        ]
+      },
+      "expect": [
+        [
+          "/facts/functions/0/arguments/0/kind",
+          "positional-only"
+        ],
+        [
+          "/facts/functions/0/arguments/1/kind",
+          "positional"
+        ],
+        [
+          "/facts/functions/0/arguments/2/kind",
+          "keyword-only"
+        ],
+        [
+          "/facts/functions/0/arguments/2/default/value",
+          true
+        ]
+      ],
+      "output_sha256": "05235cd6e96a616f91559456c8bcf2faf5e5699e8affee0afa0f0f2466c65a32"
+    },
+    {
+      "id": "analyze-pep263-latin1-source",
+      "class": "normal",
+      "origin": "analyzer: a PEP 263 declaration decodes the source and the hash stays the byte hash",
+      "call": {
+        "module": "scanners/language/python/analyzer.mjs",
+        "fn": "analyzePythonFile",
+        "args": [
+          {
+            "repoRoot": {
+              "$tree": {
+                "module.py": {
+                  "$base64": "IyBjb2Rpbmc6IGxhdGluLTEKbmFtZSA9ICJjYWbpIgo="
+                }
+              }
+            },
+            "file": "module.py"
+          }
+        ],
+        "omit": [
+          "/runtime",
+          "/results/*/runtime"
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          true
+        ],
+        [
+          "/sourceEncoding",
+          "iso-8859-1"
+        ],
+        [
+          "/source/encoding",
+          "iso-8859-1"
+        ],
+        [
+          "/source/sizeBytes",
+          32
+        ],
+        [
+          "/facts/assignments/0/value/value",
+          "café"
+        ]
+      ],
+      "output_sha256": "34fc4e50a98d93aa19877918cf90170336eebf13ed0458a85b5f8e6680c36a2f"
+    },
+    {
+      "id": "analyze-syntax-error-is-structured",
+      "class": "negative",
+      "origin": "rejected by design: analyzer: a syntax error is a structured failure (code and line; the message and columns vary with the Python version and are not pinned)",
+      "call": {
+        "module": "scanners/language/python/analyzer.mjs",
+        "fn": "analyzePythonFile",
+        "args": [
+          {
+            "repoRoot": {
+              "$tree": {
+                "module.py": "def broken(:\n    pass\n"
+              }
+            },
+            "file": "module.py"
+          }
+        ],
+        "omit": [
+          "/runtime",
+          "/results/*/runtime",
+          "/error/message",
+          "/error/column",
+          "/error/end_line",
+          "/error/end_column",
+          "/results/*/error/message",
+          "/results/*/error/column",
+          "/results/*/error/end_line",
+          "/results/*/error/end_column"
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          false
+        ],
+        [
+          "/error/code",
+          "PYTHON_SYNTAX_ERROR"
+        ],
+        [
+          "/error/line",
+          1
+        ],
+        [
+          "/source/sizeBytes",
+          22
+        ]
+      ],
+      "output_sha256": "2ad2c0ce99159eb34cf64b77a2d01e3be4da7bba82d57ba0e0d5acf6aa715b7d"
+    },
+    {
+      "id": "analyze-invalid-utf8-rejected",
+      "class": "negative",
+      "origin": "rejected by design: analyzer: invalid UTF-8 without a declaration is rejected, not replaced",
+      "call": {
+        "module": "scanners/language/python/analyzer.mjs",
+        "fn": "analyzePythonFile",
+        "args": [
+          {
+            "repoRoot": {
+              "$tree": {
+                "module.py": {
+                  "$base64": "eCA9ICL/Igo="
+                }
+              }
+            },
+            "file": "module.py"
+          }
+        ],
+        "omit": [
+          "/runtime",
+          "/results/*/runtime"
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          false
+        ],
+        [
+          "/error/code",
+          "PYTHON_SOURCE_ENCODING_UNSUPPORTED"
+        ],
+        [
+          "/error/message",
+          "invalid or missing encoding declaration"
+        ],
+        [
+          "/source/sizeBytes",
+          8
+        ]
+      ],
+      "output_sha256": "46848125e6bc895cc752ca97aa981c9da0be3b519e65446e6a65e83f9dd75617"
+    },
+    {
+      "id": "analyze-oversized-source-rejected",
+      "class": "negative",
+      "origin": "rejected by design: analyzer: oversize input is rejected before it is hashed",
+      "call": {
+        "module": "scanners/language/python/analyzer.mjs",
+        "fn": "analyzePythonFile",
+        "args": [
+          {
+            "repoRoot": {
+              "$tree": {
+                "module.py": "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                "
+              }
+            },
+            "file": "module.py",
+            "maxSourceBytes": 1024
+          }
+        ],
+        "omit": [
+          "/runtime",
+          "/results/*/runtime"
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          false
+        ],
+        [
+          "/error/code",
+          "PYTHON_SOURCE_TOO_LARGE"
+        ],
+        [
+          "/error/message",
+          "Python source exceeds configured 1024-byte analysis limit."
+        ],
+        [
+          "/source/sizeBytes",
+          4096
+        ],
+        [
+          "/source/sha256",
+          {
+            "$missing": "/source/sha256"
+          }
+        ]
+      ],
+      "output_sha256": "6968033b487a5176b06f78c5bd3993f10dc5ba6fd1e727c280ad11b715691f11"
+    },
+    {
+      "id": "analyze-missing-interpreter-fails-closed",
+      "class": "negative",
+      "origin": "rejected by design: analyzer: an explicit missing interpreter does not fall back to another one",
+      "call": {
+        "module": "scanners/language/python/analyzer.mjs",
+        "fn": "analyzePythonFile",
+        "args": [
+          {
+            "repoRoot": {
+              "$tree": {
+                "module.py": "x = 1\n"
+              }
+            },
+            "file": "module.py",
+            "pythonCommand": "/nonexistent/baseline-no-python"
+          }
+        ],
+        "omit": [
+          "/runtime",
+          "/results/*/runtime"
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          false
+        ],
+        [
+          "/error/code",
+          "PYTHON_RUNTIME_UNAVAILABLE"
+        ],
+        [
+          "/error/message",
+          "No approved Python interpreter was found for the optional static AST helper."
+        ]
+      ],
+      "output_sha256": "51415c330ba6ce983e0c8b0e37a919637db44a34f351597bf0abf6f9530de4cd"
+    },
+    {
+      "id": "analyze-helper-output-over-max-buffer",
+      "class": "negative",
+      "origin": "rejected by design: analyzer: helper output beyond maxBuffer is a structured failure (the message names the local interpreter and is not pinned)",
+      "call": {
+        "module": "scanners/language/python/analyzer.mjs",
+        "fn": "analyzePythonFile",
+        "args": [
+          {
+            "repoRoot": {
+              "$tree": {
+                "module.py": "value_0 = 0\nvalue_1 = 1\nvalue_2 = 2\nvalue_3 = 3\nvalue_4 = 4\nvalue_5 = 5\nvalue_6 = 6\nvalue_7 = 7\nvalue_8 = 8\nvalue_9 = 9\nvalue_10 = 10\nvalue_11 = 11\nvalue_12 = 12\nvalue_13 = 13\nvalue_14 = 14\nvalue_15 = 15\nvalue_16 = 16\nvalue_17 = 17\nvalue_18 = 18\nvalue_19 = 19\nvalue_20 = 20\nvalue_21 = 21\nvalue_22 = 22\nvalue_23 = 23\nvalue_24 = 24\nvalue_25 = 25\nvalue_26 = 26\nvalue_27 = 27\nvalue_28 = 28\nvalue_29 = 29\nvalue_30 = 30\nvalue_31 = 31\nvalue_32 = 32\nvalue_33 = 33\nvalue_34 = 34\nvalue_35 = 35\nvalue_36 = 36\nvalue_37 = 37\nvalue_38 = 38\nvalue_39 = 39\nvalue_40 = 40\nvalue_41 = 41\nvalue_42 = 42\nvalue_43 = 43\nvalue_44 = 44\nvalue_45 = 45\nvalue_46 = 46\nvalue_47 = 47\nvalue_48 = 48\nvalue_49 = 49\nvalue_50 = 50\nvalue_51 = 51\nvalue_52 = 52\nvalue_53 = 53\nvalue_54 = 54\nvalue_55 = 55\nvalue_56 = 56\nvalue_57 = 57\nvalue_58 = 58\nvalue_59 = 59\nvalue_60 = 60\nvalue_61 = 61\nvalue_62 = 62\nvalue_63 = 63\nvalue_64 = 64\nvalue_65 = 65\nvalue_66 = 66\nvalue_67 = 67\nvalue_68 = 68\nvalue_69 = 69\nvalue_70 = 70\nvalue_71 = 71\nvalue_72 = 72\nvalue_73 = 73\nvalue_74 = 74\nvalue_75 = 75\nvalue_76 = 76\nvalue_77 = 77\nvalue_78 = 78\nvalue_79 = 79\nvalue_80 = 80\nvalue_81 = 81\nvalue_82 = 82\nvalue_83 = 83\nvalue_84 = 84\nvalue_85 = 85\nvalue_86 = 86\nvalue_87 = 87\nvalue_88 = 88\nvalue_89 = 89\nvalue_90 = 90\nvalue_91 = 91\nvalue_92 = 92\nvalue_93 = 93\nvalue_94 = 94\nvalue_95 = 95\nvalue_96 = 96\nvalue_97 = 97\nvalue_98 = 98\nvalue_99 = 99\nvalue_100 = 100\nvalue_101 = 101\nvalue_102 = 102\nvalue_103 = 103\nvalue_104 = 104\nvalue_105 = 105\nvalue_106 = 106\nvalue_107 = 107\nvalue_108 = 108\nvalue_109 = 109\nvalue_110 = 110\nvalue_111 = 111\nvalue_112 = 112\nvalue_113 = 113\nvalue_114 = 114\nvalue_115 = 115\nvalue_116 = 116\nvalue_117 = 117\nvalue_118 = 118\nvalue_119 = 119\nvalue_120 = 120\nvalue_121 = 121\nvalue_122 = 122\nvalue_123 = 123\nvalue_124 = 124\nvalue_125 = 125\nvalue_126 = 126\nvalue_127 = 127\nvalue_128 = 128\nvalue_129 = 129\nvalue_130 = 130\nvalue_131 = 131\nvalue_132 = 132\nvalue_133 = 133\nvalue_134 = 134\nvalue_135 = 135\nvalue_136 = 136\nvalue_137 = 137\nvalue_138 = 138\nvalue_139 = 139\nvalue_140 = 140\nvalue_141 = 141\nvalue_142 = 142\nvalue_143 = 143\nvalue_144 = 144\nvalue_145 = 145\nvalue_146 = 146\nvalue_147 = 147\nvalue_148 = 148\nvalue_149 = 149\nvalue_150 = 150\nvalue_151 = 151\nvalue_152 = 152\nvalue_153 = 153\nvalue_154 = 154\nvalue_155 = 155\nvalue_156 = 156\nvalue_157 = 157\nvalue_158 = 158\nvalue_159 = 159\nvalue_160 = 160\nvalue_161 = 161\nvalue_162 = 162\nvalue_163 = 163\nvalue_164 = 164\nvalue_165 = 165\nvalue_166 = 166\nvalue_167 = 167\nvalue_168 = 168\nvalue_169 = 169\nvalue_170 = 170\nvalue_171 = 171\nvalue_172 = 172\nvalue_173 = 173\nvalue_174 = 174\nvalue_175 = 175\nvalue_176 = 176\nvalue_177 = 177\nvalue_178 = 178\nvalue_179 = 179\nvalue_180 = 180\nvalue_181 = 181\nvalue_182 = 182\nvalue_183 = 183\nvalue_184 = 184\nvalue_185 = 185\nvalue_186 = 186\nvalue_187 = 187\nvalue_188 = 188\nvalue_189 = 189\nvalue_190 = 190\nvalue_191 = 191\nvalue_192 = 192\nvalue_193 = 193\nvalue_194 = 194\nvalue_195 = 195\nvalue_196 = 196\nvalue_197 = 197\nvalue_198 = 198\nvalue_199 = 199\nvalue_200 = 200\nvalue_201 = 201\nvalue_202 = 202\nvalue_203 = 203\nvalue_204 = 204\nvalue_205 = 205\nvalue_206 = 206\nvalue_207 = 207\nvalue_208 = 208\nvalue_209 = 209\nvalue_210 = 210\nvalue_211 = 211\nvalue_212 = 212\nvalue_213 = 213\nvalue_214 = 214\nvalue_215 = 215\nvalue_216 = 216\nvalue_217 = 217\nvalue_218 = 218\nvalue_219 = 219\nvalue_220 = 220\nvalue_221 = 221\nvalue_222 = 222\nvalue_223 = 223\nvalue_224 = 224\nvalue_225 = 225\nvalue_226 = 226\nvalue_227 = 227\nvalue_228 = 228\nvalue_229 = 229\nvalue_230 = 230\nvalue_231 = 231\nvalue_232 = 232\nvalue_233 = 233\nvalue_234 = 234\nvalue_235 = 235\nvalue_236 = 236\nvalue_237 = 237\nvalue_238 = 238\nvalue_239 = 239\nvalue_240 = 240\nvalue_241 = 241\nvalue_242 = 242\nvalue_243 = 243\nvalue_244 = 244\nvalue_245 = 245\nvalue_246 = 246\nvalue_247 = 247\nvalue_248 = 248\nvalue_249 = 249\nvalue_250 = 250\nvalue_251 = 251\nvalue_252 = 252\nvalue_253 = 253\nvalue_254 = 254\nvalue_255 = 255\nvalue_256 = 256\nvalue_257 = 257\nvalue_258 = 258\nvalue_259 = 259\nvalue_260 = 260\nvalue_261 = 261\nvalue_262 = 262\nvalue_263 = 263\nvalue_264 = 264\nvalue_265 = 265\nvalue_266 = 266\nvalue_267 = 267\nvalue_268 = 268\nvalue_269 = 269\nvalue_270 = 270\nvalue_271 = 271\nvalue_272 = 272\nvalue_273 = 273\nvalue_274 = 274\nvalue_275 = 275\nvalue_276 = 276\nvalue_277 = 277\nvalue_278 = 278\nvalue_279 = 279\nvalue_280 = 280\nvalue_281 = 281\nvalue_282 = 282\nvalue_283 = 283\nvalue_284 = 284\nvalue_285 = 285\nvalue_286 = 286\nvalue_287 = 287\nvalue_288 = 288\nvalue_289 = 289\nvalue_290 = 290\nvalue_291 = 291\nvalue_292 = 292\nvalue_293 = 293\nvalue_294 = 294\nvalue_295 = 295\nvalue_296 = 296\nvalue_297 = 297\nvalue_298 = 298\nvalue_299 = 299\nvalue_300 = 300\nvalue_301 = 301\nvalue_302 = 302\nvalue_303 = 303\nvalue_304 = 304\nvalue_305 = 305\nvalue_306 = 306\nvalue_307 = 307\nvalue_308 = 308\nvalue_309 = 309\nvalue_310 = 310\nvalue_311 = 311\nvalue_312 = 312\nvalue_313 = 313\nvalue_314 = 314\nvalue_315 = 315\nvalue_316 = 316\nvalue_317 = 317\nvalue_318 = 318\nvalue_319 = 319\nvalue_320 = 320\nvalue_321 = 321\nvalue_322 = 322\nvalue_323 = 323\nvalue_324 = 324\nvalue_325 = 325\nvalue_326 = 326\nvalue_327 = 327\nvalue_328 = 328\nvalue_329 = 329\nvalue_330 = 330\nvalue_331 = 331\nvalue_332 = 332\nvalue_333 = 333\nvalue_334 = 334\nvalue_335 = 335\nvalue_336 = 336\nvalue_337 = 337\nvalue_338 = 338\nvalue_339 = 339\nvalue_340 = 340\nvalue_341 = 341\nvalue_342 = 342\nvalue_343 = 343\nvalue_344 = 344\nvalue_345 = 345\nvalue_346 = 346\nvalue_347 = 347\nvalue_348 = 348\nvalue_349 = 349\nvalue_350 = 350\nvalue_351 = 351\nvalue_352 = 352\nvalue_353 = 353\nvalue_354 = 354\nvalue_355 = 355\nvalue_356 = 356\nvalue_357 = 357\nvalue_358 = 358\nvalue_359 = 359\nvalue_360 = 360\nvalue_361 = 361\nvalue_362 = 362\nvalue_363 = 363\nvalue_364 = 364\nvalue_365 = 365\nvalue_366 = 366\nvalue_367 = 367\nvalue_368 = 368\nvalue_369 = 369\nvalue_370 = 370\nvalue_371 = 371\nvalue_372 = 372\nvalue_373 = 373\nvalue_374 = 374\nvalue_375 = 375\nvalue_376 = 376\nvalue_377 = 377\nvalue_378 = 378\nvalue_379 = 379\nvalue_380 = 380\nvalue_381 = 381\nvalue_382 = 382\nvalue_383 = 383\nvalue_384 = 384\nvalue_385 = 385\nvalue_386 = 386\nvalue_387 = 387\nvalue_388 = 388\nvalue_389 = 389\nvalue_390 = 390\nvalue_391 = 391\nvalue_392 = 392\nvalue_393 = 393\nvalue_394 = 394\nvalue_395 = 395\nvalue_396 = 396\nvalue_397 = 397\nvalue_398 = 398\nvalue_399 = 399\nvalue_400 = 400\nvalue_401 = 401\nvalue_402 = 402\nvalue_403 = 403\nvalue_404 = 404\nvalue_405 = 405\nvalue_406 = 406\nvalue_407 = 407\nvalue_408 = 408\nvalue_409 = 409\nvalue_410 = 410\nvalue_411 = 411\nvalue_412 = 412\nvalue_413 = 413\nvalue_414 = 414\nvalue_415 = 415\nvalue_416 = 416\nvalue_417 = 417\nvalue_418 = 418\nvalue_419 = 419\nvalue_420 = 420\nvalue_421 = 421\nvalue_422 = 422\nvalue_423 = 423\nvalue_424 = 424\nvalue_425 = 425\nvalue_426 = 426\nvalue_427 = 427\nvalue_428 = 428\nvalue_429 = 429\nvalue_430 = 430\nvalue_431 = 431\nvalue_432 = 432\nvalue_433 = 433\nvalue_434 = 434\nvalue_435 = 435\nvalue_436 = 436\nvalue_437 = 437\nvalue_438 = 438\nvalue_439 = 439\nvalue_440 = 440\nvalue_441 = 441\nvalue_442 = 442\nvalue_443 = 443\nvalue_444 = 444\nvalue_445 = 445\nvalue_446 = 446\nvalue_447 = 447\nvalue_448 = 448\nvalue_449 = 449\nvalue_450 = 450\nvalue_451 = 451\nvalue_452 = 452\nvalue_453 = 453\nvalue_454 = 454\nvalue_455 = 455\nvalue_456 = 456\nvalue_457 = 457\nvalue_458 = 458\nvalue_459 = 459\nvalue_460 = 460\nvalue_461 = 461\nvalue_462 = 462\nvalue_463 = 463\nvalue_464 = 464\nvalue_465 = 465\nvalue_466 = 466\nvalue_467 = 467\nvalue_468 = 468\nvalue_469 = 469\nvalue_470 = 470\nvalue_471 = 471\nvalue_472 = 472\nvalue_473 = 473\nvalue_474 = 474\nvalue_475 = 475\nvalue_476 = 476\nvalue_477 = 477\nvalue_478 = 478\nvalue_479 = 479\nvalue_480 = 480\nvalue_481 = 481\nvalue_482 = 482\nvalue_483 = 483\nvalue_484 = 484\nvalue_485 = 485\nvalue_486 = 486\nvalue_487 = 487\nvalue_488 = 488\nvalue_489 = 489\nvalue_490 = 490\nvalue_491 = 491\nvalue_492 = 492\nvalue_493 = 493\nvalue_494 = 494\nvalue_495 = 495\nvalue_496 = 496\nvalue_497 = 497\nvalue_498 = 498\nvalue_499 = 499\nvalue_500 = 500\nvalue_501 = 501\nvalue_502 = 502\nvalue_503 = 503\nvalue_504 = 504\nvalue_505 = 505\nvalue_506 = 506\nvalue_507 = 507\nvalue_508 = 508\nvalue_509 = 509\nvalue_510 = 510\nvalue_511 = 511\nvalue_512 = 512\nvalue_513 = 513\nvalue_514 = 514\nvalue_515 = 515\nvalue_516 = 516\nvalue_517 = 517\nvalue_518 = 518\nvalue_519 = 519\nvalue_520 = 520\nvalue_521 = 521\nvalue_522 = 522\nvalue_523 = 523\nvalue_524 = 524\nvalue_525 = 525\nvalue_526 = 526\nvalue_527 = 527\nvalue_528 = 528\nvalue_529 = 529\nvalue_530 = 530\nvalue_531 = 531\nvalue_532 = 532\nvalue_533 = 533\nvalue_534 = 534\nvalue_535 = 535\nvalue_536 = 536\nvalue_537 = 537\nvalue_538 = 538\nvalue_539 = 539\nvalue_540 = 540\nvalue_541 = 541\nvalue_542 = 542\nvalue_543 = 543\nvalue_544 = 544\nvalue_545 = 545\nvalue_546 = 546\nvalue_547 = 547\nvalue_548 = 548\nvalue_549 = 549\nvalue_550 = 550\nvalue_551 = 551\nvalue_552 = 552\nvalue_553 = 553\nvalue_554 = 554\nvalue_555 = 555\nvalue_556 = 556\nvalue_557 = 557\nvalue_558 = 558\nvalue_559 = 559\nvalue_560 = 560\nvalue_561 = 561\nvalue_562 = 562\nvalue_563 = 563\nvalue_564 = 564\nvalue_565 = 565\nvalue_566 = 566\nvalue_567 = 567\nvalue_568 = 568\nvalue_569 = 569\nvalue_570 = 570\nvalue_571 = 571\nvalue_572 = 572\nvalue_573 = 573\nvalue_574 = 574\nvalue_575 = 575\nvalue_576 = 576\nvalue_577 = 577\nvalue_578 = 578\nvalue_579 = 579\nvalue_580 = 580\nvalue_581 = 581\nvalue_582 = 582\nvalue_583 = 583\nvalue_584 = 584\nvalue_585 = 585\nvalue_586 = 586\nvalue_587 = 587\nvalue_588 = 588\nvalue_589 = 589\nvalue_590 = 590\nvalue_591 = 591\nvalue_592 = 592\nvalue_593 = 593\nvalue_594 = 594\nvalue_595 = 595\nvalue_596 = 596\nvalue_597 = 597\nvalue_598 = 598\nvalue_599 = 599\nvalue_600 = 600\nvalue_601 = 601\nvalue_602 = 602\nvalue_603 = 603\nvalue_604 = 604\nvalue_605 = 605\nvalue_606 = 606\nvalue_607 = 607\nvalue_608 = 608\nvalue_609 = 609\nvalue_610 = 610\nvalue_611 = 611\nvalue_612 = 612\nvalue_613 = 613\nvalue_614 = 614\nvalue_615 = 615\nvalue_616 = 616\nvalue_617 = 617\nvalue_618 = 618\nvalue_619 = 619\nvalue_620 = 620\nvalue_621 = 621\nvalue_622 = 622\nvalue_623 = 623\nvalue_624 = 624\nvalue_625 = 625\nvalue_626 = 626\nvalue_627 = 627\nvalue_628 = 628\nvalue_629 = 629\nvalue_630 = 630\nvalue_631 = 631\nvalue_632 = 632\nvalue_633 = 633\nvalue_634 = 634\nvalue_635 = 635\nvalue_636 = 636\nvalue_637 = 637\nvalue_638 = 638\nvalue_639 = 639\nvalue_640 = 640\nvalue_641 = 641\nvalue_642 = 642\nvalue_643 = 643\nvalue_644 = 644\nvalue_645 = 645\nvalue_646 = 646\nvalue_647 = 647\nvalue_648 = 648\nvalue_649 = 649\nvalue_650 = 650\nvalue_651 = 651\nvalue_652 = 652\nvalue_653 = 653\nvalue_654 = 654\nvalue_655 = 655\nvalue_656 = 656\nvalue_657 = 657\nvalue_658 = 658\nvalue_659 = 659\nvalue_660 = 660\nvalue_661 = 661\nvalue_662 = 662\nvalue_663 = 663\nvalue_664 = 664\nvalue_665 = 665\nvalue_666 = 666\nvalue_667 = 667\nvalue_668 = 668\nvalue_669 = 669\nvalue_670 = 670\nvalue_671 = 671\nvalue_672 = 672\nvalue_673 = 673\nvalue_674 = 674\nvalue_675 = 675\nvalue_676 = 676\nvalue_677 = 677\nvalue_678 = 678\nvalue_679 = 679\nvalue_680 = 680\nvalue_681 = 681\nvalue_682 = 682\nvalue_683 = 683\nvalue_684 = 684\nvalue_685 = 685\nvalue_686 = 686\nvalue_687 = 687\nvalue_688 = 688\nvalue_689 = 689\nvalue_690 = 690\nvalue_691 = 691\nvalue_692 = 692\nvalue_693 = 693\nvalue_694 = 694\nvalue_695 = 695\nvalue_696 = 696\nvalue_697 = 697\nvalue_698 = 698\nvalue_699 = 699\nvalue_700 = 700\nvalue_701 = 701\nvalue_702 = 702\nvalue_703 = 703\nvalue_704 = 704\nvalue_705 = 705\nvalue_706 = 706\nvalue_707 = 707\nvalue_708 = 708\nvalue_709 = 709\nvalue_710 = 710\nvalue_711 = 711\nvalue_712 = 712\nvalue_713 = 713\nvalue_714 = 714\nvalue_715 = 715\nvalue_716 = 716\nvalue_717 = 717\nvalue_718 = 718\nvalue_719 = 719\nvalue_720 = 720\nvalue_721 = 721\nvalue_722 = 722\nvalue_723 = 723\nvalue_724 = 724\nvalue_725 = 725\nvalue_726 = 726\nvalue_727 = 727\nvalue_728 = 728\nvalue_729 = 729\nvalue_730 = 730\nvalue_731 = 731\nvalue_732 = 732\nvalue_733 = 733\nvalue_734 = 734\nvalue_735 = 735\nvalue_736 = 736\nvalue_737 = 737\nvalue_738 = 738\nvalue_739 = 739\nvalue_740 = 740\nvalue_741 = 741\nvalue_742 = 742\nvalue_743 = 743\nvalue_744 = 744\nvalue_745 = 745\nvalue_746 = 746\nvalue_747 = 747\nvalue_748 = 748\nvalue_749 = 749\nvalue_750 = 750\nvalue_751 = 751\nvalue_752 = 752\nvalue_753 = 753\nvalue_754 = 754\nvalue_755 = 755\nvalue_756 = 756\nvalue_757 = 757\nvalue_758 = 758\nvalue_759 = 759\nvalue_760 = 760\nvalue_761 = 761\nvalue_762 = 762\nvalue_763 = 763\nvalue_764 = 764\nvalue_765 = 765\nvalue_766 = 766\nvalue_767 = 767\nvalue_768 = 768\nvalue_769 = 769\nvalue_770 = 770\nvalue_771 = 771\nvalue_772 = 772\nvalue_773 = 773\nvalue_774 = 774\nvalue_775 = 775\nvalue_776 = 776\nvalue_777 = 777\nvalue_778 = 778\nvalue_779 = 779\nvalue_780 = 780\nvalue_781 = 781\nvalue_782 = 782\nvalue_783 = 783\nvalue_784 = 784\nvalue_785 = 785\nvalue_786 = 786\nvalue_787 = 787\nvalue_788 = 788\nvalue_789 = 789\nvalue_790 = 790\nvalue_791 = 791\nvalue_792 = 792\nvalue_793 = 793\nvalue_794 = 794\nvalue_795 = 795\nvalue_796 = 796\nvalue_797 = 797\nvalue_798 = 798\nvalue_799 = 799\nvalue_800 = 800\nvalue_801 = 801\nvalue_802 = 802\nvalue_803 = 803\nvalue_804 = 804\nvalue_805 = 805\nvalue_806 = 806\nvalue_807 = 807\nvalue_808 = 808\nvalue_809 = 809\nvalue_810 = 810\nvalue_811 = 811\nvalue_812 = 812\nvalue_813 = 813\nvalue_814 = 814\nvalue_815 = 815\nvalue_816 = 816\nvalue_817 = 817\nvalue_818 = 818\nvalue_819 = 819\nvalue_820 = 820\nvalue_821 = 821\nvalue_822 = 822\nvalue_823 = 823\nvalue_824 = 824\nvalue_825 = 825\nvalue_826 = 826\nvalue_827 = 827\nvalue_828 = 828\nvalue_829 = 829\nvalue_830 = 830\nvalue_831 = 831\nvalue_832 = 832\nvalue_833 = 833\nvalue_834 = 834\nvalue_835 = 835\nvalue_836 = 836\nvalue_837 = 837\nvalue_838 = 838\nvalue_839 = 839\nvalue_840 = 840\nvalue_841 = 841\nvalue_842 = 842\nvalue_843 = 843\nvalue_844 = 844\nvalue_845 = 845\nvalue_846 = 846\nvalue_847 = 847\nvalue_848 = 848\nvalue_849 = 849\nvalue_850 = 850\nvalue_851 = 851\nvalue_852 = 852\nvalue_853 = 853\nvalue_854 = 854\nvalue_855 = 855\nvalue_856 = 856\nvalue_857 = 857\nvalue_858 = 858\nvalue_859 = 859\nvalue_860 = 860\nvalue_861 = 861\nvalue_862 = 862\nvalue_863 = 863\nvalue_864 = 864\nvalue_865 = 865\nvalue_866 = 866\nvalue_867 = 867\nvalue_868 = 868\nvalue_869 = 869\nvalue_870 = 870\nvalue_871 = 871\nvalue_872 = 872\nvalue_873 = 873\nvalue_874 = 874\nvalue_875 = 875\nvalue_876 = 876\nvalue_877 = 877\nvalue_878 = 878\nvalue_879 = 879\nvalue_880 = 880\nvalue_881 = 881\nvalue_882 = 882\nvalue_883 = 883\nvalue_884 = 884\nvalue_885 = 885\nvalue_886 = 886\nvalue_887 = 887\nvalue_888 = 888\nvalue_889 = 889\nvalue_890 = 890\nvalue_891 = 891\nvalue_892 = 892\nvalue_893 = 893\nvalue_894 = 894\nvalue_895 = 895\nvalue_896 = 896\nvalue_897 = 897\nvalue_898 = 898\nvalue_899 = 899\nvalue_900 = 900\nvalue_901 = 901\nvalue_902 = 902\nvalue_903 = 903\nvalue_904 = 904\nvalue_905 = 905\nvalue_906 = 906\nvalue_907 = 907\nvalue_908 = 908\nvalue_909 = 909\nvalue_910 = 910\nvalue_911 = 911\nvalue_912 = 912\nvalue_913 = 913\nvalue_914 = 914\nvalue_915 = 915\nvalue_916 = 916\nvalue_917 = 917\nvalue_918 = 918\nvalue_919 = 919\nvalue_920 = 920\nvalue_921 = 921\nvalue_922 = 922\nvalue_923 = 923\nvalue_924 = 924\nvalue_925 = 925\nvalue_926 = 926\nvalue_927 = 927\nvalue_928 = 928\nvalue_929 = 929\nvalue_930 = 930\nvalue_931 = 931\nvalue_932 = 932\nvalue_933 = 933\nvalue_934 = 934\nvalue_935 = 935\nvalue_936 = 936\nvalue_937 = 937\nvalue_938 = 938\nvalue_939 = 939\nvalue_940 = 940\nvalue_941 = 941\nvalue_942 = 942\nvalue_943 = 943\nvalue_944 = 944\nvalue_945 = 945\nvalue_946 = 946\nvalue_947 = 947\nvalue_948 = 948\nvalue_949 = 949\nvalue_950 = 950\nvalue_951 = 951\nvalue_952 = 952\nvalue_953 = 953\nvalue_954 = 954\nvalue_955 = 955\nvalue_956 = 956\nvalue_957 = 957\nvalue_958 = 958\nvalue_959 = 959\nvalue_960 = 960\nvalue_961 = 961\nvalue_962 = 962\nvalue_963 = 963\nvalue_964 = 964\nvalue_965 = 965\nvalue_966 = 966\nvalue_967 = 967\nvalue_968 = 968\nvalue_969 = 969\nvalue_970 = 970\nvalue_971 = 971\nvalue_972 = 972\nvalue_973 = 973\nvalue_974 = 974\nvalue_975 = 975\nvalue_976 = 976\nvalue_977 = 977\nvalue_978 = 978\nvalue_979 = 979\nvalue_980 = 980\nvalue_981 = 981\nvalue_982 = 982\nvalue_983 = 983\nvalue_984 = 984\nvalue_985 = 985\nvalue_986 = 986\nvalue_987 = 987\nvalue_988 = 988\nvalue_989 = 989\nvalue_990 = 990\nvalue_991 = 991\nvalue_992 = 992\nvalue_993 = 993\nvalue_994 = 994\nvalue_995 = 995\nvalue_996 = 996\nvalue_997 = 997\nvalue_998 = 998\nvalue_999 = 999\nvalue_1000 = 1000\nvalue_1001 = 1001\nvalue_1002 = 1002\nvalue_1003 = 1003\nvalue_1004 = 1004\nvalue_1005 = 1005\nvalue_1006 = 1006\nvalue_1007 = 1007\nvalue_1008 = 1008\nvalue_1009 = 1009\nvalue_1010 = 1010\nvalue_1011 = 1011\nvalue_1012 = 1012\nvalue_1013 = 1013\nvalue_1014 = 1014\nvalue_1015 = 1015\nvalue_1016 = 1016\nvalue_1017 = 1017\nvalue_1018 = 1018\nvalue_1019 = 1019\nvalue_1020 = 1020\nvalue_1021 = 1021\nvalue_1022 = 1022\nvalue_1023 = 1023\nvalue_1024 = 1024\nvalue_1025 = 1025\nvalue_1026 = 1026\nvalue_1027 = 1027\nvalue_1028 = 1028\nvalue_1029 = 1029\nvalue_1030 = 1030\nvalue_1031 = 1031\nvalue_1032 = 1032\nvalue_1033 = 1033\nvalue_1034 = 1034\nvalue_1035 = 1035\nvalue_1036 = 1036\nvalue_1037 = 1037\nvalue_1038 = 1038\nvalue_1039 = 1039\nvalue_1040 = 1040\nvalue_1041 = 1041\nvalue_1042 = 1042\nvalue_1043 = 1043\nvalue_1044 = 1044\nvalue_1045 = 1045\nvalue_1046 = 1046\nvalue_1047 = 1047\nvalue_1048 = 1048\nvalue_1049 = 1049\nvalue_1050 = 1050\nvalue_1051 = 1051\nvalue_1052 = 1052\nvalue_1053 = 1053\nvalue_1054 = 1054\nvalue_1055 = 1055\nvalue_1056 = 1056\nvalue_1057 = 1057\nvalue_1058 = 1058\nvalue_1059 = 1059\nvalue_1060 = 1060\nvalue_1061 = 1061\nvalue_1062 = 1062\nvalue_1063 = 1063\nvalue_1064 = 1064\nvalue_1065 = 1065\nvalue_1066 = 1066\nvalue_1067 = 1067\nvalue_1068 = 1068\nvalue_1069 = 1069\nvalue_1070 = 1070\nvalue_1071 = 1071\nvalue_1072 = 1072\nvalue_1073 = 1073\nvalue_1074 = 1074\nvalue_1075 = 1075\nvalue_1076 = 1076\nvalue_1077 = 1077\nvalue_1078 = 1078\nvalue_1079 = 1079\nvalue_1080 = 1080\nvalue_1081 = 1081\nvalue_1082 = 1082\nvalue_1083 = 1083\nvalue_1084 = 1084\nvalue_1085 = 1085\nvalue_1086 = 1086\nvalue_1087 = 1087\nvalue_1088 = 1088\nvalue_1089 = 1089\nvalue_1090 = 1090\nvalue_1091 = 1091\nvalue_1092 = 1092\nvalue_1093 = 1093\nvalue_1094 = 1094\nvalue_1095 = 1095\nvalue_1096 = 1096\nvalue_1097 = 1097\nvalue_1098 = 1098\nvalue_1099 = 1099\nvalue_1100 = 1100\nvalue_1101 = 1101\nvalue_1102 = 1102\nvalue_1103 = 1103\nvalue_1104 = 1104\nvalue_1105 = 1105\nvalue_1106 = 1106\nvalue_1107 = 1107\nvalue_1108 = 1108\nvalue_1109 = 1109\nvalue_1110 = 1110\nvalue_1111 = 1111\nvalue_1112 = 1112\nvalue_1113 = 1113\nvalue_1114 = 1114\nvalue_1115 = 1115\nvalue_1116 = 1116\nvalue_1117 = 1117\nvalue_1118 = 1118\nvalue_1119 = 1119\nvalue_1120 = 1120\nvalue_1121 = 1121\nvalue_1122 = 1122\nvalue_1123 = 1123\nvalue_1124 = 1124\nvalue_1125 = 1125\nvalue_1126 = 1126\nvalue_1127 = 1127\nvalue_1128 = 1128\nvalue_1129 = 1129\nvalue_1130 = 1130\nvalue_1131 = 1131\nvalue_1132 = 1132\nvalue_1133 = 1133\nvalue_1134 = 1134\nvalue_1135 = 1135\nvalue_1136 = 1136\nvalue_1137 = 1137\nvalue_1138 = 1138\nvalue_1139 = 1139\nvalue_1140 = 1140\nvalue_1141 = 1141\nvalue_1142 = 1142\nvalue_1143 = 1143\nvalue_1144 = 1144\nvalue_1145 = 1145\nvalue_1146 = 1146\nvalue_1147 = 1147\nvalue_1148 = 1148\nvalue_1149 = 1149\nvalue_1150 = 1150\nvalue_1151 = 1151\nvalue_1152 = 1152\nvalue_1153 = 1153\nvalue_1154 = 1154\nvalue_1155 = 1155\nvalue_1156 = 1156\nvalue_1157 = 1157\nvalue_1158 = 1158\nvalue_1159 = 1159\nvalue_1160 = 1160\nvalue_1161 = 1161\nvalue_1162 = 1162\nvalue_1163 = 1163\nvalue_1164 = 1164\nvalue_1165 = 1165\nvalue_1166 = 1166\nvalue_1167 = 1167\nvalue_1168 = 1168\nvalue_1169 = 1169\nvalue_1170 = 1170\nvalue_1171 = 1171\nvalue_1172 = 1172\nvalue_1173 = 1173\nvalue_1174 = 1174\nvalue_1175 = 1175\nvalue_1176 = 1176\nvalue_1177 = 1177\nvalue_1178 = 1178\nvalue_1179 = 1179\nvalue_1180 = 1180\nvalue_1181 = 1181\nvalue_1182 = 1182\nvalue_1183 = 1183\nvalue_1184 = 1184\nvalue_1185 = 1185\nvalue_1186 = 1186\nvalue_1187 = 1187\nvalue_1188 = 1188\nvalue_1189 = 1189\nvalue_1190 = 1190\nvalue_1191 = 1191\nvalue_1192 = 1192\nvalue_1193 = 1193\nvalue_1194 = 1194\nvalue_1195 = 1195\nvalue_1196 = 1196\nvalue_1197 = 1197\nvalue_1198 = 1198\nvalue_1199 = 1199\nvalue_1200 = 1200\nvalue_1201 = 1201\nvalue_1202 = 1202\nvalue_1203 = 1203\nvalue_1204 = 1204\nvalue_1205 = 1205\nvalue_1206 = 1206\nvalue_1207 = 1207\nvalue_1208 = 1208\nvalue_1209 = 1209\nvalue_1210 = 1210\nvalue_1211 = 1211\nvalue_1212 = 1212\nvalue_1213 = 1213\nvalue_1214 = 1214\nvalue_1215 = 1215\nvalue_1216 = 1216\nvalue_1217 = 1217\nvalue_1218 = 1218\nvalue_1219 = 1219\nvalue_1220 = 1220\nvalue_1221 = 1221\nvalue_1222 = 1222\nvalue_1223 = 1223\nvalue_1224 = 1224\nvalue_1225 = 1225\nvalue_1226 = 1226\nvalue_1227 = 1227\nvalue_1228 = 1228\nvalue_1229 = 1229\nvalue_1230 = 1230\nvalue_1231 = 1231\nvalue_1232 = 1232\nvalue_1233 = 1233\nvalue_1234 = 1234\nvalue_1235 = 1235\nvalue_1236 = 1236\nvalue_1237 = 1237\nvalue_1238 = 1238\nvalue_1239 = 1239\nvalue_1240 = 1240\nvalue_1241 = 1241\nvalue_1242 = 1242\nvalue_1243 = 1243\nvalue_1244 = 1244\nvalue_1245 = 1245\nvalue_1246 = 1246\nvalue_1247 = 1247\nvalue_1248 = 1248\nvalue_1249 = 1249\nvalue_1250 = 1250\nvalue_1251 = 1251\nvalue_1252 = 1252\nvalue_1253 = 1253\nvalue_1254 = 1254\nvalue_1255 = 1255\nvalue_1256 = 1256\nvalue_1257 = 1257\nvalue_1258 = 1258\nvalue_1259 = 1259\nvalue_1260 = 1260\nvalue_1261 = 1261\nvalue_1262 = 1262\nvalue_1263 = 1263\nvalue_1264 = 1264\nvalue_1265 = 1265\nvalue_1266 = 1266\nvalue_1267 = 1267\nvalue_1268 = 1268\nvalue_1269 = 1269\nvalue_1270 = 1270\nvalue_1271 = 1271\nvalue_1272 = 1272\nvalue_1273 = 1273\nvalue_1274 = 1274\nvalue_1275 = 1275\nvalue_1276 = 1276\nvalue_1277 = 1277\nvalue_1278 = 1278\nvalue_1279 = 1279\nvalue_1280 = 1280\nvalue_1281 = 1281\nvalue_1282 = 1282\nvalue_1283 = 1283\nvalue_1284 = 1284\nvalue_1285 = 1285\nvalue_1286 = 1286\nvalue_1287 = 1287\nvalue_1288 = 1288\nvalue_1289 = 1289\nvalue_1290 = 1290\nvalue_1291 = 1291\nvalue_1292 = 1292\nvalue_1293 = 1293\nvalue_1294 = 1294\nvalue_1295 = 1295\nvalue_1296 = 1296\nvalue_1297 = 1297\nvalue_1298 = 1298\nvalue_1299 = 1299\nvalue_1300 = 1300\nvalue_1301 = 1301\nvalue_1302 = 1302\nvalue_1303 = 1303\nvalue_1304 = 1304\nvalue_1305 = 1305\nvalue_1306 = 1306\nvalue_1307 = 1307\nvalue_1308 = 1308\nvalue_1309 = 1309\nvalue_1310 = 1310\nvalue_1311 = 1311\nvalue_1312 = 1312\nvalue_1313 = 1313\nvalue_1314 = 1314\nvalue_1315 = 1315\nvalue_1316 = 1316\nvalue_1317 = 1317\nvalue_1318 = 1318\nvalue_1319 = 1319\nvalue_1320 = 1320\nvalue_1321 = 1321\nvalue_1322 = 1322\nvalue_1323 = 1323\nvalue_1324 = 1324\nvalue_1325 = 1325\nvalue_1326 = 1326\nvalue_1327 = 1327\nvalue_1328 = 1328\nvalue_1329 = 1329\nvalue_1330 = 1330\nvalue_1331 = 1331\nvalue_1332 = 1332\nvalue_1333 = 1333\nvalue_1334 = 1334\nvalue_1335 = 1335\nvalue_1336 = 1336\nvalue_1337 = 1337\nvalue_1338 = 1338\nvalue_1339 = 1339\nvalue_1340 = 1340\nvalue_1341 = 1341\nvalue_1342 = 1342\nvalue_1343 = 1343\nvalue_1344 = 1344\nvalue_1345 = 1345\nvalue_1346 = 1346\nvalue_1347 = 1347\nvalue_1348 = 1348\nvalue_1349 = 1349\nvalue_1350 = 1350\nvalue_1351 = 1351\nvalue_1352 = 1352\nvalue_1353 = 1353\nvalue_1354 = 1354\nvalue_1355 = 1355\nvalue_1356 = 1356\nvalue_1357 = 1357\nvalue_1358 = 1358\nvalue_1359 = 1359\nvalue_1360 = 1360\nvalue_1361 = 1361\nvalue_1362 = 1362\nvalue_1363 = 1363\nvalue_1364 = 1364\nvalue_1365 = 1365\nvalue_1366 = 1366\nvalue_1367 = 1367\nvalue_1368 = 1368\nvalue_1369 = 1369\nvalue_1370 = 1370\nvalue_1371 = 1371\nvalue_1372 = 1372\nvalue_1373 = 1373\nvalue_1374 = 1374\nvalue_1375 = 1375\nvalue_1376 = 1376\nvalue_1377 = 1377\nvalue_1378 = 1378\nvalue_1379 = 1379\nvalue_1380 = 1380\nvalue_1381 = 1381\nvalue_1382 = 1382\nvalue_1383 = 1383\nvalue_1384 = 1384\nvalue_1385 = 1385\nvalue_1386 = 1386\nvalue_1387 = 1387\nvalue_1388 = 1388\nvalue_1389 = 1389\nvalue_1390 = 1390\nvalue_1391 = 1391\nvalue_1392 = 1392\nvalue_1393 = 1393\nvalue_1394 = 1394\nvalue_1395 = 1395\nvalue_1396 = 1396\nvalue_1397 = 1397\nvalue_1398 = 1398\nvalue_1399 = 1399\nvalue_1400 = 1400\nvalue_1401 = 1401\nvalue_1402 = 1402\nvalue_1403 = 1403\nvalue_1404 = 1404\nvalue_1405 = 1405\nvalue_1406 = 1406\nvalue_1407 = 1407\nvalue_1408 = 1408\nvalue_1409 = 1409\nvalue_1410 = 1410\nvalue_1411 = 1411\nvalue_1412 = 1412\nvalue_1413 = 1413\nvalue_1414 = 1414\nvalue_1415 = 1415\nvalue_1416 = 1416\nvalue_1417 = 1417\nvalue_1418 = 1418\nvalue_1419 = 1419\nvalue_1420 = 1420\nvalue_1421 = 1421\nvalue_1422 = 1422\nvalue_1423 = 1423\nvalue_1424 = 1424\nvalue_1425 = 1425\nvalue_1426 = 1426\nvalue_1427 = 1427\nvalue_1428 = 1428\nvalue_1429 = 1429\nvalue_1430 = 1430\nvalue_1431 = 1431\nvalue_1432 = 1432\nvalue_1433 = 1433\nvalue_1434 = 1434\nvalue_1435 = 1435\nvalue_1436 = 1436\nvalue_1437 = 1437\nvalue_1438 = 1438\nvalue_1439 = 1439\nvalue_1440 = 1440\nvalue_1441 = 1441\nvalue_1442 = 1442\nvalue_1443 = 1443\nvalue_1444 = 1444\nvalue_1445 = 1445\nvalue_1446 = 1446\nvalue_1447 = 1447\nvalue_1448 = 1448\nvalue_1449 = 1449\nvalue_1450 = 1450\nvalue_1451 = 1451\nvalue_1452 = 1452\nvalue_1453 = 1453\nvalue_1454 = 1454\nvalue_1455 = 1455\nvalue_1456 = 1456\nvalue_1457 = 1457\nvalue_1458 = 1458\nvalue_1459 = 1459\nvalue_1460 = 1460\nvalue_1461 = 1461\nvalue_1462 = 1462\nvalue_1463 = 1463\nvalue_1464 = 1464\nvalue_1465 = 1465\nvalue_1466 = 1466\nvalue_1467 = 1467\nvalue_1468 = 1468\nvalue_1469 = 1469\nvalue_1470 = 1470\nvalue_1471 = 1471\nvalue_1472 = 1472\nvalue_1473 = 1473\nvalue_1474 = 1474\nvalue_1475 = 1475\nvalue_1476 = 1476\nvalue_1477 = 1477\nvalue_1478 = 1478\nvalue_1479 = 1479\nvalue_1480 = 1480\nvalue_1481 = 1481\nvalue_1482 = 1482\nvalue_1483 = 1483\nvalue_1484 = 1484\nvalue_1485 = 1485\nvalue_1486 = 1486\nvalue_1487 = 1487\nvalue_1488 = 1488\nvalue_1489 = 1489\nvalue_1490 = 1490\nvalue_1491 = 1491\nvalue_1492 = 1492\nvalue_1493 = 1493\nvalue_1494 = 1494\nvalue_1495 = 1495\nvalue_1496 = 1496\nvalue_1497 = 1497\nvalue_1498 = 1498\nvalue_1499 = 1499\n"
+              }
+            },
+            "file": "module.py",
+            "maxBuffer": 65536
+          }
+        ],
+        "omit": [
+          "/runtime",
+          "/results/*/runtime",
+          "/error/message"
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          false
+        ],
+        [
+          "/error/code",
+          "PYTHON_ANALYZER_FAILED"
+        ],
+        [
+          "/source/sizeBytes",
+          24780
+        ]
+      ],
+      "output_sha256": "9cb9085bc6f798dba419804ef2c20bb61b04666159adef1c36fdf2eb634cf235"
+    },
+    {
+      "id": "analyze-rejects-out-of-range-buffer-limit",
+      "class": "negative",
+      "origin": "rejected by design: analyzer: a maxBuffer below 65536 throws",
+      "call": {
+        "module": "scanners/language/python/analyzer.mjs",
+        "fn": "analyzePythonFile",
+        "args": [
+          {
+            "repoRoot": {
+              "$tree": {
+                "module.py": "x = 1\n"
+              }
+            },
+            "file": "module.py",
+            "maxBuffer": 1024
+          }
+        ],
+        "omit": [
+          "/runtime",
+          "/results/*/runtime"
+        ]
+      },
+      "expect": [
+        [
+          "/threw/message",
+          "maxBuffer must be between 65536 and 16777216"
+        ]
+      ],
+      "output_sha256": "8652af8ec68096df1cff9bc8166d868eed9d14fadeb06ec7b9da5abf1abc82e7"
+    },
+    {
+      "id": "batch-sorted-by-source-path",
+      "class": "normal",
+      "origin": "batch: results are ordered by source path whatever the input order",
+      "call": {
+        "module": "scanners/language/python/analyzer.mjs",
+        "fn": "analyzePythonFiles",
+        "args": [
+          {
+            "repoRoot": {
+              "$tree": {
+                "z.py": "z = 1\n",
+                "a.py": "a = 2\n"
+              }
+            },
+            "files": [
+              "z.py",
+              "a.py"
+            ]
+          }
+        ],
+        "omit": [
+          "/runtime",
+          "/results/*/runtime"
+        ]
+      },
+      "expect": [
+        [
+          "/protocol",
+          "bskel.python-ast.batch-response/1"
+        ],
+        [
+          "/ok",
+          true
+        ],
+        [
+          "/results/length",
+          2
+        ],
+        [
+          "/results/0/source/path",
+          "a.py"
+        ],
+        [
+          "/results/1/source/path",
+          "z.py"
+        ]
+      ],
+      "output_sha256": "6d87fb4c9e465cc913d2bb4309684b0d2a4a73a42972c5930f30e1339d69b3a9"
+    },
+    {
+      "id": "batch-keeps-per-file-failures",
+      "class": "negative",
+      "origin": "rejected by design: batch: a bad file fails alone, the good file is still analysed",
+      "call": {
+        "module": "scanners/language/python/analyzer.mjs",
+        "fn": "analyzePythonFiles",
+        "args": [
+          {
+            "repoRoot": {
+              "$tree": {
+                "good.py": "x = 1\n",
+                "bad.py": "def broken(:\n"
+              }
+            },
+            "files": [
+              "good.py",
+              "bad.py"
+            ]
+          }
+        ],
+        "omit": [
+          "/runtime",
+          "/results/*/runtime",
+          "/error/message",
+          "/error/column",
+          "/error/end_line",
+          "/error/end_column",
+          "/results/*/error/message",
+          "/results/*/error/column",
+          "/results/*/error/end_line",
+          "/results/*/error/end_column"
+        ]
+      },
+      "expect": [
+        [
+          "/ok",
+          false
+        ],
+        [
+          "/results/0/source/path",
+          "bad.py"
+        ],
+        [
+          "/results/0/error/code",
+          "PYTHON_SYNTAX_ERROR"
+        ],
+        [
+          "/results/1/source/path",
+          "good.py"
+        ],
+        [
+          "/results/1/ok",
+          true
+        ]
+      ],
+      "output_sha256": "b2e8c582ab1a0201e4541711b05a999e91e20c81c1f948effa97d5ea23ddd231"
+    },
+    {
+      "id": "batch-rejects-excessive-file-list",
+      "class": "negative",
+      "origin": "rejected by design: batch: more files than maxFiles throws before any analysis",
+      "call": {
+        "module": "scanners/language/python/analyzer.mjs",
+        "fn": "analyzePythonFiles",
+        "args": [
+          {
+            "repoRoot": {
+              "$tree": {
+                "one.py": "x = 1\n"
+              }
+            },
+            "files": [
+              "one.py",
+              "one.py"
+            ],
+            "maxFiles": 1
+          }
+        ],
+        "omit": [
+          "/runtime",
+          "/results/*/runtime"
+        ]
+      },
+      "expect": [
+        [
+          "/threw/message",
+          "Python file list exceeds configured 1-file analysis limit"
+        ]
+      ],
+      "output_sha256": "c525b3f31248f8c558c947caf33053671eb477291ca719d8aff5854d0b7c3fb8"
+    },
+    {
+      "id": "resolver-dotted-import-and-alias",
+      "class": "normal",
+      "origin": "resolver: an alias binds the imported submodule",
+      "call": {
+        "module": "scanners/language/python/resolver.mjs",
+        "fn": "resolvePythonSymbol",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "pkg/__init__.py": "",
+                            "pkg/sub/__init__.py": "",
+                            "consumer.py": "import pkg.sub\nimport pkg.sub as ps\n"
+                          }
+                        },
+                        "files": [
+                          "pkg/__init__.py",
+                          "pkg/sub/__init__.py",
+                          "consumer.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          },
+          "consumer",
+          "ps"
+        ]
+      },
+      "expect": [
+        [
+          "/status",
+          "resolved"
+        ],
+        [
+          "/locality",
+          "local"
+        ],
+        [
+          "/module",
+          "pkg.sub"
+        ],
+        [
+          "/name",
+          null
+        ]
+      ],
+      "output_sha256": "1669485fa19772c38d02870104711b4468150399b196b09aa527df4ad6e69973"
+    },
+    {
+      "id": "resolver-bare-dotted-import-binds-top-level",
+      "class": "normal",
+      "origin": "resolver: import pkg.sub without an alias binds the top-level package",
+      "call": {
+        "module": "scanners/language/python/resolver.mjs",
+        "fn": "resolvePythonSymbol",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "pkg/__init__.py": "",
+                            "pkg/sub/__init__.py": "",
+                            "consumer.py": "import pkg.sub\n"
+                          }
+                        },
+                        "files": [
+                          "pkg/__init__.py",
+                          "pkg/sub/__init__.py",
+                          "consumer.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          },
+          "consumer",
+          "pkg"
+        ]
+      },
+      "expect": [
+        [
+          "/status",
+          "resolved"
+        ],
+        [
+          "/locality",
+          "local"
+        ],
+        [
+          "/module",
+          "pkg"
+        ],
+        [
+          "/name",
+          null
+        ]
+      ],
+      "output_sha256": "7ef0cc53b6fa577a506c170fe5969a3f07f8881115d3ca14a25f31e31b2d1ed2"
+    },
+    {
+      "id": "resolver-reexport-through-package-init",
+      "class": "normal",
+      "origin": "resolver: a class re-exported by a package resolves to its defining module",
+      "call": {
+        "module": "scanners/language/python/resolver.mjs",
+        "fn": "resolvePythonSymbol",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "pkg/models.py": "class User:\n    pass\n",
+                            "pkg/__init__.py": "from .models import User\n",
+                            "consumer.py": "from pkg import User as UserModel\n"
+                          }
+                        },
+                        "files": [
+                          "pkg/models.py",
+                          "pkg/__init__.py",
+                          "consumer.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          },
+          "consumer",
+          "UserModel"
+        ]
+      },
+      "expect": [
+        [
+          "/status",
+          "resolved"
+        ],
+        [
+          "/locality",
+          "local"
+        ],
+        [
+          "/module",
+          "pkg.models"
+        ],
+        [
+          "/name",
+          "User"
+        ]
+      ],
+      "output_sha256": "2ee79e3c9cf4b1713892559cf0b53f3ae6b58c80d174529a899bb23efc9247ae"
+    },
+    {
+      "id": "resolver-external-import",
+      "class": "normal",
+      "origin": "resolver: an import with no local module resolves as external",
+      "call": {
+        "module": "scanners/language/python/resolver.mjs",
+        "fn": "resolvePythonSymbol",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "consumer.py": "from fastapi import APIRouter\n"
+                          }
+                        },
+                        "files": [
+                          "consumer.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          },
+          "consumer",
+          "APIRouter"
+        ]
+      },
+      "expect": [
+        [
+          "/status",
+          "resolved"
+        ],
+        [
+          "/locality",
+          "external"
+        ],
+        [
+          "/module",
+          "fastapi"
+        ],
+        [
+          "/name",
+          "APIRouter"
+        ]
+      ],
+      "output_sha256": "e90563422ff78d90c78d199fd3a45194e1568bc83fb7b489e937011f23ac438c"
+    },
+    {
+      "id": "resolver-duplicate-module-is-a-collision",
+      "class": "negative",
+      "origin": "rejected by design: resolver: foo.py next to foo/__init__.py is ambiguous, never silently chosen",
+      "call": {
+        "module": "scanners/language/python/resolver.mjs",
+        "fn": "resolvePythonSymbol",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "foo.py": "x = 1\n",
+                            "foo/__init__.py": "y = 2\n",
+                            "consumer.py": "import foo\n"
+                          }
+                        },
+                        "files": [
+                          "foo.py",
+                          "foo/__init__.py",
+                          "consumer.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          },
+          "consumer",
+          "foo"
+        ]
+      },
+      "expect": [
+        [
+          "/status",
+          "unknown"
+        ],
+        [
+          "/reason",
+          "ambiguous-module"
+        ],
+        [
+          "/module",
+          "foo"
+        ]
+      ],
+      "output_sha256": "36a8c280381cb8fb81deed0180962804dec40a43d83c5a471b88afc4bf5eb00d"
+    },
+    {
+      "id": "resolver-cyclic-reexports-fail-closed",
+      "class": "negative",
+      "origin": "rejected by design: resolver: a re-export cycle is unknown, not an endless loop",
+      "call": {
+        "module": "scanners/language/python/resolver.mjs",
+        "fn": "resolvePythonSymbol",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "pkg/__init__.py": "",
+                            "pkg/a.py": "from .b import Thing\n",
+                            "pkg/b.py": "from .a import Thing\n",
+                            "consumer.py": "from pkg.a import Thing\n"
+                          }
+                        },
+                        "files": [
+                          "pkg/__init__.py",
+                          "pkg/a.py",
+                          "pkg/b.py",
+                          "consumer.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          },
+          "consumer",
+          "Thing"
+        ]
+      },
+      "expect": [
+        [
+          "/status",
+          "unknown"
+        ],
+        [
+          "/reason",
+          "cyclic-symbol-alias"
+        ]
+      ],
+      "output_sha256": "e4ef85875789859e166d042a81dd852027c99b2d759f94112e9da8878067cf04"
+    },
+    {
+      "id": "resolver-from-import-ambiguity",
+      "class": "negative",
+      "origin": "rejected by design: resolver: a symbol and a same-named submodule stay ambiguous",
+      "call": {
+        "module": "scanners/language/python/resolver.mjs",
+        "fn": "resolvePythonSymbol",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "pkg/__init__.py": "class models:\n    pass\n",
+                            "pkg/models.py": "class Base:\n    pass\n",
+                            "consumer.py": "from pkg import models\n"
+                          }
+                        },
+                        "files": [
+                          "pkg/__init__.py",
+                          "pkg/models.py",
+                          "consumer.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          },
+          "consumer",
+          "models"
+        ]
+      },
+      "expect": [
+        [
+          "/status",
+          "unknown"
+        ],
+        [
+          "/reason",
+          "ambiguous-import-target"
+        ]
+      ],
+      "output_sha256": "e72a56853135050883fb41caac100af280729cd4198ac97b01e27e2bd6f7883a"
+    },
+    {
+      "id": "resolver-star-import-is-not-expanded",
+      "class": "negative",
+      "origin": "rejected by design: resolver: a star import is not expanded, so the name is unknown (no reason is reported)",
+      "call": {
+        "module": "scanners/language/python/resolver.mjs",
+        "fn": "resolvePythonSymbol",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "pkg/__init__.py": "class Thing:\n    pass\n",
+                            "consumer.py": "from pkg import *\n"
+                          }
+                        },
+                        "files": [
+                          "pkg/__init__.py",
+                          "consumer.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          },
+          "consumer",
+          "Thing"
+        ]
+      },
+      "expect": [
+        [
+          "/status",
+          "unknown"
+        ],
+        [
+          "/reason",
+          {
+            "$missing": "/reason"
+          }
+        ]
+      ],
+      "output_sha256": "54bff736b8178331708be24009352e9d66ed206a8158387e36d50bd8608f13c7"
+    },
+    {
+      "id": "resolver-conditional-import-is-unknown",
+      "class": "negative",
+      "origin": "rejected by design: resolver: a name imported in both try and except branches is unknown (no reason is reported)",
+      "call": {
+        "module": "scanners/language/python/resolver.mjs",
+        "fn": "resolvePythonSymbol",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "a.py": "class X:\n    pass\n",
+                            "b.py": "class X:\n    pass\n",
+                            "consumer.py": "try:\n    from a import X\nexcept ImportError:\n    from b import X\n"
+                          }
+                        },
+                        "files": [
+                          "a.py",
+                          "b.py",
+                          "consumer.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          },
+          "consumer",
+          "X"
+        ]
+      },
+      "expect": [
+        [
+          "/status",
+          "unknown"
+        ],
+        [
+          "/reason",
+          {
+            "$missing": "/reason"
+          }
+        ]
+      ],
+      "output_sha256": "58ae75bc11dc32f0bdaa98752b724ed6530435c8099faef289dedc0c35e7b43c"
+    },
+    {
+      "id": "fastapi-shadow-parity-with-legacy-scanner",
+      "class": "normal",
+      "origin": "fastapi shadow: a literal router prefix reaches parity with the existing adapter",
+      "call": {
+        "module": "scanners/language/python/fastapi-shadow.mjs",
+        "fn": "diffFastApiShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/adapters/python-fastapi.mjs",
+              "fn": "scanPythonFastApi",
+              "args": [
+                {
+                  "$tree": {
+                    "pyproject.toml": "[project]\nname=\"shadow\"\ndependencies=[\"fastapi>=0.100\",\"sqlmodel>=0.0.24\"]\n",
+                    "app/api/items.py": "\nfrom fastapi import APIRouter\nPREFIX = \"/items\"\nrouter = APIRouter(prefix=\"/items\")\n\n@router.get(\"/{id}\", response_model=ItemPublic)\ndef read_item(id: str):\n    pass\n",
+                    "app/models.py": "\nfrom sqlmodel import Field, SQLModel\n\nclass Item(SQLModel, table=True):\n    id: int = Field(primary_key=True)\n    title: str\n\nclass ItemPublic(SQLModel):\n    id: int\n    title: str\n"
+                  },
+                  "as": "root"
+                },
+                {
+                  "$ref": "root"
+                }
+              ]
+            }
+          },
+          {
+            "$call": {
+              "module": "scanners/language/python/fastapi-shadow.mjs",
+              "fn": "buildFastApiShadow",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/resolver.mjs",
+                    "fn": "buildPythonProjectFacts",
+                    "args": [
+                      {
+                        "$call": {
+                          "module": "scanners/language/python/analyzer.mjs",
+                          "fn": "analyzePythonFiles",
+                          "args": [
+                            {
+                              "repoRoot": {
+                                "$tree": {
+                                  "pyproject.toml": "[project]\nname=\"shadow\"\ndependencies=[\"fastapi>=0.100\",\"sqlmodel>=0.0.24\"]\n",
+                                  "app/api/items.py": "\nfrom fastapi import APIRouter\nPREFIX = \"/items\"\nrouter = APIRouter(prefix=\"/items\")\n\n@router.get(\"/{id}\", response_model=ItemPublic)\ndef read_item(id: str):\n    pass\n",
+                                  "app/models.py": "\nfrom sqlmodel import Field, SQLModel\n\nclass Item(SQLModel, table=True):\n    id: int = Field(primary_key=True)\n    title: str\n\nclass ItemPublic(SQLModel):\n    id: int\n    title: str\n"
+                                }
+                              },
+                              "files": [
+                                "app/api/items.py",
+                                "app/models.py"
+                              ]
+                            }
+                          ],
+                          "get": "/results"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/parity",
+          true
+        ],
+        [
+          "/differenceCount",
+          0
+        ],
+        [
+          "/counts/legacy/endpoints",
+          1
+        ],
+        [
+          "/counts/shadow/endpoints",
+          1
+        ],
+        [
+          "/unknowns/length",
+          0
+        ]
+      ],
+      "output_sha256": "cf381d9d96ba2c17b0e0ab12acfc4f4315be65256363ffd76cd300e5380f8c7b"
+    },
+    {
+      "id": "fastapi-shadow-abstains-on-symbolic-prefix",
+      "class": "negative",
+      "origin": "rejected by design: fastapi shadow: a symbolic router prefix is unknown and parity is false",
+      "call": {
+        "module": "scanners/language/python/fastapi-shadow.mjs",
+        "fn": "diffFastApiShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/adapters/python-fastapi.mjs",
+              "fn": "scanPythonFastApi",
+              "args": [
+                {
+                  "$tree": {
+                    "pyproject.toml": "[project]\nname=\"shadow\"\ndependencies=[\"fastapi>=0.100\",\"sqlmodel>=0.0.24\"]\n",
+                    "app/api/items.py": "\nfrom fastapi import APIRouter\nPREFIX = \"/items\"\nrouter = APIRouter(prefix=PREFIX)\n\n@router.get(\"/{id}\", response_model=ItemPublic)\ndef read_item(id: str):\n    pass\n",
+                    "app/models.py": "\nfrom sqlmodel import Field, SQLModel\n\nclass Item(SQLModel, table=True):\n    id: int = Field(primary_key=True)\n    title: str\n\nclass ItemPublic(SQLModel):\n    id: int\n    title: str\n"
+                  },
+                  "as": "root"
+                },
+                {
+                  "$ref": "root"
+                }
+              ]
+            }
+          },
+          {
+            "$call": {
+              "module": "scanners/language/python/fastapi-shadow.mjs",
+              "fn": "buildFastApiShadow",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/resolver.mjs",
+                    "fn": "buildPythonProjectFacts",
+                    "args": [
+                      {
+                        "$call": {
+                          "module": "scanners/language/python/analyzer.mjs",
+                          "fn": "analyzePythonFiles",
+                          "args": [
+                            {
+                              "repoRoot": {
+                                "$tree": {
+                                  "pyproject.toml": "[project]\nname=\"shadow\"\ndependencies=[\"fastapi>=0.100\",\"sqlmodel>=0.0.24\"]\n",
+                                  "app/api/items.py": "\nfrom fastapi import APIRouter\nPREFIX = \"/items\"\nrouter = APIRouter(prefix=PREFIX)\n\n@router.get(\"/{id}\", response_model=ItemPublic)\ndef read_item(id: str):\n    pass\n",
+                                  "app/models.py": "\nfrom sqlmodel import Field, SQLModel\n\nclass Item(SQLModel, table=True):\n    id: int = Field(primary_key=True)\n    title: str\n\nclass ItemPublic(SQLModel):\n    id: int\n    title: str\n"
+                                }
+                              },
+                              "files": [
+                                "app/api/items.py",
+                                "app/models.py"
+                              ]
+                            }
+                          ],
+                          "get": "/results"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/parity",
+          false
+        ],
+        [
+          "/differenceCount",
+          1
+        ],
+        [
+          "/counts/shadow/endpoints",
+          0
+        ],
+        [
+          "/unknowns/0/reason",
+          "router-prefix-not-literal"
+        ]
+      ],
+      "output_sha256": "24feba8bd27e0f3e2068e32db8eb441225608ad5ace184699bb6fa8e22b75342"
+    },
+    {
+      "id": "fastapi-shadow-include-router-mounts-not-composed",
+      "class": "negative",
+      "origin": "rejected by design: fastapi shadow: include_router mounts are recorded but not composed, so the endpoint stays router-local",
+      "call": {
+        "module": "scanners/language/python/fastapi-shadow.mjs",
+        "fn": "buildFastApiShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "app/__init__.py": "",
+                            "app/items.py": "from fastapi import APIRouter\nrouter = APIRouter(prefix=\"/items\")\n@router.get(\"/{item_id}\")\ndef read_item(item_id: int):\n    pass\n",
+                            "app/api.py": "from fastapi import APIRouter, FastAPI\nfrom .items import router as items_router\napi_router = APIRouter(prefix=\"/api\")\napi_router.include_router(items_router, prefix=\"/v1\")\napp = FastAPI()\napp.include_router(api_router)\n"
+                          }
+                        },
+                        "files": [
+                          "app/__init__.py",
+                          "app/items.py",
+                          "app/api.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/endpoints/length",
+          1
+        ],
+        [
+          "/endpoints/0/path",
+          "/items/{item_id}"
+        ],
+        [
+          "/mounts/length",
+          2
+        ],
+        [
+          "/mounts/0/prefix",
+          "/v1"
+        ],
+        [
+          "/unknowns/length",
+          2
+        ],
+        [
+          "/unknowns/0/reason",
+          "include-router-mount-not-composed"
+        ]
+      ],
+      "output_sha256": "c1999f89f4de9e1eca9af9469f72e259590ad257bc47210b0e138ee58517ecb3"
+    },
+    {
+      "id": "fastapi-shadow-app-level-route",
+      "class": "negative",
+      "origin": "rejected by design: fastapi shadow: a route on FastAPI() itself is reported unknown, only APIRouter routes are endpoints",
+      "call": {
+        "module": "scanners/language/python/fastapi-shadow.mjs",
+        "fn": "buildFastApiShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "app.py": "from fastapi import FastAPI\napp = FastAPI()\n@app.get(\"/health\")\ndef health():\n    pass\n"
+                          }
+                        },
+                        "files": [
+                          "app.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/endpoints/length",
+          0
+        ],
+        [
+          "/mounts/length",
+          0
+        ],
+        [
+          "/unknowns/length",
+          1
+        ],
+        [
+          "/unknowns/0/reason",
+          "router-variable-not-locally-declared"
+        ]
+      ],
+      "output_sha256": "c174d0f8665d8e39198d4dbcfcf465440882cd4cf1e20d543fd0a8ac685c1c9c"
+    },
+    {
+      "id": "fastapi-shadow-add-api-route-is-silently-dropped",
+      "class": "negative",
+      "origin": "observed defect: fastapi shadow: router.add_api_route produces neither an endpoint nor an unknown",
+      "call": {
+        "module": "scanners/language/python/fastapi-shadow.mjs",
+        "fn": "buildFastApiShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "app.py": "from fastapi import APIRouter\nrouter = APIRouter(prefix=\"/items\")\ndef read_items():\n    pass\nrouter.add_api_route(\"/\", read_items, methods=[\"GET\"])\n"
+                          }
+                        },
+                        "files": [
+                          "app.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/endpoints/length",
+          0
+        ],
+        [
+          "/mounts/length",
+          0
+        ],
+        [
+          "/unknowns/length",
+          0
+        ]
+      ],
+      "output_sha256": "526e7b9ee632ab7dcffd5dd4eef833f3dcf3e2dbfc22c42215e795363e872476"
+    },
+    {
+      "id": "fastapi-shadow-api-route-decorator-is-silently-dropped",
+      "class": "negative",
+      "origin": "observed defect: fastapi shadow: @router.api_route produces neither an endpoint nor an unknown",
+      "call": {
+        "module": "scanners/language/python/fastapi-shadow.mjs",
+        "fn": "buildFastApiShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "app.py": "from fastapi import APIRouter\nrouter = APIRouter(prefix=\"/items\")\n@router.api_route(\"/\", methods=[\"GET\", \"POST\"])\ndef items():\n    pass\n"
+                          }
+                        },
+                        "files": [
+                          "app.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/endpoints/length",
+          0
+        ],
+        [
+          "/mounts/length",
+          0
+        ],
+        [
+          "/unknowns/length",
+          0
+        ]
+      ],
+      "output_sha256": "526e7b9ee632ab7dcffd5dd4eef833f3dcf3e2dbfc22c42215e795363e872476"
+    },
+    {
+      "id": "flask-shadow-blueprint-prefix-and-methods",
+      "class": "normal",
+      "origin": "flask shadow: literal blueprint prefix with decorator and explicit methods list",
+      "call": {
+        "module": "scanners/language/python/flask-shadow.mjs",
+        "fn": "buildFlaskRouteShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "api.py": "from flask import Blueprint\nbp = Blueprint(\"api\", __name__, url_prefix=\"/api\")\n\n@bp.get(\"/items\")\ndef list_items():\n    pass\n\n@bp.route(\"/items\", methods=[\"POST\", \"PATCH\"])\ndef mutate_item():\n    pass\n"
+                          }
+                        },
+                        "files": [
+                          "api.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/registrations/length",
+          2
+        ],
+        [
+          "/registrations/0/path",
+          "/api/items"
+        ],
+        [
+          "/registrations/0/methods",
+          [
+            "GET"
+          ]
+        ],
+        [
+          "/registrations/0/methodsStatus",
+          "explicit-decorator"
+        ],
+        [
+          "/registrations/1/methods",
+          [
+            "PATCH",
+            "POST"
+          ]
+        ],
+        [
+          "/registrations/1/methodsStatus",
+          "explicit-methods-list"
+        ],
+        [
+          "/unknowns/length",
+          0
+        ]
+      ],
+      "output_sha256": "8cf00a74e8a69579476cf47171c9dcbf749bf6f09dcbe34165971546b787ff0b"
+    },
+    {
+      "id": "flask-shadow-route-without-methods",
+      "class": "negative",
+      "origin": "rejected by design: flask shadow: @app.route() without methods is not turned into GET",
+      "call": {
+        "module": "scanners/language/python/flask-shadow.mjs",
+        "fn": "buildFlaskRouteShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "app.py": "from flask import Flask\napp = Flask(__name__)\n@app.route(\"/health\")\ndef health():\n    pass\n"
+                          }
+                        },
+                        "files": [
+                          "app.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/registrations/0/path",
+          "/health"
+        ],
+        [
+          "/registrations/0/methods",
+          []
+        ],
+        [
+          "/registrations/0/methodsStatus",
+          "framework-default-unresolved"
+        ]
+      ],
+      "output_sha256": "fffa6b4dee58266c467c0569fb842435a176c293918b54d40af4453cf6068ae8"
+    },
+    {
+      "id": "flask-shadow-dynamic-prefix",
+      "class": "negative",
+      "origin": "rejected by design: flask shadow: a non-literal blueprint prefix abstains",
+      "call": {
+        "module": "scanners/language/python/flask-shadow.mjs",
+        "fn": "buildFlaskRouteShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "app.py": "from flask import Blueprint\nPREFIX = make_prefix()\nbp = Blueprint(\"api\", __name__, url_prefix=PREFIX)\n@bp.route(\"/items\", methods=[\"GET\"])\ndef items():\n    pass\n"
+                          }
+                        },
+                        "files": [
+                          "app.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/registrations/length",
+          0
+        ],
+        [
+          "/unknowns/length",
+          1
+        ],
+        [
+          "/unknowns/0/reason",
+          "blueprint-prefix-not-literal"
+        ]
+      ],
+      "output_sha256": "9076b6c095f1934733bb920040bb952af6a30572dd4d921830888924370d2586"
+    },
+    {
+      "id": "flask-shadow-dynamic-methods",
+      "class": "negative",
+      "origin": "rejected by design: flask shadow: a non-literal methods list is not guessed",
+      "call": {
+        "module": "scanners/language/python/flask-shadow.mjs",
+        "fn": "buildFlaskRouteShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "app.py": "from flask import Blueprint\nMETHODS = load_methods()\nbp = Blueprint(\"api\", __name__, url_prefix=\"/api\")\n@bp.route(\"/items\", methods=METHODS)\ndef items():\n    pass\n"
+                          }
+                        },
+                        "files": [
+                          "app.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/registrations/length",
+          0
+        ],
+        [
+          "/declarations/0/prefixStatus",
+          "verified"
+        ],
+        [
+          "/unknowns/length",
+          1
+        ],
+        [
+          "/unknowns/0/reason",
+          "methods-not-literal-sequence"
+        ]
+      ],
+      "output_sha256": "b7c479f9a95abeafc0240254d6e028799f16b4f425bab8991c4e7ad1c326eb20"
+    },
+    {
+      "id": "flask-shadow-undeclared-receiver",
+      "class": "negative",
+      "origin": "rejected by design: flask shadow: a route on a receiver that is not declared in the module is unknown",
+      "call": {
+        "module": "scanners/language/python/flask-shadow.mjs",
+        "fn": "buildFlaskRouteShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "app.py": "@app.get(\"/health\")\ndef health():\n    pass\n"
+                          }
+                        },
+                        "files": [
+                          "app.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/registrations/length",
+          0
+        ],
+        [
+          "/unknowns/length",
+          1
+        ],
+        [
+          "/unknowns/0/reason",
+          "route-receiver-not-locally-declared"
+        ]
+      ],
+      "output_sha256": "69f69cae8741d34d32823ecba6897537fb7e6322194b6ba470ff46edea21c046"
+    },
+    {
+      "id": "flask-shadow-add-url-rule-is-silently-dropped",
+      "class": "negative",
+      "origin": "observed defect: flask shadow: app.add_url_rule produces neither a registration nor an unknown",
+      "call": {
+        "module": "scanners/language/python/flask-shadow.mjs",
+        "fn": "buildFlaskRouteShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "app.py": "from flask import Flask\napp = Flask(__name__)\ndef health():\n    pass\napp.add_url_rule(\"/health\", \"health\", health)\n"
+                          }
+                        },
+                        "files": [
+                          "app.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/registrations/length",
+          0
+        ],
+        [
+          "/unknowns/length",
+          0
+        ]
+      ],
+      "output_sha256": "e9d00ca3604184e73c4161f7104ca5bc33c8d98702a0638a071dfa21887acf6b"
+    },
+    {
+      "id": "flask-shadow-methodview-is-silently-dropped",
+      "class": "negative",
+      "origin": "observed defect: flask shadow: a MethodView registered with add_url_rule produces neither a registration nor an unknown",
+      "call": {
+        "module": "scanners/language/python/flask-shadow.mjs",
+        "fn": "buildFlaskRouteShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "app.py": "from flask import Flask\nfrom flask.views import MethodView\nclass Items(MethodView):\n    def get(self):\n        pass\napp = Flask(__name__)\napp.add_url_rule(\"/items\", view_func=Items.as_view(\"items\"))\n"
+                          }
+                        },
+                        "files": [
+                          "app.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/registrations/length",
+          0
+        ],
+        [
+          "/unknowns/length",
+          0
+        ]
+      ],
+      "output_sha256": "8f684379a98c3627a2590313fc74884f939e048498e0a74a2bc6131efa4d1d60"
+    },
+    {
+      "id": "flask-shadow-register-blueprint-prefix-override-ignored",
+      "class": "negative",
+      "origin": "observed defect: flask shadow: register_blueprint(url_prefix=...) is not composed; the path keeps the blueprint prefix",
+      "call": {
+        "module": "scanners/language/python/flask-shadow.mjs",
+        "fn": "buildFlaskRouteShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "app.py": "from flask import Blueprint, Flask\nbp = Blueprint(\"api\", __name__, url_prefix=\"/api\")\n@bp.get(\"/items\")\ndef items():\n    pass\napp = Flask(__name__)\napp.register_blueprint(bp, url_prefix=\"/v2\")\n"
+                          }
+                        },
+                        "files": [
+                          "app.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/registrations/length",
+          1
+        ],
+        [
+          "/registrations/0/path",
+          "/api/items"
+        ],
+        [
+          "/unknowns/length",
+          0
+        ]
+      ],
+      "output_sha256": "09533b2b589c0ed9c1adc509fbe0d8c989af4d574d622205732e565a68f9b25b"
+    },
+    {
+      "id": "django-shadow-literal-include-prefixes",
+      "class": "normal",
+      "origin": "django shadow: literal include() prefixes compose, no HTTP methods are invented",
+      "call": {
+        "module": "scanners/language/python/django-shadow.mjs",
+        "fn": "buildDjangoUrlShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "app/__init__.py": "",
+                            "app/views.py": "def health(request):\n    pass\n\ndef item_list(request):\n    pass\n",
+                            "app/api_urls.py": "from django.urls import path\nfrom .views import item_list\nurlpatterns = [path(\"items/\", item_list, name=\"item-list\")]\n",
+                            "app/urls.py": "from django.urls import include, path\nfrom .views import health\nurlpatterns = [\n    path(\"health/\", health, name=\"health\"),\n    path(\"api/\", include(\"app.api_urls\")),\n]\n"
+                          }
+                        },
+                        "files": [
+                          "app/__init__.py",
+                          "app/views.py",
+                          "app/api_urls.py",
+                          "app/urls.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/registrations/length",
+          2
+        ],
+        [
+          "/registrations/0/module",
+          "app.api_urls"
+        ],
+        [
+          "/registrations/0/patternSegments",
+          [
+            {
+              "kind": "path",
+              "value": "api/"
+            },
+            {
+              "kind": "path",
+              "value": "items/"
+            }
+          ]
+        ],
+        [
+          "/registrations/0/methodSemantics",
+          "not-declared-by-urlconf"
+        ],
+        [
+          "/registrations/1/patternSegments",
+          [
+            {
+              "kind": "path",
+              "value": "health/"
+            }
+          ]
+        ],
+        [
+          "/includes/length",
+          1
+        ],
+        [
+          "/includes/0/childModule",
+          "app.api_urls"
+        ],
+        [
+          "/unknowns/length",
+          0
+        ]
+      ],
+      "output_sha256": "2dbe3be7466be25d2dab7c7be49fed4fb2bb66ad148024e5107ae09fbca16796"
+    },
+    {
+      "id": "django-shadow-class-based-view",
+      "class": "normal",
+      "origin": "django shadow: a local as_view() target is recognised without being executed",
+      "call": {
+        "module": "scanners/language/python/django-shadow.mjs",
+        "fn": "buildDjangoUrlShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "urls.py": "from django.urls import path\nclass StatusView:\n    @classmethod\n    def as_view(cls):\n        raise RuntimeError(\"must never execute\")\nurlpatterns = [path(\"status/\", StatusView.as_view(), name=\"status\")]\n"
+                          }
+                        },
+                        "files": [
+                          "urls.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/registrations/length",
+          1
+        ],
+        [
+          "/registrations/0/target",
+          {
+            "kind": "class-view",
+            "locality": "local",
+            "module": "urls",
+            "name": "StatusView",
+            "factory": "as_view",
+            "raw": "StatusView.as_view"
+          }
+        ],
+        [
+          "/registrations/0/name",
+          "status"
+        ]
+      ],
+      "output_sha256": "8f3bbc035bb4475fccad5825617a537732cc5c44c19ec5d06dcc68faf5cc5dce"
+    },
+    {
+      "id": "django-shadow-name-none-vs-dynamic",
+      "class": "normal",
+      "origin": "django shadow: name=None is a verified absent name, a computed name is unknown",
+      "call": {
+        "module": "scanners/language/python/django-shadow.mjs",
+        "fn": "buildDjangoUrlShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "urls.py": "from django.urls import path\ndef handler(request):\n    pass\nNAME = make_name()\nurlpatterns = [\n    path(\"none/\", handler, name=None),\n    path(\"dynamic/\", handler, name=NAME),\n]\n"
+                          }
+                        },
+                        "files": [
+                          "urls.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/registrations/0/name",
+          null
+        ],
+        [
+          "/registrations/0/nameStatus",
+          "verified"
+        ],
+        [
+          "/registrations/1/name",
+          null
+        ],
+        [
+          "/registrations/1/nameStatus",
+          "unknown"
+        ]
+      ],
+      "output_sha256": "74aeea9c683b6447a73485c802c8ebe78f605e1c4562e6ee3f0d0b6b12c0b05b"
+    },
+    {
+      "id": "django-shadow-re-path-keeps-the-raw-regex",
+      "class": "normal",
+      "origin": "django shadow: re_path keeps its regular expression as one raw regex segment",
+      "call": {
+        "module": "scanners/language/python/django-shadow.mjs",
+        "fn": "buildDjangoUrlShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "urls.py": "from django.urls import re_path\ndef handler(request):\n    pass\nurlpatterns = [re_path(r\"^items/$\", handler)]\n"
+                          }
+                        },
+                        "files": [
+                          "urls.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/registrations/length",
+          1
+        ],
+        [
+          "/registrations/0/kind",
+          "regex"
+        ],
+        [
+          "/registrations/0/patternSegments",
+          [
+            {
+              "kind": "regex",
+              "value": "^items/$"
+            }
+          ]
+        ]
+      ],
+      "output_sha256": "01f6c3c35e615a0fba5a9d41e4ccfadff7d373be9768e7b86cf46f8455c58f7b"
+    },
+    {
+      "id": "django-shadow-dynamic-pattern-and-include",
+      "class": "negative",
+      "origin": "rejected by design: django shadow: a computed pattern and an include of a non-module target are unknown",
+      "call": {
+        "module": "scanners/language/python/django-shadow.mjs",
+        "fn": "buildDjangoUrlShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "urls.py": "from django.urls import include, path\nPREFIX = make_prefix()\nurlpatterns = [\n    path(PREFIX, handler),\n    path(\"nested/\", include(router.urls)),\n]\n"
+                          }
+                        },
+                        "files": [
+                          "urls.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/registrations/length",
+          0
+        ],
+        [
+          "/includes/length",
+          1
+        ],
+        [
+          "/includes/0/childModule",
+          null
+        ],
+        [
+          "/unknowns/length",
+          2
+        ],
+        [
+          "/unknowns/0/reason",
+          "include-target-not-literal-module"
+        ],
+        [
+          "/unknowns/1/reason",
+          "route-pattern-not-literal"
+        ]
+      ],
+      "output_sha256": "e8cc7162cd12034aebc3e2a1de0073002e03d3ee5cbc10d0ca20002b3a5fda3c"
+    },
+    {
+      "id": "django-shadow-urlpatterns-mutation-abstains",
+      "class": "negative",
+      "origin": "rejected by design: django shadow: urlpatterns += [...] makes the whole module unknown, even its literal first entry",
+      "call": {
+        "module": "scanners/language/python/django-shadow.mjs",
+        "fn": "buildDjangoUrlShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "urls.py": "from django.urls import path\ndef handler(request):\n    pass\nurlpatterns = [path(\"a/\", handler)]\nurlpatterns += [path(\"b/\", handler)]\n"
+                          }
+                        },
+                        "files": [
+                          "urls.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/registrations/length",
+          0
+        ],
+        [
+          "/unknowns/length",
+          1
+        ],
+        [
+          "/unknowns/0/reason",
+          "urlpatterns-mutated"
+        ]
+      ],
+      "output_sha256": "c0ddeeb9e7d7863223afa110e1e23dfc78f01cf7046389fc66da5c003b319a0b"
+    },
+    {
+      "id": "django-shadow-namespace-include-is-unknown-and-child-stays-unprefixed",
+      "class": "negative",
+      "origin": "rejected by design: django shadow: include((module, namespace)) is an explicit unknown, yet the child module own pattern is still reported without the outer prefix",
+      "call": {
+        "module": "scanners/language/python/django-shadow.mjs",
+        "fn": "buildDjangoUrlShadow",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "app/__init__.py": "",
+                            "app/inner.py": "from django.urls import path\ndef handler(request):\n    pass\nurlpatterns = [path(\"x/\", handler, name=\"x\")]\n",
+                            "app/urls.py": "from django.urls import include, path\nurlpatterns = [path(\"outer/\", include((\"app.inner\", \"inner\"), namespace=\"inner\"))]\n"
+                          }
+                        },
+                        "files": [
+                          "app/__init__.py",
+                          "app/inner.py",
+                          "app/urls.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/registrations/length",
+          1
+        ],
+        [
+          "/registrations/0/module",
+          "app.inner"
+        ],
+        [
+          "/registrations/0/patternSegments",
+          [
+            {
+              "kind": "path",
+              "value": "x/"
+            }
+          ]
+        ],
+        [
+          "/includes/0/childModule",
+          null
+        ],
+        [
+          "/unknowns/length",
+          1
+        ],
+        [
+          "/unknowns/0/reason",
+          "include-target-not-literal-module"
+        ]
+      ],
+      "output_sha256": "413d931d3b4e4d510935b2ce210c8da9e489ea08530ef8bd52abf54ce4e9ff76"
+    },
+    {
+      "id": "models-inherited-sqlmodel-and-pydantic-fields",
+      "class": "normal",
+      "origin": "models: inherited fields, entity versus dto, aliased base, field alias metadata",
+      "call": {
+        "module": "scanners/language/python/model-shape.mjs",
+        "fn": "projectPythonModels",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "app/__init__.py": "",
+                            "app/models.py": "from sqlmodel import SQLModel, Field\nclass UserBase(SQLModel):\n    name: str\nclass User(UserBase, table=True):\n    id: int = Field(primary_key=True)\n",
+                            "app/schemas.py": "from pydantic import BaseModel, Field\nfrom .models import UserBase as UB\nclass UserRead(UB):\n    display_name: str = Field(alias=\"displayName\")\nclass Request(BaseModel):\n    query: str\n"
+                          }
+                        },
+                        "files": [
+                          "app/__init__.py",
+                          "app/models.py",
+                          "app/schemas.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/length",
+          4
+        ],
+        [
+          "/0/ref",
+          "app.models#User"
+        ],
+        [
+          "/0/kind",
+          "entity"
+        ],
+        [
+          "/0/primaryKeyFields",
+          [
+            "id"
+          ]
+        ],
+        [
+          "/3/ref",
+          "app.schemas#UserRead"
+        ],
+        [
+          "/3/bases/local/0",
+          "app.models#UserBase"
+        ],
+        [
+          "/3/fields/length",
+          2
+        ]
+      ],
+      "output_sha256": "70fccabdc2e7860a456afcb17b15e2d44dc7ff88cd6be848ce918037b99120c2"
+    },
+    {
+      "id": "models-basesettings-is-config",
+      "class": "normal",
+      "origin": "models: BaseSettings is configuration, not an API DTO",
+      "call": {
+        "module": "scanners/language/python/model-shape.mjs",
+        "fn": "projectPythonModels",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "module.py": "from pydantic_settings import BaseSettings\nclass Settings(BaseSettings):\n    token: str\n"
+                          }
+                        },
+                        "files": [
+                          "module.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/length",
+          1
+        ],
+        [
+          "/0/kind",
+          "config"
+        ],
+        [
+          "/0/family",
+          "settings"
+        ]
+      ],
+      "output_sha256": "47ac896dd5be0bedd8fae934756d36d41a604d53d8b5870e3e80ddf1a9085acb"
+    },
+    {
+      "id": "models-inheritance-cycle-flagged",
+      "class": "negative",
+      "origin": "rejected by design: models: a local inheritance cycle is flagged and the inherited fields are omitted",
+      "call": {
+        "module": "scanners/language/python/model-shape.mjs",
+        "fn": "projectPythonModels",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "pkg/__init__.py": "",
+                            "pkg/a.py": "from .b import B\nclass A(B):\n    a: str\n",
+                            "pkg/b.py": "from .a import A\nfrom sqlmodel import SQLModel\nclass B(A, SQLModel):\n    b: int\n"
+                          }
+                        },
+                        "files": [
+                          "pkg/__init__.py",
+                          "pkg/a.py",
+                          "pkg/b.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/length",
+          2
+        ],
+        [
+          "/0/inheritanceCycle",
+          true
+        ],
+        [
+          "/1/inheritanceCycle",
+          true
+        ],
+        [
+          "/0/fields/length",
+          1
+        ]
+      ],
+      "output_sha256": "687c216e8305aa358b5ee15cf72195903e82c3ae032256c49ce13e02fe3e13f8"
+    },
+    {
+      "id": "models-dataclass-is-silently-not-modelled",
+      "class": "negative",
+      "origin": "observed defect: models: a @dataclass produces no model fact and no diagnostic",
+      "call": {
+        "module": "scanners/language/python/model-shape.mjs",
+        "fn": "projectPythonModels",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "models.py": "from dataclasses import dataclass\n@dataclass\nclass Point:\n    x: int\n"
+                          }
+                        },
+                        "files": [
+                          "models.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/length",
+          0
+        ]
+      ],
+      "output_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "id": "models-pydantic-v2-model-config-is-a-field",
+      "class": "negative",
+      "origin": "observed defect: models: a pydantic v2 model_config assignment is reported as a field and the validator is not seen",
+      "call": {
+        "module": "scanners/language/python/model-shape.mjs",
+        "fn": "projectPythonModels",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "models.py": "from pydantic import BaseModel, ConfigDict, Field, field_validator\nclass Item(BaseModel):\n    model_config = ConfigDict(extra=\"forbid\")\n    tags: list[str] = Field(default_factory=list)\n    @field_validator(\"tags\")\n    def check(cls, v):\n        return v\n"
+                          }
+                        },
+                        "files": [
+                          "models.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/length",
+          1
+        ],
+        [
+          "/0/fields/length",
+          2
+        ],
+        [
+          "/0/fields/0/name",
+          "model_config"
+        ]
+      ],
+      "output_sha256": "f5562a50f17d1f36cde86190d530072fdd71256e3f17b3116b38efeb0bcb6c2b"
+    },
+    {
+      "id": "types-normalised-typing-syntax",
+      "class": "normal",
+      "origin": "types: list[int], X | None, Optional, Annotated, Literal and a forward reference are normalised",
+      "call": {
+        "module": "scanners/language/python/type-shape.mjs",
+        "fn": "annotatePythonModelTypes",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "models.py": "from typing import Annotated, Literal, Optional\nfrom pydantic import BaseModel, Field\n\nclass Payload(BaseModel):\n    ids: list[int]\n    maybe: str | None\n    old_optional: Optional[int]\n    name: Annotated[str, Field(min_length=1)]\n    state: Literal[\"open\", \"closed\"]\n    parent: \"Payload\"\n"
+                          }
+                        },
+                        "files": [
+                          "models.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "$call": {
+              "module": "scanners/language/python/model-shape.mjs",
+              "fn": "projectPythonModels",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/resolver.mjs",
+                    "fn": "buildPythonProjectFacts",
+                    "args": [
+                      {
+                        "$call": {
+                          "module": "scanners/language/python/analyzer.mjs",
+                          "fn": "analyzePythonFiles",
+                          "args": [
+                            {
+                              "repoRoot": {
+                                "$tree": {
+                                  "models.py": "from typing import Annotated, Literal, Optional\nfrom pydantic import BaseModel, Field\n\nclass Payload(BaseModel):\n    ids: list[int]\n    maybe: str | None\n    old_optional: Optional[int]\n    name: Annotated[str, Field(min_length=1)]\n    state: Literal[\"open\", \"closed\"]\n    parent: \"Payload\"\n"
+                                }
+                              },
+                              "files": [
+                                "models.py"
+                              ]
+                            }
+                          ],
+                          "get": "/results"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/length",
+          1
+        ],
+        [
+          "/0/fields/0/typeFact/base/name",
+          "list"
+        ],
+        [
+          "/0/fields/0/typeFact/args/0/name",
+          "int"
+        ],
+        [
+          "/0/fields/1/typeFact/syntax",
+          "pep604"
+        ],
+        [
+          "/0/fields/1/typeFact/options/1/kind",
+          "none"
+        ],
+        [
+          "/0/fields/2/typeFact/syntax",
+          "typing.Optional"
+        ],
+        [
+          "/0/fields/3/typeFact/kind",
+          "annotated"
+        ],
+        [
+          "/0/fields/3/typeFact/metadata/0/callee/name",
+          "Field"
+        ],
+        [
+          "/0/fields/3/typeFact/metadata/0/keywords/0/name",
+          "min_length"
+        ],
+        [
+          "/0/fields/4/typeFact/kind",
+          "literal"
+        ],
+        [
+          "/0/fields/4/typeFact/values/1/value",
+          "closed"
+        ],
+        [
+          "/0/fields/5/typeFact/kind",
+          "forward-reference"
+        ],
+        [
+          "/0/fields/5/typeFact/text",
+          "Payload"
+        ]
+      ],
+      "output_sha256": "ddca11f546544932ebba5669076dcbed504f4235c563b70c583bfb23aab7b2ed"
+    },
+    {
+      "id": "types-unsupported-annotation-forms-stay-unknown",
+      "class": "negative",
+      "origin": "rejected by design: types: Callable arguments, a non-type constant, an Ellipsis and an attribute reference are not resolved",
+      "call": {
+        "module": "scanners/language/python/type-shape.mjs",
+        "fn": "annotatePythonModelTypes",
+        "args": [
+          {
+            "$call": {
+              "module": "scanners/language/python/resolver.mjs",
+              "fn": "buildPythonProjectFacts",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/analyzer.mjs",
+                    "fn": "analyzePythonFiles",
+                    "args": [
+                      {
+                        "repoRoot": {
+                          "$tree": {
+                            "models.py": "from typing import Callable, Dict, List, Union\nfrom pydantic import BaseModel\nclass Payload(BaseModel):\n    a: Callable[[int], str]\n    b: Dict[str, int]\n    c: Union[int, str]\n    d: List[\"Payload\"]\n    e: 3\n    f: \"List[int]\"\n    g: tuple[int, ...]\n    h: Foo.Bar\n"
+                          }
+                        },
+                        "files": [
+                          "models.py"
+                        ]
+                      }
+                    ],
+                    "get": "/results"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "$call": {
+              "module": "scanners/language/python/model-shape.mjs",
+              "fn": "projectPythonModels",
+              "args": [
+                {
+                  "$call": {
+                    "module": "scanners/language/python/resolver.mjs",
+                    "fn": "buildPythonProjectFacts",
+                    "args": [
+                      {
+                        "$call": {
+                          "module": "scanners/language/python/analyzer.mjs",
+                          "fn": "analyzePythonFiles",
+                          "args": [
+                            {
+                              "repoRoot": {
+                                "$tree": {
+                                  "models.py": "from typing import Callable, Dict, List, Union\nfrom pydantic import BaseModel\nclass Payload(BaseModel):\n    a: Callable[[int], str]\n    b: Dict[str, int]\n    c: Union[int, str]\n    d: List[\"Payload\"]\n    e: 3\n    f: \"List[int]\"\n    g: tuple[int, ...]\n    h: Foo.Bar\n"
+                                }
+                              },
+                              "files": [
+                                "models.py"
+                              ]
+                            }
+                          ],
+                          "get": "/results"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/length",
+          1
+        ],
+        [
+          "/0/fields/0/typeFact/base/name",
+          "Callable"
+        ],
+        [
+          "/0/fields/0/typeFact/args/0/reason",
+          "unsupported-annotation-expression"
+        ],
+        [
+          "/0/fields/4/typeFact/reason",
+          "non-type-constant"
+        ],
+        [
+          "/0/fields/5/typeFact/kind",
+          "forward-reference"
+        ],
+        [
+          "/0/fields/5/typeFact/text",
+          "List[int]"
+        ],
+        [
+          "/0/fields/6/typeFact/args/1/reason",
+          "unsupported-annotation-expression"
+        ],
+        [
+          "/0/fields/7/typeFact/kind",
+          "unresolved-reference"
+        ],
+        [
+          "/0/fields/7/typeFact/reason",
+          "unresolved"
+        ]
+      ],
+      "output_sha256": "f006d9a6f4a18e63f62bfad081ad1d999243cf38b256cb65985dd563dee418d3"
+    }
+  ],
+  "artifact_digest": {
+    "value": "ae26555e4cf71ef636741ffc9bbf519a4cf562fa9e5d3623045faa92af1fef7e"
+  },
+  "real_corpus": {
+    "status": "RAN",
+    "revision": "24fe7e59e96fb98b18c1319e8a81da86e93e43dc",
+    "command": "node test/language-python/real-corpus-runner.mjs --root fastapi-full-stack-template=<checkout of fastapi-full-stack-template> --root flask-official-tutorial=<checkout of flask-official-tutorial> --root django-urlpatterns-reverse=<checkout of django-urlpatterns-reverse>",
+    "exit_code": 0,
+    "stdout_bytes": 2489,
+    "stdout_sha256": "be176331ed673379318afad5c775a5623189f2f89c34f0e9ecc000e83b76bb9a",
+    "stderr": "",
+    "checkout_method": "per case, in a temporary directory: git init; git remote add origin https://github.com/<repository>.git; git fetch --no-tags --depth=1 --filter=blob:none origin <commit>; git sparse-checkout set --no-cone <sparse_paths>; git checkout --detach <commit>; HEAD must equal the pinned commit. The runner only parses the selected files; nothing from those repositories is executed.",
+    "interpreters_compared": [
+      "3.9.6",
+      "3.11.15",
+      "3.12.13",
+      "3.14.8"
+    ],
+    "checkouts": [
+      {
+        "id": "fastapi-full-stack-template",
+        "repository": "fastapi/full-stack-fastapi-template",
+        "commit": "cb740b656d7a0a6c5e12c7bf8e50343ec94ee9c7",
+        "head": "cb740b656d7a0a6c5e12c7bf8e50343ec94ee9c7",
+        "sparse_paths": [
+          "backend/app/api/routes/items.py",
+          "backend/app/models.py"
+        ]
+      },
+      {
+        "id": "flask-official-tutorial",
+        "repository": "pallets/flask",
+        "commit": "d73fa1cdcbd8b1465c151db8924ba58b1dd14e35",
+        "head": "d73fa1cdcbd8b1465c151db8924ba58b1dd14e35",
+        "sparse_paths": [
+          "examples/tutorial/flaskr/auth.py",
+          "examples/tutorial/flaskr/blog.py"
+        ]
+      },
+      {
+        "id": "django-urlpatterns-reverse",
+        "repository": "django/django",
+        "commit": "a013c821ea7838a953869615b0bdcfdb298cc09f",
+        "head": "a013c821ea7838a953869615b0bdcfdb298cc09f",
+        "sparse_paths": [
+          "tests/urlpatterns_reverse/urls.py",
+          "tests/urlpatterns_reverse/included_urls.py",
+          "tests/urlpatterns_reverse/views.py"
+        ]
+      }
+    ],
+    "report": {
+      "schema": "bskel.t06.real-corpus-result/2",
+      "role": "development-reference-not-independent-certification",
+      "targetExecution": false,
+      "cases": [
+        {
+          "id": "fastapi-full-stack-template",
+          "repository": "fastapi/full-stack-fastapi-template",
+          "commit": "cb740b656d7a0a6c5e12c7bf8e50343ec94ee9c7",
+          "license": "MIT",
+          "projection": "fastapi-shadow",
+          "selectedFiles": [
+            {
+              "path": "app/api/routes/items.py",
+              "blobSha": "f0eb30e4cee50ac09904df0e3e30e5949b1edb04",
+              "sizeBytes": 3446
+            },
+            {
+              "path": "app/models.py",
+              "blobSha": "dcedf9a2f5ebc0fb90128c5719489c97c3743e9c",
+              "sizeBytes": 3653
+            }
+          ],
+          "result": "pass"
+        },
+        {
+          "id": "flask-official-tutorial",
+          "repository": "pallets/flask",
+          "commit": "d73fa1cdcbd8b1465c151db8924ba58b1dd14e35",
+          "license": "BSD-3-Clause",
+          "projection": "flask-shadow",
+          "selectedFiles": [
+            {
+              "path": "flaskr/auth.py",
+              "blobSha": "34c03a204f03fdfb339640b788044174e7487eb7",
+              "sizeBytes": 3296
+            },
+            {
+              "path": "flaskr/blog.py",
+              "blobSha": "be0d92c4354c9ffa4fa10d970995d735c2c71209",
+              "sizeBytes": 3305
+            }
+          ],
+          "result": "pass"
+        },
+        {
+          "id": "django-urlpatterns-reverse",
+          "repository": "django/django",
+          "commit": "a013c821ea7838a953869615b0bdcfdb298cc09f",
+          "license": "BSD-3-Clause",
+          "projection": "django-shadow",
+          "selectedFiles": [
+            {
+              "path": "urlpatterns_reverse/urls.py",
+              "blobSha": "aca2d06ef7f86cc0d7200cd8ba591f4734d7ac7a",
+              "sizeBytes": 5594
+            },
+            {
+              "path": "urlpatterns_reverse/included_urls.py",
+              "blobSha": "9e80cf59522fc9fa21c6e1da94a5e3091aed17e5",
+              "sizeBytes": 297
+            },
+            {
+              "path": "urlpatterns_reverse/views.py",
+              "blobSha": "01dfc1309eff85bffce7747f094b04819f1f7d25",
+              "sizeBytes": 1722
+            }
+          ],
+          "result": "pass"
+        }
+      ],
+      "reservedHoldouts": [
+        {
+          "id": "django-saleor-reserved",
+          "repository": "saleor/saleor",
+          "commit": "5ff56489737c78a9a5631d528f699303c953696a",
+          "owner": "T19"
+        },
+        {
+          "id": "flask-microblog-reserved",
+          "repository": "miguelgrinberg/microblog",
+          "commit": "a975ef64864354867c88e0ed3a17ba7d17dca752",
+          "owner": "T19"
+        }
+      ]
+    }
+  },
+  "ci_observations": [],
+  "limits": [
+    {
+      "id": "runtime-registered-routes-are-not-seen",
+      "status": "UNSUPPORTED",
+      "statement": "The shadow scanners read static decorators and literal URL patterns. FastAPI router.add_api_route and the api_route decorator, Flask app.add_url_rule and a MethodView registered with add_url_rule produce neither an endpoint or registration nor an unknown, so an empty result does not mean the application has no such route.",
+      "fixtures": [
+        "fastapi-shadow-add-api-route-is-silently-dropped",
+        "fastapi-shadow-api-route-decorator-is-silently-dropped",
+        "flask-shadow-add-url-rule-is-silently-dropped",
+        "flask-shadow-methodview-is-silently-dropped"
+      ]
+    },
+    {
+      "id": "mounts-are-not-composed-across-modules",
+      "status": "UNSUPPORTED",
+      "statement": "A reported path is the declaring module path, not necessarily the served URL: FastAPI include_router mounts are recorded but the endpoint stays router-local, Flask register_blueprint(url_prefix=...) is ignored and the path keeps the blueprint prefix, and a Django include((module, namespace)) is an explicit unknown while the child module pattern is still reported without the outer prefix.",
+      "fixtures": [
+        "fastapi-shadow-include-router-mounts-not-composed",
+        "flask-shadow-register-blueprint-prefix-override-ignored",
+        "django-shadow-namespace-include-is-unknown-and-child-stays-unprefixed"
+      ]
+    },
+    {
+      "id": "dynamic-values-stay-unknown",
+      "status": "UNKNOWN",
+      "statement": "Computed prefixes, methods and patterns, comprehensions, lambdas, f-strings, star imports, conditionally imported names, import cycles, urlpatterns mutation and several annotation forms are reported as unknown or the scanner abstains. Nothing is evaluated, so none of these results is a support claim; for a star import and a conditional import no reason is reported.",
+      "fixtures": [
+        "analyze-dynamic-expression-stays-unknown",
+        "analyze-comprehension-lambda-fstring-are-unknown",
+        "resolver-star-import-is-not-expanded",
+        "resolver-conditional-import-is-unknown",
+        "resolver-cyclic-reexports-fail-closed",
+        "fastapi-shadow-abstains-on-symbolic-prefix",
+        "flask-shadow-dynamic-prefix",
+        "flask-shadow-dynamic-methods",
+        "django-shadow-dynamic-pattern-and-include",
+        "django-shadow-urlpatterns-mutation-abstains",
+        "types-unsupported-annotation-forms-stay-unknown"
+      ]
+    },
+    {
+      "id": "model-facts-gaps",
+      "status": "UNSUPPORTED",
+      "statement": "A @dataclass produces no model fact and no diagnostic, and a pydantic v2 model_config assignment is reported as a field while the validator is not seen.",
+      "fixtures": [
+        "models-dataclass-is-silently-not-modelled",
+        "models-pydantic-v2-model-config-is-a-field"
+      ]
+    },
+    {
+      "id": "match-statement-depends-on-the-interpreter",
+      "status": "UNKNOWN",
+      "statement": "A match statement is a PYTHON_SYNTAX_ERROR on line 1 under Python 3.9.6 and parses under 3.11, 3.12 and 3.14, so what the analyzer can read depends on the interpreter that runs the helper. No fixture uses it."
+    },
+    {
+      "id": "helper-diagnostics-vary-with-the-interpreter",
+      "status": "UNKNOWN",
+      "statement": "The syntax-error message and columns, the runtime block and the message of an over-buffer failure differ by interpreter version or path, so the pinned outputs leave them out and pin the error code (and, for a syntax error, the line) only.",
+      "fixtures": [
+        "analyze-syntax-error-is-structured",
+        "analyze-helper-output-over-max-buffer"
+      ]
+    },
+    {
+      "id": "reserved-holdouts-not-run",
+      "status": "BLOCKED",
+      "statement": "The corpus manifest lists reserved holdouts that belong to another track. This record holds no checkout of them; the runner only echoes their id, repository, commit and owner, so nothing is recorded for them."
+    },
+    {
+      "id": "no-corpus-beyond-the-pinned-files",
+      "status": "NOT_RECORDED",
+      "statement": "Only the selected files of the three pinned public repositories were run. Other repositories, other files of those repositories and any performance or scale figure are not recorded."
+    },
+    {
+      "id": "boundary-test-needs-the-npm-registry",
+      "status": "NOT_RECORDED",
+      "statement": "python-package-boundary runs npm pack and npm install of the packed repository root with a 15 second timeout per npm call, so the root package.json is an external input of the result. Network access was available in every recorded run; behaviour without access to the npm registry was not observed."
+    },
+    {
+      "id": "ci-not-observed-at-base",
+      "status": "NOT_RECORDED",
+      "statement": "The CI run on the push of the base commit ended with conclusion cancelled, so no CI result is recorded for it."
+    },
+    {
+      "id": "hashes-generated-on-one-platform",
+      "status": "NOT_RECORDED",
+      "statement": "The recorded outputs, hashes and counts were generated on one machine (macOS arm64) with Node 24 and Python 3.14.8 as the default interpreter. The fixture outputs and the corpus stdout hash were also compared under Python 3.9.6, 3.11.15 and 3.12.13; other operating systems and architectures were not observed."
+    }
+  ],
+  "verification": {
+    "recomputed": "bytes, git_blob_sha1 and sha256 of every pinned file, per-file and total test counts, the exit code and counts of both commands, the first runner line, every fixture output hash and every expected value, and the recorded corpus report (against its stdout hash, its byte count and the manifest at the base commit) are recomputed by baseline-record.test.mjs and never read back from the record.",
+    "levels": [
+      "always: the record is well formed and any edit that is not re-sealed is reported, because artifact_digest is a SHA-256 over the canonical serialization of the whole record except its own value (fixture calls, expected values, classes and origins, limit statements, statuses and fixture lists, hashes, sizes, counts, exit codes, commit ids and every other field)",
+      "live files: size, sha256 and blob id are recomputed from the checkout; a file that disagrees in one hash or in size alone is damage and fails; a file that matches neither hash is drift, which skips the live replays while the pinned commit decides",
+      "pinned commit: the base commit is fetched once when absent and the sizes and digests of all pinned files, the runner included, are recomputed from its own blobs; if the commit is unavailable the test fails, and only BASELINE_ALLOW_UNVERIFIED=1 turns that into an explicit skip",
+      "ancestry: a shallow checkout is deepened with git fetch --no-tags --unshallow origin and the base commit must be an ancestor of HEAD",
+      "commands: both recorded commands are re-run in an extracted copy of the base commit and must reproduce exit code, counts, per-file counts and every fixture output; they need a Python interpreter (its absence fails, and only BASELINE_ALLOW_UNVERIFIED=1 turns that into an explicit skip) and the npm registry",
+      "corpus: the recorded report must equal the report the manifest at the pinned commit allows, hash to the recorded stdout and match its byte count"
+    ],
+    "not_recomputed": [
+      "real_corpus replay: fetching the three pinned commits and running the runner again is opt-in (BASELINE_CORPUS_FETCH=1) and needs the network; by default the checkouts, command and report are checked against the manifest, the recorded hash and the byte count only, and the sizeBytes of the selected files exist only in the recorded report (the manifest does not carry them), so a consistent edit of a size together with the hash and byte count is caught only by the replay",
+      "interpreters_compared and environment: observed once on the generating machine",
+      "artifact_digest: tamper evidence, not proof. An edit that is not re-sealed is reported, but whoever edits and re-seals passes it, so the recomputations above are the independent check. Fixture output hashes are recomputed from the calls; limit statements, limit fixture lists, fixture classes and origins are prose that nothing derives from the code and that only the digest binds; a swap between two calls whose outputs are identical is invisible to the replay and is caught only by the digest"
+    ]
+  }
+}
