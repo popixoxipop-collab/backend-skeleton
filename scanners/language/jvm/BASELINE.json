@@ -2082,7 +2082,7 @@
     }
   ],
   "artifact_digest": {
-    "value": "4625bbe6b26a4e30c8f8c5ce0d59feb3dfcbe65f65c10614c925f45e94945624"
+    "value": "9dd8f596075585f96813cfb0ebc853d78988baa36530fedf3f12555686bc2ac8"
   },
   "ci_observations": [],
   "limits": [
@@ -2206,7 +2206,7 @@
   "verification": {
     "recomputed": "bytes, git_blob_sha1 and sha256 of every pinned file, per-file and total test counts, the exit code and counts of both commands, the first runner line, every fixture output hash and every expected value are recomputed by baseline-record.test.mjs and never read back from the record.",
     "levels": [
-      "always: the record is well formed and any single tampered hash, size, test count, exit code, expected value, limit status or commit id is reported",
+      "always: the record is well formed and any single tampered hash, size, test count, exit code, expected value, limit status (artifact_digest binds every limit id to its status) or commit id is reported",
       "live files: size, sha256 and blob id are recomputed from the checkout; a file that disagrees in one hash or in size alone is damage and fails; a file that matches neither hash is drift, which skips the live replays while the pinned commit decides",
       "pinned commit: the base commit is fetched once when absent and the sizes and digests of all pinned files, the runner included, are recomputed from its own blobs; if the commit is unavailable the test fails, and only BASELINE_ALLOW_UNVERIFIED=1 turns that into an explicit skip",
       "ancestry: a shallow checkout is deepened with git fetch --no-tags --unshallow origin and the base commit must be an ancestor of HEAD",

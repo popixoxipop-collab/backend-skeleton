@@ -68,6 +68,14 @@ test('limits: Kotlin/Ktor and the real JVM run stay BLOCKED', () => {
 	assert.deepEqual(['kotlin-ktor-blocked', 'real-javaparser-jdk-run-blocked'].map(status), ['BLOCKED', 'BLOCKED']);
 });
 
+test('negative: flipping the status of any single limit to another allowed status is reported', () => {
+	for (const [i, limit] of record.limits.entries()) {
+		for (const status of L.LIMIT_STATUSES.filter((s) => s !== limit.status)) {
+			mentions(L.verifyRecord(tampered((r) => { r.limits[i].status = status; })), 'artifact_digest');
+		}
+	}
+});
+
 test('limits: the layer is mentioned outside its directories only by the recorded files (git grep at the base commit)', (t) => {
 	if (!L.needCommit(t, verdict)) return;
 	const { references } = record.limits.find((l) => l.id === 'not-integrated-draft-layer');

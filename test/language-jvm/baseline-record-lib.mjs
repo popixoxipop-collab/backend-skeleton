@@ -25,7 +25,7 @@ export const AUTHORED = 'authored for this record';
 const SHA1 = /^[0-9a-f]{40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const ROLES = ['source', 'test', 'test_support', 'external_dependency', 'runner'];
-const LIMIT_STATUSES = ['UNSUPPORTED', 'UNKNOWN', 'BLOCKED', 'NOT_RECORDED'];
+export const LIMIT_STATUSES = ['UNSUPPORTED', 'UNKNOWN', 'BLOCKED', 'NOT_RECORDED'];
 const COUNT_KEYS = ['tests', 'suites', 'pass', 'fail', 'cancelled', 'skipped', 'todo'];
 const DIGEST_KEYS = ['bytes', 'git_blob_sha1', 'sha256'];
 const GENERATED = /(^|\/)(__pycache__|node_modules)(\/|$)|\.pyc$/;
@@ -43,7 +43,10 @@ export const sha256 = (data) => crypto.createHash('sha256').update(data).digest(
 export const blobSha1 = (buf) => crypto.createHash('sha1').update(`blob ${buf.length}\0`).update(buf).digest('hex');
 export const digestsOf = (buf) => ({ bytes: buf.length, git_blob_sha1: blobSha1(buf), sha256: sha256(buf) });
 export const flip = (hex) => `${hex.startsWith('0') ? '1' : '0'}${hex.slice(1)}`;
-export const artifactDigest = (fixtures) => sha256(canonical(fixtures.map((f) => ({ id: f.id, output_sha256: f.output_sha256 }))));
+export const artifactDigest = (fixtures, limits) => sha256(canonical({
+	fixtures: fixtures.map((f) => ({ id: f.id, output_sha256: f.output_sha256 })),
+	limits: limits.map((l) => ({ id: l?.id, status: l?.status }))
+}));
 export const tapCommand = (files) => ['node', '--test', ...files].join(' ');
 
 // t.after needs Node 18.13 and the declared floor is 18, so temporary directories are removed when the process exits.
@@ -188,7 +191,7 @@ export function verifyRecord(r, reading) {
 	for (const cls of ['normal', 'negative']) {
 		if (!(r?.fixtures ?? []).some((f) => f.class === cls)) bad(`needs at least one ${cls} fixture`);
 	}
-	if (r?.artifact_digest?.value !== artifactDigest(r?.fixtures ?? [])) bad('artifact_digest does not match the fixture output hashes');
+	if (r?.artifact_digest?.value !== artifactDigest(r?.fixtures ?? [], r?.limits ?? [])) bad('artifact_digest does not match the fixture output hashes and the limit statuses');
 	if (!Array.isArray(r?.limits) || r.limits.length === 0) bad('limits must record the remaining limits');
 	for (const l of r?.limits ?? []) {
 		if (!LIMIT_STATUSES.includes(l.status)) bad(`limit ${l.id}: status ${l.status} is not one of ${LIMIT_STATUSES.join('/')}`);
