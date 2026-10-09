@@ -65,3 +65,10 @@ Current catalog:
 The product-core catalog contains **13** executable mutants, including generated-file overwrite protection (`NEG-GEN-01`) and lexical root traversal containment (`NEG-TRUST-02`). The current-main campaign and **13/13 killed** result are recorded in `evidence/next/T19-CURRENT-MAIN-ACCEPTANCE.md`.
 
 Mutation fixture count is not negative-vector certification coverage. A single vector may need additional runtime/platform evidence, and the remaining catalog items are not considered executable merely because they are documented.
+
+## Wave-2 product mutations, permission matrix and evidence records
+
+- `product-mutations-wave2.json` adds executable mutants for negative vectors that the pilot catalog (`product-mutations.json`) leaves without one. `product-mutation-runner.mjs` applies and runs them.
+- `product-wave2-invariants.test.mjs` holds the killer tests that close the gaps the wave found. Some mutants still survive because the owning tracks have no test for them; the survivor register in the mutation record lists them and their analysis.
+- `permission-matrix.json` and `permission-matrix.test.mjs` hold a normal and a negative case for every cell, at the policy-decision layer only. They do not test runtime enforcement.
+- `evidence/next/T19-WAVE2-MUTATION-RECORD.json` and `evidence/next/T19-WAVE2-CROSS-VERSION.json` are self-computed records of local campaigns and suite runs. `wave2-evidence.test.mjs` recomputes them from Git history and the committed logs. No signed attestation exists. To refresh them, re-run the campaigns against a new source commit, rebuild the records, and commit them as an evidence-only descendant of that commit.

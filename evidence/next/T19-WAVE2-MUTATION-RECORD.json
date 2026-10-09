@@ -1,0 +1,973 @@
+{
+  "contract": "bskel.t19-wave2-mutation-record/1",
+  "source_commit": "23a23899f0838c6991e4d7e0ed2d4b61103d16ba",
+  "evidence_commit_rule": "source_commit is the tested commit; the commit that adds this record is an evidence-only descendant, and the verifier reads every input from source_commit in Git history",
+  "attestation": {
+    "present": false,
+    "reason": "self-computed from local runs; no signed attestation exists and none is claimed"
+  },
+  "environment": "Every mutation campaign and every nested-suite run executed under env -i with exactly four variables: HOME (a scratch directory whose .gitconfig supplies a local git identity, needed by tests that create commits), TMPDIR (scratch), npm_config_cache (scratch) and PATH. PATH was the Node binary directory under test, the npm directory of Node 24.19.0, a tools directory holding the ripgrep 15.2.0 binary that the scanners require, and the system directories usr/bin, bin, usr/sbin and sbin. The campaigns ran from a clean git worktree of the source commit with the lockfile dependencies installed by npm ci; the suites ran from clean worktrees of the same commit with the same node_modules copied in. The host was a shared macOS arm64 machine under heavy load from other processes, so timings are not representative.",
+  "catalog": {
+    "path": "test/conformance-next/product-mutations-wave2.json",
+    "file_sha256": "9573b65d703a8e0fc0a0db3611082cfa643bfd7e532a8fa980d30ae4a568ef31",
+    "parsed_sha256": "7b0b7befa0cadbeb43f80c4ee4e19e5f6e551dbf97b9fc1e3bbe827dc1b41bfa",
+    "mutants": 23
+  },
+  "inputs": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "5f7bf94b92887287f4d8bb37be3413acead009df227062b67ac81a12cb4c2327"
+    },
+    {
+      "path": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+      "sha256": "d8dd7376b11358f2f0b669977c923f7f3bedf920895f67ffdc4d0a07c76c628e"
+    },
+    {
+      "path": "adapters/protocol-next/scanners/protocol-loaders.mjs",
+      "sha256": "b9527197289000c6d97c7e754e906d1fff109e50e7fbc45e680bbb550f1d402f"
+    },
+    {
+      "path": "contracts/reconciliation-next/evidence-binding.mjs",
+      "sha256": "1af7610ed161781f401f2c17694098544569ca54c027f4ef353590669732f053"
+    },
+    {
+      "path": "handles/_engine.mjs",
+      "sha256": "6b8d812c8b74368fedf95539a258678832e56b5eed9e32e9034e822a9a3118b0"
+    },
+    {
+      "path": "lib/artifact-store-next/store.mjs",
+      "sha256": "2e8423dcdddc74ce790a6e8c998b86ba6e16e9345ab19db22629602c3299aae3"
+    },
+    {
+      "path": "lib/patch-transactions.mjs",
+      "sha256": "2a6319308afdbfa3162d826d9904ac99e3e3d40b144d53ae1e98f82133c567d2"
+    },
+    {
+      "path": "lib/scan-scheduler-next/cache-key.mjs",
+      "sha256": "e864a6a08e6edbde8c0a7844a2cb0dbd526438b64dae7408f09380a5858962c9"
+    },
+    {
+      "path": "lib/scan-scheduler-next/invalidation.mjs",
+      "sha256": "3ae1e9362c9c9912b54e02c5bc001ece6f1302444731e6bc1c273fcc3236a758"
+    },
+    {
+      "path": "lib/trust-next/permission-manifest.mjs",
+      "sha256": "28c260d9dc146fcbf07577bc8c99a439677ef32dd9d0beaabb36e1c540bc6840"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "f53dc054a10dafadcb217a17f3805253bdafc123b0943026ee453dee20210087"
+    },
+    {
+      "path": "package.json",
+      "sha256": "a48ff4cc4537c7cf31b0d0007eea905582eae09c2ca5f18a5272f9947c9784a5"
+    },
+    {
+      "path": "release/next/release-policy.mjs",
+      "sha256": "5811a1539c6f1809b0b910277a5ed1760c184ef6d9348dab51583e865be7421c"
+    },
+    {
+      "path": "release/next/test/release-policy-cli-path.test.mjs",
+      "sha256": "e3bac0c61acad3dc20adcf3a78b0a005afb89dfbcfd0c3f7fac1bacec2334d22"
+    },
+    {
+      "path": "release/next/test/release-policy-cli.test.mjs",
+      "sha256": "474c848b54ab8a372e64c930e26f1cbec4b310611ac1210ea906ff5ceaf42291"
+    },
+    {
+      "path": "release/next/test/release-policy-evidence-ref.test.mjs",
+      "sha256": "041e3542d1d781a41bb42729a1298858131ec33a1c8705872964273e03c9ba67"
+    },
+    {
+      "path": "release/next/test/release-policy-github.test.mjs",
+      "sha256": "11149d3a0e0a00164bb0e9f705d3a1730dc520abd47b4016480b7bef0bc83284"
+    },
+    {
+      "path": "release/next/test/release-policy-online.test.mjs",
+      "sha256": "4f3cc061794e884833ac6f91b470fcc4608190201680e7de5c5a15172d622abb"
+    },
+    {
+      "path": "release/next/test/release-policy-waiver.test.mjs",
+      "sha256": "9d95a8874660420a1a4d3f1934330e40395e2375345ed1e92d781563d51c295f"
+    },
+    {
+      "path": "release/next/test/release-policy.test.mjs",
+      "sha256": "37467a9692b34d77abc0d6be8a7f71700243fd7fedcc6e502f8e74c3b775d5a9"
+    },
+    {
+      "path": "scanners/adapters/typescript-express.mjs",
+      "sha256": "0bba0036bf24ea73c3df3000bb862532680127d899de5f7318881ebc5c5f8dcb"
+    },
+    {
+      "path": "scanners/language/native-server/runner.mjs",
+      "sha256": "0c2800214d44c3ba21f13980af611756dad22991d4b8c5d7a23742ea8b060917"
+    },
+    {
+      "path": "scanners/language/native-server/rust.mjs",
+      "sha256": "d1ee2c83e7ae5b45845d578ca2dcd0bf7f23c1473f1b834a2f492cc8db9b2256"
+    },
+    {
+      "path": "scripts/run-next-nested-tests.mjs",
+      "sha256": "acb8db06506f5bb1d52ff4f82b54b9a4db9fd3d45409a02da4d546c55c0dacac"
+    },
+    {
+      "path": "test/conformance-next/bounded-process.mjs",
+      "sha256": "862aa894aea843e65ccbcf6b5ae7e57d3bad5b3395ed95b3dafe281ab626e7ab"
+    },
+    {
+      "path": "test/conformance-next/harness.mjs",
+      "sha256": "2d8d9903f1c9570d5808eddbf3910765bc59e74fe9e925bfe74cf1e9be21d497"
+    },
+    {
+      "path": "test/conformance-next/permission-matrix.json",
+      "sha256": "78e885cc6971bf797a149ec5b9a3a30b81a27359511076118a0eb0681e1dbfad"
+    },
+    {
+      "path": "test/conformance-next/permission-matrix.test.mjs",
+      "sha256": "33cce50d91b514880df2bb8eef89e25d881ad2673709f01287275f67f41e33ba"
+    },
+    {
+      "path": "test/conformance-next/product-mutation-runner.mjs",
+      "sha256": "19e841f2292553fc5497ae90a9501e856e3e5e15e4c57f210681bf32602441b7"
+    },
+    {
+      "path": "test/conformance-next/product-mutations-wave2.json",
+      "sha256": "9573b65d703a8e0fc0a0db3611082cfa643bfd7e532a8fa980d30ae4a568ef31"
+    },
+    {
+      "path": "test/conformance-next/product-mutations.json",
+      "sha256": "f6069e637cc520ba70092614c944935a6b8007a28e99859e9bae8f2360467825"
+    },
+    {
+      "path": "test/conformance-next/product-wave2-invariants.test.mjs",
+      "sha256": "9128757a4a9fdb9c19e70125bf937c96f655eefb21924ef131ce7f144b016ffb"
+    },
+    {
+      "path": "test/corpus-next/negative-vectors.json",
+      "sha256": "829ac742786cb570d5ef4238c81bb9051123812beaffce320e211cf6a148e23e"
+    },
+    {
+      "path": "test/express-shared.test.mjs",
+      "sha256": "3f51de70747aabd97a616c50345266b7f85a3d2e715a7dd6a662e27f8c52b73b"
+    },
+    {
+      "path": "test/handles-engine.test.mjs",
+      "sha256": "103819b0dadd94567e7bda29d5ddcebb6f8119dd020ece8b90dea664db8b27fa"
+    },
+    {
+      "path": "test/http-wave-bc/typescript-nextjs.test.mjs",
+      "sha256": "3fb3bf7af91c1b5e9044cc233460b87d2991aa097742824c405c1f338fa2c82a"
+    },
+    {
+      "path": "test/language-native-server/native-server.test.mjs",
+      "sha256": "5999cc4fafca51fa7314642af07ea097505370ade7e5c2089c132a33919ef22b"
+    },
+    {
+      "path": "test/language-native-server/package.test.mjs",
+      "sha256": "958fedc261875f932c9b4a6e9d97208436075891a42ed228b9843f3369c2cf9c"
+    },
+    {
+      "path": "test/patch-transactions.test.mjs",
+      "sha256": "4440e30092c956783faa1ebd698e4bf2f5a7d60e35b84701fc66c6baf7d3e7eb"
+    },
+    {
+      "path": "test/perf-next/t21-artifact-gc.test.mjs",
+      "sha256": "459d326618e406f2a288887f73efd16812d81ec2b5246b034b5cf0596ce96155"
+    },
+    {
+      "path": "test/perf-next/t21-artifact-store.test.mjs",
+      "sha256": "367fdd4be818560dd7a1495a359cd9fb049a82d85583738b123caef8613e1fd0"
+    },
+    {
+      "path": "test/perf-next/t21-cache-key.test.mjs",
+      "sha256": "8fa421b05f0590200a98ce25121041aff2844a5162543298a2eaa22bbded95fc"
+    },
+    {
+      "path": "test/perf-next/t21-cache-runtime.test.mjs",
+      "sha256": "4a98ce5b56b1e3e71b706a7f883f49f2896c88def333267833bc580bb65afd58"
+    },
+    {
+      "path": "test/perf-next/t21-file-index-invalidation.test.mjs",
+      "sha256": "be663a4f27c6904d0d90746732f9203d9ad36c327120dd0781fd1fbd91a3118e"
+    },
+    {
+      "path": "test/perf-next/t21-legacy-cache-equivalence.test.mjs",
+      "sha256": "9a47803a666bb2182a370d955de0a8488dc688d33d9e7275cfad304e38b9d76e"
+    },
+    {
+      "path": "test/perf-next/t21-project-cache.test.mjs",
+      "sha256": "ed87c48edb09ed92b6eddc70758a29f4d50ca262dc505a9e1cf331ed999f9f61"
+    },
+    {
+      "path": "test/protocol-next/protocol-conformance.test.mjs",
+      "sha256": "58d5a3505fa7eb354e1ceb6d398ccc60547cd6a267d405744827d05184d1877d"
+    },
+    {
+      "path": "test/protocol-next/protocol-contract.test.mjs",
+      "sha256": "19a50654e808133868c4bb7b04086f9b9cc581fe998003f059ceef9038980c44"
+    },
+    {
+      "path": "test/protocol-next/protocol-flow.test.mjs",
+      "sha256": "40f4244ca3398fd2e4ddda9ccf7a32f008bb3bd24a165a92e0bd0487a56ce6c9"
+    },
+    {
+      "path": "test/protocol-next/protocol-loaders.test.mjs",
+      "sha256": "ce19ab54a04be6c760c5a499d69cbd63153662c396e0fd1b6b681e5009f66772"
+    },
+    {
+      "path": "test/reconciliation-next/evidence-binding.test.mjs",
+      "sha256": "2f092e08770850f27d7113d655ed48e1f0217b45c72392460cee257f17b97a75"
+    },
+    {
+      "path": "test/trust-next/permission-manifest.test.mjs",
+      "sha256": "4d4be148a92a90ad34cbaa43fbb636a3e89cb1b4b4651c807e1f73975eeb6dce"
+    },
+    {
+      "path": "test/typescript-express-cli.test.mjs",
+      "sha256": "522c2346a190f7065a84b5daf19f696379cf9d666b62da4ef49e3c0bd03a5081"
+    }
+  ],
+  "runs": [
+    {
+      "id": "wave2-node24",
+      "role": "wave2",
+      "node_version": "v24.19.0",
+      "command": [
+        "node",
+        "test/conformance-next/product-mutation-runner.mjs",
+        "--repo-root",
+        ".",
+        "--catalog",
+        "test/conformance-next/product-mutations-wave2.json",
+        "--out",
+        "campaign-wave2-node24.report.json",
+        "--source-commit",
+        "23a23899f0838c6991e4d7e0ed2d4b61103d16ba"
+      ],
+      "runner_exit_code": 3,
+      "runner_stderr": "qa-product-mutation: FAIL -- 18/23 mutants killed",
+      "report_file": "evidence/next/t19-wave2/campaign-wave2-node24.report.json.gz",
+      "report_gz_sha256": "81116af65b29d56d6ae985faeca9293b979bb639c41371a261bf17909dc63942",
+      "report_sha256": "d96e655a43b8dea61b8d791016a94ee2e27336f048618ef2f624bdc8bafa1d9c",
+      "summary": {
+        "total": 23,
+        "killed": 18,
+        "survived": [
+          "PMUT2-WORKER-OUTPUT-LIMIT-UNREPORTED",
+          "PMUT2-RUST-NEST-CYCLE-UNBOUNDED",
+          "PMUT2-TS-EXPRESS-MOUNT-CYCLE-UNBOUNDED",
+          "PMUT2-RELEASE-HEAD-BINDING-DROPPED",
+          "PMUT2-RELEASE-ROLLBACK-RESTORE-UNVERIFIED"
+        ],
+        "critical_failures": [
+          "PMUT2-RUST-NEST-CYCLE-UNBOUNDED",
+          "PMUT2-TS-EXPRESS-MOUNT-CYCLE-UNBOUNDED",
+          "PMUT2-RELEASE-HEAD-BINDING-DROPPED",
+          "PMUT2-RELEASE-ROLLBACK-RESTORE-UNVERIFIED"
+        ],
+        "pass": false
+      },
+      "mutants": [
+        {
+          "id": "PMUT2-INVALIDATION-IGNORES-DELETED-FILES",
+          "vector_id": "NEG-CACHE-02",
+          "critical": false,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-CACHE-KEY-IGNORES-PARSER-DIGEST",
+          "vector_id": "NEG-CACHE-03",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-CACHE-KEY-IGNORES-ADAPTER-DIGEST",
+          "vector_id": "NEG-CACHE-04",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-INVALIDATION-STOPS-AT-DIRECT-DEPENDENTS",
+          "vector_id": "NEG-CACHE-05",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-ARTIFACT-READ-SKIPS-REHASH",
+          "vector_id": "NEG-CACHE-06",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-RUNTIME-SOURCE-ARTIFACT-UNBOUND",
+          "vector_id": "NEG-RUN-03",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-CASE-REVISION-UNBOUND",
+          "vector_id": "NEG-RUN-04",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-RUNTIME-BINDING-HASH-UNCHECKED",
+          "vector_id": "NEG-RUN-05",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-PROFILE-APPROVAL-UNBOUND",
+          "vector_id": "NEG-ID-06",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-NODE-OPTIONS-INHERITABLE",
+          "vector_id": "NEG-TRUST-01",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-NETWORK-HOST-CHECK-DROPPED",
+          "vector_id": "NEG-TRUST-03",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-CLASSPATH-INHERITABLE",
+          "vector_id": "NEG-TRUST-05",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-WORKER-OUTPUT-LIMIT-UNREPORTED",
+          "vector_id": "NEG-TRUST-07",
+          "critical": false,
+          "status": "survived",
+          "exit_code": 0,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-ABSOLUTE-ROOT-ALLOWED",
+          "vector_id": "NEG-TRUST-08",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-RUST-NEST-CYCLE-UNBOUNDED",
+          "vector_id": "NEG-ROUTE-03",
+          "critical": true,
+          "status": "survived",
+          "exit_code": 0,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-TS-EXPRESS-MOUNT-CYCLE-UNBOUNDED",
+          "vector_id": "NEG-ROUTE-03",
+          "critical": true,
+          "status": "survived",
+          "exit_code": 0,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-NEXTJS-CATCH-ALL-INVENTED-AS-LITERAL",
+          "vector_id": "NEG-ROUTE-05",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-PROTOCOL-REMOTE-REF-ALLOWED",
+          "vector_id": "NEG-SCHEMA-02",
+          "critical": false,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-PROTOCOL-DEPTH-BUDGET-OFF",
+          "vector_id": "NEG-SCHEMA-03",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-STALE-PREIMAGE-ACCEPTED",
+          "vector_id": "NEG-GEN-03",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-INFRA-CONFLICT-NOT-BLOCKING",
+          "vector_id": "NEG-GEN-04",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-RELEASE-HEAD-BINDING-DROPPED",
+          "vector_id": "NEG-RELEASE-01",
+          "critical": true,
+          "status": "survived",
+          "exit_code": 0,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-RELEASE-ROLLBACK-RESTORE-UNVERIFIED",
+          "vector_id": "NEG-RELEASE-05",
+          "critical": true,
+          "status": "survived",
+          "exit_code": 0,
+          "baseline_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "wave2-node22",
+      "role": "wave2",
+      "node_version": "v22.23.3",
+      "command": [
+        "node",
+        "test/conformance-next/product-mutation-runner.mjs",
+        "--repo-root",
+        ".",
+        "--catalog",
+        "test/conformance-next/product-mutations-wave2.json",
+        "--out",
+        "campaign-wave2-node22.report.json",
+        "--source-commit",
+        "23a23899f0838c6991e4d7e0ed2d4b61103d16ba"
+      ],
+      "runner_exit_code": 3,
+      "runner_stderr": "qa-product-mutation: FAIL -- 18/23 mutants killed",
+      "report_file": "evidence/next/t19-wave2/campaign-wave2-node22.report.json.gz",
+      "report_gz_sha256": "06e809249de86bbd82097fae92d89fc6e79c2a803c3f40edf11410b3049f7bf1",
+      "report_sha256": "21c7cf38d2bdb9a9612d957055a7f2150cd6c6472f8b81ca6a2a7771f176cdb2",
+      "summary": {
+        "total": 23,
+        "killed": 18,
+        "survived": [
+          "PMUT2-WORKER-OUTPUT-LIMIT-UNREPORTED",
+          "PMUT2-RUST-NEST-CYCLE-UNBOUNDED",
+          "PMUT2-TS-EXPRESS-MOUNT-CYCLE-UNBOUNDED",
+          "PMUT2-RELEASE-HEAD-BINDING-DROPPED",
+          "PMUT2-RELEASE-ROLLBACK-RESTORE-UNVERIFIED"
+        ],
+        "critical_failures": [
+          "PMUT2-RUST-NEST-CYCLE-UNBOUNDED",
+          "PMUT2-TS-EXPRESS-MOUNT-CYCLE-UNBOUNDED",
+          "PMUT2-RELEASE-HEAD-BINDING-DROPPED",
+          "PMUT2-RELEASE-ROLLBACK-RESTORE-UNVERIFIED"
+        ],
+        "pass": false
+      },
+      "mutants": [
+        {
+          "id": "PMUT2-INVALIDATION-IGNORES-DELETED-FILES",
+          "vector_id": "NEG-CACHE-02",
+          "critical": false,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-CACHE-KEY-IGNORES-PARSER-DIGEST",
+          "vector_id": "NEG-CACHE-03",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-CACHE-KEY-IGNORES-ADAPTER-DIGEST",
+          "vector_id": "NEG-CACHE-04",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-INVALIDATION-STOPS-AT-DIRECT-DEPENDENTS",
+          "vector_id": "NEG-CACHE-05",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-ARTIFACT-READ-SKIPS-REHASH",
+          "vector_id": "NEG-CACHE-06",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-RUNTIME-SOURCE-ARTIFACT-UNBOUND",
+          "vector_id": "NEG-RUN-03",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-CASE-REVISION-UNBOUND",
+          "vector_id": "NEG-RUN-04",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-RUNTIME-BINDING-HASH-UNCHECKED",
+          "vector_id": "NEG-RUN-05",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-PROFILE-APPROVAL-UNBOUND",
+          "vector_id": "NEG-ID-06",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-NODE-OPTIONS-INHERITABLE",
+          "vector_id": "NEG-TRUST-01",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-NETWORK-HOST-CHECK-DROPPED",
+          "vector_id": "NEG-TRUST-03",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-CLASSPATH-INHERITABLE",
+          "vector_id": "NEG-TRUST-05",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-WORKER-OUTPUT-LIMIT-UNREPORTED",
+          "vector_id": "NEG-TRUST-07",
+          "critical": false,
+          "status": "survived",
+          "exit_code": 0,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-ABSOLUTE-ROOT-ALLOWED",
+          "vector_id": "NEG-TRUST-08",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-RUST-NEST-CYCLE-UNBOUNDED",
+          "vector_id": "NEG-ROUTE-03",
+          "critical": true,
+          "status": "survived",
+          "exit_code": 0,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-TS-EXPRESS-MOUNT-CYCLE-UNBOUNDED",
+          "vector_id": "NEG-ROUTE-03",
+          "critical": true,
+          "status": "survived",
+          "exit_code": 0,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-NEXTJS-CATCH-ALL-INVENTED-AS-LITERAL",
+          "vector_id": "NEG-ROUTE-05",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-PROTOCOL-REMOTE-REF-ALLOWED",
+          "vector_id": "NEG-SCHEMA-02",
+          "critical": false,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-PROTOCOL-DEPTH-BUDGET-OFF",
+          "vector_id": "NEG-SCHEMA-03",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-STALE-PREIMAGE-ACCEPTED",
+          "vector_id": "NEG-GEN-03",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-INFRA-CONFLICT-NOT-BLOCKING",
+          "vector_id": "NEG-GEN-04",
+          "critical": true,
+          "status": "killed",
+          "exit_code": 1,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-RELEASE-HEAD-BINDING-DROPPED",
+          "vector_id": "NEG-RELEASE-01",
+          "critical": true,
+          "status": "survived",
+          "exit_code": 0,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-RELEASE-ROLLBACK-RESTORE-UNVERIFIED",
+          "vector_id": "NEG-RELEASE-05",
+          "critical": true,
+          "status": "survived",
+          "exit_code": 0,
+          "baseline_exit_code": 0
+        }
+      ]
+    },
+    {
+      "id": "owner-only-node24",
+      "role": "owner-only",
+      "node_version": "v24.19.0",
+      "command": [
+        "node",
+        "test/conformance-next/product-mutation-runner.mjs",
+        "--repo-root",
+        ".",
+        "--catalog",
+        "owner-only-catalog.json",
+        "--out",
+        "campaign-owner-only-node24.report.json",
+        "--source-commit",
+        "23a23899f0838c6991e4d7e0ed2d4b61103d16ba"
+      ],
+      "runner_exit_code": 3,
+      "runner_stderr": "qa-product-mutation: FAIL -- 0/5 mutants killed",
+      "report_file": "evidence/next/t19-wave2/campaign-owner-only-node24.report.json.gz",
+      "report_gz_sha256": "691a314398631ee800cd082f05076d877be0a335b01f2d81c65486c0e4e2d81c",
+      "report_sha256": "8bcd925c7d447b6142b45528351ed9692d08979ab76e0bdeeb134ab963b0e624",
+      "summary": {
+        "total": 5,
+        "killed": 0,
+        "survived": [
+          "PMUT2-ARTIFACT-READ-SKIPS-REHASH",
+          "PMUT2-CLASSPATH-INHERITABLE",
+          "PMUT2-ABSOLUTE-ROOT-ALLOWED",
+          "PMUT2-PROTOCOL-DEPTH-BUDGET-OFF",
+          "PMUT2-INFRA-CONFLICT-NOT-BLOCKING"
+        ],
+        "critical_failures": [
+          "PMUT2-ARTIFACT-READ-SKIPS-REHASH",
+          "PMUT2-CLASSPATH-INHERITABLE",
+          "PMUT2-ABSOLUTE-ROOT-ALLOWED",
+          "PMUT2-PROTOCOL-DEPTH-BUDGET-OFF",
+          "PMUT2-INFRA-CONFLICT-NOT-BLOCKING"
+        ],
+        "pass": false
+      },
+      "mutants": [
+        {
+          "id": "PMUT2-ARTIFACT-READ-SKIPS-REHASH",
+          "vector_id": "NEG-CACHE-06",
+          "critical": true,
+          "status": "survived",
+          "exit_code": 0,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-CLASSPATH-INHERITABLE",
+          "vector_id": "NEG-TRUST-05",
+          "critical": true,
+          "status": "survived",
+          "exit_code": 0,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-ABSOLUTE-ROOT-ALLOWED",
+          "vector_id": "NEG-TRUST-08",
+          "critical": true,
+          "status": "survived",
+          "exit_code": 0,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-PROTOCOL-DEPTH-BUDGET-OFF",
+          "vector_id": "NEG-SCHEMA-03",
+          "critical": true,
+          "status": "survived",
+          "exit_code": 0,
+          "baseline_exit_code": 0
+        },
+        {
+          "id": "PMUT2-INFRA-CONFLICT-NOT-BLOCKING",
+          "vector_id": "NEG-GEN-04",
+          "critical": true,
+          "status": "survived",
+          "exit_code": 0,
+          "baseline_exit_code": 0
+        }
+      ],
+      "catalog": {
+        "contract": "sbf.qa-product-mutation-catalog/1",
+        "mutants": [
+          {
+            "id": "PMUT2-ARTIFACT-READ-SKIPS-REHASH",
+            "vector_id": "NEG-CACHE-06",
+            "critical": true,
+            "file": "lib/artifact-store-next/store.mjs",
+            "find": "if (data.length !== ref.size || sha256(data) !== ref.digest) {",
+            "replace": "if (data.length !== ref.size) {",
+            "test_files": [
+              "test/perf-next/t21-artifact-store.test.mjs",
+              "test/perf-next/t21-cache-runtime.test.mjs",
+              "test/perf-next/t21-project-cache.test.mjs",
+              "test/perf-next/t21-artifact-gc.test.mjs",
+              "test/perf-next/t21-legacy-cache-equivalence.test.mjs"
+            ],
+            "invariant": "Stored artifact bytes are re-hashed on read; same-size corrupted bytes are refused."
+          },
+          {
+            "id": "PMUT2-CLASSPATH-INHERITABLE",
+            "vector_id": "NEG-TRUST-05",
+            "critical": true,
+            "file": "lib/trust-next/permission-manifest.mjs",
+            "find": "'BASH_ENV', 'CLASSPATH', ",
+            "replace": "'BASH_ENV', ",
+            "test_files": [
+              "test/trust-next/permission-manifest.test.mjs"
+            ],
+            "invariant": "CLASSPATH, which would load annotation processors and other executable extensions, cannot be inherited from the host."
+          },
+          {
+            "id": "PMUT2-ABSOLUTE-ROOT-ALLOWED",
+            "vector_id": "NEG-TRUST-08",
+            "critical": true,
+            "file": "lib/trust-next/permission-manifest.mjs",
+            "find": "  if (path.posix.isAbsolute(value) || /^[A-Za-z]:\\//.test(value)) return null;\n  const parts = value.split('/');\n  if (parts.some((part) => part === '..' || part === '')) return null;",
+            "replace": "  if (/^[A-Za-z]:\\//.test(value)) return null;\n  const parts = value.split('/');\n  if (parts.some((part) => part === '..')) return null;",
+            "test_files": [
+              "test/trust-next/permission-manifest.test.mjs"
+            ],
+            "invariant": "Permission roots are repository-relative; an absolute host path such as a Docker socket cannot be named as a readable or writable root."
+          },
+          {
+            "id": "PMUT2-PROTOCOL-DEPTH-BUDGET-OFF",
+            "vector_id": "NEG-SCHEMA-03",
+            "critical": true,
+            "file": "adapters/protocol-next/scanners/protocol-loaders.mjs",
+            "find": "if (depth > maxDepth)",
+            "replace": "if (false)",
+            "test_files": [
+              "test/protocol-next/protocol-loaders.test.mjs",
+              "test/protocol-next/protocol-contract.test.mjs",
+              "test/protocol-next/protocol-conformance.test.mjs",
+              "test/protocol-next/protocol-flow.test.mjs"
+            ],
+            "invariant": "Structured protocol document nesting is bounded by maxDepth; this covers the document depth budget, not $ref cycle resolution."
+          },
+          {
+            "id": "PMUT2-INFRA-CONFLICT-NOT-BLOCKING",
+            "vector_id": "NEG-GEN-04",
+            "critical": true,
+            "file": "handles/_engine.mjs",
+            "find": "const infraHasConflict = infraPlans.some((u) => u.action === 'conflict');",
+            "replace": "const infraHasConflict = false;",
+            "test_files": [
+              "test/handles-engine.test.mjs"
+            ],
+            "invariant": "One conflicting generated infra file blocks the whole infra set, so a partial infra tree is not applied; this does not cover failures during the write itself. The owner CLI test (handles-cli) is too slow for the runner timeout on a loaded host and is not used as an oracle here."
+          }
+        ]
+      }
+    }
+  ],
+  "survivors": [
+    {
+      "id": "PMUT2-RELEASE-HEAD-BINDING-DROPPED",
+      "vector_id": "NEG-RELEASE-01",
+      "critical": true,
+      "survived_in": [
+        "wave2-node24",
+        "wave2-node22"
+      ],
+      "disposition": "open-test-gap",
+      "analysis": "All seven selected release-policy test files exit 0 with the offline pack-verifier head comparison disabled, so none depends on it. A separate online check compares the run head_sha; whether that makes this offline comparison redundant was not analysed, so the mutant is recorded as an open test gap."
+    },
+    {
+      "id": "PMUT2-RELEASE-ROLLBACK-RESTORE-UNVERIFIED",
+      "vector_id": "NEG-RELEASE-05",
+      "critical": true,
+      "survived_in": [
+        "wave2-node24",
+        "wave2-node22"
+      ],
+      "disposition": "open-test-gap",
+      "analysis": "All seven selected release-policy test files exit 0 with the rollback_restored_previous comparison disabled, so none depends on it. Whether another check masks the condition was not analysed, so the mutant is recorded as an open test gap rather than as an equivalent mutant."
+    },
+    {
+      "id": "PMUT2-RUST-NEST-CYCLE-UNBOUNDED",
+      "vector_id": "NEG-ROUTE-03",
+      "critical": true,
+      "survived_in": [
+        "wave2-node24",
+        "wave2-node22"
+      ],
+      "disposition": "open-test-gap",
+      "analysis": "The selected native-server tests exit 0 with the nesting-cycle guard disabled, so no selected test depends on it. No test file mentions the RUST_AXUM_NEST_CYCLE diagnostic. This is recorded as a missing test in the owning track; equivalence of the mutation was not analysed."
+    },
+    {
+      "id": "PMUT2-TS-EXPRESS-MOUNT-CYCLE-UNBOUNDED",
+      "vector_id": "NEG-ROUTE-03",
+      "critical": true,
+      "survived_in": [
+        "wave2-node24",
+        "wave2-node22"
+      ],
+      "disposition": "open-test-gap",
+      "analysis": "The selected Express tests exit 0 with the revisited-router guard disabled, so no selected test depends on it; neither test file mentions a cycle. Recorded as a missing cycle fixture in the owning track; equivalence of the mutation was not analysed."
+    },
+    {
+      "id": "PMUT2-WORKER-OUTPUT-LIMIT-UNREPORTED",
+      "vector_id": "NEG-TRUST-07",
+      "critical": false,
+      "survived_in": [
+        "wave2-node24",
+        "wave2-node22"
+      ],
+      "disposition": "open-test-gap",
+      "analysis": "The selected native-server tests exit 0 with the ENOBUFS branch disabled, so no selected test depends on it. The one WORKER_OUTPUT_LIMIT assertion in them is reached through the byte-budget check on collected stdout, a different branch. Whether another path reports a buffer overflow equivalently was not analysed."
+    }
+  ],
+  "coverage": {
+    "negative_vectors": 79,
+    "pilot_vectors": 13,
+    "wave2_vectors": 22,
+    "vectors_without_mutant": [
+      "NEG-ID-02",
+      "NEG-ID-03",
+      "NEG-ID-04",
+      "NEG-ID-05",
+      "NEG-PROJ-03",
+      "NEG-PROJ-04",
+      "NEG-PROJ-05",
+      "NEG-PROJ-06",
+      "NEG-ROUTE-01",
+      "NEG-ROUTE-02",
+      "NEG-ROUTE-04",
+      "NEG-ROUTE-06",
+      "NEG-ROUTE-07",
+      "NEG-ROUTE-08",
+      "NEG-SCHEMA-01",
+      "NEG-SCHEMA-04",
+      "NEG-SCHEMA-05",
+      "NEG-SCHEMA-06",
+      "NEG-SCHEMA-07",
+      "NEG-SCHEMA-08",
+      "NEG-AUTH-01",
+      "NEG-AUTH-02",
+      "NEG-AUTH-03",
+      "NEG-AUTH-04",
+      "NEG-AUTH-05",
+      "NEG-DB-01",
+      "NEG-DB-02",
+      "NEG-DB-03",
+      "NEG-DB-04",
+      "NEG-DB-05",
+      "NEG-DB-06",
+      "NEG-RUN-02",
+      "NEG-RUN-06",
+      "NEG-RUN-07",
+      "NEG-GAME-01",
+      "NEG-GAME-02",
+      "NEG-GAME-03",
+      "NEG-GAME-04",
+      "NEG-GAME-05",
+      "NEG-GAME-06",
+      "NEG-GAME-07",
+      "NEG-GEN-05",
+      "NEG-RELEASE-03",
+      "NEG-RELEASE-04"
+    ]
+  },
+  "limits": [
+    {
+      "id": "no-attestation",
+      "text": "No signed attestation exists or is claimed. The records are computed from local runs; the verifier recomputes every hash, count and verdict from committed files and Git history but cannot prove that the runs happened as described."
+    },
+    {
+      "id": "survivors-open",
+      "text": "The wave-2 gate fails on both Node versions: the survivors listed in this record are open test gaps in the owning tracks. None was marked equivalent, excluded or fixed here, and the owner-only run shows the gap mutants that only the new killer tests detect."
+    },
+    {
+      "id": "local-runs-only",
+      "text": "All runs were made on one macOS arm64 host under a pinned local environment. No Linux, Windows or CI-hosted campaign is part of this record, and the owner-only run was made on Node 24 only."
+    },
+    {
+      "id": "anchors-valid-at-source-commit-only",
+      "text": "Each mutant's find text is shown to occur exactly once only in the file as committed at the source commit. Later edits to a mutated file can invalidate the catalog, and the campaigns must then be re-run against a new source commit."
+    },
+    {
+      "id": "vectors-without-mutant",
+      "text": "The negative vectors listed under coverage.vectors_without_mutant still have no executable mutant in either the pilot catalog or the wave-2 catalog, so this record does not cover them."
+    },
+    {
+      "id": "permission-matrix-is-decision-layer",
+      "text": "The permission matrix tests policy decision functions, manifest validation, environment selection and expansion diffs. It does not exercise runtime enforcement of a permission by a gate or by the operating system."
+    }
+  ]
+}

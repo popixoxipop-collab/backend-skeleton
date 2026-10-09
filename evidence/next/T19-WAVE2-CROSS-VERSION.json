@@ -1,0 +1,292 @@
+{
+  "contract": "bskel.t19-wave2-cross-version/1",
+  "source_commit": "23a23899f0838c6991e4d7e0ed2d4b61103d16ba",
+  "attestation": {
+    "present": false,
+    "reason": "self-computed from local runs; no signed attestation exists and none is claimed"
+  },
+  "declared": {
+    "engines_node": ">=18",
+    "ci_matrix_node": [
+      "22.x",
+      "24.x"
+    ]
+  },
+  "suite_runs": [
+    {
+      "suite": "T19",
+      "attempt": 1,
+      "node_version": "v24.19.0",
+      "platform": "darwin arm64",
+      "command": "node scripts/run-next-nested-tests.mjs T19",
+      "exit_code": 1,
+      "counts": {
+        "tests": 91,
+        "suites": 0,
+        "pass": 89,
+        "fail": 2,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "failed_tests": [
+        "mutation runner CLI writes a machine-readable killed-mutant report",
+        "real product mutation pilot kills every critical mutant"
+      ],
+      "log_file": "evidence/next/t19-wave2/suite-T19-node24.log.gz",
+      "log_gz_sha256": "428c2a0fc96cc02f26aff93fdf59e305f22727ab2b6a8fbc36eb32a7631d29f2",
+      "log_sha256": "679923be785492bff8b374fe903a5c6b8b15554ef408ddade5b7deba461aff05"
+    },
+    {
+      "suite": "T20",
+      "attempt": 1,
+      "node_version": "v24.19.0",
+      "platform": "darwin arm64",
+      "command": "node scripts/run-next-nested-tests.mjs T20",
+      "exit_code": 0,
+      "counts": {
+        "tests": 121,
+        "suites": 0,
+        "pass": 121,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "failed_tests": [],
+      "log_file": "evidence/next/t19-wave2/suite-T20-node24.log.gz",
+      "log_gz_sha256": "0d96144abc2a540f077efda6d7a43f7e2bf300736a6fbc006b8b3a2191a9475f",
+      "log_sha256": "25553530c4abfa86b99d9c199658a89524d41f888761c0c838fb8fa259af2515"
+    },
+    {
+      "suite": "T19",
+      "attempt": 1,
+      "node_version": "v22.23.3",
+      "platform": "darwin arm64",
+      "command": "node scripts/run-next-nested-tests.mjs T19",
+      "exit_code": 1,
+      "counts": {
+        "tests": 91,
+        "suites": 0,
+        "pass": 89,
+        "fail": 2,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "failed_tests": [
+        "mutation runner CLI writes a machine-readable killed-mutant report",
+        "real product mutation pilot kills every critical mutant"
+      ],
+      "log_file": "evidence/next/t19-wave2/suite-T19-node22.log.gz",
+      "log_gz_sha256": "d5eae1780d5740a0248c711f6dddbd24049a92d0a81eeab676bfcdb68ab623af",
+      "log_sha256": "3d6d51ed2f7a42d9949881ffdc97017ecf344ea381fc7c4855d6b15162a7d320"
+    },
+    {
+      "suite": "T20",
+      "attempt": 1,
+      "node_version": "v22.23.3",
+      "platform": "darwin arm64",
+      "command": "node scripts/run-next-nested-tests.mjs T20",
+      "exit_code": 0,
+      "counts": {
+        "tests": 121,
+        "suites": 0,
+        "pass": 121,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "failed_tests": [],
+      "log_file": "evidence/next/t19-wave2/suite-T20-node22.log.gz",
+      "log_gz_sha256": "551ce957724b5e252e21852e2c32ca851a4ac0456e5fab2d1a4cb92f47b8b0b5",
+      "log_sha256": "d0fab07ebd20f04992f0f953738a17bffd0f964d990873eee7c5fda13688fdf8"
+    },
+    {
+      "suite": "T19",
+      "attempt": 1,
+      "node_version": "v20.20.2",
+      "platform": "darwin arm64",
+      "command": "node scripts/run-next-nested-tests.mjs T19",
+      "exit_code": 1,
+      "counts": {
+        "tests": 91,
+        "suites": 0,
+        "pass": 89,
+        "fail": 2,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "failed_tests": [
+        "product mutation runner CLI writes a machine-readable report",
+        "real product mutation pilot kills every critical mutant"
+      ],
+      "log_file": "evidence/next/t19-wave2/suite-T19-node20.log.gz",
+      "log_gz_sha256": "65ddbe3e12b7bb7090699c12fe30b97e8c64249b89f6d7c18fb02db37a682303",
+      "log_sha256": "d4c34c8ad15c4d192ff913e424e4ff79f1ac4c205836ba0414ddb1b9525b15f3"
+    },
+    {
+      "suite": "T20",
+      "attempt": 1,
+      "node_version": "v20.20.2",
+      "platform": "darwin arm64",
+      "command": "node scripts/run-next-nested-tests.mjs T20",
+      "exit_code": 0,
+      "counts": {
+        "tests": 121,
+        "suites": 0,
+        "pass": 121,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "failed_tests": [],
+      "log_file": "evidence/next/t19-wave2/suite-T20-node20.log.gz",
+      "log_gz_sha256": "e31b0d2a51f86f2cdbd2bede17fc7247a3a15906a350e12f9c8e74c0b5fd8770",
+      "log_sha256": "83a0c2178bb3bdcf906cb2b251a3ba522dc6b4b8283e4d39a102066f2ce41045"
+    },
+    {
+      "suite": "T19",
+      "attempt": 1,
+      "node_version": "v18.20.8",
+      "platform": "darwin arm64",
+      "command": "node scripts/run-next-nested-tests.mjs T19",
+      "exit_code": 1,
+      "counts": {
+        "tests": 91,
+        "suites": 0,
+        "pass": 89,
+        "fail": 2,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "failed_tests": [
+        "product mutation runner CLI writes a machine-readable report",
+        "real product mutation pilot kills every critical mutant"
+      ],
+      "log_file": "evidence/next/t19-wave2/suite-T19-node18.log.gz",
+      "log_gz_sha256": "ad2cbeae938e8f2ffb8611cb9063d0e3cefb63f5435e8c24dcf6d59712c228d6",
+      "log_sha256": "32285b03c9e13efcc18a0b991ff4300c4d7d1c021efe14ce862a3154cf992a55"
+    },
+    {
+      "suite": "T20",
+      "attempt": 1,
+      "node_version": "v18.20.8",
+      "platform": "darwin arm64",
+      "command": "node scripts/run-next-nested-tests.mjs T20",
+      "exit_code": 0,
+      "counts": {
+        "tests": 121,
+        "suites": 0,
+        "pass": 121,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "failed_tests": [],
+      "log_file": "evidence/next/t19-wave2/suite-T20-node18.log.gz",
+      "log_gz_sha256": "75ab53429f005353b32a9ecb7438acdf35125357b91199c326012e019ccb5f1e",
+      "log_sha256": "749d1389be649bf35314b801fb3fcb244894f8f51678e93b68e92b9d784ae67b"
+    },
+    {
+      "suite": "T19",
+      "attempt": 2,
+      "node_version": "v24.19.0",
+      "platform": "darwin arm64",
+      "command": "node scripts/run-next-nested-tests.mjs T19",
+      "exit_code": 0,
+      "counts": {
+        "tests": 91,
+        "suites": 0,
+        "pass": 91,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "failed_tests": [],
+      "log_file": "evidence/next/t19-wave2/suite-T19-node24-attempt2.log.gz",
+      "log_gz_sha256": "89c11e2b536c879b02b8d6cc59dc9e0fde8030b86cef65912fdb9f440dd2c302",
+      "log_sha256": "7fa7bfec3699fbb6b276f4d0985d5ebb96d3566121c6a1a4c03cbd15cfceddab"
+    },
+    {
+      "suite": "T19",
+      "attempt": 2,
+      "node_version": "v22.23.3",
+      "platform": "darwin arm64",
+      "command": "node scripts/run-next-nested-tests.mjs T19",
+      "exit_code": 0,
+      "counts": {
+        "tests": 91,
+        "suites": 0,
+        "pass": 91,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "failed_tests": [],
+      "log_file": "evidence/next/t19-wave2/suite-T19-node22-attempt2.log.gz",
+      "log_gz_sha256": "c762729261051f29b979e05311aa2c74875d70e1e8f4121dfbf4a5e5dfaf97f7",
+      "log_sha256": "8545c4960274c0a44696e0c68e2357cdd00b6b1f44859d7c0432529aa5d3d520"
+    }
+  ],
+  "matrix_green": true,
+  "mutation_verdicts": {
+    "compared_runs": [
+      "wave2-node24",
+      "wave2-node22"
+    ],
+    "mutants_compared": 23,
+    "differences": []
+  },
+  "not_run": [
+    {
+      "id": "campaign-node20-node18",
+      "status": "NOT-RUN",
+      "reason": "The wave-2 mutation campaign was run on Node 24 and Node 22 only; Node 20 and Node 18 have nested-suite runs but no campaign."
+    },
+    {
+      "id": "owner-only-node22",
+      "status": "NOT-RUN",
+      "reason": "The owner-only campaign (killer file removed) was run on Node 24 only."
+    },
+    {
+      "id": "linux-and-windows",
+      "status": "BLOCKED",
+      "reason": "Only one macOS arm64 host was available to this work package, so no Linux or Windows run exists."
+    },
+    {
+      "id": "ci-hosted-run",
+      "status": "NOT-RUN",
+      "reason": "No run on a CI-hosted runner is part of this record; the pull request checks are the first hosted run and are not recorded here."
+    }
+  ],
+  "limits": [
+    {
+      "id": "local-darwin-arm64-only",
+      "text": "Every run was made on one macOS arm64 host. Platform differences in file system, process or timing behaviour are not covered."
+    },
+    {
+      "id": "shared-host-load",
+      "text": "All runs were made while the shared host carried a load average of several hundred, so timing-sensitive tests and the per-mutant timeouts of the runner may behave differently on an idle machine."
+    },
+    {
+      "id": "no-attestation",
+      "text": "No signed attestation exists or is claimed. The verifier recomputes every count, status and hash from committed bytes and Git history but cannot prove that the runs happened as described."
+    },
+    {
+      "id": "engines-wider-than-ci-matrix",
+      "text": "package.json declares an engines range wider than the CI nested-next matrix. The Node 20 and Node 18 suite runs here are local extras that no CI job covers."
+    },
+    {
+      "id": "suite-failures-open",
+      "text": "The first attempt of the T19 suite exited non-zero on every Node version tried; failed_tests lists the failing tests recomputed from each log. The cause was not established. A second attempt was made on Node 24 and Node 22 and is recorded next to the first. The pull request CI run is the authoritative result for the CI-matrix versions."
+    }
+  ]
+}
