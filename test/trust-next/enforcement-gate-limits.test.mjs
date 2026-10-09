@@ -244,6 +244,149 @@ test('a full audit log fails closed: the next operation is refused and the host 
   assert.equal(gate.audit().length, 4);
 });
 
+const layout = (gate) => gate.audit().map((entry) => `${entry.phase}:${entry.operation}:${entry.decision ?? (entry.ok ? 'ok' : 'failed')}`);
+const strict = (gate, options = {}) => verifyAuditLog(gate.audit(), { manifestDigest: gate.permissionDigest, ...options });
+
+test('one free slot is not enough for a request that reaches the host: its decision and its outcome are reserved first', async () => {
+  const host = createRecordingHost({ files: { 'src/a.txt': 'alpha' }, dns: { 'api.example.com': [['93.184.216.34']] }, secrets: { 'provider-token': 'tok' } });
+  const gate = createEnforcementGate({ manifest: manifest(), host, maxAuditEntries: 5 });
+  await assert.rejects(gate.read('src/missing.txt'), { code: 'ENOENT' });
+  await gate.read('src/a.txt');
+  assert.equal(gate.audit().length, 4);
+  assert.equal(gate.report().audit.in_flight, 0);
+  const before = host.calls.length;
+  // One slot is free, so a decision could be written but its outcome could not: nothing may reach the host.
+  await denied(gate.read('src/a.txt'), 'AUDIT_FULL', 'read');
+  await denied(gate.write('out/r.json', 'x'), 'AUDIT_FULL', 'write');
+  await denied(gate.connect('api.example.com', 443), 'AUDIT_FULL', 'connect');
+  await denied(gate.listen('127.0.0.1', 18080), 'AUDIT_FULL', 'listen');
+  await denied(gate.spawn('node', [], {}), 'AUDIT_FULL', 'spawn');
+  await denied(gate.useSecret('provider-token', () => 1), 'AUDIT_FULL', 'secret');
+  await denied(gate.useDevice('gpu'), 'AUDIT_FULL', 'device');
+  assert.equal(host.calls.length, before);
+  assert.equal(host.count('readFile'), 2);
+  assert.equal(gate.audit().length, 4);
+  assert.deepEqual(strict(gate, { expectedEntries: 4 }), { ok: true, errors: [] });
+  // An environment read owes no outcome, so the last slot is enough for it; after that the log is full.
+  assert.equal(await gate.readEnv('LANG', { LANG: 'C' }), 'C');
+  assert.equal(gate.audit().length, 5);
+  await denied(gate.readEnv('LANG', { LANG: 'C' }), 'AUDIT_FULL', 'env');
+  assert.equal(gate.audit().length, 5);
+  assert.deepEqual(strict(gate, { expectedEntries: 5 }), { ok: true, errors: [] });
+  assert.deepEqual(gate.verifyAudit(), { ok: true, errors: [] });
+});
+
+test('a record that needs no host call needs one free slot: environment reads and unknown operations fill the log exactly', async () => {
+  const gate = createEnforcementGate({ manifest: manifest(), host: createRecordingHost(), maxAuditEntries: 3 });
+  assert.equal(await gate.readEnv('LANG', { LANG: 'C' }), 'C');
+  await denied(gate.invoke('exec', {}), 'UNKNOWN_OPERATION');
+  assert.equal(await gate.readEnv('LANG', {}), undefined);
+  assert.deepEqual(layout(gate), ['decision:env:allow', 'decision:exec:deny', 'decision:env:allow']);
+  await denied(gate.readEnv('LANG', { LANG: 'C' }), 'AUDIT_FULL', 'env');
+  await denied(gate.invoke('exec', {}), 'AUDIT_FULL');
+  assert.equal(gate.audit().length, 3);
+  assert.deepEqual(strict(gate, { expectedEntries: 3 }), { ok: true, errors: [] });
+});
+
+test('slots held by requests that are still running count against the capacity, so concurrent requests cannot overrun the log', async () => {
+  const held = [];
+  let started = 0;
+  const host = createRecordingHost({ files: { 'src/a.txt': 'alpha' } });
+  host.readFile = () => {
+    started += 1;
+    // Only the first two reads are held. A third one must never get this far; if it does it finishes at once, so a broken
+    // reservation fails the assertions below instead of leaving the test waiting for a read that nobody releases.
+    if (started > 2) return Promise.resolve(Buffer.from('alpha'));
+    return new Promise((resolve) => held.push(() => resolve(Buffer.from('alpha'))));
+  };
+  const gate = createEnforcementGate({ manifest: manifest(), host, maxAuditEntries: 4 });
+  const first = gate.read('src/a.txt');
+  const second = gate.read('src/a.txt');
+  try {
+    await waitFor(() => started === 2);
+    // Two decisions are written and two outcomes are owed: the log has no room for a third pair although it holds two entries.
+    assert.equal(gate.audit().length, 2);
+    assert.equal(gate.report().audit.in_flight, 2);
+    await denied(gate.read('src/a.txt'), 'AUDIT_FULL', 'read');
+    assert.equal(started, 2);
+    // The live verifier knows both decisions are still running; an exported copy of the log does not.
+    assert.deepEqual(gate.verifyAudit(), { ok: true, errors: [] });
+    assert.deepEqual(strict(gate).errors.map((error) => `${error.code}@${error.seq}`), ['AUDIT_OUTCOME_MISSING@0', 'AUDIT_OUTCOME_MISSING@1']);
+    assert.deepEqual(strict(gate, { inFlight: [0, 1] }), { ok: true, errors: [] });
+  } finally {
+    for (const release of held) release();
+  }
+  await Promise.all([first, second]);
+  assert.equal(gate.audit().length, 4);
+  assert.equal(gate.report().audit.in_flight, 0);
+  assert.deepEqual(strict(gate, { expectedEntries: 4 }), { ok: true, errors: [] });
+  assert.deepEqual(gate.verifyAudit(), { ok: true, errors: [] });
+});
+
+test('every allowed or would-deny decision has exactly one outcome, including a request refused inside a secret callback', async () => {
+  const host = createRecordingHost({ secrets: { 'provider-token': 'tok_SECRET' }, files: { 'src/a.txt': 'alpha' } });
+  const gate = createEnforcementGate({ manifest: manifest(), host });
+  await denied(gate.useSecret('provider-token', () => gate.read('secret/x')), 'NOT_GRANTED', 'read');
+  await assert.rejects(gate.useSecret('provider-token', () => { throw new Error('callback failed'); }), /callback failed/);
+  assert.equal(await gate.useSecret('provider-token', () => gate.read('src/a.txt').then((bytes) => bytes.toString())), 'alpha');
+  assert.deepEqual(layout(gate), [
+    'decision:secret:allow', 'decision:read:deny', 'outcome:secret:failed',
+    'decision:secret:allow', 'outcome:secret:failed',
+    'decision:secret:allow', 'decision:read:allow', 'outcome:read:ok', 'outcome:secret:ok',
+  ]);
+  assert.equal(gate.audit()[2].error_code, 'PERMISSION_DENIED');
+  assert.equal(gate.audit()[2].decision_seq, 0);
+  assert.equal(gate.audit()[8].decision_seq, 5);
+  assert.equal(gate.report().audit.in_flight, 0);
+  assert.deepEqual(strict(gate, { expectedEntries: 9 }), { ok: true, errors: [] });
+  assert.equal(JSON.stringify(gate.audit()).includes('tok_SECRET'), false);
+});
+
+test('a shadow-mode would-deny and an allow that lost its outcome are both reported by the verifier', async () => {
+  const shadow = createEnforcementGate({ manifest: manifest(), host: createRecordingHost({ files: { 'src/a.txt': 'alpha' } }), mode: 'shadow' });
+  await shadow.read('secret/x').catch(() => {});
+  await shadow.read('src/a.txt');
+  const digest = shadow.permissionDigest;
+  const copy = JSON.parse(JSON.stringify(shadow.audit()));
+  assert.deepEqual(layout(shadow), ['decision:read:would-deny', 'outcome:read:failed', 'decision:read:allow', 'outcome:read:ok']);
+  assert.deepEqual(verifyAuditLog(copy, { manifestDigest: digest }), { ok: true, errors: [] });
+  assert.deepEqual(verifyAuditLog(copy.slice(0, 1), { manifestDigest: digest }).errors.map((error) => `${error.code}@${error.seq}`), ['AUDIT_OUTCOME_MISSING@0']);
+  assert.deepEqual(verifyAuditLog(copy.slice(0, 3), { manifestDigest: digest }).errors.map((error) => `${error.code}@${error.seq}`), ['AUDIT_OUTCOME_MISSING@2']);
+  assert.deepEqual(verifyAuditLog(copy.slice(0, 3), { manifestDigest: digest, inFlight: [2] }), { ok: true, errors: [] });
+  const sample = await sampleGate();
+  const entries = JSON.parse(JSON.stringify(sample.audit()));
+  const codes = (list, options = {}) => verifyAuditLog(list, { manifestDigest: sample.permissionDigest, ...options }).errors.map((error) => `${error.code}@${error.seq}`);
+  // sampleGate: 0 read allow, 1 read outcome, 2 read deny, 3 write allow, 4 write outcome, 5 connect allow, 6 connect outcome, 7 spawn deny
+  assert.deepEqual(codes(entries), []);
+  const removed = rechain(entries.filter((_, index) => index !== 6), sample.permissionDigest);
+  assert.deepEqual(codes(removed), ['AUDIT_OUTCOME_MISSING@5']);
+  assert.deepEqual(codes(removed, { inFlight: [5] }), []);
+  assert.deepEqual(codes(entries.slice(0, 6)), ['AUDIT_OUTCOME_MISSING@5']);
+  assert.deepEqual(codes(entries.slice(0, 6), { inFlight: [5] }), []);
+  assert.deepEqual(codes(entries.slice(0, 6), { inFlight: [4] }), ['AUDIT_OUTCOME_MISSING@5']);
+  // An environment read is the one allowed decision without a host effect, so it owes no outcome.
+  const env = createEnforcementGate({ manifest: manifest(), host: createRecordingHost() });
+  await env.readEnv('LANG', { LANG: 'C' });
+  assert.deepEqual(layout(env), ['decision:env:allow']);
+  assert.deepEqual(strict(env, { expectedEntries: 1 }), { ok: true, errors: [] });
+});
+
+test('when the outcome entry itself cannot be written the decision is reported as missing its outcome, not excused as running', async () => {
+  let broken = false;
+  const host = createRecordingHost({ files: { 'src/a.txt': 'alpha' } });
+  const readFile = host.readFile;
+  host.readFile = async (rel) => {
+    const bytes = await readFile(rel);
+    broken = true;
+    return bytes;
+  };
+  const gate = createEnforcementGate({ manifest: manifest(), host, clock: () => (broken ? Number.NaN : 1_700_000_000_000) });
+  await assert.rejects(gate.read('src/a.txt'), { code: 'INVALID_GATE_CLOCK' });
+  assert.equal(gate.audit().length, 1);
+  assert.equal(gate.report().audit.in_flight, 0);
+  assert.deepEqual(gate.verifyAudit().errors.map((error) => `${error.code}@${error.seq}`), ['AUDIT_OUTCOME_MISSING@0']);
+});
+
 test('construction rejects an unknown mode, a missing host, a bad clock, bad options and an invalid manifest', () => {
   const host = createRecordingHost();
   const code = (options) => { try { createEnforcementGate(options); } catch (error) { return error.code; } return 'NO_ERROR'; };

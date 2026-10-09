@@ -158,17 +158,97 @@ test('resolution failures and malformed answers are denials, and literal address
   await denied(createEnforcementGate({ manifest: manifest(), host: noResolver }).connect('api.example.com', 443), 'HOST_CAPABILITY_MISSING', 'connect');
 });
 
-test('address classification covers IPv4, IPv6, mapped, translated and malformed forms', () => {
+test('address classification covers IPv4, IPv6, mapped, translated and malformed forms (a wrapped public IPv4 address is reserved)', () => {
   const table = [
     ['93.184.216.34', 'public'], ['8.8.8.8', 'public'], ['172.32.0.1', 'public'], ['127.0.0.1', 'loopback'], ['127.255.255.254', 'loopback'],
     ['10.1.2.3', 'private'], ['172.16.0.1', 'private'], ['192.168.1.1', 'private'], ['100.64.0.1', 'private'], ['169.254.169.254', 'link-local'],
     ['0.0.0.0', 'unspecified'], ['224.0.0.1', 'multicast'], ['255.255.255.255', 'reserved'], ['192.0.2.1', 'reserved'],
-    ['::1', 'loopback'], ['::', 'unspecified'], ['::ffff:127.0.0.1', 'loopback'], ['::ffff:10.0.0.1', 'private'], ['::ffff:8.8.8.8', 'public'],
+    ['::1', 'loopback'], ['::', 'unspecified'], ['::ffff:127.0.0.1', 'loopback'], ['::ffff:10.0.0.1', 'private'], ['::ffff:8.8.8.8', 'reserved'],
     ['fe80::1', 'link-local'], ['fc00::1', 'private'], ['fd12:3456::1', 'private'], ['ff02::1', 'multicast'], ['2001:db8::1', 'reserved'],
     ['2606:4700:4700::1111', 'public'], ['64:ff9b::7f00:1', 'loopback'], ['2002:7f00:1::', 'loopback'],
     ['010.0.0.1', 'invalid'], ['256.1.1.1', 'invalid'], ['1.2.3', 'invalid'], ['not-an-ip', 'invalid'], ['1::2::3', 'invalid'], [42, 'invalid'], [undefined, 'invalid'],
   ];
   for (const [address, expected] of table) assert.equal(classifyAddress(address), expected, String(address));
+});
+
+// One address per block that is not global unicast, with the class the gate reports for it. Every block is a row of the IANA
+// IPv6 Special-Purpose Address Registry except ff00::/8, which is the multicast block of the IPv6 Address Space registry.
+const IPV6_NOT_PUBLIC = [
+  ['::/128 unspecified address', '::', 'unspecified'],
+  ['::1/128 loopback address', '::1', 'loopback'],
+  ['::ffff:0:0/96 IPv4-mapped with a private IPv4 inside: the wrapped address names the class', '::ffff:10.0.0.1', 'private'],
+  ['::ffff:0:0/96 IPv4-mapped with a public IPv4 inside: still not global unicast', '::ffff:8.8.8.8', 'reserved'],
+  ['64:ff9b::/96 NAT64 with a private IPv4 inside: the wrapped address names the class', '64:ff9b::a00:1', 'private'],
+  ['64:ff9b::/96 NAT64 with a public IPv4 inside: still not global unicast', '64:ff9b::808:808', 'reserved'],
+  ['64:ff9b:1::/48 local-use NAT64', '64:ff9b:1::1', 'reserved'],
+  ['100::/64 discard-only', '100::1', 'reserved'],
+  ['2001::/23 IETF protocol assignments, first address', '2001::1', 'reserved'],
+  ['2001::/23 benchmarking 2001:2::/48', '2001:2::1', 'reserved'],
+  ['2001::/23 last address', '2001:1ff:ffff:ffff:ffff:ffff:ffff:ffff', 'reserved'],
+  ['2001:db8::/32 documentation', '2001:db8::1', 'reserved'],
+  ['2002::/16 6to4 with a public IPv4 inside: still not global by itself', '2002:808:808::', 'reserved'],
+  ['2002::/16 6to4 with a private IPv4 inside', '2002:a00:1::', 'private'],
+  ['3fff::/20 documentation, first address', '3fff::1', 'reserved'],
+  ['3fff::/20 last address', '3fff:fff:ffff:ffff:ffff:ffff:ffff:ffff', 'reserved'],
+  ['5f00::/16 segment routing SIDs', '5f00::1', 'reserved'],
+  ['fc00::/7 unique local', 'fc00::1', 'private'],
+  ['fe80::/10 link-local', 'fe80::1', 'link-local'],
+  ['ff00::/8 multicast', 'ff02::1', 'multicast'],
+];
+// Global unicast: published resolver addresses and the first address after each special-purpose block that sits inside
+// 2000::/3.
+const IPV6_PUBLIC = [
+  ['Cloudflare public DNS', '2606:4700:4700::1111'],
+  ['Google public DNS', '2001:4860:4860::8888'],
+  ['Quad9', '2620:fe::fe'],
+  ['first address after 2001::/23', '2001:200::1'],
+  ['next /32 after 2001:db8::/32', '2001:db9::1'],
+  ['first address after 3fff::/20', '3fff:1000::1'],
+];
+
+test('IPv6 is public only inside 2000::/3 and outside every special-purpose block: one address per block', () => {
+  for (const [block, address, expected] of IPV6_NOT_PUBLIC) assert.equal(classifyAddress(address), expected, `${block}: ${address}`);
+  for (const [name, address] of IPV6_PUBLIC) assert.equal(classifyAddress(address), 'public', `${name}: ${address}`);
+});
+
+test('IPv6 classification is deny-by-default: every first group and every boundary of the blocks inside 2000::/3 is swept', () => {
+  // Outside 2000::/3 nothing is public. Inside it, 2001, 2002 and 3fff hold special-purpose blocks and are checked below.
+  for (let group = 0; group <= 0xffff; group += 1) {
+    const address = `${group.toString(16)}::1`;
+    const expected = group >= 0x2000 && group <= 0x3fff && group !== 0x2001 && group !== 0x2002 && group !== 0x3fff;
+    assert.equal(classifyAddress(address) === 'public', expected, address);
+  }
+  // 2001::/23 ends at 2001:1ff, 2001:db8::/32 is one second group, 3fff::/20 ends at 3fff:fff.
+  for (let second = 0; second <= 0xffff; second += 1) {
+    const hex = second.toString(16);
+    assert.equal(classifyAddress(`2001:${hex}::1`) === 'public', second >= 0x200 && second !== 0xdb8, `2001:${hex}::1`);
+    assert.equal(classifyAddress(`3fff:${hex}::1`) === 'public', second >= 0x1000, `3fff:${hex}::1`);
+  }
+  // 6to4, IPv4-mapped and NAT64 addresses are never public, whatever IPv4 address they wrap; a non-public wrapped address names the class.
+  for (const [inner, expected] of [['808:808', 'reserved'], ['a00:1', 'private'], ['7f00:1', 'loopback'], ['c0a8:1', 'private'], ['a9fe:a9fe', 'link-local']]) {
+    assert.equal(classifyAddress(`2002:${inner}::`), expected, `2002:${inner}::`);
+    assert.equal(classifyAddress(`::ffff:${inner}`), expected, `::ffff:${inner}`);
+    assert.equal(classifyAddress(`64:ff9b::${inner}`), expected, `64:ff9b::${inner}`);
+  }
+});
+
+test('a granted name that resolves to an IPv6 special-purpose address is refused, and granting that exact literal allows it', async () => {
+  const cases = ['2001::1', '2001:2::1', '2001:db8::1', '2002:808:808::', '3fff::1', '5f00::1', '100::1', '64:ff9b:1::1'];
+  const dns = {};
+  const allow = cases.map((address, index) => {
+    dns[`v6-${index}.example.com`] = [[address]];
+    return { host: `v6-${index}.example.com`, ports: [443] };
+  });
+  const host = createRecordingHost({ dns });
+  const gate = createEnforcementGate({ manifest: manifest(net(...allow)), host });
+  for (let index = 0; index < cases.length; index += 1) await denied(gate.connect(`v6-${index}.example.com`, 443), 'RESOLVES_TO_NON_PUBLIC_ADDRESS', 'connect');
+  assert.equal(host.count('resolve'), cases.length);
+  assert.equal(host.count('connect'), 0);
+  assert.deepEqual(gate.audit().map((entry) => entry.target.address_classes), cases.map(() => ['reserved']));
+  const grantedHost = createRecordingHost({ dns: { 'bench.example.com': [['2001:2::1']] } });
+  const granted = createEnforcementGate({ manifest: manifest(net({ host: 'bench.example.com', ports: [443] }, { host: '[2001:2::1]', ports: [443] })), host: grantedHost });
+  await granted.connect('bench.example.com', 443);
+  assert.equal(grantedHost.calls.find((call) => call.method === 'connect').address, '2001:2::1');
 });
 
 test('listening is limited to the granted loopback host and port', async () => {
@@ -217,11 +297,12 @@ test('an executable the host cannot pin is refused instead of being looked up on
 });
 
 test('shadow mode records would-deny and passes file, network and process requests through, but never env, secret, device or unknown requests', async () => {
-  const host = createRecordingHost({ files: { 'src/a.txt': 'alpha' } });
+  const host = createRecordingHost({ files: { 'src/a.txt': 'alpha' }, dns: { 'api.example.com': [['93.184.216.34']] } });
   const gate = createEnforcementGate({ manifest: minimal(), host, mode: 'shadow' });
   assert.equal((await gate.read('src/a.txt')).toString(), 'alpha');
   await gate.write('out/r.json', 'x');
   await gate.connect('api.example.com', 443);
+  assert.deepEqual(host.calls.find((call) => call.method === 'connect'), { method: 'connect', host: 'api.example.com', address: '93.184.216.34', port: 443 });
   await gate.listen('127.0.0.1', 18080);
   assert.equal((await gate.spawn('node', ['-v'], {})).exit_code, 0);
   await denied(gate.readEnv('LANG', { LANG: 'C' }), 'NOT_GRANTED', 'env');
@@ -237,6 +318,82 @@ test('shadow mode records would-deny and passes file, network and process reques
   assert.equal(report.enforcing, false);
   assert.equal(report.dimensions.fs_read, 'observed');
   assert.equal(report.dimensions.environment, 'mediated');
+});
+
+const layout = (gate) => gate.audit().map((entry) => `${entry.phase}:${entry.operation}:${entry.decision ?? (entry.ok ? 'ok' : 'failed')}`);
+
+test('shadow connect to a name the manifest does not grant resolves it once and connects to that pinned address', async () => {
+  const host = createRecordingHost({ dns: { 'api.example.com': [['93.184.216.34'], ['127.0.0.1']] } });
+  const gate = createEnforcementGate({ manifest: minimal(), host, mode: 'shadow' });
+  assert.deepEqual(await gate.connect('API.example.com', 443), { connected: true });
+  assert.equal(host.count('resolve'), 1);
+  assert.deepEqual(host.calls.filter((call) => call.method === 'connect'), [{ method: 'connect', host: 'api.example.com', address: '93.184.216.34', port: 443 }]);
+  assert.deepEqual(layout(gate), ['decision:connect:would-deny', 'outcome:connect:ok']);
+  assert.equal(gate.audit()[1].address, '93.184.216.34');
+  assert.deepEqual(gate.verifyAudit(), { ok: true, errors: [] });
+});
+
+test('shadow connect with no address to pass through is recorded as not executed: the host is not called and the outcome is a failure', async () => {
+  const cases = [
+    { label: 'an unresolvable ungranted name', name: 'gone.example.com', reason: 'RESOLVE_FAILED' },
+    { label: 'an empty answer', name: 'empty.example.com', reason: 'RESOLVE_FAILED', dns: { 'empty.example.com': [[]] } },
+    { label: 'a malformed answer', name: 'bad.example.com', reason: 'RESOLVE_FAILED', dns: { 'bad.example.com': [[5]] } },
+    { label: 'a malformed address literal', name: '1.2.3.999', reason: 'INVALID_ADDRESS_LITERAL' },
+    { label: 'a host without a resolver', name: 'api.example.com', reason: 'HOST_CAPABILITY_MISSING', edit: (host) => { delete host.resolve; } },
+    { label: 'a granted name that does not resolve', name: 'api.example.com', reason: 'RESOLVE_FAILED', granted: true },
+  ];
+  for (const { label, name, reason, dns = {}, edit, granted = false } of cases) {
+    const host = createRecordingHost({ dns });
+    edit?.(host);
+    const gate = createEnforcementGate({ manifest: granted ? manifest() : minimal(), host, mode: 'shadow' });
+    await assert.rejects(gate.connect(name, 443), (error) => {
+      assert.ok(error instanceof EnforcementDenied, label);
+      assert.equal(error.reason, reason, label);
+      assert.equal(error.operation, 'connect', label);
+      return true;
+    });
+    assert.equal(host.count('connect'), 0, label);
+    const audit = gate.audit();
+    assert.deepEqual(layout(gate), ['decision:connect:would-deny', 'outcome:connect:failed'], label);
+    assert.equal(audit[1].decision_seq, 0, label);
+    assert.equal(audit[1].error_code, reason, label);
+    assert.equal(audit[1].ok, false, label);
+    assert.equal(audit.filter((entry) => entry.phase === 'outcome' && entry.ok === true).length, 0, label);
+    assert.deepEqual(gate.verifyAudit(), { ok: true, errors: [] }, label);
+  }
+});
+
+test('shadow connect to a granted name that resolves to a non-public address records would-deny and still connects to the pinned address', async () => {
+  const host = createRecordingHost({ dns: { 'api.example.com': [['10.0.0.5']] } });
+  const gate = createEnforcementGate({ manifest: manifest(), host, mode: 'shadow' });
+  assert.deepEqual(await gate.connect('api.example.com', 443), { connected: true });
+  assert.deepEqual(host.calls.filter((call) => call.method === 'connect'), [{ method: 'connect', host: 'api.example.com', address: '10.0.0.5', port: 443 }]);
+  assert.deepEqual(layout(gate), ['decision:connect:would-deny', 'outcome:connect:ok']);
+  assert.equal(gate.audit()[0].reason, 'RESOLVES_TO_NON_PUBLIC_ADDRESS');
+  assert.deepEqual(gate.verifyAudit(), { ok: true, errors: [] });
+});
+
+test('a host that does not report the connection as made is a failed connect in enforce and shadow mode, never a successful outcome', async () => {
+  const answers = [{ connected: false }, {}, null, undefined, 'connected', 1, { connected: 'true' }, { connected: 1 }];
+  for (const mode of ['enforce', 'shadow']) {
+    for (const answer of answers) {
+      const host = createRecordingHost({ dns: { 'api.example.com': [['93.184.216.34']] } });
+      host.connect = async () => answer;
+      const gate = createEnforcementGate({ manifest: mode === 'enforce' ? manifest() : minimal(), host, mode });
+      const label = `${mode}: ${JSON.stringify(answer) ?? 'undefined'}`;
+      await assert.rejects(gate.connect('api.example.com', 443), (error) => {
+        assert.equal(error.code, 'NOT_CONNECTED', label);
+        assert.equal(error instanceof EnforcementDenied, false, label);
+        return true;
+      });
+      const outcome = gate.audit().at(-1);
+      assert.equal(outcome.phase, 'outcome', label);
+      assert.equal(outcome.ok, false, label);
+      assert.equal(outcome.error_code, 'NOT_CONNECTED', label);
+      assert.equal(gate.audit().filter((entry) => entry.phase === 'outcome' && entry.ok === true).length, 0, label);
+      assert.deepEqual(gate.verifyAudit(), { ok: true, errors: [] }, label);
+    }
+  }
 });
 
 test('unknown operations are refused in both modes and never forwarded', async () => {

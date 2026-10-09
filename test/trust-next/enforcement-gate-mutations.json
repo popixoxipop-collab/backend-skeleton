@@ -187,6 +187,182 @@
       "test_files": ["test/trust-next/enforcement-gate-output.test.mjs"],
       "timeout_ms": 110000,
       "invariant": "stdout and stderr are cut at the manifest cap summed over all chunks, flagged as truncated, and the child is stopped."
+    },
+    {
+      "id": "PMUT-GATE-IPV6-PROTOCOL-BLOCK-PUBLIC",
+      "vector_id": "NEG-TRUST-03",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "(h[1] < 0x0200 || h[1] === 0x0db8)",
+      "replace": "(h[1] === 0 || h[1] === 0x0db8)",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "An IPv6 address inside 2001::/23 (benchmarking, Teredo and the other IETF protocol assignments) is never public; only 2001::/32 and 2001:db8::/32 are not enough."
+    },
+    {
+      "id": "PMUT-GATE-IPV6-3FFF-PUBLIC",
+      "vector_id": "NEG-TRUST-03",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "(h[0] === 0x3fff && h[1] < 0x1000)",
+      "replace": "false",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "An IPv6 address inside 3fff::/20 (documentation, RFC 9637) is never public."
+    },
+    {
+      "id": "PMUT-GATE-IPV6-6TO4-PUBLIC",
+      "vector_id": "NEG-TRUST-03",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "if (h[0] === 0x2002) return wrapped(h[1], h[2]);",
+      "replace": "if (h[0] === 0x2002) return embedded(h[1], h[2]);",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A 6to4 address (2002::/16) is never public, even when the IPv4 address inside it is."
+    },
+    {
+      "id": "PMUT-GATE-IPV6-MAPPED-PUBLIC",
+      "vector_id": "NEG-TRUST-03",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "h[5] === 0xffff) return wrapped(h[6], h[7]);",
+      "replace": "h[5] === 0xffff) return embedded(h[6], h[7]);",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "An IPv4-mapped address (::ffff:0:0/96) is never public, even when the IPv4 address inside it is."
+    },
+    {
+      "id": "PMUT-GATE-IPV6-NAT64-PUBLIC",
+      "vector_id": "NEG-TRUST-03",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "h.slice(2, 6).every((x) => x === 0)) return wrapped(h[6], h[7]);",
+      "replace": "h.slice(2, 6).every((x) => x === 0)) return embedded(h[6], h[7]);",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A NAT64 address (64:ff9b::/96) is never public, even when the IPv4 address inside it is."
+    },
+    {
+      "id": "PMUT-GATE-IPV6-WRAPPED-PUBLIC",
+      "vector_id": "NEG-TRUST-03",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "return inner === 'public' ? 'reserved' : inner;",
+      "replace": "return inner;",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "An IPv6 address that only wraps an IPv4 address (6to4, mapped, NAT64) is never public, whatever it wraps."
+    },
+    {
+      "id": "PMUT-GATE-IPV6-DENY-BY-DEFAULT-DROPPED",
+      "vector_id": "NEG-TRUST-03",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "(h[0] & 0xe000) !== 0x2000 || special",
+      "replace": "special",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "An IPv6 address outside 2000::/3 (5f00::/16, 100::/64, 64:ff9b:1::/48 and every unassigned range) is never public."
+    },
+    {
+      "id": "PMUT-GATE-SHADOW-CONNECT-WITHOUT-ADDRESS",
+      "vector_id": "NEG-TRUST-03",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "if (address === null) {",
+      "replace": "if (false) {",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "In shadow mode a connect with no pinned address is not passed to the host: it is recorded as not executed and the caller gets the refusal."
+    },
+    {
+      "id": "PMUT-GATE-SHADOW-CONNECT-FAILURE-RECORDED-OK",
+      "vector_id": "NEG-TRUST-03",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "{ ok: false, error_code: unreachable }",
+      "replace": "{ ok: true }",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A shadow connect that was not passed through is a failed outcome; the audit log never counts it as executed."
+    },
+    {
+      "id": "PMUT-GATE-CONNECT-NOT-AFFIRMED",
+      "vector_id": "NEG-TRUST-03",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "result[key] !== true",
+      "replace": "false",
+      "test_files": ["test/trust-next/enforcement-gate.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A host answer that does not report connected true is a failed connect in both modes, never a successful outcome."
+    },
+    {
+      "id": "PMUT-GATE-AUDIT-SLOT-NOT-RESERVED",
+      "vector_id": "NEG-TRUST-08",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "entries.length + pending.size + slots > maxAuditEntries",
+      "replace": "entries.length + pending.size + 1 > maxAuditEntries",
+      "test_files": ["test/trust-next/enforcement-gate-limits.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A request that reaches the host needs room for its decision and its outcome before the host is called, so an effect is never left without its record."
+    },
+    {
+      "id": "PMUT-GATE-AUDIT-INFLIGHT-NOT-COUNTED",
+      "vector_id": "NEG-TRUST-08",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "entries.length + pending.size + slots > maxAuditEntries",
+      "replace": "entries.length + slots > maxAuditEntries",
+      "test_files": ["test/trust-next/enforcement-gate-limits.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "Slots held by requests that are still running count against the capacity, so concurrent requests cannot overrun the log."
+    },
+    {
+      "id": "PMUT-GATE-AUDIT-PRECHECK-DROPPED",
+      "vector_id": "NEG-TRUST-08",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "if (operation !== 'env') reserve(operation, 2);",
+      "replace": "void operation;",
+      "test_files": ["test/trust-next/enforcement-gate-limits.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "With fewer than two free slots no host method is called at all, not even a lookup that precedes the decision."
+    },
+    {
+      "id": "PMUT-GATE-AUDIT-RESERVATION-NOT-RELEASED",
+      "vector_id": "NEG-TRUST-08",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "pending.delete(decision.seq);",
+      "replace": "void decision;",
+      "test_files": ["test/trust-next/enforcement-gate-limits.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A settled request gives its reserved slot back; a log must not fill up with reservations nobody holds."
+    },
+    {
+      "id": "PMUT-GATE-AUDIT-DANGLING-DECISION-ACCEPTED",
+      "vector_id": "NEG-TRUST-08",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "if (!settled.has(seq) && !open.has(seq)) push(",
+      "replace": "if (false) push(",
+      "test_files": ["test/trust-next/enforcement-gate-limits.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "The verifier rejects an allowed or would-deny decision that has no outcome unless the gate says it is still running."
+    },
+    {
+      "id": "PMUT-GATE-AUDIT-NESTED-DENIAL-NO-OUTCOME",
+      "vector_id": "NEG-TRUST-08",
+      "critical": true,
+      "file": "lib/trust-next/enforcement-gate.mjs",
+      "find": "return value;\n    } catch (error) {",
+      "replace": "return value;\n    } catch (error) {\n      if (error instanceof EnforcementDenied) throw error;",
+      "test_files": ["test/trust-next/enforcement-gate-limits.test.mjs"],
+      "timeout_ms": 110000,
+      "invariant": "A refusal that surfaces inside an allowed request still closes that request with a failed outcome."
     }
   ]
 }
