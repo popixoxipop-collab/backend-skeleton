@@ -71,11 +71,12 @@ test('T11-01 the pinned commit has the recorded tree and files, and an export of
     lib.extractTree(REPO_ROOT, commit, dest);
     const files = record.tests.map((x) => x.path);
     const [nested, tap, ...perFile] = await Promise.all([lib.runNestedRunner(dest, record.suite_id), lib.runTapTests(dest, files), ...files.map((f) => lib.runTapTests(dest, [f]))]);
-    for (const [again, c] of [[nested, record.commands[0]], [tap, record.commands[1]]]) {
+    const command = (id) => record.commands.find((c) => c.id === id);
+    for (const [again, c] of [[nested, command('nested-runner')], [tap, command('direct-tap')]]) {
       assert.equal(again.exit_code, c.exit_code, c.id);
       assert.deepEqual(again.result, c.result, c.id);
     }
-    assert.equal(nested.stdout_first_line, record.commands[0].stdout_first_line);
+    assert.equal(nested.stdout_first_line, command('nested-runner').stdout_first_line);
     perFile.forEach((run, i) => assert.equal(run.result.tests, record.tests[i].test_count, files[i]));
     assert.deepEqual(lib.replayProblems(record, lib.replay(record, await lib.loadModules(dest))), []);
   });
@@ -87,6 +88,8 @@ test('T11-01 negative: edits fail verification re-sealed (recomputed checks) and
     ['failures under exit code 0', (r) => { r.commands[0].result.fail = 1; }, /exit_code 0 contradicts/],
     ['per-file test count', (r) => { r.tests[0].test_count += 1; }, /direct-tap tests/],
     ['runner file count', (r) => { r.commands[0].runner_files = 5; }, /runner_files/],
+    ['third command that nothing replays', (r) => { r.commands.push({ ...r.commands[1], id: 'extra' }); }, /exactly nested-runner and direct-tap/],
+    ['repeated command id', (r) => { r.commands.push(structuredClone(r.commands[1])); }, /exactly nested-runner and direct-tap/],
     ['base commit', (r) => { r.base_commit = 'abc123'; }, /40-hex commit/],
     ['missing negative fixture', (r) => { r.fixtures = r.fixtures.filter((f) => f.class !== 'negative'); }, /at least one negative/],
     ['negative without a counterexample', (r) => { delete r.fixtures.find((f) => f.class === 'negative').counterexample; }, /counterexample/],
@@ -102,6 +105,17 @@ test('T11-01 negative: edits fail verification re-sealed (recomputed checks) and
   assert.deepEqual(lib.verifyRecord(reseal(() => {})), [], 're-sealing an untouched record changes nothing');
   for (const [name, edit, pattern] of checked) assert.match(lib.verifyRecord(reseal(edit)).join('\n'), pattern, `${name}, re-sealed`);
   for (const [name, edit] of [...checked, ...prose]) assert.match(lib.verifyRecord(copy(edit)).join('\n'), /artifact_digest does not match the record/, `${name}, not re-sealed`);
+});
+
+test('T11-01 negative: a change to a report field the semantic snapshot omits still changes the recorded scan output hash', async () => {
+  const modules = await lib.loadModules(REPO_ROOT);
+  const [digest, base] = [(out) => lib.sha256(lib.canonical(out)), lib.scanOutcome(modules, 'java-spring')];
+  assert.ok(!JSON.stringify(base.legacy_report).includes(REPO_ROOT) && JSON.stringify(base.legacy_report).includes('<root>'), 'absolute locations are normalized, not dropped');
+  for (const [field, edit] of [['rg_available', (r) => { r.rg_available = false; }], ['unknowns', (r) => { r.unknowns.push('added'); }], ['collisions', (r) => { r.collisions = [{ added: true }]; }], ['a future field', (r) => { r.future_field = 1; }]]) {
+    const changed = lib.scanOutcome(modules, 'java-spring', edit);
+    assert.equal(changed.semantic_sha256, base.semantic_sha256, `${field} is invisible to the semantic snapshot`);
+    assert.notEqual(digest(changed), digest(base), `${field} must change the recorded output hash`);
+  }
 });
 
 test('T11-01 negative: an origin citation must name the line that holds the cited test title', () => {

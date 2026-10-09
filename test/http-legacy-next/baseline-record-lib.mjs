@@ -39,6 +39,15 @@ export const artifactDigest = (record) => sha256(canonical({
   ...record,
   artifact_digest: Object.fromEntries(Object.entries(record?.artifact_digest ?? {}).filter(([key]) => key !== 'value'))
 }));
+// Every module specifier a source loads: `import ... from` and `export ... from` with either quote style (also over several lines),
+// side-effect `import 'x'` and a literal `import('x')`. A computed import() or a require cannot be listed, so it is returned as
+// `opaque` for the caller to refuse. Comments are ignored.
+export function importsOf(source) {
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|\s)\/\/.*$/gm, '$1');
+  const specs = [...code.matchAll(/\b(?:import|export)\b[^'"`;()]*?\bfrom\s*(['"])([^'"\n]+)\1|\bimport\s*(['"])([^'"\n]+)\3|\bimport\s*\(\s*(['"])([^'"\n]+)\5\s*\)/g)].map((m) => m[2] ?? m[4] ?? m[6]);
+  const opaque = [...code.matchAll(/\bimport\s*\((?!\s*['"][^'"\n]+['"]\s*\))|\brequire\s*\(|\bcreateRequire\b/g)].map((m) => m[0]);
+  return { specs, opaque };
+}
 export const flip = (hex) => `${hex[0] === '0' ? '1' : '0'}${hex.slice(1)}`;
 export const tapCommand = (files) => ['node', '--test', '--test-reporter=tap', ...files].join(' ');
 
@@ -140,7 +149,8 @@ export function verifyRecord(r, read, label = 'recompute') {
   }
   const runner = byId.get('nested-runner');
   const direct = byId.get('direct-tap');
-  if (!runner || !direct) bad('commands must include nested-runner and direct-tap');
+  // The replay runs exactly these two commands, so a third or a repeated one would claim an exit code that nothing re-ran.
+  if (canonical((r?.commands ?? []).map((c) => c.id).sort()) !== canonical(['direct-tap', 'nested-runner'])) bad('commands must be exactly nested-runner and direct-tap, once each: the replay runs no other command');
   else {
     const names = (r.tests ?? []).map((t) => t.path);
     const total = (r.tests ?? []).reduce((sum, t) => sum + (t.test_count ?? 0), 0);
@@ -283,7 +293,7 @@ function scanOf(m, id) {
 }
 
 // A throw-away git repository with a pinned identity and dates, so the checked head is the same everywhere.
-function checkoutOutcome(m, input) {
+export function checkoutOutcome(m, input) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t11-baseline-'));
   try {
     const git = (...args) => {
@@ -301,7 +311,7 @@ function checkoutOutcome(m, input) {
       git('sparse-checkout', 'init', '--cone');
       git('sparse-checkout', 'set', ...input.sparse);
     }
-    const options = { repoRoot: dir, adapterId: input.adapter };
+    const options = { repoRoot: dir, adapterId: input.adapter, ...(input.max_missing ? { maxMissing: input.max_missing } : {}) };
     const inspect = m.checkout.inspectLegacyCorpusCheckout(options);
     let assertThrew = null;
     try {
@@ -315,23 +325,38 @@ function checkoutOutcome(m, input) {
   }
 }
 
+// Absolute fixture roots differ per machine, so every occurrence is replaced by a placeholder before hashing; nothing else is dropped.
+const relocate = (value, root) => {
+  if (typeof value === 'string') return value.split(root).join('<root>');
+  if (Array.isArray(value)) return value.map((x) => relocate(x, root));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, relocate(v, root)]));
+  return value;
+};
+
+// `edit` mutates a copy of the report, so a negative test can change one field and see which digests notice.
+export function scanOutcome(m, id, edit = () => {}) {
+  const { root, report: scanned } = scanOf(m, id);
+  const report = structuredClone(scanned);
+  edit(report);
+  const bridged = m.bridge.bridgeLegacyHttpScan({ adapter: adapterOf(m, { id }), report });
+  return {
+    adapter: report.adapter,
+    verdict: report.verdict,
+    confidence: report.confidence,
+    inventory: m.bridge.summarizeLegacyHttpReport(report),
+    descriptor: bridged.source_adapter,
+    bridge: { schema: bridged.schema, mode: bridged.mode, source_scan_schema: bridged.source_scan_schema, lossless: canonical(bridged.legacy_report) === canonical(report) },
+    semantic_sha256: m.parity.legacyHttpSemanticDigest(report, { root }),
+    semantic_snapshot: m.parity.legacyHttpSemanticSnapshot(report, { root }),
+    legacy_report: relocate(report, root)
+  };
+}
+
 function execute(f, m) {
   const i = f.input;
   switch (f.api) {
-    case 'scan': {
-      const { root, report } = scanOf(m, i.adapter);
-      const bridged = m.bridge.bridgeLegacyHttpScan({ adapter: adapterOf(m, { id: i.adapter }), report });
-      return {
-        adapter: report.adapter,
-        verdict: report.verdict,
-        confidence: report.confidence,
-        inventory: m.bridge.summarizeLegacyHttpReport(report),
-        descriptor: bridged.source_adapter,
-        bridge: { schema: bridged.schema, mode: bridged.mode, source_scan_schema: bridged.source_scan_schema, lossless: canonical(bridged.legacy_report) === canonical(report) },
-        semantic_sha256: m.parity.legacyHttpSemanticDigest(report, { root }),
-        semantic_snapshot: m.parity.legacyHttpSemanticSnapshot(report, { root })
-      };
-    }
+    case 'scan':
+      return scanOutcome(m, i.adapter);
     case 'bridge': {
       const bridged = m.bridge.bridgeLegacyHttpScan({ adapter: adapterOf(m, i.adapter), report: i.report });
       return { schema: bridged.schema, mode: bridged.mode, source_adapter: bridged.source_adapter };

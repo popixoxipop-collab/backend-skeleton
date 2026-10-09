@@ -41,7 +41,7 @@ legacy `sbf.adapter/2` record; the four capability columns are legacy booleans (
 | `parity.mjs` | `compareLegacyHttpSemanticSnapshots`, `compareLegacyHttpReports` | two snapshots, or two reports with both roots | `{equal, diffs, truncated}` |
 | `shadow-projection.mjs` | `runLegacyHttpShadowProjection` | descriptor, `report`, sync `projector`, `projectorId`, `projectorContract`, `root` | `{schema, mode, adapter_id, projector_id, projector_contract, authoritative_source, legacy_semantic_sha256, projected_semantic_sha256, parity, promotion_allowed, notes}` |
 | `cutover-readiness.mjs` | `evaluateLegacyHttpCutoverReadiness` | `{adapterId, checks}` | `{schema, adapter_id, checks, ready_for_t00_integration, apply_allowed, blockers, notes}` |
-| `checkout-completeness.mjs` | `inspectLegacyCorpusCheckout`, `assertLegacyCorpusCheckoutComplete` | `{repoRoot, adapterId, maxMissing}` | `{complete, mode, git_head, project_root, adapter_id, expected_tracked_read_files, materialized_read_files, missing_count, missing_paths}` |
+| `checkout-completeness.mjs` | `inspectLegacyCorpusCheckout`, `assertLegacyCorpusCheckoutComplete` | `{repoRoot, adapterId, maxMissing}` | `{complete, mode, git_head, project_root, adapter_id, expected_tracked_read_files, materialized_read_files, missing_count, missing_paths}` and the conditional keys of section 5 |
 
 Nested shapes: snapshot modules `{module, controllers, entities, enums, dtos}`, controllers `{className, basePath, file, endpoints}`,
 endpoints `{method, verb, path, operationId, file}`, diffs `{path, kind, expected, actual}`. Inputs carry `sbf.adapter/2` and
@@ -73,6 +73,8 @@ it gets a deep frozen `{bridge, legacy_semantic_snapshot}` and returns `{project
   are exactly `maxDiffs`: it means "the cap was reached", not "more exist". `equal` means zero differences. Diff kinds: `type`, `array-length`, `unexpected`, `missing`, `value`.
 - Checkout modes: `full-working-tree`, `sparse-readset-verified` (only `ruby-rails` and `python-fastapi`) and `sparse-unsupported-adapter`, where
   `missing_count` is `null`: completeness is unknown and counts as incomplete. `maxMissing` (integer 1 to 1000) caps `missing_paths`; the assert throws code `T11_CORPUS_CHECKOUT_INCOMPLETE`.
+  Conditional keys: `sparse-unsupported-adapter` adds `reason`; `sparse-readset-verified` adds `missing_paths_truncated` (always `true`) only when
+  `missing_count` exceeds the listed `missing_paths`, and leaves it out otherwise.
 - Modes `compatibility-only` (bridge) and `shadow-only` (shadow) are not support claims; `promotion_allowed` and `apply_allowed` are always false.
 
 ## 6. Cutover readiness

@@ -6,6 +6,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runScan } from '../../scanners/index.mjs';
 import { ADAPTERS } from '../../scanners/registry.mjs';
+import * as lib from './baseline-record-lib.mjs';
 
 // T11-02: vocabulary vs code and RFC vs vocabulary are both recomputed, so drift on either side fails; the negatives edit copies of both.
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..'); const DIR = 'adapters/http-legacy-next';
@@ -28,10 +29,13 @@ const emitted = Object.fromEntries(IDS.map((id) => {
   const shadow = mods['shadow-projection'].runLegacyHttpShadowProjection({ adapter, report, projector, projectorId: 'rfc-test', projectorContract: 'rfc-test/0', root });
   return [id, { adapter, report, root, shadow, snapshot: snapshotOf(report, { root }), bridge: bridgeLegacyHttpScan({ adapter, report }), summary: summarizeLegacyHttpReport(report) }];
 }));
+const PY = { 'pyproject.toml': '[project]\ndependencies=["fastapi"]\n', 'app/main.py': 'x = 1\n', 'tests/test_a.py': 'y = 1\n', 'tests/test_b.py': 'z = 1\n' };
+const sample = (adapter, input) => lib.checkoutOutcome({ checkout: mods['checkout-completeness'] }, { adapter, ...input }).inspect;
+const checkouts = { full: sample('python-fastapi', { files: PY }), verified: sample('python-fastapi', { files: PY, sparse: ['app', 'tests'] }), partial: sample('python-fastapi', { files: PY, sparse: ['app'] }), truncated: sample('python-fastapi', { files: PY, sparse: ['app'], max_missing: 1 }), unsupported: sample('javascript-express', { files: { 'src/app.js': 'x\n' }, sparse: ['src'] }) };
 const cmp = compare({ a: 1, b: [1], c: 1, e: [1] }, { a: 2, b: [1, 2], d: 1, e: { x: 1 } });
 
-function sourceProblems(v) {
-  const out = []; const all = Object.values(emitted); const first = all[0]; const srcs = Object.keys(mods).map((m) => read(`${DIR}/${m}.mjs`)); const cs = read(`${DIR}/checkout-completeness.mjs`);
+function sourceProblems(v, extraSources = []) {
+  const out = []; const all = Object.values(emitted); const first = all[0]; const srcs = [...Object.keys(mods).map((m) => read(`${DIR}/${m}.mjs`)), ...extraSources]; const cs = read(`${DIR}/checkout-completeness.mjs`);
   const eq = (what, expected, actual) => { if (!isDeepStrictEqual(expected, actual)) out.push(`${what}: vocabulary ${JSON.stringify(expected)} but code ${JSON.stringify(actual)}`); };
   const shape = (name, objects) => objects.forEach((o) => eq(`output_keys.${name}`, v.output_keys[name], Object.keys(o)));
   eq('adapter ids', Object.keys(v.adapters), IDS);
@@ -50,10 +54,15 @@ function sourceProblems(v) {
     eq('gate order', v.cutover_gates.map((g) => g.gate), Object.keys(ten(v, false).checks)); eq('blockers in gate order', v.cutover_gates.map((g) => g.blocker), ten(v, false).blockers); eq('cutover keys', v.output_keys.cutover_readiness, Object.keys(ten(v, true)));
     for (const g of v.cutover_gates) eq(`blocker of ${g.gate}`, [g.blocker], ten(v, true, g.gate).blockers);
   } catch (e) { out.push(`cutover call failed: ${e.message}`); }
-  eq('imports', sorted(v.imports), sorted(new Set(srcs.flatMap((s) => [...s.matchAll(/from '([^']+)'/g)].map((x) => x[1]))))); eq('owned files', sorted(v.owned_files), sorted(fs.readdirSync(path.join(ROOT, DIR))));
+  const loads = srcs.map(lib.importsOf); eq('imports', sorted(v.imports), sorted(new Set(loads.flatMap((l) => l.specs)))); eq('computed import() or require that cannot be listed', [], loads.flatMap((l) => l.opaque)); eq('owned files', sorted(v.owned_files), sorted(fs.readdirSync(path.join(ROOT, DIR))));
   for (const f of v.foreign_schemas) if (all.some((e) => JSON.stringify([e.bridge, e.snapshot, e.shadow]).includes(f))) out.push(`${f} must not appear in any T11 output`);
   for (const p of v.ownership.flatMap((o) => o.paths)) if (!fs.existsSync(path.join(ROOT, p))) out.push(`ownership path ${p} does not exist`);
-  try { const live = mods['checkout-completeness'].inspectLegacyCorpusCheckout({ repoRoot: ROOT, adapterId: 'python-fastapi' }); if (live.mode === 'full-working-tree') shape('checkout', [live]); } catch { /* not a git work tree: the baseline record replays the checkout fixtures */ }
+  const { full, verified, partial, truncated, unsupported } = checkouts; const more = (mode) => v.checkout_conditional_keys[mode] ?? [];
+  eq('modes of the sampled checkouts', ['full-working-tree', 'sparse-readset-verified', 'sparse-readset-verified', 'sparse-readset-verified', 'sparse-unsupported-adapter'], [full, verified, partial, truncated, unsupported].map((c) => c.mode));
+  shape('checkout', [full, verified, partial]); eq('truncated sample', [2, 1, true], [truncated.missing_count, truncated.missing_paths.length, truncated.missing_paths_truncated]);
+  eq('keys of a truncated sparse-readset-verified result', [...v.output_keys.checkout, ...more('sparse-readset-verified')], Object.keys(truncated));
+  eq('keys of a sparse-unsupported-adapter result', [...v.output_keys.checkout, ...more('sparse-unsupported-adapter')], Object.keys(unsupported));
+  eq('modes with conditional keys', sorted(Object.keys(v.checkout_conditional_keys)), sorted(v.modes.checkout.filter((m) => m.startsWith('sparse'))));
   return [...new Set(out)];
 }
 
@@ -67,7 +76,7 @@ function rfcProblems(text, v) {
   };
   for (const [name, lines] of Object.entries(tables)) if (!text.includes(lines.join('\n'))) out.push(`${name} differs from the vocabulary`);
   for (const [name, keys] of Object.entries(v.output_keys)) if (!text.includes(`{${keys.join(', ')}}`)) out.push(`key list ${name} differs from the vocabulary`);
-  const ids = [...Object.keys(v.adapters), ...Object.values(v.schemas), ...v.foreign_schemas, ...Object.entries(v.exports).flatMap(([m, ns]) => [`${m}.mjs`, ...ns]), ...Object.values(v.modes).flat(), v.checkout_error_code, ...v.diff_kinds, ...v.open_fields, ...v.owned_files, ...v.ownership.flatMap((o) => o.paths)];
+  const ids = [...Object.keys(v.adapters), ...Object.values(v.schemas), ...v.foreign_schemas, ...Object.entries(v.exports).flatMap(([m, ns]) => [`${m}.mjs`, ...ns]), ...Object.values(v.modes).flat(), ...Object.values(v.checkout_conditional_keys).flat(), v.checkout_error_code, ...v.diff_kinds, ...v.open_fields, ...v.owned_files, ...v.ownership.flatMap((o) => o.paths)];
   for (const id of ids) if (!words.has(id)) out.push(`RFC does not name ${id}`);
   const schemas = new Set([...Object.values(v.schemas), ...v.foreign_schemas]); const blockers = new Set(v.cutover_gates.map((g) => g.blocker));
   for (const w of words) {
@@ -116,4 +125,13 @@ test('T11-02 negative: edited copies of the RFC and the vocabulary make the same
   assert.match(bad((v) => { v.exports.bridge.push('bridgeEverything'); }), /bridge\.mjs exports/);
   assert.match(bad((v) => { v.imports.push('../../contracts/next/identity.mjs'); }), /imports/);
   assert.match(bad((v) => { v.output_keys.bridge.pop(); }), /output_keys\.bridge/);
+  assert.match(bad((v) => { v.checkout_conditional_keys['sparse-unsupported-adapter'] = []; }), /sparse-unsupported-adapter result/);
+  assert.match(bad((v) => { delete v.checkout_conditional_keys['sparse-readset-verified']; }), /truncated sparse-readset-verified/);
+  assert.match(rfcProblems(rfc.replaceAll('missing_paths_truncated', 'REDACTED'), vocab).join('\n'), /RFC does not name missing_paths_truncated/);
+  const ONE = { specs: ['../x.mjs'], opaque: [] };
+  for (const src of ["import a from '../x.mjs';", 'import a from "../x.mjs";', "import {\n a,\n b\n} from '../x.mjs';", "import '../x.mjs';", 'import "../x.mjs";', "export { a } from '../x.mjs';", "export * from '../x.mjs';", "const m = await import('../x.mjs');", 'await import("../x.mjs");']) assert.deepEqual(lib.importsOf(src), ONE, src);
+  for (const src of ['await import(name);', 'await import(`../${n}.mjs`);', "require('x');", 'createRequire(import.meta.url);']) assert.equal(lib.importsOf(src).opaque.length, 1, src);
+  assert.deepEqual(lib.importsOf("// import 'a';\n/* import 'b' */ const s = 1; // import 'c'").specs, [], 'comments are ignored');
+  assert.match(sourceProblems(vocab, ["import '../../contracts/next/identity.mjs';"]).join('\n'), /imports/);
+  assert.match(sourceProblems(vocab, ['await import(name);']).join('\n'), /cannot be listed/);
 });

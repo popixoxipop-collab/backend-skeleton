@@ -121,6 +121,14 @@
   ]
  },
  "checkout_error_code": "T11_CORPUS_CHECKOUT_INCOMPLETE",
+ "checkout_conditional_keys": {
+  "sparse-unsupported-adapter": [
+   "reason"
+  ],
+  "sparse-readset-verified": [
+   "missing_paths_truncated"
+  ]
+ },
  "sparse_supported_adapters": [
   "ruby-rails",
   "python-fastapi"

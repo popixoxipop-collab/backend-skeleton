@@ -8,7 +8,7 @@
   "base_commit": "9985dd9a51d2acf516fd38e27282c6a4398e16d0",
   "base_tree": "4b8e12754342e11dd6f64976bd4a159c9b56d289",
   "base_commit_note": "origin/main when the record was made. The pinned-commit checks always run (the commit is fetched when absent): tree id, file lists, blobs, and an export of it that reproduces the commands and replays. Live replays run only while every pinned file equals this record.",
-  "fixture_origin_note": "Scan fixtures are the five in-repo fixture trees pinned under inputs. Every other fixture cites the existing test it restates, or is authored for this record; checkout fixtures are rebuilt in a throw-away git repository with a fixed identity and dates.",
+  "fixture_origin_note": "Scan fixtures are the five in-repo fixture trees pinned under inputs. Every other fixture cites the existing test it restates, or is authored for this record; the output_sha256 of a scan fixture covers the complete sbf.scan-report/2 report (the absolute fixture root replaced by <root>, nothing else dropped) together with the bridge result, the inventory and the semantic snapshot; checkout fixtures are rebuilt in a throw-away git repository with a fixed identity and dates.",
   "observed_on": "2026-10-09",
   "environment": {
     "node": "v24.19.0",
@@ -756,7 +756,7 @@
         },
         "semantic_sha256": "7c5a5c2a0356d6c8f806f185bfc9084090e3d4850195f8a4f5d368c9e5fbb2e1"
       },
-      "output_sha256": "ac1423cdb3a1e8ad888d166c49adadc4dc7bd67d8659f4ba03dc82558baf2e74"
+      "output_sha256": "175dacf6c9040305c4a3d52b65d5655980c30eaadb9e3712ce29a85a853684ec"
     },
     {
       "id": "scan-ruby-rails",
@@ -793,7 +793,7 @@
         },
         "semantic_sha256": "992319ea50e1493b1e2faaf8dad12b0e6d370725d1840cc2424e15bd30b12b68"
       },
-      "output_sha256": "ed1a8509386e9671e3e4b8b5ad620b14a248c5d5179ece5bd00543df638e6035"
+      "output_sha256": "4d81b42fc6562eef20d86c756b542b75fa64bacd9308c98df55f587e1035eda5"
     },
     {
       "id": "scan-python-fastapi",
@@ -828,7 +828,7 @@
         },
         "semantic_sha256": "1be8ccde267ad11d7a5d8d883898cec653bfcc23db56d681cccb5a1643af080e"
       },
-      "output_sha256": "bc9e1175d6c2cffb8d03e8abf27842b3f6cf5951eee397342aac7be99e1c6e82"
+      "output_sha256": "bc83ee50270ca58b775248df55b62f8489814b8d63e55628233d1356a13092fe"
     },
     {
       "id": "scan-typescript-express",
@@ -863,7 +863,7 @@
         },
         "semantic_sha256": "2aa19d70e9388b7e96e4114d2bf9eb60a683f167e190dab31cb0a115770cea72"
       },
-      "output_sha256": "eff81d68ef8d93d506615bb8aa2281007cfaa89846ab1959c343627e70e47e7d"
+      "output_sha256": "7db34e2ad310b58a36ad5640b0b1618524de8d170b594b3b92b813e20a46db0a"
     },
     {
       "id": "scan-javascript-express",
@@ -899,7 +899,7 @@
         },
         "semantic_sha256": "df6a0f66a55e2639bf78cb7d532b6a11b8c24be0876d2fcea95abc2cfab2d979"
       },
-      "output_sha256": "13628fd652672ce4fc2864fc1b87367a45ee18083a31d6a66be2f2f1f3ad4956"
+      "output_sha256": "0b167cacc76b09bcdb9a6f17af216f2b9ed237aefd5e0b160466297f070de4f0"
     },
     {
       "id": "semantic-snapshot-root-relative-files",
@@ -1424,7 +1424,7 @@
   "artifact_digest": {
     "algorithm": "sha256",
     "covers": "canonical JSON of this whole record except artifact_digest.value, so prose (limits and their statuses, fixture classes and origins, notes, CI observations) is bound too",
-    "value": "0fc813e64ac721566eb0493600d47719b6ebb86ea009d9773e94dabc34d5bbc6"
+    "value": "f2d6e5f3baf7cd7478f9cf7027631bb789efe723c1511a96efdebdf70de720e8"
   },
   "ci_observations": [
     {
