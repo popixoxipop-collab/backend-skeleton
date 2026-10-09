@@ -20,8 +20,9 @@ vocabulary, unknown and partial semantics, file ownership, evidence and remainin
 Tests and reproducible evidence live in `test/project-graph/`:
 
 - `node scripts/run-next-nested-tests.mjs T02` runs the whole T02 suite.
-- `node test/project-graph/interface-rfc.probe.mjs <normal|negative|shadow|registered>` prints the
-  canonical JSON that the RFC's recorded hashes refer to.
+- `node test/project-graph/interface-rfc.probe.mjs <normal|negative|shadow|options|registered>` prints the
+  canonical JSON that the RFC's recorded hashes refer to. `options` builds graphs from non-default
+  options and caller-supplied values (RFC section 2.5).
 - `interface-rfc.record.json` holds the recorded commands, exit codes, hashes and vocabulary lists;
   `interface-rfc.test.mjs` checks them against the code, the schema and the RFC.
 

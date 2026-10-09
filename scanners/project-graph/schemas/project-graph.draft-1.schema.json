@@ -25,9 +25,13 @@
     }
   },
   "$defs": {
-    "relPath": { "type": "string", "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!(?:.*/)?\\.\\.(?:/|$)).+$" },
+    "relPath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!(?:[\\s\\S]*/)?\\.\\.(?:/|$))[\\s\\S]+$",
+      "description": "A repo-relative path with / separators. Rejects only a leading / and a .. segment. A backslash, a drive-like first segment such as c: and a line terminator are legal in a POSIX file name and the builder emits them as found, so they are accepted."
+    },
     "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
-    "projectId": { "type": "string", "pattern": "^project:.+$" },
+    "projectId": { "type": "string", "pattern": "^project:[\\s\\S]+$" },
     "role": { "enum": ["active", "reference", "generated", "vendor", "template"] },
     "evidence": {
       "type": "object",
@@ -41,7 +45,12 @@
       "required": ["path", "kind", "digest"],
       "properties": {
         "path": { "$ref": "#/$defs/relPath" },
-        "kind": { "enum": ["node-package", "python-project", "jvm-build", "jvm-workspace", "ruby-bundle", "go-module", "rust-package", "php-package", "dotnet-project"] },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The nine default marker rules emit the values listed under examples. A markerRules entry supplied by the caller can emit any non-empty string, so this is not an enum. The builder copies the value as given; see ../INTERFACE_RFC.md section 2.5.",
+          "examples": ["node-package", "python-project", "jvm-build", "jvm-workspace", "ruby-bundle", "go-module", "rust-package", "php-package", "dotnet-project"]
+        },
         "digest": { "$ref": "#/$defs/digest" }
       }
     },

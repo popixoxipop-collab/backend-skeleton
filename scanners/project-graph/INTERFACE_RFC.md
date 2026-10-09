@@ -37,15 +37,15 @@ consumers are asked to follow that no code enforces.
 
 | Export (module) | Input | Output |
 |---|---|---|
-| `discoverProjectRoots(repoRoot, {markerRules})` (`index.mjs`) | repo path; optional marker rules | in-process `{repo_root, roots[], unresolved[], files_read[]}`; `repo_root` and each `roots[].absolute_root` are absolute, so this object is not portable |
-| `inferDetectionProjectRoot(detection)` | an adapter `detect()` return value | absolute project root or `null`. Accepted: non-empty string (a trailing `src/main/java` is stripped), `{projectRoot}`, `{srcRoot}`. Anything else, including `true`, gives `null` |
-| `captureAdapterReadSetSnapshot({repoRoot, projectRoot, adapter})` | adapter with optional `listReadSet(absProject)` returning project-relative paths | `null` when the adapter has no `listReadSet`; else `{adapter_id, files[{path, digest, role}], fingerprint}`. Throws `TypeError` (non-array or invalid entry), `PROJECT_READ_SET_ESCAPE` (path leaves the project or repo) or the file-system error of an unreadable file |
-| `buildProjectGraph({repoRoot, adapters, markerRules})` | `repoRoot` and an `adapters` array (both required, else `TypeError`) | the graph, section 2.2 |
-| `buildProjectScanPlan(graph, {includeFallback, includeNonActive})` | a draft-1 graph (else `TypeError`) | array of plan items, section 2.3 |
-| `buildRegisteredProjectGraph(repoRoot, {adapters, markerRules})`, `buildRegisteredProjectScanPlan(repoRoot, {includeFallback, ...})` (`registered.mjs`) | repo path; defaults to the registry's `ADAPTERS` | the same graph plus `registry_load_errors`; the plan variant returns `{graph, plan}` |
+| `discoverProjectRoots(repoRoot, {markerRules})` (`index.mjs`) | repo path; optional marker rules, read the way `buildProjectGraph` reads them (section 2.5). It checks no `repoRoot`: an empty string is the process working directory, and `undefined`, `null` or a number is a Node `TypeError`, as is `null` in place of the options object | in-process `{repo_root, roots[], unresolved[], files_read[]}`; `repo_root` and each `roots[].absolute_root` are absolute, so this object is not portable [probe: options `discover_roots`] |
+| `inferDetectionProjectRoot(detection)` | an adapter `detect()` return value | absolute project root or `null`. Accepted: a non-empty string (resolved; a trailing `src/main/java` is stripped, so `/src/main/java` gives `/`), or an object whose `projectRoot` is a non-empty string (resolved only, never stripped), else an object whose `srcRoot` is a non-empty string (resolved and stripped like a string). A relative string resolves against the process working directory, not the repository. Anything else (`true`, `''`, `0`, `NaN`, `{}`, an array, a Promise, a function, an object with neither key as a non-empty string) gives `null`. [probe: options `detect_values`] |
+| `captureAdapterReadSetSnapshot({repoRoot, projectRoot, adapter})` | adapter with optional `listReadSet(absProject)` returning project-relative paths | `null` when the adapter has no `listReadSet`; else `{adapter_id, files[{path, digest, role}], fingerprint}`. Throws `TypeError` (a falsy `repoRoot`, `projectRoot` or `adapter`, a result that is not an array, or an invalid entry), `PROJECT_READ_SET_ESCAPE` (an entry leaves the project, or the project leaves the repository) or the file-system error of an unreadable file |
+| `buildProjectGraph({repoRoot, adapters, markerRules})` | a truthy `repoRoot` and an `adapters` array, the only two checks (else `TypeError`); optional `markerRules`, default the nine rules of section 4. Section 2.5 lists what else is accepted and what is not checked | the graph, section 2.2 |
+| `buildProjectScanPlan(graph, {includeFallback, includeNonActive})` | a draft-1 graph (else `TypeError: expected sbf.project-graph/draft-1`); optional flags, section 2.3 | array of plan items, section 2.3 |
+| `buildRegisteredProjectGraph(repoRoot, {adapters, markerRules})`, `buildRegisteredProjectScanPlan(repoRoot, {includeFallback, ...})` (`registered.mjs`) | repo path; `adapters` defaults to the registry's `ADAPTERS` when it is omitted, `undefined` or `null`, and any other value goes to the builder, so `false` fails with `adapters must be an array` [probe: options `registered_adapters_false`]; `markerRules` is passed on only when truthy, so `[]` is passed and `null` or omitted means the defaults [probe: options `empty_marker_rules`]. The plan variant forwards `includeFallback` to the plan but not `includeNonActive`, so it never plans a non-active project [probe: options `plan_options`]. A `null` in place of the options object is a Node `TypeError` for both functions [probe: options `registered_options_null`, `registered_plan_options_null`] | the same graph plus `registry_load_errors`; the plan variant returns `{graph, plan}` |
 | `executeProjectScanPlan({repoRoot, graph, terms, adapters, rgAvailable, includeFallback})` (`shadow.mjs`) | a graph and the repo it was built from | `sbf.project-scan-shadow/draft-1`, section 2.4 |
-| `classifyProjectSourceRole(path)`, `groupProjectSourcesByRole(paths)`, `PROJECT_SOURCE_ROLES` (`source-role.mjs`) | repo-relative paths | a role name, or a `{role: paths[]}` map covering all five roles |
-| `portableProjectDiagnosticMessage(message, repoRoot)`, `portableRegistryLoadErrors(entries)` | raw error text / registry load errors | text with the absolute repo (or adapter) directory replaced by `<repo>` (or `<adapter-dir>`) and backslashes turned into `/` |
+| `classifyProjectSourceRole(path)`, `groupProjectSourcesByRole(paths)`, `PROJECT_SOURCE_ROLES` (`source-role.mjs`) | repo-relative paths | a role name, or a `{role: paths[]}` map covering all five roles, each list sorted (duplicates are kept), and the array that is given is left as it was. A path that is not a non-empty string (a `String` object is not one), or a non-array given to the grouping, is a `TypeError`. A non-empty path that holds no name (`/`, `./`) is `active`. Doubled and trailing separators are skipped, so `docs/page.tmpl/` is judged by its name `page.tmpl` and is template |
+| `portableProjectDiagnosticMessage(message, repoRoot)`, `portableRegistryLoadErrors(entries)` | raw error text / registry load errors | text with every occurrence of the absolute repo (or adapter) directory replaced by `<repo>` (or `<adapter-dir>`) and backslashes turned into `/`. A `null` or `undefined` message gives `''`, and without a `repoRoot` only the backslashes change. A directory in a Windows-style `file` (`C:\x\y.mjs`) is replaced whether `message` spells it with backslashes or with `/`. `portableRegistryLoadErrors` throws a `TypeError` for a non-array, and returns `{file, message}` sorted by `file`, then `message`, with the base name of `file` (`(unknown)` when it is missing, empty or not a string, and `''` when it ends in a separator; a leading separator is cut as well, so `/x.mjs` gives `x.mjs`), and the text of `message` (`''` for a missing one, `5` for the number 5) |
 | `PROJECT_GRAPH_DRAFT`, `PROJECT_GRAPH_EXECUTION_ROOT`, `projectGraphExecutionRoot(graph)` | none / a graph | the draft id; a Symbol key; the absolute root captured at build time or `null` |
 
 Adapters are the existing `sbf.adapter/2` descriptors (`detect` and `scan` required; `listReadSet`,
@@ -55,12 +55,14 @@ third-party or test adapter without it yields a `null` read set (section 5).
 
 ### 2.2 Graph object
 
-Every key below is always present on a graph. Arrays are sorted with plain code-unit comparison.
+Every key below is always present on a graph. Arrays are sorted with plain code-unit comparison, except
+`unresolved`, which keeps the order in which the builder found things (section 5.1), and `notes`, which is
+fixed prose.
 
 | Key | Meaning |
 |---|---|
 | `schema` | the constant `sbf.project-graph/draft-1` |
-| `repo_root` | always `.`. The absolute root lives under the non-enumerable `PROJECT_GRAPH_EXECUTION_ROOT` symbol and disappears on JSON serialization |
+| `repo_root` | always `.`. The absolute root lives under the non-enumerable `PROJECT_GRAPH_EXECUTION_ROOT` symbol and disappears on JSON serialization. The property is read-only and not configurable (`writable` and `configurable` are `false`) |
 | `projects` | one entry per discovered project root, sorted by `root`; the repository root is always a project, even with no marker of its own |
 | `project_edges` | `contains` and `local-package-dependency` edges sorted by kind, from, to, dependency name |
 | `unresolved` | facts the builder could not resolve; section 5 |
@@ -80,16 +82,28 @@ Project entry:
 | `facets` | `{http: {...}}`; section 4 |
 | `fallback_adapter` | id of the generic fallback adapter, or `null`. Set only when the project has no first-class candidate |
 | `selected_adapter_read_set` | `{adapter_id, files[{path, digest, role}], fingerprint}` or `null`; section 5 |
-| `child_project_roots` | the nearest descendant project roots only |
-| `nested_detections` | `[{adapter_id, detected_root}]`; section 5 |
-| `local_package` | `{name, private, dependency_names, workspace_patterns, evidence{path, digest}}` read from the `node-package` marker, or `null` |
+| `child_project_roots` | the nearest descendant project roots only: a descendant with another project between it and this root is left out, and a directory with no marker between two projects does not count. [probe: options `nested_projects`] |
+| `nested_detections` | `[{adapter_id, detected_root}]`, sorted by `adapter_id`, then `detected_root`; section 5 [probe: options `adapter_order`] |
+| `local_package` | `{name, private, dependency_names, workspace_patterns, evidence{path, digest}}` read from the first `node-package` marker by path (section 2.5), or `null` |
 
-Edges: `contains` runs from the nearest enclosing project to its child with `evidence: []`.
+Edges: `contains` runs from the nearest enclosing project to its child with `evidence: []`. The nearest
+enclosing project is the one with the longest root text, which is wrong for a child of a one-character
+top-level project (section 8, limit 18). [probe: options `nested_projects`, `short_root_names`]
 `local-package-dependency` runs from the declaring project to the single project whose package `name`
 matches a name in the declarer's dependency lists, with `dependency_name` and
-`evidence: [the declaring project's local_package.evidence]`. Dependency names are the union of
-`dependencies`, `devDependencies`, `peerDependencies` and `optionalDependencies`. A self-match is
-skipped. [probe: normal]
+`evidence: [the declaring project's local_package.evidence]`. [probe: normal] Dependency names are the
+union of `dependencies`, `devDependencies`, `peerDependencies` and `optionalDependencies`; the `normal` probe
+uses only `dependencies`. A self-match is skipped: a project that lists its own name keeps it in
+`dependency_names` and gets no edge, unless another project declares that name too: then the dependency is
+ambiguous like any other and the project itself is one of the candidates. [probe: options `package_metadata`,
+`package_owners`]
+
+The edges are built from the package name alone. A name that no project declares (an external package)
+makes no edge and no entry. A name that two or more projects declare is an `ambiguous-local-package-name`
+entry, listed in package-name order with the `project_ids` sorted by root, and every dependency on it is an
+`ambiguous-local-package-dependency` entry (`candidate_project_ids` sorted by root) and no edge. A project
+that lists a local name in two dependency fields gets one edge. A project may depend on the repository root
+project when that declares a name. [probe: options `package_owners`]
 
 ### 2.3 Plan item
 
@@ -105,19 +119,101 @@ skipped. [probe: normal]
 5. A plan is a hint (which adapter to run on which root), not a result. It does not say the scan will
    succeed or that the sources are fresh.
 
+`includeFallback` and `includeNonActive` are plain truthiness tests: `'yes'` and `1` count as set, `0` and
+`''` do not. They combine, so a non-active project gets a fallback item only when both are set, and an
+`aggregate` project gets none either way. [probe: options `plan_options`] Passing `null` instead of the
+options object fails with a Node `TypeError` (text not stable), and a first argument that is not a draft-1
+graph fails with `TypeError: expected sbf.project-graph/draft-1`. [probe: options `plan_options_null`,
+`plan_not_a_graph`]
+
+The plan reads six fields of each project: `project_id`, `root`, `project_role`, `kind`, `fallback_adapter` and
+`facets.http.selected_adapter`. It does not depend on the order of `projects`. A project without `facets` has no
+selected adapter, and a project without `project_role` is not `active`. The only checks on the graph are that it is
+truthy, that its `schema` is `sbf.project-graph/draft-1` and that `projects` is an array: a graph with no `projects`,
+or with `projects` that is not an array, fails with the same `TypeError`, and the entries are not checked (`{}` is a
+project that is skipped, `null` is a Node `TypeError`). Items are not de-duplicated, so two projects with the same
+`root` give two items, ordered by `adapter_id`. Rule 4 holds for the graphs the builder produces, where an `ambiguous`
+project has no `fallback_adapter`, and not for every graph the plan accepts: a hand-built `ambiguous` project that
+carries a `fallback_adapter` gets a `fallback` item.
+
 ### 2.4 Shadow output
 
 `executeProjectScanPlan` returns `{schema, graph_schema, terms, scans[], notes}` where each
 `scans[]` item is `{project_id, project_root, adapter_id, mode, report}` and `report` is the unchanged
 legacy `sbf.scan-report/2` produced by `runScan` for that project root with only the planned adapter,
-`includeDb: false`, `dbSchema: null` and `runtimeRoutes: false`. It takes no `includeNonActive`, so
-non-active roots are never scanned in shadow mode.
+`includeDb: false`, `dbSchema: null` and `runtimeRoutes: false`. The nested scan runs on the project's own
+directory: for each planned project the planned adapter's `detect` and `scan` are called once with the
+absolute project root (the repository itself for `.`), no other adapter of `adapters` is called,
+`introspectRoutes` is never called, and the report has an `unknowns` entry that starts with `DB not scanned`
+and neither a `db_schema` nor a `runtime_introspection` key. `notes` holds three fixed prose strings. [probe: shadow]
+[probe: options `shadow_options`]
 
-Before each project it re-hashes every marker and, when the graph carries a read set, re-captures the
-selected adapter's read set and compares fingerprints. Any failure throws and **no partial `scans` list
+Its options. A falsy `repoRoot` is `TypeError: repoRoot is required`, and a graph that is not draft-1 is
+`TypeError: expected sbf.project-graph/draft-1`; `null` in place of the options object is a Node `TypeError`. A
+truthy `repoRoot` that is not a string (`5`) is a Node `TypeError` too. A missing graph, `null`, and a graph with another
+`schema` are the draft-1 error as well, even when they have no `projects` list.
+`terms` (default `[]`) is returned as a copy and handed to every nested scan. It has to be an array: `null`, a
+string or a `Set` makes the nested scan throw, and that comes back as `PROJECT_PLAN_STALE` (section 5.3) although
+nothing is stale. With no planned project there is no nested scan, and `terms` is only spread into the returned
+list: a string gives a list of its characters, a `Set` a list of its members, and `null` or a number is a Node
+`TypeError`. `rgAvailable` (default `true`) is handed to it too and comes back as the report's
+`rg_available` as given, not turned into a boolean; a falsy value (`false`, `0`, `null`) adds the `ripgrep` entry
+to the report's `unknowns`. `adapters` (default the registry's `ADAPTERS`) is looked up by `id`: two entries
+with one id throw a plain `Error` with no `code` before any project is verified, whether or not the plan uses
+them. It need not be an array, any iterable of adapters works (a `Set`), and `null` is a Node `TypeError`.
+`includeFallback` (default off) adds the `fallback` items of section 2.3, so a project that only the
+fallback recognizes is then scanned in `fallback` mode. It takes no `includeNonActive`: that key, like any
+other key that is not listed, is ignored, so non-active roots are never scanned in shadow mode.
+[probe: options `shadow_options`]
+
+The graph and `repoRoot` are matched as follows. The root a live graph captured and `repoRoot` are compared as
+text after `path.resolve`: a trailing separator, a `..` segment or a relative path to the same directory matches,
+and a symbolic link to it does not (`PROJECT_GRAPH_ROOT_MISMATCH`). A draft-1 graph whose `projects` is missing or
+is not an array is a Node `TypeError`, raised after the duplicate-id check and before any project is verified, and
+one with an empty `projects` array returns an empty `scans`. [probe: options `shadow_options`]
+
+Before each project it re-hashes every marker and, when the graph carries a read set for that project,
+re-captures the selected adapter's read set and compares the adapter id and the fingerprint. A changed, added or
+removed file fails, and so do an adapter that no longer lists a read set, a read set recorded under another
+adapter id and a listing that throws. A project with no read set (`selected_adapter_read_set` `null`) skips that
+check and keeps the marker check, and a project entry with no `markers` key has nothing to re-hash. The projects
+are verified one after the other, each just before its own scan, so a project that has gone stale late in the
+plan fails after the earlier projects have been scanned. Any failure throws and **no partial `scans` list
 is returned** (all-or-nothing, fail closed). A graph that went through `JSON.stringify` and `JSON.parse`
 executes on an equivalent checkout; the root-mismatch check only applies to a live graph that still
-carries the execution-root symbol. [probe: shadow]
+carries the execution-root symbol. [probe: shadow] [probe: options `shadow_options`]
+
+### 2.5 Options and input the builder does not check
+
+`buildProjectGraph` validates two things: `repoRoot` is truthy (else `TypeError: repoRoot is required`) and
+`adapters` is an array (else `TypeError: adapters must be an array`). It checks nothing else about its
+input. It reads three keys of the options object and ignores every other one, so a plan option such as
+`includeFallback` does nothing there [probe: options `unknown_options`], and `null` in place of the options
+object is a Node `TypeError` [probe: options `options_null`]. `discoverProjectRoots`, the walk the builder
+starts with, reads `markerRules` the same way but checks no `repoRoot` (section 2.1). A value outside the
+"Accepted" column either fails with a `TypeError` raised by Node itself, whose text is not stable, or is
+copied into the graph unchecked, where the schema may then reject the graph. Each row names the cases of
+`node test/project-graph/interface-rfc.probe.mjs options` (section 7.1) that reproduce it.
+
+| Option or input | Accepted, and what the graph records | Not checked, or rejected | Evidence |
+|---|---|---|---|
+| `markerRules[].kind` | Any truthy value, copied unchanged to `markers[].kind`. The schema accepts any non-empty string, so a custom kind validates, including one that is only digits, only a space, or has non-ASCII letters. The nine default kinds (section 4) are the defaults and the `examples` of the schema, not a closed list | That the kind is a string, is unique, or differs from the defaults. A falsy `kind` (`''`, `0`, `null`, `undefined`, `false`) makes the file not a marker, and no later rule is tried for it. A truthy non-string (`42`, `{}`, `true`, `['x']`) is copied and the graph then fails the schema (`type`). Only `node-package` has a meaning to the builder: `local_package` is read from the first marker of that kind by path, whatever its file name, and parsed as JSON. A later `node-package` marker is ignored even when the first one is invalid | probe: options `custom_marker_kinds`, `non_string_marker_kinds` |
+| `markerRules` | An array of `{kind, test}`. It replaces the nine defaults; nothing is merged. `[]` leaves the repository root as the only project. Omitted or `undefined` means the defaults. Each rule's `test(name)` gets one argument, the file's base name, once per regular file visited, unless an earlier rule has already matched that file (not for a symbolic link, not below a hard-ignored directory of section 5.2), and the first rule that returns a truthy value decides the kind | `null`, a non-array, a `null` rule and a rule without `test`: each is a Node `TypeError` as soon as the walk visits a regular file, and none fails in a repository that has no regular file. An error thrown by `test` passes through unchanged. Its return value is not checked: any truthy value counts, a Promise included, so an `async` test matches every regular file | probe: options `custom_marker_kinds`, `empty_marker_rules`, `async_marker_rule`, `marker_rules_null`, `marker_rules_not_an_array`, `marker_rule_null`, `marker_rule_without_test`, `marker_rule_throws` |
+| `repoRoot` | A non-empty string. Only `path.resolve` is applied, so a relative path, a trailing separator and a symbolic link give the same graph. A path that does not exist, or that is a file, records one `directory-read` entry (path `.`) and a graph that holds only the root project `.` | That it is a string (`5` is a Node `TypeError`) or that it exists. An empty string, or no argument, is `repoRoot is required`. A relative path resolves against the process working directory | probe: options `repo_root_forms`, `missing_repo_root`, `file_as_repo_root`, `repo_root_not_a_string`, `empty_repo_root`, `no_arguments` |
+| `adapters` | An array, possibly empty. With none, the markers still make projects, each is `aggregate` or `unrecognized`, and none has a fallback. A repository with no marker and no file gives the root project only | The elements. `null` is a Node `TypeError`. An element without a `detect` function records `adapter-detect-error` for every project root. `id` is not checked: any non-empty string is a valid id, spaces and non-ASCII letters included, but an empty id is selected as `''` while `selection_reason` says `no-first-class-adapter` (its read set is never captured), a number is copied, two adapters with one id can tie (the read set comes from the first of them in the array, section 4), and an adapter with no `id` becomes a candidate without `adapter_id` that is never selected, although `selection_reason` says `no-first-class-adapter`. The schema rejects those four (`minLength`, `type`, `uniqueItems`, `required`). An adapter removed from the array while the build runs gives `selected-adapter-missing` | probe: options `no_adapters`, `empty_repository`, `empty_adapter_id`, `numeric_adapter_id`, `missing_adapter_id`, `duplicate_adapter_ids`, `adapter_values`, `adapter_removed_during_build`, `adapter_order`, `adapters_missing`, `adapters_not_an_array`, `adapters_with_null` |
+| `detect(absRoot)` and `listReadSet(absProject)` calls | The builder calls both as methods of the adapter, so `this` is the adapter, and passes one argument, the absolute path of the project root: `path.resolve(repoRoot)` for `.`, and that path followed by the recorded root for any other project. A symbolic link in `repoRoot` is not resolved. `detect` is called once for each element of `adapters` for each discovered project root, in the order of `projects` and, within a root, in the asking order of section 4, whatever an earlier adapter returned. `listReadSet` is called once, for the adapter that was selected, right after the detections of that project root and before the next root is visited. It is not called for a candidate that lost, for a tie, or for a fallback | Anything beyond the path. No `repoRoot`, no options and no second argument are passed. That the adapter reads the argument, or that two calls agree | probe: options `adapter_calls` |
+| adapter `title`, `specificity`, `confidence`, `verificationBasis`, `capabilities` | Recorded in the candidate as section 4 describes: an omitted or `null` field takes its default (`title` the adapter's `id`, `confidence` and `verification_basis` `unknown`, `capabilities` `{}`, `specificity` `0`) and an empty string is kept, `specificity` is kept when it is a finite number (negative and fractional included) and is `0` otherwise, `capabilities` is copied one level deep with an object spread, so an array or a string becomes an object keyed by index and a number becomes `{}`. Equal recorded specificities tie, so `NaN` and `Infinity` can tie at `0` | Types. A non-string `title`, `confidence` or `verificationBasis` is copied and the schema rejects the graph (`type`) | probe: options `adapter_defaults`, `adapter_values`, `fallback_adapters`, `non_string_adapter_fields` |
+| `detect()` return value | `null`, `undefined` and `false` mean not detected, and nothing is recorded. Every other value is a detection, `true`, `0`, `''` and `NaN` included. A fallback adapter (section 4) that detects is recorded as the fallback whatever it returned. Any other adapter must return a shape that `inferDetectionProjectRoot` accepts (section 2.1): `projectRoot` wins over `srcRoot`, and an empty `projectRoot` falls through to `srcRoot`. A root equal to the candidate makes a candidate, a root below it is a `nested_detections` entry, any other root is `out-of-scope-detection` | Every other shape is `unlocated-detection`, for a first-class adapter only. A relative string is resolved against the process working directory, not the repository, so it usually reads as out of scope. The parent directory is out of scope too (`detected_root` `.`) | probe: options `detect_values` |
+| `detect()` failures | A throw is recorded as `adapter-detect-error` with a portable message, and the adapter is not a candidate for that root. The thrown value may be a string. An async `detect` returns a Promise, an unrecognized shape: `unlocated-detection` | A `detect` that throws `null` or `undefined` fails with a Node `TypeError`, because the builder reads `.message` | probe: options `detect_failures`, `detect_throws_null`, `detect_throws_undefined` |
+| `listReadSet(absProject)` | An array of non-empty strings. They resolve against the project root (an absolute path inside the project is accepted) and duplicates collapse by repo-relative path. A marker file may be listed too, and `files_read` then holds it once. An empty array gives an empty read set, not `null`. A path inside a hard-ignored directory such as `node_modules` is accepted. No function gives a `null` read set | One bad entry fails the whole read set: a result that is not an array, an entry that is empty or not a string, a directory, a missing file, a path that leaves the project, or a throw inside the listing. The graph records one `adapter-read-set-error` and a `null` read set | probe: options `read_set_shapes` |
+| `package.json` content | Valid JSON. `name` is kept when it is a non-empty string, and `private` is `true` only for the JSON value `true`. `dependency_names` holds the keys of `dependencies`, `devDependencies`, `peerDependencies` and `optionalDependencies`, whatever their values are (an empty key included), sorted by code unit and de-duplicated. A field counts only when it is a plain object: a string, a number, `null` or an array adds nothing, and no other field is read (`bundledDependencies`, `peerDependenciesMeta`, `overrides`). `workspace_patterns` holds the string entries of a `workspaces` array, or of `workspaces.packages` when `workspaces` is not an array and `packages` is one, sorted by code unit and not de-duplicated. JSON of another shape (`null`, `[]`, a number) gives a readable `local_package` with those defaults | An empty file, a file that starts with a byte-order mark, and invalid JSON record `package-metadata-read` and leave `local_package` `null`. The name format is not checked | probe: options `package_metadata` |
+| directory and file names | Names that are legal on POSIX: spaces, `c:`, `a:b`, a backslash, a newline, a tab, a quote, non-ASCII letters, a leading dash or dot. Graph paths are relative strings in which a backslash is an ordinary character, and the schema accepts any relative path without a `..` segment. Names that every object has as properties, `__proto__`, `constructor`, `toString` and `hasOwnProperty`, are ordinary too, as a directory, a package name, a dependency name or an adapter `id`: the builder keeps its tables in `Map` and `Set` objects | A first path segment that starts with two dots (`..dots`, `..lib`) is read as an escape by five checks in the builder (section 8, limit 16) | probe: options `odd_names`, `dotdot_names`, `prototype_names` |
+| files that change during the build | A marker file that cannot be read after its rule matched is recorded as `marker-read` and is not a marker, so its directory may be missing from the graph. The package facts are read after every adapter has run: a `package.json` that has been removed by then records `package-metadata-read` with a portable message, and one that has been rewritten gives the facts of the new content under the digest taken when the file was found | The `marker-read` message is the raw system text and holds the absolute path (section 8, limit 4). Every other message is portable | probe: options `vanished_marker`, `package_metadata` |
+
+Two failure messages of `buildProjectGraph` belong to the builder and are stable: `repoRoot is required` and
+`adapters must be an array` (`buildProjectScanPlan` adds a third, section 2.3). An error thrown by a function
+the caller supplied passes through unchanged. Every other failure in the table is a `TypeError` produced by
+Node, whose text is not stable and which the probe therefore records as a class only.
 
 ## 3. Identity
 
@@ -132,6 +228,7 @@ carries the execution-root symbol. [probe: shadow]
 - Roots and ids compare as exact strings (code units, no locale, no case folding, POSIX separators).
 - `adapter_id` is the registry adapter's `id`, which equals its file name. Ids must be unique in the
   adapter list given to `executeProjectScanPlan` (a duplicate is a plain `Error`, no `code`).
+  [probe: options `shadow_options`]
 - A digest is `sha256:` plus 64 lowercase hex characters over the raw file bytes. A read-set
   `fingerprint` is the same form over `path`, `digest` and `role` of every file, each followed by a NUL
   byte, files sorted by path. Both detect change; neither names anything.
@@ -148,13 +245,24 @@ A facet is a per-project, per-service-kind block under `facets`. The draft defin
 |---|---|
 | `http` | `candidates[]`, `selected_adapter`, `selection_reason`, `ambiguous_adapter_ids[]` |
 
-A candidate is `{adapter_id, title, specificity, confidence, verification_basis, capabilities}`.
-Defaults when an adapter omits a field: `title` is the id, `specificity` is `0` unless a finite number,
-`confidence` and `verification_basis` are the literal string `unknown`, `capabilities` is `{}`.
+A candidate is `{adapter_id, title, specificity, confidence, verification_basis, capabilities}`, copied
+from the adapter's `id`, `title`, `specificity`, `confidence`, `verificationBasis` and `capabilities`. An
+omitted (`undefined` or `null`) `title` is recorded as the id, an omitted `confidence` or `verificationBasis`
+as the string `unknown`, and omitted `capabilities` as `{}`; `capabilities` is copied one level deep.
+`specificity` is recorded as given when it is a finite number, negative and fractional values included, and
+as `0` otherwise, so `NaN`, `Infinity`, a numeric string and an omitted value all record `0`. A value of
+another type in a text field is copied without a check (section 2.5).
+[probe: options `adapter_defaults`, `adapter_values`]
 
 A first-class candidate is an adapter that is not a fallback and whose `detect()` returned a root equal
-to the project root. Fallback means id `generic-grep` or specificity `0`. Adapters that threw, returned
-an unrecognized shape, or returned another root are not candidates; they appear in `unresolved` or
+to the project root. Fallback means id `generic-grep` or a raw `specificity` that is exactly the number
+`0`. An adapter whose specificity is omitted, `NaN` or `Infinity` is therefore first-class although it
+records `0`, and candidates with equal recorded specificity tie. A fallback adapter is recorded as the
+project's `fallback_adapter` when its `detect()` returns anything other than `null`, `undefined` or `false`,
+whatever the shape or root, and only for a project that has no candidate (a tie counts as having candidates);
+when several do, the one asked last is recorded (the asking order is below).
+[probe: options `fallback_adapters`, `detect_values`] Other adapters that threw, returned an
+unrecognized shape, or returned another root are not candidates; they appear in `unresolved` or
 `nested_detections` (section 5).
 
 | `selection_reason` | Condition | `selected_adapter` | `ambiguous_adapter_ids` |
@@ -163,8 +271,19 @@ an unrecognized shape, or returned another root are not candidates; they appear 
 | `specificity-tie` | two or more candidates share the highest specificity | `null` | the tied ids |
 | `no-first-class-adapter` | no candidates | `null` | empty |
 
-`candidates` lists every first-class candidate, sorted by descending specificity then id, not only the
-tied ones. Adding a facet means a new key under `facets`. The draft schema is closed over `facets`, so a
+`candidates` lists every first-class candidate, sorted by descending recorded specificity then id, not only
+the tied ones, and `ambiguous_adapter_ids` follows that order. The builder asks the adapters in another
+order: by the `specificity` the adapter has, as given, descending, then by `id`. There an omitted value
+counts as `0`, a numeric string as its number, and `Infinity` comes first, so an adapter that is listed
+among the `0`s can be asked before all the others. The caller's `adapters` array is sorted as a copy and
+is never reordered. [source] A `NaN` makes the asking order unreliable, because a comparison with it is
+never true. The asking order decides the order of the
+adapter diagnostics of one project root in `unresolved` (section 5.1) and which of several fallbacks is
+recorded; it does not change the candidates, `nested_detections` or the selection. When two adapters share
+an `id`, the read set is captured from the first element of the array that has that `id`, which need not
+be the adapter that detected. [probe: options `adapter_order`]
+
+Adding a facet means a new key under `facets`. The draft schema is closed over `facets`, so a
 new facet requires a new schema revision. [convention] A consumer must ignore facet keys it does not know
 and must read a missing facet as **unknown, never none**: today a graph says nothing about queues, jobs,
 databases or sockets, and the `http` facet only says what the registered HTTP adapters could recognize.
@@ -173,15 +292,37 @@ databases or sockets, and the `http` facet only says what the registered HTTP ad
 |---|---|
 | `kind` | `application`, `ambiguous`, `aggregate`, `unrecognized` |
 | `project_role` and read-set `role` | `active`, `reference`, `generated`, `vendor`, `template` |
-| marker `kind` | `node-package`, `python-project`, `jvm-build`, `jvm-workspace`, `ruby-bundle`, plus forward-compatible `go-module`, `rust-package`, `php-package`, `dotnet-project` |
+| marker `kind`, default rules | `node-package`, `python-project`, `jvm-build`, `jvm-workspace`, `ruby-bundle`, plus forward-compatible `go-module`, `rust-package`, `php-package`, `dotnet-project`. A caller's `markerRules` may emit any other non-empty string (section 2.5), so a consumer must not treat this list as closed |
 | edge `kind` | `contains`, `local-package-dependency` |
 
 The four forward-compatible marker kinds only put a directory on the graph. They do not imply that an
-adapter exists for that ecosystem. Role precedence is vendor, then reference, then generated, then
+adapter exists for that ecosystem. The default rules match the base name of a regular file: `package.json`
+(`node-package`); `pyproject.toml` and any `requirements.txt`, `requirements-*.txt` or `requirements.*.txt`
+(`python-project`); `pom.xml`, `build.gradle`, `build.gradle.kts` (`jvm-build`); `settings.gradle`,
+`settings.gradle.kts` (`jvm-workspace`); `Gemfile` (`ruby-bundle`); `go.mod` (`go-module`); `Cargo.toml`
+(`rust-package`); `composer.json` (`php-package`); a name that ends in `.csproj`, `.fsproj` or `.vbproj`
+(`dotnet-project`). Every name is matched exactly, except the `requirements` pattern and the three `.*proj`
+suffixes, which ignore letter case. The probe feeds 31 base names to the nine rules, one file each.
+Match: `package.json` (`node-package`), `pyproject.toml` (`python-project`), `requirements.txt` (`python-project`),
+`requirements-dev.txt` (`python-project`), `requirements.dev.txt` (`python-project`), `REQUIREMENTS.TXT`
+(`python-project`), `pom.xml` (`jvm-build`), `build.gradle` (`jvm-build`), `build.gradle.kts` (`jvm-build`),
+`settings.gradle` (`jvm-workspace`), `settings.gradle.kts` (`jvm-workspace`), `Gemfile` (`ruby-bundle`), `go.mod`
+(`go-module`), `Cargo.toml` (`rust-package`), `composer.json` (`php-package`), `App.csproj` (`dotnet-project`),
+`app.fsproj` (`dotnet-project`), `APP.VBPROJ` (`dotnet-project`), `.csproj` (`dotnet-project`). No match: `POM.XML`, `Package.json`,
+`Pyproject.toml`, `gemfile`, `cargo.toml`, `requirements_dev.txt`, `prerequirements.txt`, `requirements.txt.bak`,
+`README.md`, `app.sln`, `App.csproj.user`, `Appcsproj`. [probe: options `default_markers`] Role precedence is vendor, then reference, then generated, then
 template, then active, matched on whole path segments (case-insensitive), never on substrings; a
 `.tmpl`, `.template`, `.mustache` or `.hbs` file name also means template. [probe: normal `source_roles`]
 Examples from that probe: `vendor/examples/x.js` is vendor, `generated/tests/x.js` is reference,
-`dist/bundle.js` is generated, `src/app.js` is active.
+`dist/bundle.js` is generated, `src/app.js` is active. The whole-segment names, each list in code-unit order:
+vendor `third-party`, `third_party`, `vendor`, `vendors`; reference `__tests__`, `example`, `examples`, `fixture`,
+`fixtures`, `fixtures-reference`, `reference`, `references`, `sample`, `samples`, `test`, `tests`, `upstream`;
+generated `.next`, `.svelte-kit`, `build`, `dist`, `generated`, `out`; template `scaffold`, `scaffolds`, `template`,
+`templates`. Any other segment gives `active`, and the file name counts as a segment, so `src/tests` is reference.
+The names come from the repository, so they are input. A backslash counts as a separator, so a project below a directory literally named `x\vendor` is judged `vendor`.
+Only the last segment is tested for the template extensions: `docs/Page.TMPL` is template, `docs/page.tmpl.bak`
+is active. The extension needs its dot and ignores letter case: `.mustache` and `page.HBS` are template, `pagehbs` is
+active. `Vendor/lib` is vendor and `my-vendor/lib` is active. [probe: options `role_names`]
 
 ## 5. Unknown and partial semantics
 
@@ -192,19 +333,31 @@ missing, `null` or unresolved value as "supported", and must not read it as "non
 ### 5.1 `unresolved` entries
 
 Every entry has a `kind` and a human `message`. Consumers key on `kind` and the structured fields.
+`unresolved` is not sorted: entries come in the order the builder found them. First the discovery
+diagnostics (`directory-read` and `marker-read`, in walk order); then, for each project root in `root` order,
+the adapter diagnostics (adapters in the asking order of section 4: their own `specificity` descending,
+then id) followed by that root's read-set diagnostic; then `package-metadata-read` per project; then the
+edge diagnostics. Do not rely on the position of an entry.
+[probe: options `detect_failures`, `unresolved_order`, `adapter_order`]
+
+The walk is depth first. In one directory it visits the files in descending name order, then the subdirectories
+in ascending name order, each with everything below it before the next. Names compare by code unit, so `B` comes
+before `a` and a surrogate pair (U+1F600) before U+FF61. `directory-read` and `marker-read` entries therefore come
+in that order, which is not the sorted order of their paths: `a/b` is listed before `a-x`. The `test` calls of the
+marker rules come in the same order. [probe: options `walk_order`]
 
 | `kind` | Other fields | Meaning | Tag |
 |---|---|---|---|
-| `directory-read` | `path` | a directory could not be listed during discovery; its subtree is unobserved | source |
-| `marker-read` | `path` | a recognized marker file could not be read; it is not a marker, so a project may be missing | source |
-| `package-metadata-read` | `project_id`, `path` | `package.json` is unreadable or not valid JSON; `local_package` is `null` for that project | probe: negative `malformed_metadata` |
+| `directory-read` | `path` | a directory could not be listed during discovery (for example a missing or non-directory `repoRoot`, path `.`); its subtree is unobserved | probe: options `missing_repo_root`, `file_as_repo_root` |
+| `marker-read` | `path` | a file that a marker rule matched could not be read; it is not a marker, so a project may be missing. Its `message` is the raw system text and holds the absolute path (section 8, limit 4) | probe: options `vanished_marker` |
+| `package-metadata-read` | `project_id`, `path` | the project's first `node-package` marker is unreadable, empty or not valid JSON (a leading byte-order mark makes it invalid); `local_package` is `null` for that project | probe: negative `malformed_metadata`; probe: options `package_metadata`, `custom_marker_kinds` |
 | `ambiguous-local-package-name` | `package_name`, `project_ids` (2 or more) | several projects declare one package name | probe: negative `duplicate_local_package` |
 | `ambiguous-local-package-dependency` | `project_id`, `package_name`, `candidate_project_ids` (2 or more) | a dependency matches several local projects; no edge was created | probe: negative `duplicate_local_package` |
-| `adapter-detect-error` | `project_root`, `adapter_id` | the adapter's `detect()` threw for that candidate root; it is not a candidate there | probe: negative `detect_error` |
-| `unlocated-detection` | `project_root`, `adapter_id` | `detect()` was truthy but returned no recognized root shape; T02 does not guess ownership | probe: negative `unlocated_detection` |
-| `out-of-scope-detection` | `project_root`, `adapter_id`, `detected_root` | the detected root is neither the candidate nor inside it | probe: negative `out_of_scope_detection` |
-| `selected-adapter-missing` | `project_root`, `adapter_id` | the selected id was absent from the adapter list at read-set capture; defensive, the id comes from that same list | source |
-| `adapter-read-set-error` | `project_root`, `adapter_id` | `listReadSet` or hashing failed (bad shape, `PROJECT_READ_SET_ESCAPE`, unreadable file); the project keeps its adapter but has no read set | probe: negative `read_set_escape` |
+| `adapter-detect-error` | `project_root`, `adapter_id` | the adapter's `detect()` threw, or is not a function, for that candidate root; it is not a candidate there | probe: negative `detect_error`; probe: options `detect_failures` |
+| `unlocated-detection` | `project_root`, `adapter_id` | a first-class adapter's `detect()` returned something other than `null`, `undefined` or `false` that names no root (`true`, `0`, `''`, `NaN`, `{}`, an array, a Promise); T02 does not guess ownership | probe: negative `unlocated_detection`; probe: options `detect_values`, `detect_failures` |
+| `out-of-scope-detection` | `project_root`, `adapter_id`, `detected_root` | the detected root is neither the candidate nor inside it (another directory, the parent, or a relative path resolved against the working directory) | probe: negative `out_of_scope_detection`; probe: options `detect_values` |
+| `selected-adapter-missing` | `project_root`, `adapter_id` | the selected id was no longer in the caller's `adapters` array at read-set capture, which happens only when `detect()` removes an adapter from that array during the build; the project stays `application` with no read set | probe: options `adapter_removed_during_build` |
+| `adapter-read-set-error` | `project_root`, `adapter_id` | `listReadSet` or hashing failed (a throw, a result that is not an array, an empty or non-string entry, a directory, a missing file, `PROJECT_READ_SET_ESCAPE`): one bad entry fails the whole read set; the project keeps its adapter but has no read set | probe: negative `read_set_escape`; probe: options `read_set_shapes` |
 
 ### 5.2 States that look like absence
 
@@ -214,28 +367,33 @@ Every entry has a `kind` and a human `message`. Consumers key on `kind` and the 
 | `selection_reason: no-first-class-adapter` | no registered adapter recognized the root. `fallback_adapter` may name a low-confidence inventory fallback | that the project has no HTTP surface, or that the fallback supports it |
 | `kind: aggregate` | has child project roots and no adapter of its own; never gets a fallback plan item | that the children are scanned by the parent |
 | `nested_detections` | an adapter that recurses found a project below this root, so the parent is not selected. One entry per adapter, the first match in that adapter's own traversal | that this is the list of children. Use `child_project_roots` and each child's own facet. [probe: normal, repo root] |
-| `selected_adapter_read_set: null` with a selected adapter | source freshness is **unattested**: the adapter has no `listReadSet`, or capture failed. Shadow mode still re-hashes markers and skips the source check | that the sources are fresh. [probe: normal `backend-java`, negative `read_set_escape`] |
+| `selected_adapter_read_set: null` with a selected adapter | source freshness is **unattested**: the adapter has no `listReadSet`, or capture failed. Shadow mode still re-hashes markers and skips the source check [probe: shadow `unattested_graph`] | that the sources are fresh. [probe: normal `backend-java`, negative `read_set_escape`] |
 | `local_package: null` | no readable Node package facts: no `node-package` marker, or a `package-metadata-read` entry exists. `local_package.name: null` means readable but unnamed | that the project has no packages in other ecosystems |
 | `confidence` or `verification_basis` equal `unknown` | the adapter declared nothing | a hidden default of "high" |
 | `unique-highest-specificity` plus an `adapter-detect-error` with the same `project_root` | partial selection: the winner is the highest among adapters that answered, and `kind` is not downgraded. [probe: negative `detect_error`, `broken-http` threw at specificity 99 and `javascript-express` still won `service`] | that the winner would survive if every adapter had answered. [convention] check `unresolved` for the same `project_root` first |
-| a project below a hard-ignored directory or reached through a symlink | discovery never enters `.git`, `.hg`, `.svn`, `.bskel`, `node_modules`, `coverage`, `.cache`, `.turbo`, `dist`, `build`, `out`, `.next`, `.svelte-kit`, `vendor`, `third_party`, `third-party` and never follows symlinks | that the project does not exist. It is unobserved |
+| a project below a hard-ignored directory or reached through a symlink | discovery never enters `.git`, `.hg`, `.svn`, `.bskel`, `node_modules`, `coverage`, `.cache`, `.turbo`, `dist`, `build`, `out`, `.next`, `.svelte-kit`, `vendor`, `third_party`, `third-party`, at any depth, and never follows symlinks. The names match exactly, in lower case: `Vendor` and `Dist` are walked, and their projects get the roles `vendor` and `generated`. A name that only resembles one of them (`Node_Modules`, `vendors`, `third_party_x`, `.github`) is walked as well, and so is a repository whose own name is on the list: the check is made on the entries below the root. [probe: options `ignored_directories`, `role_names`] | that the project does not exist. It is unobserved |
 
 ### 5.3 Shadow failure codes
 
 `executeProjectScanPlan` fails closed with an `Error` that has a `code`. Probe keys are in
-`shadow.failures` of the `shadow` probe output.
+`shadow.failures` of the `shadow` probe output. For each key the probe records which of `stale_kind`,
+`project_id`, `marker_path`, `adapter_id`, `cause`, the digest comparison and the lists of added and removed
+read-set files the error carries, and the test compares them with the column "Extra fields": a field that the
+column does not list is absent, and `stale_kind` is `adapter-read-set` exactly in the rows that say so.
 
 | `code` | Raised when | Extra fields | Probe key |
 |---|---|---|---|
 | `PROJECT_GRAPH_ROOT_MISMATCH` | a live graph's captured root differs from `repoRoot` | none | `root_mismatch` |
 | `PROJECT_ROOT_ESCAPE` | a project `root` resolves outside the repository | none | `project_root_escape` |
 | `PROJECT_MARKER_ESCAPE` | a marker `path` resolves outside the repository | none | `marker_escape` |
-| `PROJECT_GRAPH_STALE` | a marker is missing, unreadable or changed | `project_id`, `marker_path`, `expected_digest`, `actual_digest` | `marker_drift` |
-| `PROJECT_GRAPH_STALE` with `stale_kind: adapter-read-set` | the selected adapter's read set changed (content, added or removed file) or could not be recaptured | `project_id`, `adapter_id`, `expected_fingerprint`, `actual_fingerprint`, `expected_files`, `actual_files`, or `cause` | `source_drift`, `source_file_added` |
+| `PROJECT_GRAPH_STALE` | a marker changed since discovery | `project_id`, `marker_path`, `expected_digest`, `actual_digest` | `marker_drift` |
+| `PROJECT_GRAPH_STALE` | a marker is missing or unreadable | `project_id`, `marker_path`, and no digests | `marker_missing`, `marker_unreadable` |
+| `PROJECT_GRAPH_STALE` with `stale_kind: adapter-read-set` | the selected adapter's read set differs from the recorded one: a changed, added or removed file, an adapter that no longer lists a read set (`actual_fingerprint` is then `null` and `actual_files` empty), or a read set recorded under another adapter id | `project_id`, `adapter_id`, `expected_fingerprint`, `actual_fingerprint`, `expected_files`, `actual_files` | `source_drift`, `source_file_added`, `source_file_removed`, `read_set_not_recaptured`, `read_set_adapter_changed` |
+| `PROJECT_GRAPH_STALE` with `stale_kind: adapter-read-set` | the read set could not be recaptured: the listing threw, or a path leaves the project (`PROJECT_READ_SET_ESCAPE`) | `project_id`, `adapter_id`, `cause` (the original error), and no fingerprints | `read_set_capture_error`, `read_set_capture_escape` |
 | `PROJECT_ADAPTER_UNAVAILABLE` | the planned adapter id is not in `adapters` | none | `adapter_unavailable` |
-| `PROJECT_PLAN_STALE` | legacy `runScan` threw for the planned adapter, for example `detect()` no longer matches | `project_id`, `adapter_id`, `cause` | `plan_stale` |
-| `PROJECT_PLAN_INVALID` | a planned project id is missing from the graph | none | none: unreachable, the plan is derived from the same graph [source] |
-| `PROJECT_PLAN_DRIFT` | the report names a different adapter than planned | none | none: unreachable, `runScan` receives only the planned adapter [source] |
+| `PROJECT_PLAN_STALE` | legacy `runScan` threw for the planned adapter, for example `detect()` no longer matches, or `terms` is not an array (section 2.4) | `project_id`, `adapter_id`, `cause` (the original error) | `plan_stale` |
+| `PROJECT_PLAN_INVALID` | a planned project id is missing from the graph | none | none: no probe reaches it, the plan is derived from the same graph inside the call [source] |
+| `PROJECT_PLAN_DRIFT` | the report names a different adapter than planned | none | none: no probe reaches it, `runScan` receives only the planned adapter [source] |
 
 `PROJECT_READ_SET_ESCAPE` is raised by `captureAdapterReadSetSnapshot` for a read-set path that leaves the
 project or repository. At graph build time it surfaces only as an `adapter-read-set-error` entry (the
@@ -268,8 +426,9 @@ FastAPI route composition.
 
 ## 7. Evidence
 
-Everything below was produced on macOS with Node v24.19.0 from a clean checkout after `npm ci`. The
-machine-readable copy is `test/project-graph/interface-rfc.record.json`; the test reads that file, so the
+Everything below was produced on macOS with Node v24.19.0 from a clean checkout after `npm ci`. The pinned
+probes print the same bytes on Node 18.20.8 and 22.23.3 on that machine, and the test checks the pinned
+hashes again wherever it runs. The machine-readable copy is `test/project-graph/interface-rfc.record.json`; the test reads that file, so the
 two cannot drift apart silently.
 
 ### 7.1 Commands and exit codes
@@ -281,12 +440,13 @@ temporary directory it removes before exiting, and fails if its output contains 
 |---|---|---|
 | `node test/project-graph/interface-rfc.probe.mjs normal` | 0 | `2058d22a2f992b833c8468ed6fb21345a27f31ef4332cfd5b072f61f885800e7` |
 | `node test/project-graph/interface-rfc.probe.mjs negative` | 0 | `caa0e55e9abf5e2d78961aedda7b7bbea32304d8441a33657e79d5d64f32e36f` |
-| `node test/project-graph/interface-rfc.probe.mjs shadow` | 0 | `1e1b41a11a8fc61706eeaf96e4001980942412361b4acaeee18d2162814ac43b` |
+| `node test/project-graph/interface-rfc.probe.mjs shadow` | 0 | `04e3d207a4f33a87ab2fd4dd2e41a171c54aa75458b7080ca1ccf39255745c9c` |
+| `node test/project-graph/interface-rfc.probe.mjs options` | 0 | `d9c8661b3e368aba994f7ebad6abbd1573bd444be1108ad513f1703af1e8e9af` |
 | `node test/project-graph/interface-rfc.probe.mjs registered` | 0 | `1c6ddc7a6ca6dce69377362c8e954d4dc1f0c6afdbbc1524b8b1cfebb31d8fe9` |
 | `node --test test/project-graph/*.test.mjs` | 0 | not hashed |
 | `node scripts/run-next-nested-tests.mjs T02` | 0 | not hashed |
 
-The first three hashes are pinned by the test: they depend only on fixtures and adapters defined in
+The first four hashes are pinned by the test: they depend only on fixtures and adapters defined in
 `test/project-graph/interface-rfc.fixtures.mjs` plus the T02 code, so a changed hash means T02 behavior
 or this RFC's evidence moved. The `registered` hash is a point-in-time record and is **not** pinned: it
 depends on which adapters the registry holds, which other tracks own. For that case the test checks the
@@ -298,7 +458,7 @@ Refresh the recorded hash with the command above when the registry's selection r
 `scanners/project-graph/schemas/project-graph.draft-1.schema.json` is identified by the sha256 of its
 canonical form, `JSON.stringify` of the parsed document with object keys sorted at every level:
 
-`6da90ebb72f6e02b682382ac800bf6a283bd2149eb7794d9f93925618b68f573`
+`d0a3e99a6da861b7cac6b4ecde5c420a2bf34abfe2334db57c6ed63d357f7470`
 
 The raw file bytes are deliberately not hashed, because a checkout with different line endings must not
 change the identity of the same document.
@@ -309,21 +469,35 @@ change the identity of the same document.
 |---|---|---|
 | normal | probe `normal` | mixed repo: aggregate root with a generic fallback, a Java app, a Node service with read set, a shared package, a reference-role example; default plan, plan with fallback, plan with non-active roots, role vocabulary |
 | normal | probe `registered` | the real registered adapters: two applications under one aggregate root |
-| normal | probe `shadow` field `ok`, `serialized_graph_ok` | a successful shadow run, and the same run from a serialized graph |
+| normal | probe `shadow` field `ok`, `serialized_graph_ok`, `graph_without_markers_ok` | a successful shadow run, the same run from a serialized graph, and the same run from a graph whose projects carry no `markers` key |
+| normal | probe `shadow` field `unattested_graph` | a graph built with an adapter that has no `listReadSet`: a changed source file passes the check and a changed marker fails it |
+| normal | probe `options`, group `accepted` | the options and caller-supplied values of section 2.5 that the builder takes and the schema accepts: custom marker kinds, the default marker file names, an `async` marker rule, empty marker rules, adapter field defaults, `null` and odd values, fallback adapters, the order in which adapters are asked, what an adapter is called with and when, `detect()` return values and failures, read-set shapes, package metadata and package owners, odd, `..`-prefixed and role-bearing directory names, names that every object has as properties, ignored directories, the walk order, nested projects, short project roots, repository root forms, a missing or file `repoRoot`, no adapters, an empty repository, a vanished marker file, an adapter removed during the build, the order of `unresolved` across all four stages, option keys the builder ignores, the two plan options and the registered plan variant, the options of `executeProjectScanPlan` (what the nested scan is given and calls, `terms`, `rgAvailable`, `adapters`, `repoRoot` forms, graph shapes, a project that goes stale after an earlier one was scanned), and `discoverProjectRoots` called with an empty path, no marker rules and non-string paths |
 | negative | probe `negative` | `specificity_tie`, `duplicate_local_package`, `unlocated_detection`, `out_of_scope_detection`, `detect_error`, `malformed_metadata`, `read_set_escape` |
-| negative | probe `shadow` field `failures` | `marker_drift`, `source_drift`, `source_file_added`, `root_mismatch`, `adapter_unavailable`, `project_root_escape`, `marker_escape`, `plan_stale` |
-| negative | `test/project-graph/interface-rfc.mutations.mjs` | edits to a copy of a real graph that the schema must reject, each for a named keyword: an `ambiguous` project with a selected adapter, a tie reported as unique, an unknown `unresolved` kind, an extra property, an unknown facet, an absolute path, a `..` path |
+| negative | probe `options`, group `unchecked` | inputs the builder takes without checking and the schema rejects: non-string marker kinds, non-string adapter text fields, an empty, a numeric and a missing adapter id, duplicate adapter ids in a tie |
+| negative | probe `options`, group `malformed` | calls that throw (including `null` in place of the options object), with the class of the error and, for the builder's own three messages and one caller error, the message |
+| negative | probe `shadow` field `failures` | `marker_drift`, `marker_missing`, `marker_unreadable`, `marker_escape`, `source_drift`, `source_file_added`, `source_file_removed`, `read_set_not_recaptured`, `read_set_adapter_changed`, `read_set_capture_error`, `read_set_capture_escape`, `root_mismatch`, `adapter_unavailable`, `project_root_escape`, `plan_stale`, each with the fields it carries (section 5.3) |
+| negative | `test/project-graph/interface-rfc.mutations.mjs` | edits to a copy of a real graph that the schema must reject, each for a named keyword: an `ambiguous` project with a selected adapter, a tie reported as unique, an unknown `unresolved` kind, an extra property, an unknown facet, an absolute path, a `..` path, an empty or non-string marker kind |
 
 ### 7.4 What the test checks
 
 `test/project-graph/interface-rfc.test.mjs` fails when: a documented export is missing; an `unresolved`
 kind, shadow error code, marker kind, selection reason, edge kind or source role appears in the source
 and is absent from this RFC or the record (or the reverse); a probe exit code or pinned hash differs; a
-real graph fails the schema; an edited graph passes the schema or fails it for a different keyword than
-the one named; the RFC lacks a required section or a recorded hash; or a file listed as owned by T02
-sits outside the two T02 directories. It also feeds the drift checks damaged copies (a new kind or error
-code in a fake source, dropped or invented record items, a widened schema, damaged RFC text) to prove
-each check can fail.
+real graph, including every accepted option case of section 2.5, fails the schema; an unchecked option
+case passes the schema or fails it for another keyword than the recorded one; an edited graph passes the
+schema or fails it for a different keyword than the one named; an option case behaves differently from
+what section 2.5 and the tables that cite it say (the test asserts each statement against the probe and,
+for the arguments a marker rule receives, against a live build); a helper export of section 2.1 returns
+or throws something other than the table says (it is called with the values the table names); the RFC
+cites an option case that is not recorded, or a recorded case is cited nowhere; a section 5.1 tag
+disagrees with the probe that is named; the RFC lacks a required section or a recorded hash; or a file
+listed as owned by T02 sits outside the two T02 directories. It also feeds the drift checks damaged
+copies to prove each check can fail: a new kind or error code in a fake source, dropped or invented
+record items, a widened or narrowed schema, a schema tightened until it rejects an accepted option case
+(a marker kind enum, a pattern on adapter ids or paths, an integer `specificity`, a minimum count, the
+schema id), a schema loosened until it accepts an unchecked one, RFC text whose tag is renamed or whose
+statement is reworded or removed, a record list that lost, gained or mis-sorted a case, and a tag
+pointing at the wrong case.
 
 ## 8. Remaining limits
 
@@ -334,26 +508,63 @@ each check can fail.
 3. **Schema scope.** The schema checks shape and a few cross-field rules (selection reason against
    selected adapter and ids; kind against fallback and read set). It does not check that edge endpoints
    and `child_project_roots` name real projects, that `project_id` matches `root`, or that `files_read`
-   covers every marker. [source]
+   covers every marker. [source] It accepts any non-empty string as a marker `kind` (section 2.5) and any
+   relative path without a `..` segment, so a custom `markerRules` kind or an odd directory name does not
+   fail it. A path whose first segment merely starts with two dots is valid for the schema but not for the
+   builder (limit 16).
 4. **`marker-read` message.** It carries the raw system error text, not the portable form the other
-   diagnostics use, so it can contain an absolute path. Treat every `message` as prose, and scrub it before
-   publishing a graph. Not probed. [source] Finding for the T02 owner.
+   diagnostics use, so the message holds the absolute path of the file that vanished. Every other message
+   is portable. A graph built while files change can therefore leak a local path through this one message.
+   Treat every `message` as prose, and scrub it before publishing a graph. [probe: options `vanished_marker`]
+   Finding for the T02 owner; this RFC changes no behavior.
 5. **Unattested sources.** A project whose selected adapter has no read set is never source-fresh-checked
    in shadow mode (section 5.2).
 6. **`nested_detections`** keeps one entry per adapter, so it is not a list of nested projects.
 7. **Partial selection.** The winner is chosen among adapters that completed detection
    (section 5.2).
-8. **Several fallback adapters.** If more than one fallback adapter detects the same root, the last one
-   in (specificity descending, id ascending) order is recorded. Not probed. [source]
-9. **Unprobed paths.** `PROJECT_PLAN_INVALID`, `PROJECT_PLAN_DRIFT` and `selected-adapter-missing` are
-   defensive and cannot be reached through the public entry points. `directory-read` (an unreadable
-   directory) is not reproduced by any fixture. [source]
+8. **Several fallback adapters.** If more than one fallback adapter detects the same root, the one asked
+   last (the asking order of section 4) is recorded; the others are dropped without a trace.
+   A fallback is an adapter whose id is `generic-grep` or whose raw `specificity` is exactly `0`, so an
+   adapter with no `specificity` is first-class (section 4). [probe: options `fallback_adapters`,
+   `adapter_defaults`]
+9. **Unprobed paths.** `PROJECT_PLAN_INVALID` and `PROJECT_PLAN_DRIFT` are defensive: no input the probes
+   built reaches them through the public entry points. [source] `selected-adapter-missing` is reached only
+   when `detect` removes its own adapter from the `adapters` array during the build
+   [probe: options `adapter_removed_during_build`], and `directory-read` when `repoRoot` is missing or a
+   file [probe: options `missing_repo_root`, `file_as_repo_root`].
 10. **Two role views.** `project_role` is judged from the project root path relative to the repository;
     a read-set file's `role` is judged from its path relative to the project. The same file can carry a
     different role in each view.
 11. **Prose.** `notes` strings and every `message` are not machine-stable.
 12. **Unobserved subtrees.** Hard-ignored directories and symlinks are never entered (section 5.2).
-13. **Platforms.** Verified on macOS with Node v24.19.0 only. CI for this repository does not run
-    Windows, and no Windows run was made.
+13. **Platforms.** Verified on macOS with Node v24.19.0; the pinned probes also print the same bytes on
+    Node 18.20.8 and 22.23.3 there. CI for this repository does not run Windows, and no Windows run was
+    made. The fixtures with odd directory names (a colon, a backslash, a newline) need a POSIX file system.
 14. **Unverified prose.** Statements tagged [source] or [convention] were read from code or are requests
     to consumers. The test covers literal lists, probe outputs and the schema, not every sentence.
+15. **Unchecked input.** The builder does not check the type of a marker `kind`, of an adapter's `title`,
+    `confidence` or `verificationBasis`, or whether adapter ids are present, non-empty, strings or unique. Such a value
+    is copied into the graph and the schema then rejects the graph. A consumer that builds graphs from
+    untrusted adapters or rules must validate the result. [probe: options `non_string_marker_kinds`,
+    `non_string_adapter_fields`, `empty_adapter_id`, `numeric_adapter_id`, `missing_adapter_id`, `duplicate_adapter_ids`]
+16. **Names that start with two dots.** Five checks in the builder (three in `index.mjs`: the read-set
+    project and repository checks and the nested-detection check; two in `shadow.mjs`: the project-root and
+    marker-path checks) treat a first path segment that only starts with `..` as an escape from the
+    repository, although `..dots` is an ordinary directory name. In the probe, a repository that holds
+    `..dots/package.json` and `svc/..lib/b.js` gets `out-of-scope-detection` for the root (`detected_root`
+    `..dots`), an `adapter-read-set-error` for `..dots` and for `svc`, and `executeProjectScanPlan` fails
+    with `PROJECT_MARKER_ESCAPE`. The schema accepts such paths. This RFC changes no behavior; the finding
+    is for the T02 owner. [probe: options `dotdot_names`]
+17. **Malformed input.** A call the builder does not check (a `null` marker rules array, a rule without
+    `test`, a `detect` that throws `null`, a number as `repoRoot`, `null` as the plan options or as the options of a registered
+    builder) fails inside Node with a `TypeError` whose text may change between Node versions. Only the builder's own messages
+    and an error thrown by the caller's own function are stable (section 2.5). [probe: options
+    `repo_root_not_a_string`, `marker_rules_null`, `detect_throws_null`, `plan_options_null`]
+18. **Short project roots.** The builder picks the parent of a `contains` edge as the enclosing project with
+    the longest root text. The repository root `.` is one character long, so for a project below a top-level
+    project whose root is also one character long (`a`), the two enclosing roots tie, and the tie goes to
+    the root that sorts first by code unit. `a/b` therefore gets its `contains` edge from `.` and not from
+    `a`, while `-/z` gets it from `-` (`-` sorts before `.`), and `child_project_roots` of `a` still lists
+    `a/b`. Only the direct children of such a project are affected: every other enclosing root is a
+    longer prefix of the child. A consumer that needs the tree should take it from `child_project_roots`.
+    This RFC changes no behavior; the finding is for the T02 owner. [probe: options `short_root_names`]

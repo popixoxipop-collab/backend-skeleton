@@ -1,5 +1,5 @@
 // Deterministic evidence probe for scanners/project-graph/INTERFACE_RFC.md (not a test file).
-// Usage: node test/project-graph/interface-rfc.probe.mjs <normal|negative|shadow|registered>
+// Usage: node test/project-graph/interface-rfc.probe.mjs <normal|negative|shadow|options|registered>
 // Prints canonical (sorted-key) JSON. No absolute paths, timings or error prose that varies by
 // Node version: the harness in interface-rfc.test.mjs compares the sha256 of this stdout.
 import fs from 'node:fs';
@@ -10,10 +10,10 @@ import {
 import { PROJECT_SOURCE_ROLES, classifyProjectSourceRole } from '../../scanners/project-graph/source-role.mjs';
 import { executeProjectScanPlan } from '../../scanners/project-graph/shadow.mjs';
 import {
-  canon, cleanup, createdRoots, express, fallback, fixture, hasFile, markerAdapter,
+  canon, cleanup, createdRoots, express, fallback, fixture, hasFile, markerAdapter, scanStub,
 } from './interface-rfc.fixtures.mjs';
 import {
-  negativeCases, normalCase, pkg, registeredCase, withReadSet,
+  malformedCalls, negativeCases, normalCase, optionCases, pkg, registeredCase, withReadSet,
 } from './interface-rfc.cases.mjs';
 
 function normal() {
@@ -68,6 +68,12 @@ function negative() {
   return out;
 }
 
+// What a shadow failure carries beyond its code (RFC section 5.3): every field the error can hold, `null` when absent.
+// `files` is the difference between the recorded and the recaptured read-set files.
+const fileDelta = (expected, actual) => ({
+  added: actual.filter((f) => !expected.includes(f)),
+  removed: expected.filter((f) => !actual.includes(f)),
+});
 function failure(fn) {
   try {
     fn();
@@ -80,8 +86,11 @@ function failure(fn) {
       project_id: err.project_id ?? null,
       marker_path: err.marker_path ?? null,
       adapter_id: err.adapter_id ?? null,
+      cause: err.cause === undefined ? null : { class: err.cause?.constructor?.name ?? typeof err.cause, code: err.cause?.code ?? null },
       digest_changed: err.expected_digest === undefined ? null : err.expected_digest !== err.actual_digest,
       fingerprint_changed: err.expected_fingerprint === undefined ? null : err.expected_fingerprint !== err.actual_fingerprint,
+      actual_fingerprint_null: err.expected_fingerprint === undefined ? null : err.actual_fingerprint === null,
+      files: err.expected_files === undefined ? null : fileDelta(err.expected_files, err.actual_files),
     };
   }
 }
@@ -124,10 +133,43 @@ function shadow() {
   const gated = markerAdapter('gated-http', 70, hasFile('enabled.flag'));
   const g = prepare({ 'svc/package.json': '{}', 'svc/enabled.flag': '1' }, [gated, fallback]);
   fs.rmSync(path.join(g.repoRoot, 'svc/enabled.flag'));
+  const h = prepare();
+  fs.rmSync(path.join(h.repoRoot, 'api/package.json'));
+  const i = prepare();
+  fs.rmSync(path.join(i.repoRoot, 'api/src/server.js'));
+  const j = prepare();
+  const otherAdapterId = clone(j);
+  otherAdapterId.projects.find((p) => p.root === 'api').selected_adapter_read_set.adapter_id = 'other-http';
+  const k = prepare();
+  const l = prepare();
+  const unlistable = express({
+    ...withReadSet,
+    listReadSet: () => { throw Object.assign(new Error('listing failed'), { code: 'E_LISTING' }); },
+  });
+  const n = prepare();
+  fs.rmSync(path.join(n.repoRoot, 'api/package.json'));
+  fs.mkdirSync(path.join(n.repoRoot, 'api/package.json'));
+  const o = prepare();
+  const escaping = express({ ...withReadSet, listReadSet: () => ['../outside.js'] });
+  const withoutMarkers = clone(a);
+  for (const project of withoutMarkers.projects) delete project.markers;
+  // A graph built with an adapter that has no `listReadSet` carries no read set, so only the markers are checked.
+  const unattested = [fallback, express({ scan: scanStub })];
+  const m = prepare({}, unattested);
+  fs.appendFileSync(path.join(m.repoRoot, 'api/src/server.js'), '// changed after the build\n');
+  const unattestedSource = failure(run(m, { adapters: unattested }));
+  fs.appendFileSync(path.join(m.repoRoot, 'api/package.json'), '\n');
+  const unattestedMarker = failure(run(m, { adapters: unattested }));
   return {
     case: 'shadow',
     ok: okSummary,
     serialized_graph_ok: { same_as_ok: JSON.stringify(canon(serialized)) === JSON.stringify(canon(okSummary)) },
+    graph_without_markers_ok: { same_as_ok: JSON.stringify(canon(summarize(run(a, { graph: withoutMarkers })()))) === JSON.stringify(canon(okSummary)) },
+    unattested_graph: {
+      read_set: m.graph.projects.find((p) => p.root === 'api').selected_adapter_read_set,
+      source_change: unattestedSource,
+      marker_change: unattestedMarker,
+    },
     failures: {
       marker_drift: failure(run(b)),
       source_drift: failure(run(c)),
@@ -137,7 +179,73 @@ function shadow() {
       project_root_escape: failure(run(e, { graph: escapedRoot })),
       marker_escape: failure(run(f, { graph: escapedMarker })),
       plan_stale: failure(run(g, { adapters: [gated, fallback] })),
+      marker_missing: failure(run(h)),
+      marker_unreadable: failure(run(n)),
+      source_file_removed: failure(run(i)),
+      read_set_adapter_changed: failure(run(j, { graph: otherAdapterId })),
+      read_set_not_recaptured: failure(run(k, { adapters: [fallback, express()] })),
+      read_set_capture_error: failure(run(l, { adapters: [fallback, unlistable] })),
+      read_set_capture_escape: failure(run(o, { adapters: [fallback, escaping] })),
     },
+  };
+}
+
+// Structure of a graph built from caller-supplied options: no prose (messages), no digests, no
+// absolute paths. A detected root that leaves the repository depends on where the process runs, so it
+// is printed as a marker instead of the path.
+const leavesRepository = (rel) => rel === '..' || rel.startsWith('../');
+function detail(graph, root) {
+  return {
+    projects: graph.projects.map((p) => ({
+      root: p.root, kind: p.kind, role: p.project_role,
+      markers: p.markers.map((m) => [m.kind, m.path]),
+      children: p.child_project_roots,
+      local_package: p.local_package ? { ...p.local_package, evidence: p.local_package.evidence.path } : null,
+      http: {
+        reason: p.facets.http.selection_reason, selected: p.facets.http.selected_adapter,
+        ambiguous: p.facets.http.ambiguous_adapter_ids, candidates: p.facets.http.candidates,
+      },
+      fallback: p.fallback_adapter ?? null,
+      nested: p.nested_detections,
+      read_set: p.selected_adapter_read_set?.files.map((f) => f.path) ?? null,
+    })),
+    edges: graph.project_edges.map((e) => [e.kind, e.from_project_id, e.to_project_id, e.dependency_name ?? null]),
+    // `repo_path_in_message` says whether the message still holds the absolute repository path, which
+    // only a raw system error text does (RFC section 8, limit 4).
+    unresolved: graph.unresolved.map(({ message, ...rest }) => ({
+      ...rest,
+      ...(typeof rest.detected_root === 'string' && leavesRepository(rest.detected_root)
+        ? { detected_root: '<outside the repository>' }
+        : {}),
+      repo_path_in_message: message.includes(root),
+    })),
+    files_read: graph.files_read,
+  };
+}
+
+// Only the messages the builder or the caller wrote are stable; the rest come from Node.
+const STABLE_MESSAGES = new Set([
+  'repoRoot is required', 'adapters must be an array', 'expected sbf.project-graph/draft-1', 'rule failed',
+]);
+function thrown(fn) {
+  try {
+    fn();
+    return { threw: false };
+  } catch (err) {
+    return { threw: true, error: err?.constructor?.name ?? typeof err, message: STABLE_MESSAGES.has(err?.message) ? err.message : null };
+  }
+}
+
+function options() {
+  const { accepted, unchecked } = optionCases();
+  const graphs = (group) => Object.fromEntries(Object.entries(group).map(([name, c]) => [
+    name, { graph: detail(c.graph, c.root), ...(c.extra ? { extra: c.extra } : {}) },
+  ]));
+  return {
+    case: 'options',
+    accepted: graphs(accepted),
+    unchecked: graphs(unchecked),
+    malformed: Object.fromEntries(Object.entries(malformedCalls()).map(([name, fn]) => [name, thrown(fn)])),
   };
 }
 
@@ -146,10 +254,10 @@ function registered() {
   return { case: 'registered', graph: brief(graph, { readSet: false }), plan, registry_load_errors: graph.registry_load_errors };
 }
 
-const cases = { normal, negative, shadow, registered };
+const cases = { normal, negative, shadow, options, registered };
 const name = process.argv[2];
 if (!cases[name]) {
-  process.stderr.write('usage: interface-rfc.probe.mjs <normal|negative|shadow|registered>\n');
+  process.stderr.write('usage: interface-rfc.probe.mjs <normal|negative|shadow|options|registered>\n');
   process.exit(2);
 }
 try {
