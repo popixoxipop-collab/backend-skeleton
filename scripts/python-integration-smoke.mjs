@@ -41,7 +41,10 @@ if (!connectionString) {
 // SQLAlchemy's dialect registry only recognizes `postgresql://` -- confirmed live (a real
 // NoSuchModuleError, not assumed): the two ecosystems disagree on this alias, so the driver
 // script below needs its own normalized copy of the connection string, not the raw env value.
-const sqlalchemyUrl = connectionString.replace(/^postgres:\/\//, 'postgresql://');
+// The driver is named explicitly: the pip install below is unpinned and installs psycopg2-binary,
+// but SQLAlchemy 2.1 changed the default driver of a bare `postgresql://` URL to psycopg v3
+// (`ModuleNotFoundError: No module named 'psycopg'`, reproduced with sqlmodel 0.0.48 + SQLAlchemy 2.1).
+const sqlalchemyUrl = connectionString.replace(/^postgres(?:ql)?:\/\//, 'postgresql+psycopg2://');
 
 console.log('python-integration-smoke: copying fixture to a scratch git repo...');
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-python-integration-smoke-'));
