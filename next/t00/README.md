@@ -71,3 +71,33 @@ The scale-plan lock this work follows is blob `e506b744e7ec8c06ba3262b20d74082fe
 `bskel.scale-baseline-lock/1`, epoch 7, captured 2026-09-25 at bskel `5472a8b82655840d1d3ce76cb926987376e37ca6`,
 becoder `37ffb1d8fab6a1e4485fb6b12515d5416963bc48`, beval `882b185655f9166cda4a64b5b49a6eab477f2410`). It is recorded
 for provenance only; that branch may be deleted, so nothing here depends on it.
+
+## T00-02 ownership map
+
+Which track may write which path in which repository, and the gate that checks it. The interface is `INTERFACE_RFC.md`.
+
+| File | Role |
+|---|---|
+| `ownership.mjs` | Pure model: scope grammar, collisions, path classification and the code lists `MAP_CODES` and `PATH_CODES`. |
+| `snapshot-plan.mjs` | Snapshots the write scopes of the plan backlog; `--check` compares a backlog with the committed snapshot. |
+| `build-ownership-map.mjs` | Derives `ownership-map.json` from its inputs and writes it only if every check passed. |
+| `check-ownership.mjs` | CLI: `map` verifies the committed map, `paths` verifies that given paths or a git diff belong to one track only. |
+| `recorded-runs.mjs` | Spawns the real CLI once per case and records the exit code, the error codes and a hash of stdout. |
+| `make-ownership-report.mjs`, `ownership-report.json` | Real CLI runs on this checkout and on scaffold copies with one input broken; `--check` recomputes them. |
+| `ownership-map.json` | The generated map. Never edited by hand. |
+| `fixtures/plan-write-scopes.json` | Snapshot of the write scopes in the plan backlog (the plan folder is in no repository). |
+| `fixtures/ownership-rules.json` | The reserved hot paths and the limits the map states. |
+| `INTERFACE_RFC.md` | Inputs, rules, unknown and partial cases, codes, and how a track uses the gate. |
+
+```
+node next/t00/check-ownership.mjs map
+node next/t00/check-ownership.mjs paths --track T05 --git-diff <merge-base> HEAD
+node next/t00/build-ownership-map.mjs
+node next/t00/make-ownership-report.mjs --check
+node next/t00/snapshot-plan.mjs --check <backlog.json>
+node --test test/t00-ownership.test.mjs
+```
+
+Exit code 0 means verified, 2 means errors (one `FAIL <code> <subject> <detail>` line each), 1 means usage or unreadable
+input. After a change to `SUITES`, to a plan write scope or to `test/t00-*.test.mjs`, run `build-ownership-map.mjs`, then
+`make-ownership-report.mjs --write`, and commit both files.

@@ -1,0 +1,757 @@
+{
+  "schema": "bskel.t00-ownership-report/1",
+  "task_id": "T00-02",
+  "generator": "node next/t00/make-ownership-report.mjs --write",
+  "inputs": {
+    "ownership_map_sha256": "0c6e8c3a3208a2b876a0d839386dc6548daf9d3c0c8ffb802e8c8801358d54ac",
+    "plan_write_scopes_sha256": "72722ffdd44b7032220b3dad3b1e3e2ceb6b83f795c912796306b54bf3ddf2b7",
+    "ownership_rules_sha256": "1ec6296b8333e320ff4a3cfc97158c3a8f2705a0842dda015d08a2dc94acb226",
+    "baseline_lock_sha256": "b040fedbd343ac18d3b1982c9337e4191e388b45795fa026024244eff7f5c176",
+    "nested_suites_sha256": "166f3c180ab0efc764a429dd7e859e4dfbe504c4320e168f5e5daab48c53f4dc",
+    "tool_sha256": {
+      "check-ownership.mjs": "444fbbb1504a13f6a3c418a82fa16f344186ee95d0f1d3c42dd0a557eb42090d",
+      "ownership.mjs": "6a11e2a26a012e9bb45ef5d20941f659f640be39cfff3ca1637d7bec4e116360",
+      "build-ownership-map.mjs": "65d2037bf25d76ec7622c43313c2c8bc467b4d052bb0e19e852ce4a79d39412a",
+      "snapshot-plan.mjs": "05c8f4de77ad24926d4552fb21824876007e8beacfe1068de2855393d53ea928"
+    }
+  },
+  "cases": [
+    {
+      "id": "accept-the-committed-map",
+      "mutation": "none (control)",
+      "command": "node next/t00/check-ownership.mjs map",
+      "exit_code": 0,
+      "codes": [],
+      "stdout_first_line": "OK ownership map verified: 24 tracks, 120 scopes, 13 reserved paths (checks: map shape, track ids, scope grammar, scope collisions, reserved paths exist and are unclaimed, plan scopes, nested suites, derivation from the inputs)",
+      "stdout_sha256": "a24d4942b4a8847b067a26ff7ea81a0795d3c32d5e5183201731216bc8f9c78b",
+      "stderr_head": ""
+    },
+    {
+      "id": "accept-paths-of-one-track",
+      "mutation": "none (control): T05 source and test files",
+      "command": "node next/t00/check-ownership.mjs paths --track T05 scanners/language/jvm/Scan.mjs test/language-jvm/Case.mjs",
+      "exit_code": 0,
+      "codes": [],
+      "stdout_first_line": "OK 2 paths belong to T05 only",
+      "stdout_sha256": "0cf15ec2da9c8cb978151319d82d133bb8e4ab5b7a070fd70b34c6ade60181f4",
+      "stderr_head": ""
+    },
+    {
+      "id": "accept-windows-separators-typed-by-hand",
+      "mutation": "none (control): a T06 path typed with backslashes",
+      "command": "node next/t00/check-ownership.mjs paths --track T06 scanners\\language\\python\\a.py",
+      "exit_code": 0,
+      "codes": [],
+      "stdout_first_line": "OK 1 paths belong to T06 only",
+      "stdout_sha256": "9b242ba138a743f63e80ada16771af435be824ff28e3c9ad2e8a13e69634ee06",
+      "stderr_head": ""
+    },
+    {
+      "id": "accept-a-track-of-another-repository",
+      "mutation": "none (control): T15 lives in becoder",
+      "command": "node next/t00/check-ownership.mjs paths --track T15 next/t15/a.mjs",
+      "exit_code": 0,
+      "codes": [],
+      "stdout_first_line": "OK 1 paths belong to T15 only",
+      "stdout_sha256": "98455c56f7a66dc426571de53c8f82c943fc8b0d208b36ece6170dbf1ec7d390",
+      "stderr_head": ""
+    },
+    {
+      "id": "accept-the-t00-files",
+      "mutation": "none (control): the T00 directory and a T00 test file",
+      "command": "node next/t00/check-ownership.mjs paths --track T00 next/t00/README.md test/t00-ownership.test.mjs",
+      "exit_code": 0,
+      "codes": [],
+      "stdout_first_line": "OK 2 paths belong to T00 only",
+      "stdout_sha256": "8d4c96ea63556791d4ee887af168430b182af4123a8f581f5b1437f5ee58de40",
+      "stderr_head": ""
+    },
+    {
+      "id": "path-of-an-unknown-track",
+      "mutation": "track T99",
+      "command": "node next/t00/check-ownership.mjs paths --track T99 next/t99/a.mjs",
+      "exit_code": 2,
+      "codes": [
+        "UNKNOWN_TRACK"
+      ],
+      "stdout_first_line": "FAIL UNKNOWN_TRACK T99 the map has no track T99 in bskel",
+      "stdout_sha256": "25fdba79fb25f0e6f6b5e05ed77287ccc129bbb2628a1f457edf3680dcf7e26d",
+      "stderr_head": ""
+    },
+    {
+      "id": "path-with-the-wrong-repository",
+      "mutation": "T15 asked for in bskel",
+      "command": "node next/t00/check-ownership.mjs paths --track T15 --repository bskel next/t15/a.mjs",
+      "exit_code": 2,
+      "codes": [
+        "UNKNOWN_TRACK"
+      ],
+      "stdout_first_line": "FAIL UNKNOWN_TRACK T15 the map has no track T15 in bskel",
+      "stdout_sha256": "501f868f696e3627c6cb3a2002393c9f98b07e31565d1f5f0e0d5441030c728c",
+      "stderr_head": ""
+    },
+    {
+      "id": "path-with-dot-dot",
+      "mutation": "a path that climbs out of the repository",
+      "command": "node next/t00/check-ownership.mjs paths --track T05 scanners/language/jvm/../../../package.json",
+      "exit_code": 2,
+      "codes": [
+        "INVALID_PATH"
+      ],
+      "stdout_first_line": "FAIL INVALID_PATH \"scanners/language/jvm/../../../package.json\" path traversal is not allowed",
+      "stdout_sha256": "08a14a37ccf1e088a0d087de73e09c241f2c7033069a18b1a3297b5b6a3d9354",
+      "stderr_head": ""
+    },
+    {
+      "id": "absolute-path",
+      "mutation": "an absolute path",
+      "command": "node next/t00/check-ownership.mjs paths --track T05 /etc/passwd",
+      "exit_code": 2,
+      "codes": [
+        "INVALID_PATH"
+      ],
+      "stdout_first_line": "FAIL INVALID_PATH \"/etc/passwd\" absolute paths are not allowed",
+      "stdout_sha256": "06bd5d68066109ab845cb6db37bfd82c253781a7a4384fcc01c9611efe58ff5a",
+      "stderr_head": ""
+    },
+    {
+      "id": "file-of-another-track",
+      "mutation": "T05 asked to own a T06 file",
+      "command": "node next/t00/check-ownership.mjs paths --track T05 scanners/language/python/a.py",
+      "exit_code": 2,
+      "codes": [
+        "PATH_OWNED_BY_OTHER_TRACK"
+      ],
+      "stdout_first_line": "FAIL PATH_OWNED_BY_OTHER_TRACK scanners/language/python/a.py owned by T06, not only by T05",
+      "stdout_sha256": "bd32e2fe16df5d7bdf8e9296c5014b8ee84faa8a3605e36deef6835b73bceb7f",
+      "stderr_head": ""
+    },
+    {
+      "id": "reserved-hot-files",
+      "mutation": "T05 asked to own package.json and a workflow file",
+      "command": "node next/t00/check-ownership.mjs paths --track T05 package.json .github/workflows/ci.yml",
+      "exit_code": 2,
+      "codes": [
+        "PATH_RESERVED_HOT"
+      ],
+      "stdout_first_line": "FAIL PATH_RESERVED_HOT package.json reserved for the coordinator: package.json",
+      "stdout_sha256": "4e1909de32d8e7a8e2e8ef67f636bc18a722ec040999770a6f8ea0eb94efae90",
+      "stderr_head": ""
+    },
+    {
+      "id": "path-that-matches-only-ignoring-case",
+      "mutation": "Scanners/Language/JVM spelled with other case",
+      "command": "node next/t00/check-ownership.mjs paths --track T05 Scanners/Language/JVM/A.mjs",
+      "exit_code": 2,
+      "codes": [
+        "PATH_CASE_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL PATH_CASE_MISMATCH Scanners/Language/JVM/A.mjs matches a scope only when case is ignored",
+      "stdout_sha256": "d1882e1796539241b6aa62b15aaabff5b7ca21c2a34fe5cfa38d88dbba28b9f5",
+      "stderr_head": ""
+    },
+    {
+      "id": "stable-surface-path",
+      "mutation": "a path inside no track scope",
+      "command": "node next/t00/check-ownership.mjs paths --track T05 docs/notes.txt",
+      "exit_code": 2,
+      "codes": [
+        "PATH_UNOWNED"
+      ],
+      "stdout_first_line": "FAIL PATH_UNOWNED docs/notes.txt inside no track scope (stable surface)",
+      "stdout_sha256": "f7575797af736cbf71457186ea6029c65b2fd68aaeb86f03ea1e463f50fb8bc2",
+      "stderr_head": ""
+    },
+    {
+      "id": "mixed-list-of-five-problems",
+      "mutation": "one good path and five bad ones",
+      "command": "node next/t00/check-ownership.mjs paths --track T05 scanners/language/jvm/A.mjs package.json scanners/language/python/b.py docs/x.md ../x Scanners/Language/JVM/a.mjs",
+      "exit_code": 2,
+      "codes": [
+        "INVALID_PATH",
+        "PATH_CASE_MISMATCH",
+        "PATH_OWNED_BY_OTHER_TRACK",
+        "PATH_RESERVED_HOT",
+        "PATH_UNOWNED"
+      ],
+      "stdout_first_line": "FAIL PATH_RESERVED_HOT package.json reserved for the coordinator: package.json",
+      "stdout_sha256": "3db28653a5909a02127d81f02bd7a5a01d4b090d9af9ebd9dea34a4f47115d3c",
+      "stderr_head": ""
+    },
+    {
+      "id": "usage-no-command",
+      "mutation": "no arguments",
+      "command": "node next/t00/check-ownership.mjs",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "expected the command map or paths, got undefined"
+    },
+    {
+      "id": "usage-paths-without-a-path",
+      "mutation": "paths --track T05 and nothing else",
+      "command": "node next/t00/check-ownership.mjs paths --track T05",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "paths needs at least one path or --git-diff <base> <head>"
+    },
+    {
+      "id": "usage-track-is-not-a-track-id",
+      "mutation": "--track t5",
+      "command": "node next/t00/check-ownership.mjs paths --track t5 a.mjs",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "paths needs --track Tnn"
+    },
+    {
+      "id": "usage-unknown-option",
+      "mutation": "map --bogus",
+      "command": "node next/t00/check-ownership.mjs map --bogus",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "unknown option --bogus"
+    },
+    {
+      "id": "usage-map-with-a-path",
+      "mutation": "map extra.txt",
+      "command": "node next/t00/check-ownership.mjs map extra.txt",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "map takes no paths and no --track, --repository or --git-diff"
+    },
+    {
+      "id": "usage-paths-and-git-diff-together",
+      "mutation": "a path and --git-diff",
+      "command": "node next/t00/check-ownership.mjs paths --track T05 a.mjs --git-diff HEAD~1 HEAD",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "give paths or --git-diff, not both"
+    },
+    {
+      "id": "map-drops-a-track",
+      "mutation": "map: T05 removed",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "MAP_NOT_DERIVED",
+        "PLAN_SCOPE_MISMATCH",
+        "SUITE_UNKNOWN_TRACK"
+      ],
+      "stdout_first_line": "FAIL MAP_NOT_DERIVED tracks tracks that differ: T05",
+      "stdout_sha256": "19616b060545f3d11e21f8a996e3a4e05c40d734403a595edc3ac1dd64d1cfcd",
+      "stderr_head": ""
+    },
+    {
+      "id": "map-lists-a-track-twice",
+      "mutation": "map: T05 entry repeated",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "DUPLICATE_TRACK",
+        "MAP_NOT_DERIVED"
+      ],
+      "stdout_first_line": "FAIL DUPLICATE_TRACK T05 the track appears more than once in tracks",
+      "stdout_sha256": "58f7e11a65564062f40435bb6520240248a11a69a1120890e796f7e60389f900",
+      "stderr_head": ""
+    },
+    {
+      "id": "map-gives-t05-a-scope-of-t01",
+      "mutation": "map: T05 plan_scopes gets contracts/next/**",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "MAP_NOT_DERIVED",
+        "PLAN_SCOPE_MISMATCH",
+        "SCOPE_COLLISION"
+      ],
+      "stdout_first_line": "FAIL MAP_NOT_DERIVED tracks tracks that differ: T05",
+      "stdout_sha256": "ba7afc99dbf19b58d0c63ebe4e8c7c999e599127bec584cbb878659eb3730bbf",
+      "stderr_head": ""
+    },
+    {
+      "id": "map-claims-a-reserved-file",
+      "mutation": "map: T05 plan_scopes gets package.json",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "HOT_PATH_CLAIMED",
+        "MAP_NOT_DERIVED",
+        "PLAN_SCOPE_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL HOT_PATH_CLAIMED T05 package.json overlaps the reserved path package.json",
+      "stdout_sha256": "e6839cc8fa6715f001ad36e23df8adf753ef7d3c6485c6230b76645c66aba8f0",
+      "stderr_head": ""
+    },
+    {
+      "id": "map-scope-with-a-glob-in-the-middle",
+      "mutation": "map: T05 plan_scopes gets scanners/*/jvm/**",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "INVALID_SCOPE",
+        "MAP_NOT_DERIVED"
+      ],
+      "stdout_first_line": "FAIL INVALID_SCOPE T05 plan_scopes: \"scanners/*/jvm/**\": segment \"*\" is outside [A-Za-z0-9._@+-]; only a trailing /** may be a glob",
+      "stdout_sha256": "50eb37272657449aa2c648645296f70271caed4e23a37a137170478e3b591a16",
+      "stderr_head": ""
+    },
+    {
+      "id": "map-extra-scope-on-a-track-that-is-not-t00",
+      "mutation": "map: T05 extra_scopes gets a T00 test file",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "INVALID_SCOPE",
+        "MAP_NOT_DERIVED"
+      ],
+      "stdout_first_line": "FAIL INVALID_SCOPE T05 extra_scopes: \"test/t00-baseline.test.mjs\": extra scopes are only for T00 test files test/t00-*.test.mjs",
+      "stdout_sha256": "883bf16b09cf39bdc75d395893f073bc5988f0732e6d2b39061b5665b1778671",
+      "stderr_head": ""
+    },
+    {
+      "id": "map-moves-t05-to-beval",
+      "mutation": "map: T05 repository set to beval",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "MAP_NOT_DERIVED",
+        "PLAN_SCOPE_MISMATCH",
+        "SUITE_UNKNOWN_TRACK"
+      ],
+      "stdout_first_line": "FAIL MAP_NOT_DERIVED tracks tracks that differ: T05",
+      "stdout_sha256": "f6792f106ed85a14e8847f5e41df60408e4f1ca86d04813829dc8579f0fe1edf",
+      "stderr_head": ""
+    },
+    {
+      "id": "map-forgets-a-reserved-path",
+      "mutation": "map: first reserved path removed",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "MAP_NOT_DERIVED"
+      ],
+      "stdout_first_line": "FAIL MAP_NOT_DERIVED reserved_hot_paths differs from the value derived from the inputs",
+      "stdout_sha256": "cc2f0941c6b7a441498d4d6278098ea100051b2026b5bd286cd87fc73d25914d",
+      "stderr_head": ""
+    },
+    {
+      "id": "map-input-hash-flipped",
+      "mutation": "map: inputs.plan_write_scopes.canonical_sha256 first hex digit changed",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "MAP_NOT_DERIVED"
+      ],
+      "stdout_first_line": "FAIL MAP_NOT_DERIVED inputs inputs that differ: plan_write_scopes",
+      "stdout_sha256": "41a58bbf127742642dcdc755e3595e8e757daeb9046eb2b0a4ed0a7b6b41f26b",
+      "stderr_head": ""
+    },
+    {
+      "id": "map-limits-edited",
+      "mutation": "map: limits[0] extended",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "MAP_NOT_DERIVED"
+      ],
+      "stdout_first_line": "FAIL MAP_NOT_DERIVED limits differs from the value derived from the inputs",
+      "stdout_sha256": "efb037178af61a15ad930e755cf05fcf2e6f72b6a14c97bbb4e8e5367c398054",
+      "stderr_head": ""
+    },
+    {
+      "id": "map-schema-changed",
+      "mutation": "map: schema set to bskel.t00-ownership-map/2",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "MAP_SCHEMA"
+      ],
+      "stdout_first_line": "FAIL MAP_SCHEMA map schema is not bskel.t00-ownership-map/1",
+      "stdout_sha256": "a869d8d693d0f92e68ebbaea26de47e75654d6f0152c5a8b16eff4af3cbe5571",
+      "stderr_head": ""
+    },
+    {
+      "id": "map-is-an-array",
+      "mutation": "map file holds []",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "MAP_SCHEMA"
+      ],
+      "stdout_first_line": "FAIL MAP_SCHEMA map the map is not an object",
+      "stdout_sha256": "19feba01b69d0af6a4140bb61b490b5ceab21c6eb78f7c8868a877473b1a374d",
+      "stderr_head": ""
+    },
+    {
+      "id": "new-t00-test-file-without-a-rebuild",
+      "mutation": "scaffold: test/t00-extra.test.mjs added, map untouched",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "MAP_NOT_DERIVED"
+      ],
+      "stdout_first_line": "FAIL MAP_NOT_DERIVED tracks tracks that differ: T00",
+      "stdout_sha256": "75cb900fa627ce1a9badf8df5469c0cbd037b74d950164f45e31f3f21d917831",
+      "stderr_head": ""
+    },
+    {
+      "id": "removed-t00-test-file-without-a-rebuild",
+      "mutation": "scaffold: test/t00-baseline.test.mjs removed, map untouched",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "MAP_NOT_DERIVED"
+      ],
+      "stdout_first_line": "FAIL MAP_NOT_DERIVED tracks tracks that differ: T00",
+      "stdout_sha256": "75cb900fa627ce1a9badf8df5469c0cbd037b74d950164f45e31f3f21d917831",
+      "stderr_head": ""
+    },
+    {
+      "id": "suite-source-added-without-a-rebuild",
+      "mutation": "runner: T05 suite gets scanners/language/jvm-extra, map untouched",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "MAP_NOT_DERIVED",
+        "SUITE_SCOPE_MISSING"
+      ],
+      "stdout_first_line": "FAIL MAP_NOT_DERIVED inputs inputs that differ: nested_suites",
+      "stdout_sha256": "e0fbb1dfa3384e7c7d0e064648b2b87aaf74a2d96fe9e72994ed451dd8faed50",
+      "stderr_head": ""
+    },
+    {
+      "id": "reserved-file-missing-from-the-checkout",
+      "mutation": "scaffold: CATALOG.md not written",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "HOT_PATH_MISSING"
+      ],
+      "stdout_first_line": "FAIL HOT_PATH_MISSING CATALOG.md bskel has no CATALOG.md",
+      "stdout_sha256": "6d8f63e90192a17538cdd7ea82387bc8f0b7b813934dd41869bcc4335cb79656",
+      "stderr_head": ""
+    },
+    {
+      "id": "reserved-file-missing-from-a-private-repository",
+      "mutation": "lock: beval package-lock.json removed from required_artifacts",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "HOT_PATH_MISSING"
+      ],
+      "stdout_first_line": "FAIL HOT_PATH_MISSING package-lock.json beval has no package-lock.json",
+      "stdout_sha256": "82023255175f9e1971693abcd8e5477e83ab28e9ba4ada24b7d6da8f7b6ae451",
+      "stderr_head": ""
+    },
+    {
+      "id": "plan-lets-t05-claim-the-source-of-t01",
+      "mutation": "plan: a T05 task gets contracts/next/**; map rederived",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "SCOPE_COLLISION"
+      ],
+      "stdout_first_line": "FAIL SCOPE_COLLISION T01<>T05 T01 contracts/next/** overlaps T05 contracts/next/**",
+      "stdout_sha256": "0b01a08a160856fbb8d9be79b4e2ade4e8010abac1292db0a97c46367500176b",
+      "stderr_head": ""
+    },
+    {
+      "id": "plan-lets-t05-claim-a-file-of-t06",
+      "mutation": "plan: a T05 task gets test/language-python/case.mjs; map rederived",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "SCOPE_COLLISION"
+      ],
+      "stdout_first_line": "FAIL SCOPE_COLLISION T05<>T06 T05 test/language-python/case.mjs overlaps T06 test/language-python/**",
+      "stdout_sha256": "fd948367fba6e63a464459dccbc5e7918b5ccb2f6103f1ba62cd740c25e980e3",
+      "stderr_head": ""
+    },
+    {
+      "id": "plan-claims-a-directory-in-other-case",
+      "mutation": "plan: a T05 task gets Contracts/Next/**; map rederived",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "SCOPE_COLLISION"
+      ],
+      "stdout_first_line": "FAIL SCOPE_COLLISION T01<>T05 T01 contracts/next/** overlaps T05 Contracts/Next/**",
+      "stdout_sha256": "e9aa6537694bc0dff4e9a6d60dc2eab2a255b4906035261ee90e7fc4aa66c319",
+      "stderr_head": ""
+    },
+    {
+      "id": "plan-claims-the-root-readme",
+      "mutation": "plan: a T05 task gets README.md; map rederived",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "HOT_PATH_CLAIMED"
+      ],
+      "stdout_first_line": "FAIL HOT_PATH_CLAIMED T05 README.md overlaps the reserved path README.md",
+      "stdout_sha256": "12e6786a30d9076f08ba6f5f10b48f974951c7e0eb9372352eb1fd37af3d6f9a",
+      "stderr_head": ""
+    },
+    {
+      "id": "plan-claims-a-workflow-file",
+      "mutation": "plan: a T05 task gets .github/workflows/ci.yml; map rederived",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "HOT_PATH_CLAIMED"
+      ],
+      "stdout_first_line": "FAIL HOT_PATH_CLAIMED T05 .github/workflows/ci.yml overlaps the reserved path .github/workflows/**",
+      "stdout_sha256": "8c89c6720e997cd4b773aa6102b5b57e4a7f3f4e86a8facfcfe702bc24789c5c",
+      "stderr_head": ""
+    },
+    {
+      "id": "rules-reserve-a-file-the-checkout-lacks",
+      "mutation": "rules: SECURITY.md reserved in bskel; map rederived",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "HOT_PATH_MISSING"
+      ],
+      "stdout_first_line": "FAIL HOT_PATH_MISSING SECURITY.md bskel has no SECURITY.md",
+      "stdout_sha256": "6f3b4ca093143e45e2bcbe8bf8a66e9d9875a201416c1fc1ede8704bcab51155",
+      "stderr_head": ""
+    },
+    {
+      "id": "runner-adds-a-suite-for-an-unknown-track",
+      "mutation": "runner: a suite T24 added; map rederived",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "SUITE_UNKNOWN_TRACK"
+      ],
+      "stdout_first_line": "FAIL SUITE_UNKNOWN_TRACK T24 the nested-next runner has a suite for T24, which the map does not hold as a bskel track",
+      "stdout_sha256": "fbd075d48990237654bc8e9ec780e56661868ee11f20a16608298d39f23f1358",
+      "stderr_head": ""
+    },
+    {
+      "id": "runner-suite-grants-t06-the-source-of-t01",
+      "mutation": "runner: T06 suite gets contracts/next; map rederived",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "SCOPE_COLLISION"
+      ],
+      "stdout_first_line": "FAIL SCOPE_COLLISION T01<>T06 T01 contracts/next/** overlaps T06 contracts/next/**",
+      "stdout_sha256": "8a50f6f09804e8aba0c4511d454327007f34475d30adce9f7e8a26fb2e69ef33",
+      "stderr_head": ""
+    },
+    {
+      "id": "plan-task-count-differs",
+      "mutation": "plan: source.task_count raised by one",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "INPUT_INVALID"
+      ],
+      "stdout_first_line": "FAIL INPUT_INVALID plan-snapshot source.task_count is 292 but the snapshot holds 291 tasks",
+      "stdout_sha256": "8a4944e5e46056add4a7d87835ea66e32289612cabc026b0c9be53db0220016f",
+      "stderr_head": ""
+    },
+    {
+      "id": "plan-scope-with-a-glob-in-the-middle",
+      "mutation": "plan: a T05 task gets scanners/*/jvm/**",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "INPUT_INVALID"
+      ],
+      "stdout_first_line": "FAIL INPUT_INVALID plan-snapshot task T05-01: write scope \"scanners/*/jvm/**\": segment \"*\" is outside [A-Za-z0-9._@+-]; only a trailing /** may be a glob",
+      "stdout_sha256": "b402c9ba60665acbe515855ba898888e8067d5ad5d68285352299f077db46975",
+      "stderr_head": ""
+    },
+    {
+      "id": "plan-track-in-two-repositories",
+      "mutation": "plan: one T05 task moved to becoder",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "INPUT_INVALID"
+      ],
+      "stdout_first_line": "FAIL INPUT_INVALID plan-snapshot track T05 has tasks in two repositories (becoder, bskel)",
+      "stdout_sha256": "d114033f06c530e64b27337da8a7048932f76d2b04cd131039c73705ae49af3d",
+      "stderr_head": ""
+    },
+    {
+      "id": "rules-without-limits",
+      "mutation": "rules: limits removed",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "INPUT_INVALID"
+      ],
+      "stdout_first_line": "FAIL INPUT_INVALID ownership-rules limits is not a non-empty array of statements",
+      "stdout_sha256": "0277c598eb8d2b64d399c19829c41bba5faf3816f337415ea51b50f871e44b4d",
+      "stderr_head": ""
+    },
+    {
+      "id": "lock-without-beval",
+      "mutation": "lock: beval entry removed",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "INPUT_INVALID"
+      ],
+      "stdout_first_line": "FAIL INPUT_INVALID baseline-lock the lock's repositories {\"becoder\":\"popixoxipop-collab/backend-decoder\",\"bskel\":\"popixoxipop-collab/backend-skeleton\"} differ from the required set {\"becoder\":\"popixoxipop-collab/backend-decoder\",\"beval\":\"popixoxipop-collab/Backend-evaluation\",\"bskel\":\"popixoxipop-collab/backend-skeleton\"}",
+      "stdout_sha256": "a363ff9a4590f156917b9f773ab74271973462f50fba0b9d33ca9c1fab18bd32",
+      "stderr_head": ""
+    },
+    {
+      "id": "runner-exports-no-suites",
+      "mutation": "runner: SUITES emptied",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "INPUT_INVALID"
+      ],
+      "stdout_first_line": "FAIL INPUT_INVALID nested-runner the runner does not export a non-empty SUITES array",
+      "stdout_sha256": "29802ac9ea0956ff96483913bfb23bd67cc4a784e38fc319fad8ca085886f453",
+      "stderr_head": ""
+    },
+    {
+      "id": "badly-named-t00-test-file",
+      "mutation": "scaffold: test/t00-Bad_Name.test.mjs added",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 2,
+      "codes": [
+        "INPUT_INVALID"
+      ],
+      "stdout_first_line": "FAIL INPUT_INVALID t00-tests test/t00-Bad_Name.test.mjs is named like a T00 test but does not match test/t00-[a-z0-9-]+.test.mjs",
+      "stdout_sha256": "cc08d81d6ad8460e64456f192dc57ec30737055d4adf36fc261216211dbdf5e4",
+      "stderr_head": ""
+    },
+    {
+      "id": "runner-with-a-syntax-error",
+      "mutation": "runner: replaced by a file that does not parse",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "cannot import the nested runner <repo>/scripts/run-next-nested-tests.mjs"
+    },
+    {
+      "id": "map-file-missing",
+      "mutation": "scaffold: no ownership-map.json",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "cannot read the ownership map <repo>/next/t00/ownership-map.json"
+    },
+    {
+      "id": "map-file-is-not-json",
+      "mutation": "map file holds the text \"not json\"",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> map",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "the ownership map <repo>/next/t00/ownership-map.json is not valid JSON"
+    },
+    {
+      "id": "git-diff-of-own-files",
+      "mutation": "git: a new file in next/t00 (control)",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> paths --track T00 --git-diff HEAD~1 HEAD",
+      "exit_code": 0,
+      "codes": [],
+      "stdout_first_line": "OK 1 paths belong to T00 only",
+      "stdout_sha256": "2a16f87ad9e77199a6d136c5d35437ce1eaa3c6bf18791201bd88e62b1a1b815",
+      "stderr_head": ""
+    },
+    {
+      "id": "git-diff-touches-a-reserved-file-and-another-track",
+      "mutation": "git: README.md edited and a T06 file added",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> paths --track T00 --git-diff HEAD~1 HEAD",
+      "exit_code": 2,
+      "codes": [
+        "PATH_OWNED_BY_OTHER_TRACK",
+        "PATH_RESERVED_HOT"
+      ],
+      "stdout_first_line": "FAIL PATH_RESERVED_HOT README.md reserved for the coordinator: README.md",
+      "stdout_sha256": "369435c142fcb43438f2b36a4272011db8baa34cb619c8c2a80a7b299b6e986a",
+      "stderr_head": ""
+    },
+    {
+      "id": "git-diff-renames-into-another-track",
+      "mutation": "git: next/t00/moved.mjs renamed to sdk/next/moved.mjs (T22)",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> paths --track T00 --git-diff HEAD~1 HEAD",
+      "exit_code": 2,
+      "codes": [
+        "PATH_OWNED_BY_OTHER_TRACK"
+      ],
+      "stdout_first_line": "FAIL PATH_OWNED_BY_OTHER_TRACK sdk/next/moved.mjs owned by T22, not only by T00",
+      "stdout_sha256": "462b8a6665897b687d1c8a922a68987ec720dfabff3971fafbc3b56a89686673",
+      "stderr_head": ""
+    },
+    {
+      "id": "git-diff-with-a-backslash-in-a-file-name",
+      "mutation": "git: a root file named root\\file.mjs",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> paths --track T00 --git-diff HEAD~1 HEAD",
+      "exit_code": 2,
+      "codes": [
+        "INVALID_PATH"
+      ],
+      "stdout_first_line": "FAIL INVALID_PATH \"root\\\\file.mjs\" a backslash in a file name is not allowed",
+      "stdout_sha256": "58bb614f88119e54eb0b4d7cc09697f16e7138947e81cac40995099f478c3636",
+      "stderr_head": ""
+    },
+    {
+      "id": "git-diff-with-a-newline-in-a-file-name",
+      "mutation": "git: a root file whose name holds a newline and a second FAIL line",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> paths --track T00 --git-diff HEAD~1 HEAD",
+      "exit_code": 2,
+      "codes": [
+        "PATH_UNOWNED"
+      ],
+      "stdout_first_line": "FAIL PATH_UNOWNED evil\\x0aFAIL FORGED_CODE injected line.txt inside no track scope (stable surface)",
+      "stdout_sha256": "83354cd7a14840d5259518066a89433389f83d8255edef7dc710c2a4134e383b",
+      "stderr_head": ""
+    },
+    {
+      "id": "git-diff-is-empty",
+      "mutation": "git: the same revision twice",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> paths --track T00 --git-diff HEAD HEAD",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "the diff between HEAD and HEAD is empty, so there is nothing to check"
+    },
+    {
+      "id": "git-diff-of-an-unknown-revision",
+      "mutation": "git: HEAD~5 does not exist",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> paths --track T00 --git-diff HEAD~5 HEAD",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "git diff HEAD~5 HEAD failed in <repo>"
+    },
+    {
+      "id": "git-diff-with-an-option-as-revision",
+      "mutation": "git: -p given as the base revision",
+      "command": "node next/t00/check-ownership.mjs --repo-dir <repo> paths --track T00 --git-diff -p HEAD",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "\"-p\" is not a plain revision name"
+    }
+  ]
+}

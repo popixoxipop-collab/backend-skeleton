@@ -1,0 +1,30 @@
+{
+  "schema": "bskel.t00-ownership-rules/1",
+  "task_id": "T00-02",
+  "source": "Item 7 of the pre-push checklist the coordinator gives every track (a document in no repository): do not edit the shared hot files root package.json, package-lock.json, .github/workflows/*, CATALOG.md, DECISIONS.md, the root README.md and the SUITES list in scripts/run-next-nested-tests.mjs unless the item truly requires it and the pull request says so.",
+  "reserved_hot_paths": [
+    { "repository": "bskel", "path": "package.json", "reason": "shared hot file: scripts, files list and dependencies of the package" },
+    { "repository": "bskel", "path": "package-lock.json", "reason": "shared hot file: dependency lock of the package" },
+    { "repository": "bskel", "path": ".github/workflows/**", "reason": "shared hot file: CI workflows, where the required checks are defined" },
+    { "repository": "bskel", "path": "CATALOG.md", "reason": "shared hot file: the catalogue document" },
+    { "repository": "bskel", "path": "DECISIONS.md", "reason": "shared hot file: the decisions record" },
+    { "repository": "bskel", "path": "README.md", "reason": "shared hot file: the root README" },
+    { "repository": "bskel", "path": "scripts/run-next-nested-tests.mjs", "reason": "shared hot file: the SUITES list that registers each track's nested test directory" },
+    { "repository": "becoder", "path": "package.json", "reason": "shared hot file: scripts, files list and dependencies of the package" },
+    { "repository": "becoder", "path": "package-lock.json", "reason": "shared hot file: dependency lock of the package" },
+    { "repository": "becoder", "path": ".github/workflows/**", "reason": "shared hot file: CI workflows, where the required checks are defined" },
+    { "repository": "beval", "path": "package.json", "reason": "shared hot file: scripts, files list and dependencies of the package" },
+    { "repository": "beval", "path": "package-lock.json", "reason": "shared hot file: dependency lock of the package" },
+    { "repository": "beval", "path": ".github/workflows/**", "reason": "shared hot file: CI workflows, where the required checks are defined" }
+  ],
+  "limits": [
+    "The plan's write scopes come from a committed snapshot of its backlog. The plan folder is in no repository, so CI checks the snapshot's shape and that the map is derived from it; only snapshot-plan.mjs --check, run on a machine that has the backlog, can refute the snapshot itself.",
+    "The list of reserved paths is a recorded input from the coordinator's pre-push checklist, which is also in no repository. A changed checklist needs a new rules file and a regenerated map.",
+    "Ownership is judged on repository-relative path names only. File contents, symlinks and file modes are not examined, and a rename in a git diff is listed as a delete and an add so both names are checked.",
+    "Whether a reserved path exists in becoder or beval is judged against the required artifacts of the baseline lock; no other file of those repositories is visible to this check.",
+    "The nested test runner is a bskel file, so suites are compared with the map for bskel only. The scopes of the becoder and beval tracks come from the plan alone.",
+    "A path inside no track scope fails as unowned. Stable surface files are not free for any track; they need a change of the map.",
+    "The map is derived from the live SUITES list and from the files named test/t00-*.test.mjs. When either changes, the map must be regenerated with build-ownership-map.mjs and committed, or the check fails.",
+    "Owning a scope is not support or completion: a track that owns a path has not thereby delivered anything in it."
+  ]
+}

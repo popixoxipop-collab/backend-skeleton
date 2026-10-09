@@ -1,0 +1,79 @@
+{
+  "schema": "bskel.t00-ownership-map/1",
+  "task_id": "T00-02",
+  "generator": "node next/t00/build-ownership-map.mjs",
+  "inputs": {
+    "plan_write_scopes": {
+      "file": "next/t00/fixtures/plan-write-scopes.json",
+      "canonical_sha256": "72722ffdd44b7032220b3dad3b1e3e2ceb6b83f795c912796306b54bf3ddf2b7",
+      "task_count": 291,
+      "track_count": 24
+    },
+    "ownership_rules": {
+      "file": "next/t00/fixtures/ownership-rules.json",
+      "canonical_sha256": "1ec6296b8333e320ff4a3cfc97158c3a8f2705a0842dda015d08a2dc94acb226"
+    },
+    "nested_suites": {
+      "file": "scripts/run-next-nested-tests.mjs",
+      "export": "SUITES",
+      "suite_count": 21,
+      "canonical_sha256": "166f3c180ab0efc764a429dd7e859e4dfbe504c4320e168f5e5daab48c53f4dc"
+    }
+  },
+  "repositories": {
+    "becoder": "popixoxipop-collab/backend-decoder",
+    "beval": "popixoxipop-collab/Backend-evaluation",
+    "bskel": "popixoxipop-collab/backend-skeleton"
+  },
+  "tracks": [
+    {"track":"T00","repository":"bskel","plan_scopes":["next/t00/**"],"suite_scopes":[],"extra_scopes":["test/t00-baseline.test.mjs","test/t00-ownership.test.mjs"]},
+    {"track":"T01","repository":"bskel","plan_scopes":["next/t01/**"],"suite_scopes":["contracts/next/**","schemas/next/**","test/contract-next/**"],"extra_scopes":[]},
+    {"track":"T02","repository":"bskel","plan_scopes":["next/t02/**"],"suite_scopes":["scanners/project-graph/**","test/project-graph/**"],"extra_scopes":[]},
+    {"track":"T03","repository":"bskel","plan_scopes":["next/t03/**"],"suite_scopes":["scanners/capability-next/**","test/capability-next/**"],"extra_scopes":[]},
+    {"track":"T04","repository":"bskel","plan_scopes":["next/t04/**"],"suite_scopes":["scanners/language/js-ts/**","test/language-js-ts/**"],"extra_scopes":[]},
+    {"track":"T05","repository":"bskel","plan_scopes":["next/t05/**"],"suite_scopes":["scanners/language/jvm/**","test/language-jvm/**"],"extra_scopes":[]},
+    {"track":"T06","repository":"bskel","plan_scopes":["next/t06/**"],"suite_scopes":["scanners/language/python/**","test/language-python/**"],"extra_scopes":[]},
+    {"track":"T07","repository":"bskel","plan_scopes":["next/t07/**"],"suite_scopes":["scanners/language/ruby-php/**","test/language-ruby-php/**"],"extra_scopes":[]},
+    {"track":"T08","repository":"bskel","plan_scopes":["next/t08/**"],"suite_scopes":["scanners/language/native-server/**","test/language-native-server/**"],"extra_scopes":[]},
+    {"track":"T09","repository":"bskel","plan_scopes":["next/t09/**"],"suite_scopes":["contracts/reconciliation-next/**","test/reconciliation-next/**"],"extra_scopes":[]},
+    {"track":"T10","repository":"bskel","plan_scopes":["adapters/persistence/activerecord/**","adapters/persistence/diesel/**","adapters/persistence/django-orm/**","adapters/persistence/drizzle/**","adapters/persistence/ef-core/**","adapters/persistence/eloquent/**","adapters/persistence/gorm/**","adapters/persistence/jpa-hibernate/**","adapters/persistence/prisma/**","adapters/persistence/sequelize/**","adapters/persistence/sqlalchemy-sqlmodel/**","adapters/persistence/typeorm/**","next/t10/**"],"suite_scopes":["scanners/persistence-next/**","test/persistence-next/**"],"extra_scopes":[]},
+    {"track":"T11","repository":"bskel","plan_scopes":["adapters/http/java-spring/**","adapters/http/javascript-express/**","adapters/http/python-fastapi/**","adapters/http/ruby-rails/**","adapters/http/typescript-express/**","next/t11/**"],"suite_scopes":["adapters/http-legacy-next/**","test/http-legacy-next/**"],"extra_scopes":[]},
+    {"track":"T12","repository":"bskel","plan_scopes":["adapters/http/csharp-aspnet-core/**","adapters/http/go-gin/**","adapters/http/node-fastify/**","adapters/http/php-laravel/**","adapters/http/python-django/**","adapters/http/python-flask/**","adapters/http/typescript-nestjs/**","next/t12/**"],"suite_scopes":["adapters/http-wave-a/**","test/http-wave-a/**"],"extra_scopes":[]},
+    {"track":"T13","repository":"bskel","plan_scopes":["adapters/http/elixir-phoenix/**","adapters/http/go-echo/**","adapters/http/go-fiber/**","adapters/http/java-micronaut/**","adapters/http/java-quarkus/**","adapters/http/kotlin-ktor/**","adapters/http/node-hono/**","adapters/http/node-koa/**","adapters/http/php-symfony/**","adapters/http/python-litestar/**","adapters/http/python-starlette/**","adapters/http/rust-actix-web/**","adapters/http/rust-axum/**","adapters/http/scala-play/**","adapters/http/swift-vapor/**","adapters/http/typescript-nextjs/**","next/t13/**"],"suite_scopes":["adapters/http-wave-bc/**","test/http-wave-bc/**"],"extra_scopes":[]},
+    {"track":"T14","repository":"bskel","plan_scopes":["next/t14/**"],"suite_scopes":["handles/composition-next/**","test/provider-composition-next/**"],"extra_scopes":[]},
+    {"track":"T15","repository":"becoder","plan_scopes":["next/t15/**"],"suite_scopes":[],"extra_scopes":[]},
+    {"track":"T16","repository":"beval","plan_scopes":["next/t16/**"],"suite_scopes":[],"extra_scopes":[]},
+    {"track":"T17","repository":"bskel","plan_scopes":["adapters/game/godot/**","adapters/game/r3f/**","adapters/game/threejs/**","adapters/game/unity/**","adapters/game/unreal/**","next/t17/**"],"suite_scopes":["adapters/game-next/**","test/game-next/**"],"extra_scopes":[]},
+    {"track":"T18","repository":"bskel","plan_scopes":["adapters/protocol/asyncapi/**","adapters/protocol/graphql/**","adapters/protocol/grpc/**","adapters/protocol/websocket/**","next/t18/**"],"suite_scopes":["adapters/protocol-next/**","test/protocol-next/**"],"extra_scopes":[]},
+    {"track":"T19","repository":"bskel","plan_scopes":["next/t19/**"],"suite_scopes":["evidence/next/**","test/conformance-next/**","test/corpus-next/**","test/t19-release-acceptance/**"],"extra_scopes":[]},
+    {"track":"T20","repository":"bskel","plan_scopes":["next/t20/**"],"suite_scopes":["lib/trust-next/**","test/trust-next/**"],"extra_scopes":[]},
+    {"track":"T21","repository":"bskel","plan_scopes":["next/t21/**"],"suite_scopes":["lib/artifact-store-next/**","lib/scan-scheduler-next/**","test/perf-next/**"],"extra_scopes":[]},
+    {"track":"T22","repository":"bskel","plan_scopes":["next/t22/**"],"suite_scopes":["sdk/next/**","test/sdk-next/**"],"extra_scopes":[]},
+    {"track":"T23","repository":"bskel","plan_scopes":["next/t23/**"],"suite_scopes":["release/next/**"],"extra_scopes":[]}
+  ],
+  "reserved_hot_paths": [
+    {"repository":"becoder","path":".github/workflows/**","reason":"shared hot file: CI workflows, where the required checks are defined"},
+    {"repository":"becoder","path":"package-lock.json","reason":"shared hot file: dependency lock of the package"},
+    {"repository":"becoder","path":"package.json","reason":"shared hot file: scripts, files list and dependencies of the package"},
+    {"repository":"beval","path":".github/workflows/**","reason":"shared hot file: CI workflows, where the required checks are defined"},
+    {"repository":"beval","path":"package-lock.json","reason":"shared hot file: dependency lock of the package"},
+    {"repository":"beval","path":"package.json","reason":"shared hot file: scripts, files list and dependencies of the package"},
+    {"repository":"bskel","path":".github/workflows/**","reason":"shared hot file: CI workflows, where the required checks are defined"},
+    {"repository":"bskel","path":"CATALOG.md","reason":"shared hot file: the catalogue document"},
+    {"repository":"bskel","path":"DECISIONS.md","reason":"shared hot file: the decisions record"},
+    {"repository":"bskel","path":"README.md","reason":"shared hot file: the root README"},
+    {"repository":"bskel","path":"package-lock.json","reason":"shared hot file: dependency lock of the package"},
+    {"repository":"bskel","path":"package.json","reason":"shared hot file: scripts, files list and dependencies of the package"},
+    {"repository":"bskel","path":"scripts/run-next-nested-tests.mjs","reason":"shared hot file: the SUITES list that registers each track's nested test directory"}
+  ],
+  "limits": [
+    "The plan's write scopes come from a committed snapshot of its backlog. The plan folder is in no repository, so CI checks the snapshot's shape and that the map is derived from it; only snapshot-plan.mjs --check, run on a machine that has the backlog, can refute the snapshot itself.",
+    "The list of reserved paths is a recorded input from the coordinator's pre-push checklist, which is also in no repository. A changed checklist needs a new rules file and a regenerated map.",
+    "Ownership is judged on repository-relative path names only. File contents, symlinks and file modes are not examined, and a rename in a git diff is listed as a delete and an add so both names are checked.",
+    "Whether a reserved path exists in becoder or beval is judged against the required artifacts of the baseline lock; no other file of those repositories is visible to this check.",
+    "The nested test runner is a bskel file, so suites are compared with the map for bskel only. The scopes of the becoder and beval tracks come from the plan alone.",
+    "A path inside no track scope fails as unowned. Stable surface files are not free for any track; they need a change of the map.",
+    "The map is derived from the live SUITES list and from the files named test/t00-*.test.mjs. When either changes, the map must be regenerated with build-ownership-map.mjs and committed, or the check fails.",
+    "Owning a scope is not support or completion: a track that owns a path has not thereby delivered anything in it."
+  ]
+}
