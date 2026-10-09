@@ -19,7 +19,7 @@ Facts below marked "checked 2026-10-09" were read that day: the bskel `main` com
 
 ## Acceptance state (checked 2026-10-09)
 
-- bskel `main` is `24fe7e59e96fb98b18c1319e8a81da86e93e43dc`. `release/next/release-plan.json` there lists T20-03 with `observed_state` `NOT_ACCEPTED` (required `ACCEPTED`). This change does not alter that file and does not accept any T20 task.
+- bskel `main` is `4a0f4eea25218f83b07c5294c1bd9d96622167dd` (the branch of this change was cut from `24fe7e59e96fb98b18c1319e8a81da86e93e43dc`). `release/next/release-plan.json` on `main` lists T20-03 with `observed_state` `NOT_ACCEPTED` (required `ACCEPTED`). This change does not alter that file and does not accept any T20 task.
 - Enforcement code for T20-03 also exists in `popixoxipop-collab/Backend-evaluation`: its PR 72 (merge `73595d4f1fb51fa0e7eb99034d9f534965c068a8`) added a Linux container enforcement slice, and its PR 73 (merge `ff392205c60c90fbe1e60ec950015b3942c270da`) bound the trust requirements to runtime enforcement and added signed evidence attestation. Both merge commits exist (checked through the GitHub API). Whether that slice meets the T20-03 acceptance criteria is not decided in this file.
 - The gate in this directory is independent of that slice. It does not import it and does not replace it.
 
@@ -51,7 +51,7 @@ None of the above is an OS sandbox or execution engine. The gate controls what i
 
 ## Tests that back the gate
 
-All under `test/trust-next/`: `enforcement-gate.test.mjs` (decisions), `enforcement-gate-limits.test.mjs` (limits, audit, report), `enforcement-gate-addresses.test.mjs` (address classes checked against pinned IANA registry files in `iana-registries/`), `enforcement-gate-output.test.mjs` (cumulative output cap), `enforcement-gate-real.test.mjs` (real links, loopback sockets and children), `enforcement-gate-mutations.test.mjs` (guards the mutation catalog `enforcement-gate-mutations.json`). The catalog is applied by `test/conformance-next/product-mutation-runner.mjs`; a campaign result is a local run, recorded in the pull request that introduced it, not an attestation.
+All under `test/trust-next/`: `enforcement-gate.test.mjs` (decisions), `enforcement-gate-limits.test.mjs` (limits, audit, report), `enforcement-gate-addresses.test.mjs` (address classes checked against pinned IANA registry files in `iana-registries/`), `enforcement-gate-output.test.mjs` (cumulative output cap), `enforcement-gate-wall.test.mjs` (the wall limit under injected timers, including a limit above the largest timer delay), `enforcement-gate-decisions.test.mjs` (the decision shapes the audit verifier accepts, checked against the real gate), `enforcement-audit-forge.mjs` (helper that re-chains edited logs), `enforcement-gate-real.test.mjs` (real links, loopback sockets and children), `enforcement-gate-mutations.test.mjs` (guards the mutation catalog `enforcement-gate-mutations.json`). The catalog is applied by `test/conformance-next/product-mutation-runner.mjs`; a campaign result is a local run, recorded in the pull request that introduced it, not an attestation.
 
 ## Historical note
 

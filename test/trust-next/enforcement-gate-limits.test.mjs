@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { PERMISSION_MANIFEST_DIGEST_FORMAT, PERMISSION_MANIFEST_SCHEMA, permissionManifestDigest, validatePermissionManifest } from '../../lib/trust-next/permission-manifest.mjs';
-import { ENFORCEMENT_AUDIT_CONTRACT, EnforcementDenied, GATE_LIMITS, UNSUPPORTED_LIMITS, createEnforcementGate, verifyAuditLog } from '../../lib/trust-next/enforcement-gate.mjs';
+import { EnforcementDenied, GATE_LIMITS, UNSUPPORTED_LIMITS, createEnforcementGate, verifyAuditLog } from '../../lib/trust-next/enforcement-gate.mjs';
+import { canon, genesis, rechain, sha } from './enforcement-audit-forge.mjs';
 import { createRecordingHost } from './enforcement-host.mjs';
 
 // Limits, secrets, environment, devices, the audit chain and the honesty of the report. The child
@@ -147,25 +147,6 @@ test('environment reads are limited to allowlisted names, values are not logged,
   for (const device of ['camera', 'usb', 'accelerator']) await denied(gate.useDevice(device), 'NOT_GRANTED', 'device');
   await denied(gate.useDevice(5), 'INVALID_ARGUMENT', 'device');
 });
-
-// Independent re-implementation of the chain, so the gate's hashes are recomputed rather than trusted.
-const canon = (value) => {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
-  if (Array.isArray(value)) return `[${value.map(canon).join(',')}]`;
-  return `{${Object.keys(value).filter((key) => value[key] !== undefined).sort().map((key) => `${JSON.stringify(key)}:${canon(value[key])}`).join(',')}}`;
-};
-const sha = (text) => createHash('sha256').update(text).digest('hex');
-const genesis = (digest) => sha(`${ENFORCEMENT_AUDIT_CONTRACT}\n${PERMISSION_MANIFEST_DIGEST_FORMAT}\n${digest}`);
-function rechain(entries, digest) {
-  let prev = genesis(digest);
-  return entries.map((entry, seq) => {
-    const body = { ...entry, seq, prev_sha256: prev };
-    delete body.sha256;
-    const out = { ...body, sha256: sha(canon(body)) };
-    prev = out.sha256;
-    return out;
-  });
-}
 
 async function sampleGate() {
   const host = createRecordingHost({ files: { 'src/a.txt': 'alpha' }, dns: { 'api.example.com': [['93.184.216.34']] } });
@@ -390,6 +371,45 @@ test('a decision has exactly one outcome: a second outcome entry for it is repor
   // Neither the live log of a gate nor an outcome for a decision that was refused is ever a duplicate.
   assert.deepEqual(sample.verifyAudit(), { ok: true, errors: [] });
   assert.deepEqual(codes(rechain([...entries, { ...entries[1], decision_seq: 2 }], sample.permissionDigest)), ['AUDIT_OUTCOME_ORPHAN@8']);
+});
+
+test('a re-chained log that forges an allowed operation the gate does not know, with a matching outcome, is reported: such an operation is only ever denied, and has no outcome', async () => {
+  const sample = await sampleGate();
+  const digest = sample.permissionDigest;
+  const entries = JSON.parse(JSON.stringify(sample.audit()));
+  const codes = (list, manifestDigest = digest) => verifyAuditLog(list, { manifestDigest }).errors.map((error) => `${error.code}@${error.seq}`);
+  // sampleGate: 0 read allow, 1 read outcome, 2 read deny, 3 write allow, 4 write outcome, 5 connect allow, 6 connect outcome, 7 spawn deny
+  assert.deepEqual(codes(entries), []);
+  // The forger relabels a real allow and its outcome as chmod, which is not a gate operation, and re-chains: every hash is valid.
+  const chmodAllow = { ...entries[0], operation: 'chmod', target: { path: 'src/a.txt', mode: '0777' } };
+  const chmodOutcome = { ...entries[1], operation: 'chmod', decision_seq: 8 };
+  const forged = rechain([...entries, chmodAllow, chmodOutcome], digest);
+  assert.deepEqual(forged.slice(0, 8), entries);
+  assert.equal(forged[8].operation, 'chmod');
+  assert.deepEqual(codes(forged), ['AUDIT_OPERATION_UNKNOWN@8', 'AUDIT_OUTCOME_ORPHAN@9']);
+  assert.deepEqual(codes(rechain([...entries, chmodAllow], digest)), ['AUDIT_OPERATION_UNKNOWN@8']);
+  assert.deepEqual(codes(rechain([...entries, { ...chmodAllow, operation: '', target: {} }, { ...chmodOutcome, operation: '' }], digest)), ['AUDIT_OPERATION_UNKNOWN@8', 'AUDIT_OUTCOME_ORPHAN@9']);
+  // The same forgery in shadow mode: a would-deny of an unknown operation, with an outcome.
+  const shadow = createEnforcementGate({ manifest: manifest(), host: createRecordingHost({ files: { 'src/a.txt': 'alpha' } }), mode: 'shadow' });
+  await shadow.read('secret/x').catch(() => {});
+  const shadowEntries = JSON.parse(JSON.stringify(shadow.audit()));
+  assert.deepEqual(layout(shadow), ['decision:read:would-deny', 'outcome:read:failed']);
+  const wouldDenyChmod = { ...shadowEntries[0], operation: 'chmod' };
+  const shadowOutcome = { ...shadowEntries[1], operation: 'chmod', decision_seq: 0 };
+  assert.deepEqual(codes(rechain([wouldDenyChmod, shadowOutcome], shadow.permissionDigest), shadow.permissionDigest), ['AUDIT_OPERATION_UNKNOWN@0', 'AUDIT_OUTCOME_ORPHAN@1']);
+  // What the gate really writes for an unknown operation is one deny entry, which verifies. An outcome attached to it, or the same
+  // entry under any other decision or reason, does not.
+  const honest = createEnforcementGate({ manifest: manifest(), host: createRecordingHost() });
+  await denied(honest.invoke('chmod', { path: 'src/a.txt' }), 'UNKNOWN_OPERATION');
+  await denied(honest.invoke('__proto__', {}), 'UNKNOWN_OPERATION');
+  assert.deepEqual(layout(honest), ['decision:chmod:deny', 'decision:__proto__:deny']);
+  assert.deepEqual(strict(honest, { expectedEntries: 2 }), { ok: true, errors: [] });
+  const denies = JSON.parse(JSON.stringify(honest.audit()));
+  const wrongShape = (change) => codes(rechain([{ ...denies[0], ...change }], honest.permissionDigest), honest.permissionDigest);
+  assert.deepEqual(codes(rechain([denies[0], { ...entries[1], operation: 'chmod', decision_seq: 0 }], honest.permissionDigest), honest.permissionDigest), ['AUDIT_OUTCOME_ORPHAN@1']);
+  for (const reason of ['NOT_GRANTED', 'GRANTED', 'INVALID_ARGUMENT', 'HOST_CAPABILITY_MISSING']) assert.deepEqual(wrongShape({ reason }), ['AUDIT_OPERATION_UNKNOWN@0'], reason);
+  assert.deepEqual(wrongShape({ decision: 'allow', reason: 'GRANTED' }), ['AUDIT_OPERATION_UNKNOWN@0']);
+  assert.deepEqual(wrongShape({ decision: 'would-deny', enforced: false }), ['AUDIT_INCONSISTENT@0', 'AUDIT_OPERATION_UNKNOWN@0']);
 });
 
 test('when the outcome entry itself cannot be written the decision is reported as missing its outcome, not excused as running', async () => {

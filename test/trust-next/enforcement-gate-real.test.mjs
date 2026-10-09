@@ -133,6 +133,44 @@ test('real loopback sockets: a granted connection works; ungranted ports, resolv
   }
 });
 
+// Binds the IPv6 loopback to find a free port there; null when this machine has no ::1 (some containers have none).
+async function freeIPv6Port() {
+  const probe = net.createServer();
+  try {
+    await new Promise((resolve, reject) => { probe.once('error', reject); probe.listen({ host: '::1', port: 0 }, resolve); });
+    return probe.address().port;
+  } catch {
+    return null;
+  } finally {
+    await new Promise((resolve) => probe.close(() => resolve()));
+  }
+}
+
+test('a real IPv6 loopback listener: the granted [::1] opens with the bare literal and takes a granted connection (needs ::1 on the machine)', async (t) => {
+  const port = await freeIPv6Port();
+  if (port === null) {
+    t.skip('this machine has no IPv6 loopback');
+    return;
+  }
+  const { gate, host } = newGate({
+    manifestExtra: {
+      network: { mode: 'allowlist', allow: [{ host: '[::1]', ports: [port] }] },
+      listen: { mode: 'allowlist', allow: [{ host: '[::1]', ports: [port] }] },
+    },
+  });
+  const server = await gate.listen('[::1]', port);
+  try {
+    assert.equal(server.port, port);
+    assert.deepEqual(await gate.connect('[::1]', port), { connected: true, address: '::1', port });
+  } finally {
+    await server.close();
+  }
+  assert.deepEqual(host.calls.filter((c) => c.method === 'listen'), [{ method: 'listen', host: '::1', port }]);
+  assert.deepEqual(gate.audit().find((entry) => entry.phase === 'decision' && entry.operation === 'listen').target, { host: '[::1]', port });
+  assert.equal((await settle(gate.listen('::1', port))).error?.reason, 'NOT_GRANTED');
+  assert.deepEqual(gate.verifyAudit(), { ok: true, errors: [] });
+});
+
 test('the real host survives many rapid connect and close rounds against a server that writes at once: no reset escapes', posix, async () => {
   const host = createRealHost({ root: scratch.root });
   const port = await freePort();

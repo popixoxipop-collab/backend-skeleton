@@ -30,7 +30,7 @@ use bindings in `test/trust-next/enforcement-host.mjs`.
 | --- | --- | --- |
 | read, write | the lexical path must be inside a granted root; the host then returns the canonical path (symbolic links resolved, parent directory for a file that does not exist yet) and that canonical path must be inside the same grant | the canonical path |
 | connect | exact host and port rule; the host name is resolved once, every answer must be public (see Public addresses) unless the literal address itself is granted, and the connection is made to the checked address, never to the name again; a connection counts as made only when the host answers `{ connected: true }` | the pinned address |
-| listen | exact loopback host and port rule | the granted pair |
+| listen | exact loopback host and port rule; the manifest spells an IPv6 host in brackets (`[::1]`) and the audit target keeps that spelling, but the host is handed the bare literal (`::1`), because a runtime looks a bracketed text up as a host name and the listener never opens | the granted pair |
 | spawn | basename must be on the executable allowlist (no path separators, no shell syntax), the host resolves it to a pinned file, the environment is rebuilt from the approved names only, `max_children` bounds concurrency | the pinned file |
 | environment, secret, device | named grant only; secret values never enter the audit | the grant |
 | anything else | refused with `UNKNOWN_OPERATION` | none |
@@ -88,6 +88,14 @@ recorded as executed. In enforce mode an ungranted name is refused before it is 
 
 Enforced by the gate: `wall_ms` (the child is killed and the result says so), `stdout_bytes` and
 `stderr_bytes` (output is cut at the cap, flagged as truncated, and the child is stopped).
+
+A timer takes at most 2147483647 ms (about 24.8 days) and fires a longer delay after 1 ms, so a `wall_ms` above that is armed as a chain
+of timers whose delays add up to the limit: the child is killed when the last one elapses and not before, and a child that ends earlier
+clears the link that is armed at that moment. Each link is armed when the previous one fires, so the real time is the limit plus the
+scheduling delay of every link. The manifest validator accepts any positive safe integer as `wall_ms` and was not changed. The gate takes an
+optional `timers` object (`setTimeout` and `clearTimeout`, default the runtime ones; anything else is `INVALID_GATE_TIMERS`) so that the
+chain can be tested with timers that do not wait.
+
 Reported as `unsupported` because an in-process gate cannot enforce them: `cpu_ms`, `memory_bytes`,
 `pids` and `scratch_bytes`. They stay in the manifest and in its digest, and an operating-system layer
 must enforce them.
@@ -114,6 +122,21 @@ knows are still running. `gate.verifyAudit()` passes the decisions the gate is a
 number; an exported log checked without `inFlight` must be complete. A decision whose outcome could not be written (a clock that
 fails, for example) is no longer awaited and is reported as missing. The verifier takes `inFlight` on trust, so it proves a log
 complete only when the caller passes none.
+
+The verifier also checks that every decision has a shape the gate writes (`AUDIT_DECISION_REASONS`, exported). An `allow` carries the reason
+`GRANTED`; a `deny` or `would-deny` carries one of the reasons the gate writes for that operation, and `would-deny` exists only for read,
+write, connect, listen and spawn. An operation the gate does not know (a `chmod`, say) is only ever written as one `deny` with the reason
+`UNKNOWN_OPERATION` and has no outcome; any other decision for it is `AUDIT_OPERATION_UNKNOWN`, so a re-chained log that holds an allowed
+`chmod` with a matching outcome is rejected (the outcome is also an orphan). Environment reads, denials and unknown operations owe no
+outcome, and an outcome entry must follow the decision it closes and name the same operation. A decision of a known operation in a shape
+the gate does not write is `AUDIT_INCONSISTENT`. `enforcement-gate-decisions.test.mjs` checks the table against the real gate: one driver per pair makes the gate
+write that pair, a sweep of more than 5000 requests against several hosts checks that every pair the gate wrote is in the table (a sweep
+is evidence, not a proof that the table is complete), and the verifier is run on the cross product of operations, decisions and reasons
+and accepts exactly the table.
+
+The verifier does not look at targets (paths, addresses, ports, executables), at the fields of an outcome entry (`ok`, error codes, exit
+codes), or at whether a decision agrees with the manifest: it is given the manifest digest, not the manifest. A re-chained log that
+changes only those is accepted.
 
 The log proves consistency of what the gate recorded; it does not prove that the gate ran, and it is not signed.
 
@@ -142,16 +165,23 @@ The log proves consistency of what the gate recorded; it does not prove that the
 
 - `test/trust-next/enforcement-gate.test.mjs`: policy decisions with a recording host (default deny,
   canonical paths, traversal, exact network rules, DNS rebinding, non-public addresses with a table of
-  one IPv6 address per special-purpose, reserved or unallocated block, listener rules, spawn rules,
-  shadow semantics including shadow connect without an address, hosts that do not affirm a connection,
-  unknown operations).
+  one IPv6 address per special-purpose, reserved or unallocated block, listener rules including the host
+  spelling of an IPv6 listener, spawn rules, shadow semantics including shadow connect without an address,
+  hosts that do not affirm a connection, unknown operations).
 - `test/trust-next/enforcement-gate-addresses.test.mjs`: the address classes checked against the three IANA registry files in
   `test/trust-next/iana-registries/` (pinned by hash): every row boundary, a sweep of the IPv6 and IPv4 space, and the globally
   reachable rows that stay refused. The expectations are computed from the registry rows, not from the gate's table.
 - `test/trust-next/enforcement-gate-limits.test.mjs`: concurrency, output and wall limits, secrets,
   audit chain recomputation and tamper cases, audit capacity (no host call without two free slots,
-  reservations held by running requests, outcomes removed from or repeated in a log), report honesty, digest sensitivity.
-- `test/trust-next/enforcement-gate-real.test.mjs`: real symbolic links, loopback sockets and child
-  processes behind the gate, including positive controls.
+  reservations held by running requests, outcomes removed from or repeated in a log), forged and re-chained
+  logs (an allowed operation the gate does not know, outcomes of the wrong kind), report honesty, digest sensitivity.
+- `test/trust-next/enforcement-gate-wall.test.mjs`: the wall limit under injected timers, up to `Number.MAX_SAFE_INTEGER` ms (a chain
+  of 4,194,305 links), the kill at the last link and not before, clearing of the armed link, refused timers. No real timer is awaited.
+- `test/trust-next/enforcement-gate-decisions.test.mjs`: the table of decision shapes against the real gate (a driver per pair, a
+  sweep of requests) and against the verifier (cross product of operations, decisions and reasons), outcome ownership and order.
+- `test/trust-next/enforcement-audit-forge.mjs`: helper, not a test. An independent re-implementation of the audit chain, used to
+  recompute the gate's hashes and to re-chain an edited log so that only the content checks can reject it.
+- `test/trust-next/enforcement-gate-real.test.mjs`: real symbolic links, loopback sockets (including an IPv6 `::1` listener where the
+  machine has one) and child processes behind the gate, including positive controls.
 - `test/trust-next/enforcement-gate-mutations.json`: executable mutants for the trust negative vectors,
   run by `test/conformance-next/product-mutation-runner.mjs`.

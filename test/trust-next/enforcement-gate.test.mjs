@@ -261,6 +261,28 @@ test('listening is limited to the granted loopback host and port', async () => {
   assert.equal(host.count('listen'), 1);
 });
 
+test('an IPv6 listener host reaches the host as the bare literal while the grant and the audit target keep the bracketed spelling', async () => {
+  const host = createRecordingHost();
+  const listen = { mode: 'allowlist', allow: [{ host: '[::1]', ports: [18080] }, { host: 'localhost', ports: [18081] }] };
+  const gate = createEnforcementGate({ manifest: manifest({ listen }), host });
+  await gate.listen('[::1]', 18080);
+  await gate.listen('localhost', 18081);
+  assert.deepEqual(host.calls, [{ method: 'listen', host: '::1', port: 18080 }, { method: 'listen', host: 'localhost', port: 18081 }]);
+  assert.deepEqual(gate.audit()[0].target, { host: '[::1]', port: 18080 });
+  // The bare literal is not the granted spelling, and no other spelling or port widens the grant.
+  for (const [name, port] of [['::1', 18080], ['[::1]', 18081], ['[::2]', 18080], ['[0:0:0:0:0:0:0:1]', 18080]]) await denied(gate.listen(name, port), 'NOT_GRANTED', 'listen');
+  assert.equal(host.count('listen'), 2);
+  assert.deepEqual(gate.verifyAudit(), { ok: true, errors: [] });
+  // Shadow mode forwards an ungranted request as well, with the same spelling rule; bracketed text that is not an IPv6 literal is left alone.
+  const shadowHost = createRecordingHost();
+  const shadow = createEnforcementGate({ manifest: minimal(), host: shadowHost, mode: 'shadow' });
+  await shadow.listen('[::1]', 18080);
+  await shadow.listen('[not-a-literal]', 18080);
+  assert.deepEqual(shadowHost.calls, [{ method: 'listen', host: '::1', port: 18080 }, { method: 'listen', host: '[not-a-literal]', port: 18080 }]);
+  assert.deepEqual(shadow.audit().filter((entry) => entry.phase === 'decision').map((entry) => [entry.decision, entry.target.host]), [['would-deny', '[::1]'], ['would-deny', '[not-a-literal]']]);
+  assert.deepEqual(shadow.verifyAudit(), { ok: true, errors: [] });
+});
+
 test('spawn passes argv without a shell, the pinned executable path and only the approved environment', async () => {
   const host = createRecordingHost();
   const gate = createEnforcementGate({ manifest: manifest(), host });
