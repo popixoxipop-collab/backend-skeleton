@@ -1,0 +1,1545 @@
+{
+  "schema": "bskel.track-baseline-record/2",
+  "schema_status": "provisional; track-local record format, no JSON Schema file defines it",
+  "track": "T11",
+  "item": "T11-01",
+  "suite_id": "T11",
+  "title": "Baseline pack of the five legacy HTTP adapters and their compatibility modules",
+  "base_commit": "9985dd9a51d2acf516fd38e27282c6a4398e16d0",
+  "base_tree": "4b8e12754342e11dd6f64976bd4a159c9b56d289",
+  "base_commit_note": "origin/main when the record was made. The pinned-commit checks always run (the commit is fetched when absent): tree id, file lists, blobs, and an export of it that reproduces the commands and replays. Live replays run only while every pinned file equals this record.",
+  "fixture_origin_note": "Scan fixtures are the five in-repo fixture trees pinned under inputs. Every other fixture cites the existing test it restates, or is authored for this record; the output_sha256 of a scan fixture covers the complete sbf.scan-report/2 report (the absolute fixture root replaced by <root>, nothing else dropped) together with the bridge result, the inventory and the semantic snapshot; checkout fixtures are rebuilt in a throw-away git repository with a fixed identity and dates.",
+  "observed_on": "2026-10-09",
+  "environment": {
+    "node": "v24.19.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "os_release": "25.6.0",
+    "npm": "11.17.0",
+    "git": "git version 2.54.0 (Apple Git-157)",
+    "package_lock": {
+      "path": "package-lock.json",
+      "bytes": 8925,
+      "git_blob_sha1": "34da67575f01e97724c4b5ee944b67ae4435e003",
+      "sha256": "f53dc054a10dafadcb217a17f3805253bdafc123b0943026ee453dee20210087"
+    }
+  },
+  "source_dir": "adapters/http-legacy-next",
+  "test_dir": "test/http-legacy-next",
+  "sources": [
+    {
+      "path": "adapters/http-legacy-next/baselines.mjs",
+      "bytes": 3881,
+      "git_blob_sha1": "5f1b32f243ec13de42272d211966607f5373a69f",
+      "sha256": "09fbf687add0dc3e6c5e3c033e9ff45eb7bb4dc85dab639ec8f7ee7d31fe0932"
+    },
+    {
+      "path": "adapters/http-legacy-next/bridge.mjs",
+      "bytes": 3151,
+      "git_blob_sha1": "54a09387ab6226da2df10c9efeb60383297dc13f",
+      "sha256": "b131a25e510b3a9b67f6bba50ddbbbb6cb86368b641e80790a1c0339b09d3dad"
+    },
+    {
+      "path": "adapters/http-legacy-next/checkout-completeness.mjs",
+      "bytes": 7145,
+      "git_blob_sha1": "5b24811ba2d2d435efeba608a1c45a982076383e",
+      "sha256": "77b531c3984ab72c88dc86c902bdce8fbf11e5226093b3853a72cb88384f569a"
+    },
+    {
+      "path": "adapters/http-legacy-next/cutover-readiness.mjs",
+      "bytes": 2801,
+      "git_blob_sha1": "d9a83df894da456d8a32ca7b3f0a5775087c3ef6",
+      "sha256": "24f072168d1a0022938f6e2bd8c6a21a9d7f9120690c496e18c6411a4875fbcc"
+    },
+    {
+      "path": "adapters/http-legacy-next/parity.mjs",
+      "bytes": 8597,
+      "git_blob_sha1": "dbf59bca5c2c6d21a1eb3096560adb6227869590",
+      "sha256": "268f5e9b2f56716b8a4faf940a702c9a29b21213d7e6623c80496bb20aa8049c"
+    },
+    {
+      "path": "adapters/http-legacy-next/shadow-projection.mjs",
+      "bytes": 4523,
+      "git_blob_sha1": "2f64f418c34fcb1f2b63ea2b8785ae914afe81f1",
+      "sha256": "a4ebb8d76e29ca103d40f8ecceb88c085d634d0cbd2f328cdebd5ae36ca611eb"
+    }
+  ],
+  "tests": [
+    {
+      "path": "test/http-legacy-next/baseline.test.mjs",
+      "bytes": 3467,
+      "git_blob_sha1": "3835c8fd7ec74cb33420f3fecc30b743c6f49749",
+      "sha256": "27dfae46b0e4a3bd0487369bd7bea8b8d33b72f01f1a126f6a18360804997cd2",
+      "test_count": 8
+    },
+    {
+      "path": "test/http-legacy-next/bridge.test.mjs",
+      "bytes": 3901,
+      "git_blob_sha1": "b3caf6a7c232a976e044acfdb6ea17074712291b",
+      "sha256": "eafd2dc79a1973fe633a2d521917c3ac1c4180f07a8eaaf206093fd1423192b4",
+      "test_count": 5
+    },
+    {
+      "path": "test/http-legacy-next/checkout-completeness.test.mjs",
+      "bytes": 37300,
+      "git_blob_sha1": "3679daddeec5608fa812e8a5d60b3c8a32f98ced",
+      "sha256": "8d14218c3a4c7a02fa43cc93bea4928b0b8bd1174820d3ff53a3317529f375a8",
+      "test_count": 30
+    },
+    {
+      "path": "test/http-legacy-next/cutover-readiness.test.mjs",
+      "bytes": 7525,
+      "git_blob_sha1": "bc97ac1eb182fb7facb6eff09e2451db0574cbe3",
+      "sha256": "ec00b6d21d2036c9a0b08f1a58f6599b6f7f5d7f59923e0209c9d5e7ff0dbb05",
+      "test_count": 12
+    },
+    {
+      "path": "test/http-legacy-next/parity.test.mjs",
+      "bytes": 32509,
+      "git_blob_sha1": "29b1e9b31bf73e689e98f45414081af711cb8eab",
+      "sha256": "61d2357d1619aaa59f45373a986033199b940aeb294535e9b3e0d45597a7b483",
+      "test_count": 26
+    },
+    {
+      "path": "test/http-legacy-next/shadow-projection.test.mjs",
+      "bytes": 21247,
+      "git_blob_sha1": "2021c478c8e359d1dd71f99d42b8764d5e661c42",
+      "sha256": "19eeff37a73413a547ddded11d3bfd736f831c8d398b66dfc5259b07bc732fb9",
+      "test_count": 18
+    }
+  ],
+  "scanner_dir": "scanners/adapters",
+  "scanner_files": [
+    {
+      "path": "scanners/adapters/_express-shared.mjs",
+      "bytes": 13792,
+      "git_blob_sha1": "bd4616d0030de508911933ac415a239b40d40e61",
+      "sha256": "c580e27aed15fad55b36d4b6dd76fd4c89f9ccc419b54f240f47f24e0fbf5c6f"
+    },
+    {
+      "path": "scanners/adapters/_java-spring-analyzer.mjs",
+      "bytes": 19285,
+      "git_blob_sha1": "1427eae0d8d75884bb1a4ceb83060d8f27795725",
+      "sha256": "852ab6874a3bd855f05feee466249726b65da8c30ebf21cae185dd7e7720518e"
+    },
+    {
+      "path": "scanners/adapters/generic-grep.mjs",
+      "bytes": 6757,
+      "git_blob_sha1": "78923361a885eeba47261157d0ce39e38708ea78",
+      "sha256": "13ae4f14b7fb16af0c8ae39bc29e81afffb52d376fa781d7d33a7585fb26ee13"
+    },
+    {
+      "path": "scanners/adapters/java-spring.mjs",
+      "bytes": 33351,
+      "git_blob_sha1": "c3b2d2ba91466fb6b1161c6066d23e136975796d",
+      "sha256": "76abcacf8fde31f171eced2a396b90b6ce27874404b764761ec2378f748801cf"
+    },
+    {
+      "path": "scanners/adapters/javascript-express.mjs",
+      "bytes": 33636,
+      "git_blob_sha1": "5ed116cf7727b231b746e5ab7100011eb687a0aa",
+      "sha256": "c41c797df06e406ae963c4f1356b5d8bb5c9a4e5fc90c4ac27a982b3f496fe84"
+    },
+    {
+      "path": "scanners/adapters/python-fastapi.mjs",
+      "bytes": 28719,
+      "git_blob_sha1": "f769f36b081106c854bfc831afce44c7ab894831",
+      "sha256": "6601ad11625f40a6874662283b5c80d3cde6e56fc5b2cf3f36a3fc1ada30ee9e"
+    },
+    {
+      "path": "scanners/adapters/ruby-rails.mjs",
+      "bytes": 26862,
+      "git_blob_sha1": "cff57e5196fd7c9b37ecd7f7041f9ad81ab63373",
+      "sha256": "1623cc4242354a3e42f97f0f02a1a4bebd5ac7ac5b6ea3ef79a2965b09c4b0ff"
+    },
+    {
+      "path": "scanners/adapters/typescript-express.mjs",
+      "bytes": 104095,
+      "git_blob_sha1": "353084c1be15b85b6d7c5dad8c2d00b3b33ba906",
+      "sha256": "0bba0036bf24ea73c3df3000bb862532680127d899de5f7318881ebc5c5f8dcb"
+    },
+    {
+      "path": "scanners/index.mjs",
+      "bytes": 20077,
+      "git_blob_sha1": "6e7bfad09300143cc7cc559359401565d4f4a0ee",
+      "sha256": "d6261c741e45df7f7b9b48b812158e575c3a0ef48a5c144d2e68f2733d13d63c"
+    },
+    {
+      "path": "scanners/registry.mjs",
+      "bytes": 7404,
+      "git_blob_sha1": "86f32a4eabe141dcefd69f3131e692c0f0161f56",
+      "sha256": "f67968e4ef43cc138e4652c7d5b6e877d17e0cf79daa12a42ba83b5d8112ab8e"
+    },
+    {
+      "path": "scanners/text-util.mjs",
+      "bytes": 3372,
+      "git_blob_sha1": "26df2e47019d3fea20dfd20b83be93a7f33c19ed",
+      "sha256": "293383368952be98c7f868847c8184ebc5df49615a3bdd7861613a372e8d2198"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "java-spring",
+      "dir": "test/fixtures/java-spring",
+      "git_tree_id": "18c681ca661617bb0b6d04239f0f6f14f58960ef",
+      "files": [
+        {
+          "path": "test/fixtures/java-spring/build.gradle",
+          "bytes": 854,
+          "git_blob_sha1": "d5f5d5908e9f7fa0082388d4200cb548f6744bc6",
+          "sha256": "30fc410992e4083b12bfd9718692c29847920a050d509b6c51aff566d2de6bc9"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/ExampleApplication.java",
+          "bytes": 308,
+          "git_blob_sha1": "ee938e9ea4aea74827673c156ecd414c8bdc6403",
+          "sha256": "7338202fcdd521b699ddd5f5e57313d2b5a80bb2170f5fc99a7459965940c74d"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/annotationstyles/presentation/AnnotationStyleController.java",
+          "bytes": 2519,
+          "git_blob_sha1": "93d52694091e2a11f0c30b8867825b0774c27221",
+          "sha256": "a951c28173a4cbdb6b118d9bb44196400428bae4e8a2caf799ec1a840c3e2a61"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/annotationstyles/presentation/CommentBeforeMethodController.java",
+          "bytes": 975,
+          "git_blob_sha1": "751a108694913d20bc8a88d2b9513b354aee20f7",
+          "sha256": "dcb7bee697a422b0e1fc4d49619b770bad88eb4a160d4d9ce24f5d20936204a7"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/annotationstyles/presentation/GenericWithSpaceController.java",
+          "bytes": 952,
+          "git_blob_sha1": "c45c7d5e4af97bb961e5cf9eb900f1ecd01c20dd",
+          "sha256": "0a5f7c0a146e7977b7925236eacc6ccf7c8e707e81d2a2df993417b14dfda7eb"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/annotationstyles/presentation/InterveningAnnotationController.java",
+          "bytes": 2154,
+          "git_blob_sha1": "091ccdf0ae1588fd31735a333b8ac5a6c407b956",
+          "sha256": "ba6a74924eb425241703d46fc73bbc7d3fe7e179e4b29ce62e8f6aed85e1b3f3"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/annotationstyles/presentation/PackagePrivateMethodController.java",
+          "bytes": 1031,
+          "git_blob_sha1": "376229106886745e4d0d7fce56446dc09506e61f",
+          "sha256": "358e06cb1ea1d393dedb81232db36100897b4c1abf50c282a8861af9d859ee71"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/annotationstyles/presentation/RecordController.java",
+          "bytes": 1204,
+          "git_blob_sha1": "2de4b8cd5f1b07d67e15bc15077747b6fd91382d",
+          "sha256": "5b59ea6598ae0bc9e3840f7de90c02177ce216266bcb9986079690960adc382c"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/annotationstyles/presentation/RequestMappingStyleController.java",
+          "bytes": 1114,
+          "git_blob_sha1": "0df7c3a0442f32a16314fcbd5a1f2d057ed41048",
+          "sha256": "365332e3facdb8125f93a3a75eb8ceb6beece2c6f1bcf377dd7d58f6da1c5981"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/annotationstyles/presentation/SameLineMappingController.java",
+          "bytes": 891,
+          "git_blob_sha1": "136bb1e1177f8d0489351e5afcedbf892844caf3",
+          "sha256": "5617efeacf7a496573714d82fce9f6ed988bfc9005dd015af14b8543f48082c4"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/codeanalysis/domain/CodeAnalysis.java",
+          "bytes": 525,
+          "git_blob_sha1": "e91b092556613771d05547c72099301cbf347356",
+          "sha256": "1a501119967d4e6842534e566672199d735fc7c81cda3e6d261204cf0ad6d31a"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/curriculum/application/CurriculumService.java",
+          "bytes": 704,
+          "git_blob_sha1": "a68df2791a171d93c4a85622a0bfa1cccce1e3c1",
+          "sha256": "d5a09d7c7280b793daf5c73225f10e603dd01b672dd8391dde5401e373431165"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/curriculum/domain/Curriculum.java",
+          "bytes": 286,
+          "git_blob_sha1": "8b56241e69db453941948cc3104f224cdd4eadfc",
+          "sha256": "6d683b3780bf32e924f8d3d3c4d84970564e477b1fdac56dff32f88600bf5b11"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/curriculum/presentation/CurriculumController.java",
+          "bytes": 2243,
+          "git_blob_sha1": "1027a3b1837490797ca868e85d4054b7f85d876e",
+          "sha256": "e61db2c4500e2a17c142993b79b1a199cf0fad55259ec8224b0480e97ebfb8e0"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/curriculum/presentation/CurriculumMaterialController.java",
+          "bytes": 1689,
+          "git_blob_sha1": "a8b6d3894ed9f9a7f4000b3b141ea0c4169662bf",
+          "sha256": "69554280dad23d7dcadfdd44033498f0e07acb03e5ba316b269679672c073d72"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/organization/application/OrganizationService.java",
+          "bytes": 478,
+          "git_blob_sha1": "fb62488890104a130f33ce39b60160c58695c72a",
+          "sha256": "2a01fcde3ddad8521bf48ae347385c029c434e651241d679eb43279f1f8bc270"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/organization/domain/Organization.java",
+          "bytes": 491,
+          "git_blob_sha1": "401ce9fd2dd5c8c7d0a0c4b35fefdb404f0bb648",
+          "sha256": "bffe42250d826ef481e6ece6164e078a2e3375515a510ef29ca708af2c41ee39"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/organization/domain/OrganizationStatus.java",
+          "bytes": 137,
+          "git_blob_sha1": "8a2a5c4218a75e3bc55c52cabcd622cb6b51538f",
+          "sha256": "86a9ddfd71d304bad69a15cc41f65ac3e66e8154001db745be5371f976c02252"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/organization/presentation/OperatorController.java",
+          "bytes": 3281,
+          "git_blob_sha1": "81c2741af1183d0cc14eef48ce770abd168adfe6",
+          "sha256": "7c8b7bba4202cea2b627d736be3477470b0a25178e993ddbe49acffb692a9767"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/organization/presentation/OrganizationController.java",
+          "bytes": 5284,
+          "git_blob_sha1": "aca463e64f3037c570bcf4070f7a8206ddbd91c5",
+          "sha256": "0400dff62ce035527491896e873a151f70fa3da480cb412e3098b3ce84485d09"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/organization/presentation/dto/OrganizationDto.java",
+          "bytes": 155,
+          "git_blob_sha1": "0a033a051ab5fc2847ff2fcca13bbca6be74cc24",
+          "sha256": "bb3c23d2fb6c30d49a6d19bb31ced60e92182f1a21fbd2808ce0c93d5a05f930"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/application/AlphaService.java",
+          "bytes": 197,
+          "git_blob_sha1": "2ad9ccd37cfa48a521c960fcca7eaf817c8d201d",
+          "sha256": "390723915c9ae93ece2a87d9e99620f11d5a16c6d6f71e6f9cbe189ba52b637d"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/application/BetaService.java",
+          "bytes": 192,
+          "git_blob_sha1": "b44e6070d7e0a7a9bc05d44243b4d5487e326c07",
+          "sha256": "82c36c5ffad9e966df50a608e273da62728c36ebbcbeebbc011ac95d650a8a4b"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/application/EpsilonService.java",
+          "bytes": 207,
+          "git_blob_sha1": "77e34779825e8ca05dde4a1ea08ba12d927a3f90",
+          "sha256": "f758efac9b25eb588be1db5b2a226ec378e9cd7b7cd295c3fef3e8aa2bfab630"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/application/GammaService.java",
+          "bytes": 197,
+          "git_blob_sha1": "721dfbaa2346b13548c09b7abaa0f9fc7dfb7b60",
+          "sha256": "7aa97331567a44650e1f74f5702c371abda31bae663d234202e43ee44f234f6d"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/domain/Alpha.java",
+          "bytes": 251,
+          "git_blob_sha1": "5fc620560b41259a00967bfceb6102e83fd8e771",
+          "sha256": "8d5ca5e60fe5bf46b8a3b3fb14f765d0979381485310c243a8468ad4afae75b8"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/domain/Beta.java",
+          "bytes": 249,
+          "git_blob_sha1": "34fe7540516d1f6be349c9bacebd5305201d93d9",
+          "sha256": "3dcf5155bf75795fcfda319ac4d1a34e612ee75651a7356197690c664444f55e"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/domain/Delta.java",
+          "bytes": 559,
+          "git_blob_sha1": "c6515bd82b428d4496d9ede0dc9630351397207a",
+          "sha256": "fa91333cb1fd03a14134c171c835296fe277473d4edeb8801681479203f4f87f"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/domain/Epsilon.java",
+          "bytes": 255,
+          "git_blob_sha1": "ca7c9dde597d84b29d94325134dd0383894ef7ce",
+          "sha256": "952dafd0766f750e1ddcc80ce96f98f5f6f16d5689eba89c19c3142032d9c8d6"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/domain/Gamma.java",
+          "bytes": 251,
+          "git_blob_sha1": "5df04bab604e7e34f7a19fbd10d0f66e4c07808e",
+          "sha256": "79b3cfc1e3fdc0692e25ee50594cd6b304136bd5be0443fbb8a919ec75aa4ab7"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/presentation/AlphaController.java",
+          "bytes": 1129,
+          "git_blob_sha1": "566d1a2c5fe1ffc43e60465dba4833053f8d2377",
+          "sha256": "d2e359682cf126d0fa5dc78db86274a2a5ff0dfb3efb8cf62f90a6a76ed2fde7"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/presentation/BetaController.java",
+          "bytes": 1397,
+          "git_blob_sha1": "bb87c3c2eb905455500a02113e240227cb0c031f",
+          "sha256": "35c85b3c7abdfad3d7697cbac1fd2534b977fd85d4029133a821fac474ce742e"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/presentation/DeltaController.java",
+          "bytes": 1059,
+          "git_blob_sha1": "31d3a8315f5b4cb507cabe76952a30ff94e6988e",
+          "sha256": "1c1d82af0de161772ee0e929f621f0c4b111dc64416a72764e1a31074a51e3ff"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/presentation/EpsilonController.java",
+          "bytes": 1261,
+          "git_blob_sha1": "ecaaad296546ce7ee3c584f7679372487894386a",
+          "sha256": "c4d15712aae86e9a9486852f3ca0984a4fd41fbf6296377b7b3bb8f1b1301a32"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/presentation/GammaController.java",
+          "bytes": 1102,
+          "git_blob_sha1": "5e80cc2766ceb96a62917453db1c4dfbe84912a2",
+          "sha256": "c42b5e44b33e91060614b0877dadf6f9c95be79d3e6f99a5c5edbc4e99e5508b"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/java/com/example/app/global/config/ApiPathConfig.java",
+          "bytes": 855,
+          "git_blob_sha1": "5873b09ba71f28fd180f2de5933a06ee4ba32666",
+          "sha256": "7d6b1fffd87c50232765dd586a5a5657eaf0d2845e349382c59de165a4ffd439"
+        },
+        {
+          "path": "test/fixtures/java-spring/src/main/resources/application.yml",
+          "bytes": 40,
+          "git_blob_sha1": "7ee4a8c900886edfb2d9d4e8c29e51e6eac95d0b",
+          "sha256": "dae8b335abf34a782e66123d3faaf75d2bc2033edb9259f710c860b0cbae28eb"
+        }
+      ]
+    },
+    {
+      "id": "ruby-rails",
+      "dir": "test/fixtures/ruby-rails/backend",
+      "git_tree_id": "1d2acf5f834f257900b7e49f7a90b5713e4f3d00",
+      "files": [
+        {
+          "path": "test/fixtures/ruby-rails/backend/Gemfile",
+          "bytes": 52,
+          "git_blob_sha1": "e65456fb667cd3d1c7a501477faae4abeeaf2a7e",
+          "sha256": "317df244cff37a41c02a7c63d50c3438c9e137dbafe9e200fbcf333d80fe6d1e"
+        },
+        {
+          "path": "test/fixtures/ruby-rails/backend/app/controllers/api/v1/articles_controller.rb",
+          "bytes": 249,
+          "git_blob_sha1": "4defe208e9ee80cf464c49616d6c588b79eb88b3",
+          "sha256": "db83c599f3533cda78dfa2645547dbe0162a8d748641f9564ba6ab9bc87cd656"
+        },
+        {
+          "path": "test/fixtures/ruby-rails/backend/app/controllers/health_controller.rb",
+          "bytes": 67,
+          "git_blob_sha1": "10ef2fbec2aec7575dab81ee8d8e93bec2cafddb",
+          "sha256": "a1786c1fee0bab8154878b47798c8fd55e8e4c00ac18224608e48905966f48a4"
+        },
+        {
+          "path": "test/fixtures/ruby-rails/backend/app/controllers/profiles_controller.rb",
+          "bytes": 87,
+          "git_blob_sha1": "6023ed1ac3f1f5ad74b82e2c523f45ef724e2603",
+          "sha256": "6b3304a8a8b9b75fe4b1edc6522a45f1c41ab6274e3c9879d691c12050e74b95"
+        },
+        {
+          "path": "test/fixtures/ruby-rails/backend/app/models/application_record.rb",
+          "bytes": 74,
+          "git_blob_sha1": "b63caeb8a5c4a21feec3ea870c4e4a52b89a8fa5",
+          "sha256": "12bf7d0eaefce4d50e0719991e19b48a36a7865aeb7ac745980584806155fdc1"
+        },
+        {
+          "path": "test/fixtures/ruby-rails/backend/app/models/article.rb",
+          "bytes": 113,
+          "git_blob_sha1": "a64f7ac0d18c6514271c2d67f1553cdc6735ff97",
+          "sha256": "89f3427426a2585b057f629821b7dd4dc8faabc4b422500662c6df9f7f07dfd9"
+        },
+        {
+          "path": "test/fixtures/ruby-rails/backend/app/models/profile.rb",
+          "bytes": 38,
+          "git_blob_sha1": "8b5c14ea5229eb3b6f1c898fab5833837af64822",
+          "sha256": "0e65eceb87750a602231d2b0faf9f29e6b1531a5a90e0001e8e724e53de80667"
+        },
+        {
+          "path": "test/fixtures/ruby-rails/backend/config/application.rb",
+          "bytes": 114,
+          "git_blob_sha1": "d391dd21aab14bab313029451e966520e9cd5555",
+          "sha256": "bf0d742d6947defd228f0f59c3714caa1146a23cfd84dc3e1ec1393a41987ebe"
+        },
+        {
+          "path": "test/fixtures/ruby-rails/backend/config/routes.rb",
+          "bytes": 535,
+          "git_blob_sha1": "7b24d9a49aa75d03c16d6742a93e76586a76cf95",
+          "sha256": "cf1dad6247cdd0210db4d084dd35f2041237bad0a08848065c8b4eca2ca10628"
+        }
+      ]
+    },
+    {
+      "id": "python-fastapi",
+      "dir": "test/fixtures/python-fastapi/backend",
+      "git_tree_id": "ae676c64280cccda924ea91784b98dd122a4bdcb",
+      "files": [
+        {
+          "path": "test/fixtures/python-fastapi/backend/app/__init__.py",
+          "bytes": 0,
+          "git_blob_sha1": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "test/fixtures/python-fastapi/backend/app/api/__init__.py",
+          "bytes": 0,
+          "git_blob_sha1": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "test/fixtures/python-fastapi/backend/app/api/deps.py",
+          "bytes": 158,
+          "git_blob_sha1": "21176c2bde1eef8af9430898fc06a56efb58b535",
+          "sha256": "12e130b8c62f3e7ef7e1f2452028c1e934590a7d7c776b7eb31172f890b4e75a"
+        },
+        {
+          "path": "test/fixtures/python-fastapi/backend/app/api/items.py",
+          "bytes": 187,
+          "git_blob_sha1": "033f99c4e9e330b06f9e4985665448f9182ad477",
+          "sha256": "299626dc7f73324892f2cddb67ec4d14e1e71ab36451f80e3a03b8ca4c3d1132"
+        },
+        {
+          "path": "test/fixtures/python-fastapi/backend/app/models.py",
+          "bytes": 321,
+          "git_blob_sha1": "533187e591251d8eaca539ed8b7133d2339cbf05",
+          "sha256": "0eca91940769a8873d0b7b3e103c270153bebf72876aa9caa78434435634ce3f"
+        },
+        {
+          "path": "test/fixtures/python-fastapi/backend/app/services/__init__.py",
+          "bytes": 0,
+          "git_blob_sha1": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "test/fixtures/python-fastapi/backend/app/services/item_service.py",
+          "bytes": 2365,
+          "git_blob_sha1": "1616dd7adeb19044c3d648cfb1887e8c28b2c0cb",
+          "sha256": "4c60f5881bdeac5528e7e2f2da8f2a2076eaac23b2efc5cd0ca1d7e6ad811253"
+        },
+        {
+          "path": "test/fixtures/python-fastapi/backend/pyproject.toml",
+          "bytes": 83,
+          "git_blob_sha1": "9079c5150996e3fc2442112c0b105a08e002662d",
+          "sha256": "bfb9d49fb7ecd681dd36a0dc6f00d60eb64ae5a6646159d58022de74326c4533"
+        }
+      ]
+    },
+    {
+      "id": "typescript-express",
+      "dir": "test/fixtures/typescript-express/backend",
+      "git_tree_id": "fcfaa79ad86565df97d5aed215066c39625fefd4",
+      "files": [
+        {
+          "path": "test/fixtures/typescript-express/backend/package.json",
+          "bytes": 280,
+          "git_blob_sha1": "fd41a83405efd2880bc5117a78e19a1d0e935587",
+          "sha256": "14985c687a6188fff9828786521877d6046605c4d77b92fd7ea6a0bf5838d7d9"
+        },
+        {
+          "path": "test/fixtures/typescript-express/backend/src/controllers/users/index.ts",
+          "bytes": 218,
+          "git_blob_sha1": "f6f532dcee51435f14c269ca755ecae2344812ca",
+          "sha256": "8f6a14b4923d922d23045a43a2380b270f62b0bf1275b57bef6cb1cbe5f77476"
+        },
+        {
+          "path": "test/fixtures/typescript-express/backend/src/controllers/users/show.ts",
+          "bytes": 779,
+          "git_blob_sha1": "3dfe7b10eb5e61463225631dced36c2ffa510eb7",
+          "sha256": "8f46c5d365f96cef4d02395241361b6ec071a9f6740553db09d25b489d930839"
+        },
+        {
+          "path": "test/fixtures/typescript-express/backend/src/data-source.ts",
+          "bytes": 171,
+          "git_blob_sha1": "2a6e57111e3e56ccf097a84dd5be200808b3fa0b",
+          "sha256": "4d0245ecb47c444c2aa8fe6eb25d4360da05e20971aafc00303fd89187a23de6"
+        },
+        {
+          "path": "test/fixtures/typescript-express/backend/src/middleware/checkJwt.ts",
+          "bytes": 156,
+          "git_blob_sha1": "df8f191e735565945b043febdc5913c1e5741ebf",
+          "sha256": "407137cd5b71b3b19d4eaace3005a57c8160ff3010f89d32c8dd691cb7acb603"
+        },
+        {
+          "path": "test/fixtures/typescript-express/backend/src/middleware/checkRole.ts",
+          "bytes": 219,
+          "git_blob_sha1": "7c86a08160e652b26a3317d5af08bcbb99e08d98",
+          "sha256": "f3e4e3aab362d2a4753bcfe1b5afe2697912df6f6ddf09e94e8be13553a1007a"
+        },
+        {
+          "path": "test/fixtures/typescript-express/backend/src/orm/entities/User.ts",
+          "bytes": 342,
+          "git_blob_sha1": "98713edfb02bf276c12aeef8edc150985a0d3fd5",
+          "sha256": "72e87dc72fda0c5321d1bbfe9e64c644873a07144ccbaa50cba24bc43b7fc882"
+        },
+        {
+          "path": "test/fixtures/typescript-express/backend/src/routes/index.ts",
+          "bytes": 130,
+          "git_blob_sha1": "555972394cca777d6246a4ade7b8411039f1f3af",
+          "sha256": "0ab6dcbcb53b5137c85d1a48c7fe0eae5f4469a1ef8052c03780896b99d4284f"
+        },
+        {
+          "path": "test/fixtures/typescript-express/backend/src/routes/v1/index.ts",
+          "bytes": 142,
+          "git_blob_sha1": "3de02a84a1510612d65e990889ac187ef98a35c9",
+          "sha256": "d952ec7a45548a51108896cdfdad48fe68ce1808d889785e320c7d84b4328dcd"
+        },
+        {
+          "path": "test/fixtures/typescript-express/backend/src/routes/v1/users.ts",
+          "bytes": 596,
+          "git_blob_sha1": "c14fd0408c37ac2ae3f5843cc51dad1f3d9f194f",
+          "sha256": "04807295a66fcb835e5e09eb28f6e8613ae43cb3588db9f569136f07cddd0056"
+        },
+        {
+          "path": "test/fixtures/typescript-express/backend/tsconfig.json",
+          "bytes": 331,
+          "git_blob_sha1": "14c16d0f440aa995c6de162f363ffa8ad5e4aa65",
+          "sha256": "812b8bf813b3f3c0d68bf1b6a7c4a3ae0fb398c70e8315e84bc6baaa0cef5377"
+        }
+      ]
+    },
+    {
+      "id": "javascript-express",
+      "dir": "test/fixtures/javascript-express/backend",
+      "git_tree_id": "b94f18f40532b6c8449d3cf6cd8f7ea3ef3a910c",
+      "files": [
+        {
+          "path": "test/fixtures/javascript-express/backend/database.sql",
+          "bytes": 1839,
+          "git_blob_sha1": "7e88d361dd209fd385df6b2cb156c0aaae855c65",
+          "sha256": "1e64570087bf8709750d3bb23a98344640043eab946db621a284724e22b4161a"
+        },
+        {
+          "path": "test/fixtures/javascript-express/backend/package.json",
+          "bytes": 233,
+          "git_blob_sha1": "27abd5be9acc3a7c77d84928a7f59e541a1ea06d",
+          "sha256": "aff1918310e4e9d197e2c8db31fc1f849e4fb61a006d8e4a3b48c4a93e0cbb61"
+        },
+        {
+          "path": "test/fixtures/javascript-express/backend/src/app.js",
+          "bytes": 774,
+          "git_blob_sha1": "6b05af20de42e7301f22b7e2ba31326537eeba94",
+          "sha256": "78c8c4055c0bb522a479dd362867fe7011113e808063818a8188d01602f8c91d"
+        },
+        {
+          "path": "test/fixtures/javascript-express/backend/src/controllers/order.controller.js",
+          "bytes": 1737,
+          "git_blob_sha1": "4584a256e65959c402c9923d6175353fab935fec",
+          "sha256": "6e1b07a0b6eb66cead92c1fde07da2b8edf02c929026c4cfd4d94c235bc88c91"
+        },
+        {
+          "path": "test/fixtures/javascript-express/backend/src/controllers/order.sql.js",
+          "bytes": 97,
+          "git_blob_sha1": "30a9c383cf0e09f853abbd3fab9045bc2cb7eaba",
+          "sha256": "cf0e95b57a7b718eeb9ab12b92a5f1e827545fc025fdec2f4f52a3a2f61dd2e6"
+        },
+        {
+          "path": "test/fixtures/javascript-express/backend/src/controllers/user.controller.js",
+          "bytes": 1363,
+          "git_blob_sha1": "cfa5f40694b83fd43625a577fd3fd202c8985e1a",
+          "sha256": "e8d99ba982e28be51a12442f6c432c180f1f5b09b2cb2f75eb4c075a076ebd50"
+        },
+        {
+          "path": "test/fixtures/javascript-express/backend/src/db.js",
+          "bytes": 581,
+          "git_blob_sha1": "6ad605aa3fb3d6c82e7cc9ff11395df99ad23826",
+          "sha256": "e550792b39c568758e3764b45b40d308f68e7d27f2dcd9708343db2d5a239531"
+        },
+        {
+          "path": "test/fixtures/javascript-express/backend/src/lambda.js",
+          "bytes": 693,
+          "git_blob_sha1": "000a84eae6de09aa960f010fd4bb8f3833388db5",
+          "sha256": "a7ec7ee8eef9b36da3b71db5e4a048efa181c2dc06788571c7bc9ec2779630f6"
+        },
+        {
+          "path": "test/fixtures/javascript-express/backend/src/middleware/requireRole.js",
+          "bytes": 97,
+          "git_blob_sha1": "a6f4860c3cb04d618c78e67e9bd75d812bd014c1",
+          "sha256": "15cf7e051f7eb1a422deb916d7f158aa4c0cf20d763d153e6e9efb27c17fe29f"
+        },
+        {
+          "path": "test/fixtures/javascript-express/backend/src/middleware/verifyToken.js",
+          "bytes": 122,
+          "git_blob_sha1": "058de383c5d98584d9a50b0e7a9221a0e9b2596a",
+          "sha256": "b96ccf823902674d4a359ee993ae0c701a4236d469b38921d853f0075c420ab6"
+        },
+        {
+          "path": "test/fixtures/javascript-express/backend/src/routes/order.route.js",
+          "bytes": 550,
+          "git_blob_sha1": "d9d5c7c97dd536b1271367c77800b41291d4d6fd",
+          "sha256": "51f705383cf35e0613f67b6f642fb91ad1ec980ea0d8ef2e82b018a434a1782f"
+        },
+        {
+          "path": "test/fixtures/javascript-express/backend/src/routes/user.route.js",
+          "bytes": 826,
+          "git_blob_sha1": "96b6cc8f583813009311b0164ad59e568d2a5255",
+          "sha256": "4e56a2187c4e5807ce68665d9b54dc71f50d65fda538ff94ff6220919191535a"
+        }
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "id": "nested-runner",
+      "command": "node scripts/run-next-nested-tests.mjs T11",
+      "cwd": "repository root of an export of the base commit",
+      "revision": "9985dd9a51d2acf516fd38e27282c6a4398e16d0",
+      "exit_code": 0,
+      "stdout_first_line": "NESTED_SUITE T11 RUN 6 files",
+      "runner_files": 6,
+      "runner_script": {
+        "path": "scripts/run-next-nested-tests.mjs",
+        "bytes": 6886,
+        "git_blob_sha1": "daccc6c9112e1db2f8353d5ac38fd3d44f48e41e",
+        "sha256": "acb8db06506f5bb1d52ff4f82b54b9a4db9fd3d45409a02da4d546c55c0dacac"
+      },
+      "result": {
+        "tests": 99,
+        "suites": 0,
+        "pass": 99,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "id": "direct-tap",
+      "command": "node --test --test-reporter=tap test/http-legacy-next/baseline.test.mjs test/http-legacy-next/bridge.test.mjs test/http-legacy-next/checkout-completeness.test.mjs test/http-legacy-next/cutover-readiness.test.mjs test/http-legacy-next/parity.test.mjs test/http-legacy-next/shadow-projection.test.mjs",
+      "cwd": "repository root of an export of the base commit",
+      "revision": "9985dd9a51d2acf516fd38e27282c6a4398e16d0",
+      "exit_code": 0,
+      "result": {
+        "tests": 99,
+        "suites": 0,
+        "pass": 99,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "scan-java-spring",
+      "class": "normal",
+      "origin": "test/http-legacy-next/baseline.test.mjs:54 (T11-02 bridge is lossless: it wraps, but never r)",
+      "api": "scan",
+      "input": {
+        "adapter": "java-spring"
+      },
+      "input_sha256": "1d6ee95dd2ae41d1c29fca704f2d00905b340ad0361987de6a56aaa1ce81d6c0",
+      "expected": {
+        "adapter": "java-spring",
+        "verdict": "inventory",
+        "confidence": "high",
+        "inventory": {
+          "modules": [
+            "annotationstyles",
+            "codeanalysis",
+            "curriculum",
+            "organization",
+            "security"
+          ],
+          "moduleCount": 5,
+          "controllerCount": 17,
+          "entityCount": 8,
+          "enumCount": 1,
+          "dtoCount": 1,
+          "endpointCount": 37,
+          "filesReadCount": 35
+        },
+        "bridge": {
+          "schema": "sbf.http-legacy-bridge/1",
+          "mode": "compatibility-only",
+          "source_scan_schema": "sbf.scan-report/2",
+          "lossless": true
+        },
+        "semantic_sha256": "7c5a5c2a0356d6c8f806f185bfc9084090e3d4850195f8a4f5d368c9e5fbb2e1"
+      },
+      "output_sha256": "175dacf6c9040305c4a3d52b65d5655980c30eaadb9e3712ce29a85a853684ec"
+    },
+    {
+      "id": "scan-ruby-rails",
+      "class": "normal",
+      "origin": "test/http-legacy-next/baseline.test.mjs:54 (T11-02 bridge is lossless: it wraps, but never r)",
+      "api": "scan",
+      "input": {
+        "adapter": "ruby-rails"
+      },
+      "input_sha256": "5259b65e66ef75228a9e980d8f2923015deabf3cfcd5156343e26ff318d5a9cd",
+      "expected": {
+        "adapter": "ruby-rails",
+        "verdict": "inventory",
+        "confidence": "high",
+        "inventory": {
+          "modules": [
+            "articles",
+            "health",
+            "profiles"
+          ],
+          "moduleCount": 3,
+          "controllerCount": 3,
+          "entityCount": 2,
+          "enumCount": 0,
+          "dtoCount": 0,
+          "endpointCount": 12,
+          "filesReadCount": 9
+        },
+        "bridge": {
+          "schema": "sbf.http-legacy-bridge/1",
+          "mode": "compatibility-only",
+          "source_scan_schema": "sbf.scan-report/2",
+          "lossless": true
+        },
+        "semantic_sha256": "992319ea50e1493b1e2faaf8dad12b0e6d370725d1840cc2424e15bd30b12b68"
+      },
+      "output_sha256": "4d81b42fc6562eef20d86c756b542b75fa64bacd9308c98df55f587e1035eda5"
+    },
+    {
+      "id": "scan-python-fastapi",
+      "class": "normal",
+      "origin": "test/http-legacy-next/baseline.test.mjs:54 (T11-02 bridge is lossless: it wraps, but never r)",
+      "api": "scan",
+      "input": {
+        "adapter": "python-fastapi"
+      },
+      "input_sha256": "70b2410a44e4e3554facde2ccaac91bb083f212be42a9d84e33170a41fbfa7e8",
+      "expected": {
+        "adapter": "python-fastapi",
+        "verdict": "inventory",
+        "confidence": "high",
+        "inventory": {
+          "modules": [
+            "items"
+          ],
+          "moduleCount": 1,
+          "controllerCount": 1,
+          "entityCount": 1,
+          "enumCount": 0,
+          "dtoCount": 1,
+          "endpointCount": 1,
+          "filesReadCount": 7
+        },
+        "bridge": {
+          "schema": "sbf.http-legacy-bridge/1",
+          "mode": "compatibility-only",
+          "source_scan_schema": "sbf.scan-report/2",
+          "lossless": true
+        },
+        "semantic_sha256": "1be8ccde267ad11d7a5d8d883898cec653bfcc23db56d681cccb5a1643af080e"
+      },
+      "output_sha256": "bc83ee50270ca58b775248df55b62f8489814b8d63e55628233d1356a13092fe"
+    },
+    {
+      "id": "scan-typescript-express",
+      "class": "normal",
+      "origin": "test/http-legacy-next/baseline.test.mjs:54 (T11-02 bridge is lossless: it wraps, but never r)",
+      "api": "scan",
+      "input": {
+        "adapter": "typescript-express"
+      },
+      "input_sha256": "3e3237e449b3a1e83d2e0a16ea6d8717af73b35ad588cceeb80c5097fe110fdb",
+      "expected": {
+        "adapter": "typescript-express",
+        "verdict": "inventory",
+        "confidence": "high",
+        "inventory": {
+          "modules": [
+            "users"
+          ],
+          "moduleCount": 1,
+          "controllerCount": 1,
+          "entityCount": 1,
+          "enumCount": 0,
+          "dtoCount": 0,
+          "endpointCount": 1,
+          "filesReadCount": 9
+        },
+        "bridge": {
+          "schema": "sbf.http-legacy-bridge/1",
+          "mode": "compatibility-only",
+          "source_scan_schema": "sbf.scan-report/2",
+          "lossless": true
+        },
+        "semantic_sha256": "2aa19d70e9388b7e96e4114d2bf9eb60a683f167e190dab31cb0a115770cea72"
+      },
+      "output_sha256": "7db34e2ad310b58a36ad5640b0b1618524de8d170b594b3b92b813e20a46db0a"
+    },
+    {
+      "id": "scan-javascript-express",
+      "class": "normal",
+      "origin": "test/http-legacy-next/baseline.test.mjs:54 (T11-02 bridge is lossless: it wraps, but never r)",
+      "api": "scan",
+      "input": {
+        "adapter": "javascript-express"
+      },
+      "input_sha256": "69156089c29140a8c6f0e6eeb8cf8ded7f9a895ebfb6b749aaf32f1a75f59a6f",
+      "expected": {
+        "adapter": "javascript-express",
+        "verdict": "inventory",
+        "confidence": "high",
+        "inventory": {
+          "modules": [
+            "order",
+            "user"
+          ],
+          "moduleCount": 2,
+          "controllerCount": 2,
+          "entityCount": 0,
+          "enumCount": 0,
+          "dtoCount": 0,
+          "endpointCount": 5,
+          "filesReadCount": 10
+        },
+        "bridge": {
+          "schema": "sbf.http-legacy-bridge/1",
+          "mode": "compatibility-only",
+          "source_scan_schema": "sbf.scan-report/2",
+          "lossless": true
+        },
+        "semantic_sha256": "df6a0f66a55e2639bf78cb7d532b6a11b8c24be0876d2fcea95abc2cfab2d979"
+      },
+      "output_sha256": "0b167cacc76b09bcdb9a6f17af216f2b9ed237aefd5e0b160466297f070de4f0"
+    },
+    {
+      "id": "semantic-snapshot-root-relative-files",
+      "class": "normal",
+      "origin": "test/http-legacy-next/parity.test.mjs:475 (T11-04 with a root, every file becomes a forward)",
+      "api": "semantic-snapshot",
+      "input": {
+        "report": {
+          "schema": "sbf.scan-report/2",
+          "adapter": "java-spring",
+          "related_modules": [
+            {
+              "module": "users",
+              "controllers": [
+                {
+                  "className": "UserController",
+                  "basePath": "/users",
+                  "file": "/srv/app/src/UserController.java",
+                  "endpoints": [
+                    {
+                      "method": "list",
+                      "verb": "GET",
+                      "path": "/users",
+                      "operationId": null,
+                      "file": "/srv/app/src/UserController.java"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "files_read": [
+            "src/UserController.java"
+          ]
+        },
+        "root": "/srv/app"
+      },
+      "input_sha256": "20a8e6ccff9a9fdac9e4a68651912d15b970211edcf26acae1fbde7ea5e7411b",
+      "expected": {
+        "adapter": "java-spring",
+        "controller_files": [
+          "src/UserController.java"
+        ]
+      },
+      "output_sha256": "f1e48ac263fc6d9620ac075c087e9e1df97d96a9190b0fe64e2b7ab70a7da6e2"
+    },
+    {
+      "id": "shadow-identity-java-spring",
+      "class": "normal",
+      "origin": "test/http-legacy-next/shadow-projection.test.mjs:31 (T11-03 shadow shell proves parity without making)",
+      "api": "shadow",
+      "input": {
+        "adapter": "java-spring",
+        "projector": "identity"
+      },
+      "input_sha256": "1ea93bdb053909093c665843fc7f6fd9948df91386beafb31eccd72babb0b4b6",
+      "expected": {
+        "mode": "shadow-only",
+        "adapter_id": "java-spring",
+        "authoritative_source": "sbf.scan-report/2",
+        "promotion_allowed": false,
+        "equal": true,
+        "diffs": [],
+        "legacy_semantic_sha256": "7c5a5c2a0356d6c8f806f185bfc9084090e3d4850195f8a4f5d368c9e5fbb2e1"
+      },
+      "output_sha256": "5b3e5444ba09ba27bb0d726c12e58323d1c00e125c650dbe0bf448fae4558832"
+    },
+    {
+      "id": "cutover-every-gate-true-ruby-rails",
+      "class": "normal",
+      "origin": "test/http-legacy-next/cutover-readiness.test.mjs:24 (T11-06 readiness never grants apply permission e)",
+      "api": "cutover",
+      "input": {
+        "adapterId": "ruby-rails",
+        "checks": {
+          "ownership_scope_clean": true,
+          "legacy_baseline_pinned": true,
+          "lossless_bridge_verified": true,
+          "semantic_parity_verified": true,
+          "pinned_corpus_verified": true,
+          "exact_head_ci_green": true,
+          "identity_interface_frozen": true,
+          "capability_interface_frozen": true,
+          "independent_review_accepted": true,
+          "nested_test_discovery_integrated": true
+        }
+      },
+      "input_sha256": "84f7747180736a2b0dd5b66e35dd7209d8ba1518f86321296cf59749c6406b70",
+      "expected": {
+        "ready_for_t00_integration": true,
+        "apply_allowed": false,
+        "blockers": []
+      },
+      "output_sha256": "5df8448fd4df2181ca2439ce47470b275314d016e2e814263a8737ff25a2e7f2"
+    },
+    {
+      "id": "checkout-full-python-fastapi",
+      "class": "normal",
+      "origin": "test/http-legacy-next/checkout-completeness.test.mjs:85 (T11 corpus completeness accepts a normal full ch)",
+      "api": "checkout",
+      "input": {
+        "adapter": "python-fastapi",
+        "files": {
+          "pyproject.toml": "[project]\ndependencies=[\"fastapi\"]\n",
+          "app/main.py": "from fastapi import FastAPI\n",
+          "tests/test_api.py": "def test_x(): pass\n"
+        }
+      },
+      "input_sha256": "6f9376fbe8ae057a2ad88b59917f568e682d0de1ec7f67d9929c6d86da10cff0",
+      "expected": {
+        "complete": true,
+        "mode": "full-working-tree",
+        "missing_count": 0,
+        "missing_paths": [],
+        "assert_threw": null
+      },
+      "output_sha256": "d9fb03c098b8618afd58c4b2b3acfc1890760ff707730c508d46b5837ee7f648"
+    },
+    {
+      "id": "checkout-sparse-rails-read-set-materialized",
+      "class": "normal",
+      "origin": "test/http-legacy-next/checkout-completeness.test.mjs:122 (T11 corpus completeness accepts sparse Rails che)",
+      "api": "checkout",
+      "input": {
+        "adapter": "ruby-rails",
+        "files": {
+          "Gemfile": "gem \"rails\"\n",
+          "config/application.rb": "class App < Rails::Application; end\n",
+          "config/routes.rb": "Rails.application.routes.draw { resources :users }\n",
+          "app/controllers/users_controller.rb": "class UsersController < ApplicationController; end\n",
+          "app/models/user.rb": "class User < ApplicationRecord; end\n",
+          "lib/feature.rb": "module Feature; end\n",
+          "spec/user_spec.rb": "RSpec.describe User do; end\n"
+        },
+        "sparse": [
+          "config",
+          "app/controllers",
+          "app/models",
+          "lib"
+        ]
+      },
+      "input_sha256": "556f44a28a6403b3df1a9cfe0b87f9b2628c3f731fb02b6d3c362e41494a4f2a",
+      "expected": {
+        "complete": true,
+        "mode": "sparse-readset-verified",
+        "missing_count": 0,
+        "missing_paths": [],
+        "assert_threw": null
+      },
+      "output_sha256": "977afd6d8147c6ee81f84da2423627201bb5d87e971a3ffedbbaf3f0a8b30517"
+    },
+    {
+      "id": "snapshot-adapter-contract-v3",
+      "class": "negative",
+      "origin": "test/http-legacy-next/bridge.test.mjs:32 (T11-02 the bridge refuses anything that is not a)",
+      "counterexample": "a descriptor that declares sbf.adapter/3 must not enter the T11 bridge",
+      "api": "snapshot-adapter",
+      "input": {
+        "adapter": {
+          "id": "java-spring",
+          "patch": {
+            "contract": "sbf.adapter/3"
+          }
+        }
+      },
+      "input_sha256": "77641c81e7622536f3ff551e4cb48f71176889e1446d809b59b7d05f11df4753",
+      "expected": {
+        "threw": "Error: adapter \"java-spring\" must still declare sbf.adapter/2 before it can enter the T11 compatibility bridge"
+      },
+      "output_sha256": "7b6a8e663f26f1609dab5ac5a37cac4f04903cedd8cc36a212f9ec9a28d669df"
+    },
+    {
+      "id": "snapshot-adapter-generic-grep",
+      "class": "negative",
+      "origin": "test/http-legacy-next/baseline.test.mjs:69 (T11-02 bridge fails closed for adapter/report mi)",
+      "counterexample": "generic-grep is a registered adapter but not one of the five legacy HTTP adapters",
+      "api": "snapshot-adapter",
+      "input": {
+        "adapter": {
+          "id": "generic-grep"
+        }
+      },
+      "input_sha256": "7749df25cc358687b0d249bf36db95137d7ef6559bdbd5ca79f279964b88f14c",
+      "expected": {
+        "threw": "Error: adapter \"generic-grep\" is not one of T11's five legacy HTTP adapters"
+      },
+      "output_sha256": "ac28bac5ccd1702140bb854240c5f16ccea71eba64f33d64fbf9eb5aa8e093e3"
+    },
+    {
+      "id": "bridge-report-adapter-mismatch",
+      "class": "negative",
+      "origin": "test/http-legacy-next/baseline.test.mjs:69 (T11-02 bridge fails closed for adapter/report mi)",
+      "counterexample": "a java-spring report offered with the ruby-rails descriptor",
+      "api": "bridge",
+      "input": {
+        "adapter": {
+          "id": "ruby-rails"
+        },
+        "report": {
+          "schema": "sbf.scan-report/2",
+          "adapter": "java-spring"
+        }
+      },
+      "input_sha256": "0741ed55229090827f2464568833bcfc694bce640334751c53c874c398a1a2be",
+      "expected": {
+        "threw": "Error: scan report adapter \"java-spring\" does not match descriptor \"ruby-rails\""
+      },
+      "output_sha256": "68c4038f4b763c18ba18a36b6b2d618ffa50585998fd0d3b505fa423b44646d1"
+    },
+    {
+      "id": "bridge-report-schema-v1",
+      "class": "negative",
+      "origin": "test/http-legacy-next/bridge.test.mjs:50 (T11-02 the bridge only accepts an sbf.scan-repor)",
+      "counterexample": "only sbf.scan-report/2 reports are accepted",
+      "api": "bridge",
+      "input": {
+        "adapter": {
+          "id": "python-fastapi"
+        },
+        "report": {
+          "schema": "sbf.scan-report/1"
+        }
+      },
+      "input_sha256": "43a2d3cf579f2b80074fa057d1b8b68fb4abfb836f5758e2a3ec15fd64a48e7e",
+      "expected": {
+        "threw": "Error: T11 compatibility bridge only accepts sbf.scan-report/2 reports"
+      },
+      "output_sha256": "c5f1919aebdd19e235ae955411f332c9e364942ff5dd02afad8b105ca0ef0d9f"
+    },
+    {
+      "id": "semantic-snapshot-relative-root",
+      "class": "negative",
+      "origin": "test/http-legacy-next/parity.test.mjs:516 (T11-04 a relative root is rejected from any work)",
+      "counterexample": "a relative root would resolve against the working directory",
+      "api": "semantic-snapshot",
+      "input": {
+        "report": {
+          "schema": "sbf.scan-report/2",
+          "adapter": "java-spring",
+          "related_modules": [
+            {
+              "module": "users",
+              "controllers": [
+                {
+                  "className": "UserController",
+                  "basePath": "/users",
+                  "file": "/srv/app/src/UserController.java",
+                  "endpoints": [
+                    {
+                      "method": "list",
+                      "verb": "GET",
+                      "path": "/users",
+                      "operationId": null,
+                      "file": "/srv/app/src/UserController.java"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "files_read": [
+            "src/UserController.java"
+          ]
+        },
+        "root": "srv/app"
+      },
+      "input_sha256": "f1b42b032f8f0ed5e9ff9a3b08becce9f5a75844dbaa8f74466d1fa41eafa5de",
+      "expected": {
+        "threw": "TypeError: root must be an absolute path"
+      },
+      "output_sha256": "7f6159d42d54fc38b0ef134ed9a08257283e1c85623553fd65c3a37ea09ee029"
+    },
+    {
+      "id": "semantic-snapshot-file-outside-root",
+      "class": "negative",
+      "origin": "test/http-legacy-next/parity.test.mjs:582 (T11-04 a scan report file that is not strictly b)",
+      "counterexample": "a scan report file that is not below the root stays machine-specific, so it is refused",
+      "api": "semantic-snapshot",
+      "input": {
+        "report": {
+          "schema": "sbf.scan-report/2",
+          "adapter": "java-spring",
+          "related_modules": [
+            {
+              "module": "users",
+              "controllers": [
+                {
+                  "className": "UserController",
+                  "basePath": "/users",
+                  "file": "/elsewhere/UserController.java",
+                  "endpoints": [
+                    {
+                      "method": "list",
+                      "verb": "GET",
+                      "path": "/users",
+                      "operationId": null,
+                      "file": "/elsewhere/UserController.java"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "files_read": [
+            "src/UserController.java"
+          ]
+        },
+        "root": "/srv/app"
+      },
+      "input_sha256": "31922b1e783022a51756e0de4c6af3795638d36d5e438ec5afe44f5ff3335a1a",
+      "expected": {
+        "threw": "Error: scan report file \"/elsewhere/UserController.java\" is not under root \"/srv/app\""
+      },
+      "output_sha256": "ebc0b45bb1b69ac63652fd48f6cbf5767bf22992c6da1040a1351ae6cdac7cfa"
+    },
+    {
+      "id": "shadow-first-verb-flipped",
+      "class": "negative",
+      "origin": "test/http-legacy-next/shadow-projection.test.mjs:53 (T11-03 shadow shell reports precise semantic dri)",
+      "counterexample": "a projector that changes one endpoint verb must show up as one semantic diff",
+      "api": "shadow",
+      "input": {
+        "adapter": "java-spring",
+        "projector": "flip-first-verb"
+      },
+      "input_sha256": "eac8a4ad8529af4decb0c8dfbd18b35d337b3bf459b1bcb9f1a17d4f1627dc46",
+      "expected": {
+        "mode": "shadow-only",
+        "adapter_id": "java-spring",
+        "authoritative_source": "sbf.scan-report/2",
+        "promotion_allowed": false,
+        "equal": false,
+        "diffs": [
+          "modules[0].controllers[0].endpoints[0].verb value"
+        ],
+        "legacy_semantic_sha256": "7c5a5c2a0356d6c8f806f185bfc9084090e3d4850195f8a4f5d368c9e5fbb2e1"
+      },
+      "output_sha256": "94dfb3627216711596a3d696a6a79540e42a56f8c5eb7264b544351453e1d561"
+    },
+    {
+      "id": "shadow-projector-contract-mismatch",
+      "class": "negative",
+      "origin": "test/http-legacy-next/shadow-projection.test.mjs:73 (T11-03 shadow shell rejects projector schema, ad)",
+      "counterexample": "a projector answering with another contract id is refused",
+      "api": "shadow",
+      "input": {
+        "adapter": "java-spring",
+        "projector": "wrong-contract"
+      },
+      "input_sha256": "60008a50a4e7fae949c15088bdd389961a6c04e699d8a9d4ee4acd9c96685a64",
+      "expected": {
+        "threw": "Error: projector contract mismatch: expected \"baseline-record-projector/0\", got \"other/0\""
+      },
+      "output_sha256": "9794b8b1a802cb782693db6a5410c13a3a4fe121bafe8fb321c7b99c7842ac67"
+    },
+    {
+      "id": "shadow-async-projector",
+      "class": "negative",
+      "origin": "test/http-legacy-next/shadow-projection.test.mjs:119 (T11-03 synchronous shell rejects a Promise proje)",
+      "counterexample": "the synchronous shell refuses a Promise result",
+      "api": "shadow",
+      "input": {
+        "adapter": "java-spring",
+        "projector": "async"
+      },
+      "input_sha256": "d832613de328656f49239eb91965742fd9b8cc08b530ae6a2649e354eb0df052",
+      "expected": {
+        "threw": "TypeError: async projector results are not accepted by the synchronous T11 shadow shell"
+      },
+      "output_sha256": "44ff12bf8f53f2248178f682bc912e138109e73b29e978e11034dea871f07b82"
+    },
+    {
+      "id": "cutover-exact-head-ci-not-green",
+      "class": "negative",
+      "origin": "test/http-legacy-next/cutover-readiness.test.mjs:110 (T11-06 each single missing gate blocks readiness)",
+      "counterexample": "one false gate must be the only named blocker",
+      "api": "cutover",
+      "input": {
+        "adapterId": "java-spring",
+        "checks": {
+          "ownership_scope_clean": true,
+          "legacy_baseline_pinned": true,
+          "lossless_bridge_verified": true,
+          "semantic_parity_verified": true,
+          "pinned_corpus_verified": true,
+          "exact_head_ci_green": false,
+          "identity_interface_frozen": true,
+          "capability_interface_frozen": true,
+          "independent_review_accepted": true,
+          "nested_test_discovery_integrated": true
+        }
+      },
+      "input_sha256": "b14f1ef57e30c40bc47610188a3a27ee11d7cff38c14c0fa31c180b448c0a640",
+      "expected": {
+        "ready_for_t00_integration": false,
+        "apply_allowed": false,
+        "blockers": [
+          "exact-head-ci-not-green"
+        ]
+      },
+      "output_sha256": "592a9300447195068308e966934f02c0050a9497436c8551fadd205bbcb933b7"
+    },
+    {
+      "id": "cutover-invented-gate",
+      "class": "negative",
+      "origin": "test/http-legacy-next/cutover-readiness.test.mjs:155 (T11-06 unknown gates are all named, sorted, and )",
+      "counterexample": "a waiver gate that T11 does not define is refused",
+      "api": "cutover",
+      "input": {
+        "adapterId": "java-spring",
+        "checks": {
+          "ownership_scope_clean": true,
+          "legacy_baseline_pinned": true,
+          "lossless_bridge_verified": true,
+          "semantic_parity_verified": true,
+          "pinned_corpus_verified": true,
+          "exact_head_ci_green": true,
+          "identity_interface_frozen": true,
+          "capability_interface_frozen": true,
+          "independent_review_accepted": true,
+          "nested_test_discovery_integrated": true,
+          "waived_by_lead": true
+        }
+      },
+      "input_sha256": "9d2a9f7accd18ae7709646c8ede5e55380d24215b8c1e2fb4e859dc6059c7619",
+      "expected": {
+        "threw": "TypeError: unknown T11 cutover checks: waived_by_lead"
+      },
+      "output_sha256": "2aa4604cdd03901b507d23154e84dbd0c8527b769526f4456f8b4aef0e415b63"
+    },
+    {
+      "id": "checkout-sparse-fastapi-file-missing",
+      "class": "negative",
+      "origin": "test/http-legacy-next/checkout-completeness.test.mjs:99 (T11 corpus completeness rejects sparse FastAPI c)",
+      "counterexample": "a tracked Python file left out of a sparse checkout",
+      "api": "checkout",
+      "input": {
+        "adapter": "python-fastapi",
+        "files": {
+          "pyproject.toml": "[project]\ndependencies=[\"fastapi\"]\n",
+          "app/main.py": "from fastapi import FastAPI\n",
+          "tests/test_api.py": "def test_x(): pass\n"
+        },
+        "sparse": [
+          "app"
+        ]
+      },
+      "input_sha256": "3f1cb09ff9a416e756487e694578a388efa03554c794a47ac8696023e1a1202a",
+      "expected": {
+        "complete": false,
+        "mode": "sparse-readset-verified",
+        "missing_count": 1,
+        "missing_paths": [
+          "tests/test_api.py"
+        ],
+        "assert_threw": "T11_CORPUS_CHECKOUT_INCOMPLETE: corpus checkout is incomplete: 1 tracked scanner read-set file(s) are absent from the working tree"
+      },
+      "output_sha256": "0252815910c3edf1cb7801e86d39788333bec504213711b9e370fbb8b00a28d5"
+    },
+    {
+      "id": "checkout-sparse-rails-lib-missing",
+      "class": "negative",
+      "origin": "test/http-legacy-next/checkout-completeness.test.mjs:122 (T11 corpus completeness accepts sparse Rails che)",
+      "counterexample": "lib/ is part of the Rails read set but outside the sparse cone",
+      "api": "checkout",
+      "input": {
+        "adapter": "ruby-rails",
+        "files": {
+          "Gemfile": "gem \"rails\"\n",
+          "config/application.rb": "class App < Rails::Application; end\n",
+          "config/routes.rb": "Rails.application.routes.draw { resources :users }\n",
+          "app/controllers/users_controller.rb": "class UsersController < ApplicationController; end\n",
+          "app/models/user.rb": "class User < ApplicationRecord; end\n",
+          "lib/feature.rb": "module Feature; end\n",
+          "spec/user_spec.rb": "RSpec.describe User do; end\n"
+        },
+        "sparse": [
+          "config",
+          "app/controllers",
+          "app/models"
+        ]
+      },
+      "input_sha256": "115f4e07b30da3b9625d64f23358ec451ca81b03cb33dc559fe97ae3c8e8f846",
+      "expected": {
+        "complete": false,
+        "mode": "sparse-readset-verified",
+        "missing_count": 1,
+        "missing_paths": [
+          "lib/feature.rb"
+        ],
+        "assert_threw": "T11_CORPUS_CHECKOUT_INCOMPLETE: corpus checkout is incomplete: 1 tracked scanner read-set file(s) are absent from the working tree"
+      },
+      "output_sha256": "9609d8449b219eb981c79e83732714f66021e14156d4633fc02926c366b22680"
+    },
+    {
+      "id": "checkout-sparse-javascript-express-unsupported",
+      "class": "negative",
+      "origin": "test/http-legacy-next/checkout-completeness.test.mjs:149 (T11 corpus completeness fails closed for sparse )",
+      "counterexample": "no audited tracked-path rule exists for this adapter, so a sparse checkout cannot be proven complete",
+      "api": "checkout",
+      "input": {
+        "adapter": "javascript-express",
+        "files": {
+          "package.json": "{\"dependencies\":{\"express\":\"1.0.0\"}}\n",
+          "src/app.js": "require(\"express\")\n"
+        },
+        "sparse": [
+          "src"
+        ]
+      },
+      "input_sha256": "10a62e23087d48671b19ad1838a86187895f8b7c81a0d3f85eda4c8e77788ab6",
+      "expected": {
+        "complete": false,
+        "mode": "sparse-unsupported-adapter",
+        "missing_count": null,
+        "missing_paths": [],
+        "assert_threw": "T11_CORPUS_CHECKOUT_INCOMPLETE: corpus checkout is incomplete: T11 cannot prove sparse checkout completeness for this adapter"
+      },
+      "output_sha256": "aa443cc404d7f1a1961390a087957094dbb453623109d6a247fac4c3afa316b5"
+    }
+  ],
+  "artifact_digest": {
+    "algorithm": "sha256",
+    "covers": "canonical JSON of this whole record except artifact_digest.value, so prose (limits and their statuses, fixture classes and origins, notes, CI observations) is bound too",
+    "value": "0651ebd4e2f1660ffff84044919ac9d86462c9f6ac0c8f2fcc3e86865e2ed96e"
+  },
+  "ci_observations": [
+    {
+      "command": "gh api repos/popixoxipop-collab/backend-skeleton/actions/runs/37086190872 and .../jobs",
+      "run_id": 37086190872,
+      "run_number": 1860,
+      "run_attempt": 1,
+      "workflow": "CI",
+      "event": "push",
+      "head_sha": "9985dd9a51d2acf516fd38e27282c6a4398e16d0",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 111096946339,
+          "name": "nested-next (22.x)",
+          "runner": "macstudio",
+          "conclusion": "success",
+          "step": "T11 http-legacy-next",
+          "step_conclusion": "success"
+        },
+        {
+          "id": 111096946426,
+          "name": "nested-next (24.x)",
+          "runner": "macstudio",
+          "conclusion": "success",
+          "step": "T11 http-legacy-next",
+          "step_conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "limits": [
+    {
+      "id": "no-next-contract-emission",
+      "status": "UNSUPPORTED",
+      "statement": "The five adapters emit the legacy sbf.adapter/2 descriptor and sbf.scan-report/2 report. Nothing here is in contracts/next vocabulary: no ContractRef, no sbf.identity-envelope/1 and no T03 capability status exists for them, and every semantic_sha256 is a regression digest, not a contract hash.",
+      "fixtures": [
+        "scan-java-spring",
+        "scan-ruby-rails",
+        "scan-python-fastapi",
+        "scan-typescript-express",
+        "scan-javascript-express"
+      ]
+    },
+    {
+      "id": "shadow-projectors-are-test-doubles",
+      "status": "UNSUPPORTED",
+      "statement": "The shadow fixtures run in-record test doubles (identity, flipped verb, wrong contract, async). They show how the shell reports parity and drift; no next-IR projector exists, so promotion_allowed stays false and parity with a next IR is not established.",
+      "fixtures": [
+        "shadow-identity-java-spring",
+        "shadow-first-verb-flipped",
+        "shadow-projector-contract-mismatch",
+        "shadow-async-projector"
+      ]
+    },
+    {
+      "id": "cutover-gates-are-hand-written",
+      "status": "UNKNOWN",
+      "statement": "The cutover fixtures pass hand-written booleans. The real state of the ten gates (exact-head CI, independent review, T00 integration) is not computed here, so readiness for T00 integration is unknown.",
+      "fixtures": [
+        "cutover-every-gate-true-ruby-rails",
+        "cutover-exact-head-ci-not-green",
+        "cutover-invented-gate"
+      ]
+    },
+    {
+      "id": "sparse-checkout-two-adapters-only",
+      "status": "UNSUPPORTED",
+      "statement": "Sparse-checkout completeness is audited only for ruby-rails and python-fastapi. Any other adapter in a sparse checkout reports sparse-unsupported-adapter and is never treated as complete.",
+      "fixtures": [
+        "checkout-sparse-javascript-express-unsupported"
+      ]
+    },
+    {
+      "id": "scanner-pins-are-the-static-closure",
+      "status": "NOT_RECORDED",
+      "statement": "The scanner pins are the static import closure of scanners/index.mjs and scanners/registry.mjs plus every .mjs file in scanners/adapters, which the registry loads by directory listing. A file outside that closure and outside the five fixture trees that changed scan output would not be reported as moved; the live replay would report an output mismatch instead.",
+      "fixtures": [
+        "scan-java-spring",
+        "scan-ruby-rails",
+        "scan-python-fastapi",
+        "scan-typescript-express",
+        "scan-javascript-express"
+      ]
+    },
+    {
+      "id": "single-runtime-observed",
+      "status": "NOT_RECORDED",
+      "statement": "Replays and exit codes were observed on one runtime (see environment). The CI observation shows the Node 22.x and 24.x jobs passed the T11 step, but their per-version test counts are not recorded."
+    },
+    {
+      "id": "ci-observation-not-recomputable",
+      "status": "NOT_RECORDED",
+      "statement": "ci_observations were read from the GitHub API on the observed_on date; the verifier cannot recompute them offline."
+    },
+    {
+      "id": "real-repository-corpus",
+      "status": "UNKNOWN",
+      "statement": "The pinned_corpus_verified gate is outside this pack: only the five in-repo fixture trees are replayed. Behavior on real repositories is unknown here."
+    },
+    {
+      "id": "identity-and-capability-interfaces-not-frozen",
+      "status": "BLOCKED",
+      "statement": "identity_interface_frozen and capability_interface_frozen depend on the T01 and T03 interfaces, which T11 does not import. INTERFACE_RFC.md records the intended mapping; nothing is claimed as supported."
+    }
+  ],
+  "verification": {
+    "command": "node --test test/http-legacy-next/baseline-record.test.mjs",
+    "unverified_override": "BASELINE_ALLOW_UNVERIFIED=1 skips only the checks that need the pinned commit, and the test then says so in its diagnostics",
+    "not_recomputed": [
+      "ci_observations: read from the GitHub API on observed_on and not recomputable offline; the test fixes their shape, workflow, event, conclusion, job names and step statuses, not the run and job ids",
+      "environment: toolchain versions of the recording machine; only package_lock is recomputed",
+      "limits: the statements are prose bound only by artifact_digest; the test fixes the exact limit ids, statuses and fixture lists",
+      "counterexample texts, title and notes: prose bound only by artifact_digest; the fixture inputs are authored record content that the replay runs as given, and the test fixes only the fixture ids, apis and classes",
+      "artifact_digest is tamper evidence, not proof: whoever edits a field can re-seal it, so only the recomputed pins, replays and commands, the tables of baseline-record-lib.mjs and the pinned commit's tree prove content"
+    ]
+  }
+}
