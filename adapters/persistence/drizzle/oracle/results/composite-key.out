@@ -1,0 +1,16 @@
+CREATE TABLE "tenant_users" (
+	"user_id" text NOT NULL,
+	"tenant_id" text NOT NULL,
+	CONSTRAINT "tenant_users_user_id_tenant_id_pk" PRIMARY KEY("user_id","tenant_id")
+);
+--> statement-breakpoint
+CREATE TABLE "tenants" (
+	"tenant_pk" text PRIMARY KEY NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "users" (
+	"user_pk" text PRIMARY KEY NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "tenant_users" ADD CONSTRAINT "tenant_users_user_id_users_user_pk_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("user_pk") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "tenant_users" ADD CONSTRAINT "tenant_users_tenant_id_tenants_tenant_pk_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("tenant_pk") ON DELETE no action ON UPDATE no action;

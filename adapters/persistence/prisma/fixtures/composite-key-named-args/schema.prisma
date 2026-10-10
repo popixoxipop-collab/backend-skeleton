@@ -1,0 +1,12 @@
+// fixture-pin: prisma@7.10.0 case: composite-key-named-args
+datasource db {
+  provider = "postgresql"
+}
+
+model TenantUser {
+  userId   String @map("user_id")
+  tenantId String @map("tenant_id")
+
+  @@id(fields: [userId, tenantId])
+  @@map("tenant_users")
+}

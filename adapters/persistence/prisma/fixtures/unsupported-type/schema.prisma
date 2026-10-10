@@ -1,0 +1,11 @@
+// fixture-pin: prisma@7.10.0 case: unsupported-type
+datasource db {
+  provider = "postgresql"
+}
+
+model Document {
+  id     Int                      @id
+  search Unsupported("tsvector")?
+
+  @@map("documents")
+}

@@ -1,0 +1,42 @@
+{
+  "entities": [
+    {
+      "name": "AuditLog",
+      "tableName": "audit_logs",
+      "primary": [
+        "id"
+      ],
+      "columns": [
+        {
+          "prop": "id",
+          "db": "id",
+          "type": "Number",
+          "primary": true,
+          "nullable": false
+        }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "LedgerEntry",
+      "tableName": "ledger_entries",
+      "primary": [
+        "id"
+      ],
+      "columns": [
+        {
+          "prop": "id",
+          "db": "id",
+          "type": "Number",
+          "primary": true,
+          "nullable": false
+        }
+      ],
+      "foreignKeys": []
+    }
+  ],
+  "ddl": [
+    "CREATE TABLE \"audit_logs\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL)",
+    "CREATE TABLE \"ledger_entries\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL)"
+  ]
+}

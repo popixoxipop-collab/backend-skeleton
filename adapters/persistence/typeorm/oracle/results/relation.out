@@ -1,0 +1,63 @@
+{
+  "entities": [
+    {
+      "name": "Author",
+      "tableName": "authors",
+      "primary": [
+        "id"
+      ],
+      "columns": [
+        {
+          "prop": "id",
+          "db": "id",
+          "type": "Number",
+          "primary": true,
+          "nullable": false
+        }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "Post",
+      "tableName": "posts",
+      "primary": [
+        "id"
+      ],
+      "columns": [
+        {
+          "prop": "id",
+          "db": "id",
+          "type": "Number",
+          "primary": true,
+          "nullable": false
+        },
+        {
+          "prop": "author",
+          "db": "author_id",
+          "type": "Number",
+          "primary": false,
+          "nullable": true
+        }
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "author_id"
+          ],
+          "refTable": "authors",
+          "refColumns": [
+            "id"
+          ]
+        }
+      ]
+    }
+  ],
+  "ddl": [
+    "CREATE TABLE \"authors\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL)",
+    "CREATE TABLE \"posts\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL, \"author_id\" integer)",
+    "CREATE TABLE \"temporary_posts\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL, \"author_id\" integer, CONSTRAINT \"FK_312c63be865c81b922e39c2475e\" FOREIGN KEY (\"author_id\") REFERENCES \"authors\" (\"id\") ON DELETE NO ACTION ON UPDATE NO ACTION)",
+    "INSERT INTO \"temporary_posts\"(\"id\", \"author_id\") SELECT \"id\", \"author_id\" FROM \"posts\"",
+    "DROP TABLE \"posts\"",
+    "ALTER TABLE \"temporary_posts\" RENAME TO \"posts\""
+  ]
+}

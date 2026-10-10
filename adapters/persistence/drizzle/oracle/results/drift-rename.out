@@ -1,0 +1,5 @@
+### stderr
+Error: Interactive prompts require a TTY terminal (process.stdin.isTTY or process.stdout.isTTY is false). This can happen when running in CI, piped input, or non-interactive shells.
+### listing out/drift-rename
+0000_init.sql
+meta

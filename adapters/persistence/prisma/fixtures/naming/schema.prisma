@@ -1,0 +1,10 @@
+// fixture-pin: prisma@7.10.0 case: naming
+datasource db {
+  provider = "postgresql"
+}
+
+model UserAccount {
+  id          Int    @id
+  displayName String @map("display_name")
+  plainField  String
+}

@@ -1,0 +1,32 @@
+{
+  "entities": [
+    {
+      "name": "TenantUser",
+      "tableName": "tenant_users",
+      "primary": [
+        "userId",
+        "tenantId"
+      ],
+      "columns": [
+        {
+          "prop": "userId",
+          "db": "userId",
+          "type": "varchar",
+          "primary": true,
+          "nullable": false
+        },
+        {
+          "prop": "tenantId",
+          "db": "tenantId",
+          "type": "varchar",
+          "primary": true,
+          "nullable": false
+        }
+      ],
+      "foreignKeys": []
+    }
+  ],
+  "ddl": [
+    "CREATE TABLE \"tenant_users\" (\"userId\" varchar NOT NULL, \"tenantId\" varchar NOT NULL, PRIMARY KEY (\"userId\", \"tenantId\"))"
+  ]
+}

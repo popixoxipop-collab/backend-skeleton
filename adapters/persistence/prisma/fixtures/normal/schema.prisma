@@ -1,0 +1,11 @@
+// fixture-pin: prisma@7.10.0 case: normal
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id    Int    @id @map("user_pk")
+  email String @unique
+
+  @@map("users")
+}

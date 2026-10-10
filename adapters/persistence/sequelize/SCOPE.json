@@ -1,0 +1,1047 @@
+{
+	"contract": "bskel.internal.persistence-orm-scope/0",
+	"target_id": "ORM-sequelize-01",
+	"orm": "sequelize",
+	"catalog": {
+		"id": "sequelize",
+		"state": "blocked-upstream-facts",
+		"ingestion": "persistence-source-facts",
+		"producer": "t04-js-ts",
+		"requires_live_verification": true,
+		"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet",
+		"limitations": []
+	},
+	"status": {
+		"support_completed": false,
+		"runtime_tested": false,
+		"evidence_level": "oracle-recorded",
+		"statement": "Development target, not a completed support claim. The target is blocked on upstream facts (CR-T10-003) and the repository has no Sequelize provider, so nothing is compared. The record holds the fixture models and the CREATE TABLE statements Sequelize 6.37.8 generates for them on a stubbed postgres connection; every construct is unsupported or unknown until a provider exists. Nothing was run against a database or an application runtime."
+	},
+	"pins": {
+		"checked_at": "2026-10-08T15:03:09Z",
+		"packages": [
+			{
+				"name": "sequelize",
+				"version": "6.37.8",
+				"role": "orm",
+				"oracle_install": true,
+				"registry_check": {
+					"command": "npm view sequelize@6.37.8 version",
+					"exit_code": 0,
+					"output": "6.37.8",
+					"output_sha256": "fa90ed32c2f7b1a44835db264783545258a4db26ba642849d9d0363c43459370"
+				}
+			},
+			{
+				"name": "pg",
+				"version": "8.23.1",
+				"role": "support",
+				"oracle_install": true,
+				"registry_check": {
+					"command": "npm view pg@8.23.1 version",
+					"exit_code": 0,
+					"output": "8.23.1",
+					"output_sha256": "6da023a3d78a62df922b3ef53547b3be34849f2c8495df6a25bc612b533d8171"
+				}
+			},
+			{
+				"name": "pg-hstore",
+				"version": "2.3.4",
+				"role": "support",
+				"oracle_install": true,
+				"registry_check": {
+					"command": "npm view pg-hstore@2.3.4 version",
+					"exit_code": 0,
+					"output": "2.3.4",
+					"output_sha256": "50ac9ff046e4e9a23f4804d4df5ab1681cbf0542263993bb8c2ca89108608967"
+				}
+			}
+		],
+		"not_covered": [
+			{
+				"name": "sequelize",
+				"version": "7.0.0-alpha.9",
+				"dist_tag": "alpha",
+				"reason": "the 7.x line is published only as alpha with a different API; it was not exercised",
+				"registry_check": {
+					"command": "npm view sequelize@alpha version",
+					"exit_code": 0,
+					"output": "7.0.0-alpha.9",
+					"output_sha256": "a459e6d3f1879799bdebe975ec7d7ff80ef3489f3575b237216d0fbbb42fff78"
+				}
+			}
+		]
+	},
+	"profile": {
+		"id": "sequelize-6.37.8-postgres-sql-capture",
+		"versions": [
+			"sequelize@6.37.8"
+		],
+		"platform": "postgres dialect, SQL captured from a stubbed connection; recorded on Node v24.19.0 (npm 11.17.0) darwin-arm64; CI Node 22.x and 24.x on Linux not exercised",
+		"capabilities": []
+	},
+	"constructs": [
+		{
+			"id": "define-model-table-and-primary-key",
+			"category": "baseline",
+			"construct": "sequelize.define with tableName and field",
+			"orm_behavior": "sequelize.define('User', { id: { primaryKey: true, field: 'user_pk' } }, { tableName: 'users' }) creates table users with primary key column user_pk; field renames the column and tableName the table.",
+			"support": "unsupported",
+			"implementation": "blocked",
+			"gap_behavior": "absent-provider",
+			"facets": [
+				"tables",
+				"columns",
+				"primary_keys"
+			],
+			"cases": [
+				"normal"
+			],
+			"planned_in": "ORM-sequelize-02"
+		},
+		{
+			"id": "composite-primary-key",
+			"category": "composite-key",
+			"construct": "several attributes with primaryKey: true",
+			"orm_behavior": "Several attributes with primaryKey: true form one composite key in attribute order (tenant_users(user_id,tenant_id)); references on an attribute adds a foreign key.",
+			"support": "unsupported",
+			"implementation": "blocked",
+			"gap_behavior": "absent-provider",
+			"facets": [
+				"primary_keys",
+				"foreign_keys"
+			],
+			"cases": [
+				"composite-key"
+			],
+			"planned_in": "ORM-sequelize-02"
+		},
+		{
+			"id": "implicit-table-name-pluralization",
+			"category": "naming-strategy",
+			"construct": "model without tableName",
+			"orm_behavior": "Without tableName Sequelize pluralises the model name (UserAccount is stored as UserAccounts) and adds createdAt and updatedAt columns; underscored: true switches the generated names to snake_case (SnakeCaseModel is stored as snake_case_models, with foreign key user_account_id).",
+			"support": "unknown",
+			"implementation": "blocked",
+			"gap_behavior": "absent-provider",
+			"facets": [
+				"tables",
+				"columns"
+			],
+			"cases": [
+				"naming"
+			],
+			"planned_in": "ORM-sequelize-02"
+		},
+		{
+			"id": "belongs-to-foreign-key",
+			"category": "relation",
+			"construct": "hasMany and belongsTo with foreignKey",
+			"orm_behavior": "hasMany plus belongsTo with foreignKey 'authorId' on a column renamed to author_id creates one foreign key from posts(author_id) to authors(id).",
+			"support": "unsupported",
+			"implementation": "blocked",
+			"gap_behavior": "absent-provider",
+			"facets": [
+				"columns",
+				"foreign_keys"
+			],
+			"cases": [
+				"relation"
+			],
+			"planned_in": "ORM-sequelize-02"
+		},
+		{
+			"id": "belongs-to-many-implicit-through",
+			"category": "relation",
+			"construct": "belongsToMany with through: 'Name'",
+			"orm_behavior": "belongsToMany with through: 'PostTags' creates a join table that no model defines: PostTags with columns PostId, TagId, createdAt and updatedAt, a composite key on (PostId, TagId) and two foreign keys.",
+			"support": "unsupported",
+			"implementation": "blocked",
+			"gap_behavior": "absent-provider",
+			"facets": [
+				"tables",
+				"columns",
+				"primary_keys",
+				"foreign_keys"
+			],
+			"cases": [
+				"relation-implicit-m2m"
+			],
+			"planned_in": "ORM-sequelize-02"
+		},
+		{
+			"id": "default-scope-tenant",
+			"category": "tenant-scope",
+			"construct": "defaultScope and scopes",
+			"orm_behavior": "defaultScope and scopes add where conditions to queries at run time; the table keeps a plain tenant_id column and the generated SQL carries no trace of the scope.",
+			"support": "unsupported",
+			"implementation": "none",
+			"gap_behavior": "not-modeled",
+			"facets": [],
+			"cases": [
+				"tenant-scope"
+			],
+			"planned_in": null
+		},
+		{
+			"id": "env-dependent-table-name",
+			"category": "unknown-construct",
+			"construct": "tableName computed from process.env",
+			"orm_behavior": "A tableName built from process.env resolves only at run time: the same source yields events with TABLE_PREFIX unset and tenant_a_events with the prefix tenant_a_ set.",
+			"support": "unknown",
+			"implementation": "blocked",
+			"gap_behavior": "absent-provider",
+			"facets": [
+				"tables"
+			],
+			"cases": [
+				"unknown-env-table-name"
+			],
+			"planned_in": "ORM-sequelize-02"
+		},
+		{
+			"id": "schema-version-add-drop-column",
+			"category": "migration-drift",
+			"construct": "attribute replaced between two model versions",
+			"orm_behavior": "Between the two model versions the recorded schemas differ by one dropped column (accounts.full_name) and one added column (accounts.display_name); Sequelize has no offline schema diff, so this change set comes from comparing the two recorded schemas.",
+			"support": "unsupported",
+			"implementation": "blocked",
+			"gap_behavior": "absent-provider",
+			"facets": [
+				"changes"
+			],
+			"cases": [
+				"drift"
+			],
+			"planned_in": "ORM-sequelize-02"
+		},
+		{
+			"id": "migration-files-scan",
+			"category": "migration-drift",
+			"construct": "sequelize-cli migrations under migrations/",
+			"orm_behavior": "sequelize-cli migrations are JavaScript files named <timestamp>-<name>.js under migrations/ that call queryInterface; the repository migration scanner does not read that layout (tool none in the probe).",
+			"support": "unsupported",
+			"implementation": "blocked",
+			"gap_behavior": "not-modeled",
+			"facets": [],
+			"cases": [
+				"drift"
+			],
+			"planned_in": "ORM-sequelize-02"
+		},
+		{
+			"id": "live-database-drift",
+			"category": "migration-drift",
+			"construct": "models compared with a running database",
+			"orm_behavior": "sequelize.sync({ alter: true }) and queryInterface.describeTable compare models with a running PostgreSQL server; none was available to the offline scratch install.",
+			"support": "unsupported",
+			"implementation": "blocked",
+			"gap_behavior": "not-modeled",
+			"facets": [],
+			"cases": [
+				"drift"
+			],
+			"planned_in": "ORM-sequelize-03"
+		}
+	],
+	"cases": [
+		{
+			"id": "normal",
+			"category": "baseline",
+			"kind": "normal",
+			"purpose": "Model with an explicit tableName, an attribute renamed through field and a plain attribute.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/normal/models.mjs",
+						"sha256": "7b9e78b1226fca76ea9bebf55d61ab86cdbabf91abc67a01a620878efed8a7bb"
+					}
+				]
+			},
+			"oracle_steps": [
+				"normal"
+			],
+			"expected": {
+				"normal": {
+					"tables": [
+						"users"
+					],
+					"columns": [
+						"users.email",
+						"users.user_pk"
+					],
+					"primary_keys": [
+						"users(user_pk)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "absent",
+				"invocation": null,
+				"admitted": false,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": null,
+				"changes": null,
+				"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet"
+			},
+			"agreement": null,
+			"outcome": "not-applicable"
+		},
+		{
+			"id": "composite-key",
+			"category": "composite-key",
+			"kind": "normal",
+			"purpose": "A join model whose two attributes both carry primaryKey: true and a references entry each.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/composite-key/models.mjs",
+						"sha256": "e989c31fce93060056cbc34944b4fd48f515c80fb33a85a8528b26a892089d2a"
+					}
+				]
+			},
+			"oracle_steps": [
+				"composite-key"
+			],
+			"expected": {
+				"composite-key": {
+					"tables": [
+						"tenant_users",
+						"tenants",
+						"users"
+					],
+					"columns": [
+						"tenant_users.tenant_id",
+						"tenant_users.user_id",
+						"tenants.tenant_pk",
+						"users.user_pk"
+					],
+					"primary_keys": [
+						"tenant_users(user_id,tenant_id)",
+						"tenants(tenant_pk)",
+						"users(user_pk)"
+					],
+					"foreign_keys": [
+						"tenant_users(tenant_id)->tenants(tenant_pk)",
+						"tenant_users(user_id)->users(user_pk)"
+					],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "absent",
+				"invocation": null,
+				"admitted": false,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": null,
+				"changes": null,
+				"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet"
+			},
+			"agreement": null,
+			"outcome": "not-applicable"
+		},
+		{
+			"id": "naming",
+			"category": "naming-strategy",
+			"kind": "counterexample",
+			"purpose": "Models without tableName: Sequelize pluralises the model name, adds createdAt and updatedAt, and the underscored option changes the generated names.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/naming/models.mjs",
+						"sha256": "cadcfdef0126f46790c976a20e7f5d5bfac72d784baab0230062e226efb0632b"
+					}
+				]
+			},
+			"oracle_steps": [
+				"naming"
+			],
+			"expected": {
+				"naming": {
+					"tables": [
+						"UserAccounts",
+						"snake_case_models"
+					],
+					"columns": [
+						"UserAccounts.createdAt",
+						"UserAccounts.displayName",
+						"UserAccounts.id",
+						"UserAccounts.updatedAt",
+						"snake_case_models.created_at",
+						"snake_case_models.display_name",
+						"snake_case_models.id",
+						"snake_case_models.updated_at",
+						"snake_case_models.user_account_id"
+					],
+					"primary_keys": [
+						"UserAccounts(id)",
+						"snake_case_models(id)"
+					],
+					"foreign_keys": [
+						"snake_case_models(user_account_id)->UserAccounts(id)"
+					],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "absent",
+				"invocation": null,
+				"admitted": false,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": null,
+				"changes": null,
+				"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet"
+			},
+			"agreement": null,
+			"outcome": "not-applicable"
+		},
+		{
+			"id": "relation",
+			"category": "relation",
+			"kind": "normal",
+			"purpose": "hasMany and belongsTo with an explicit foreignKey on a renamed column.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/relation/models.mjs",
+						"sha256": "65719d010eebd6fd095cd60540cd46a729eeac36b5ee3096fd0a60908f714ed1"
+					}
+				]
+			},
+			"oracle_steps": [
+				"relation"
+			],
+			"expected": {
+				"relation": {
+					"tables": [
+						"authors",
+						"posts"
+					],
+					"columns": [
+						"authors.id",
+						"posts.author_id",
+						"posts.id"
+					],
+					"primary_keys": [
+						"authors(id)",
+						"posts(id)"
+					],
+					"foreign_keys": [
+						"posts(author_id)->authors(id)"
+					],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "absent",
+				"invocation": null,
+				"admitted": false,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": null,
+				"changes": null,
+				"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet"
+			},
+			"agreement": null,
+			"outcome": "not-applicable"
+		},
+		{
+			"id": "relation-implicit-m2m",
+			"category": "relation",
+			"kind": "counterexample",
+			"purpose": "belongsToMany with a through name: Sequelize defines the join table itself and no model in the source names it.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/relation-implicit-m2m/models.mjs",
+						"sha256": "60f667ffb1eb7ad2bc39b5557d0022431618eac8558c2c72fdce53acc896ed6e"
+					}
+				]
+			},
+			"oracle_steps": [
+				"relation-implicit-m2m"
+			],
+			"expected": {
+				"relation-implicit-m2m": {
+					"tables": [
+						"PostTags",
+						"posts",
+						"tags"
+					],
+					"columns": [
+						"PostTags.PostId",
+						"PostTags.TagId",
+						"PostTags.createdAt",
+						"PostTags.updatedAt",
+						"posts.id",
+						"tags.id"
+					],
+					"primary_keys": [
+						"PostTags(PostId,TagId)",
+						"posts(id)",
+						"tags(id)"
+					],
+					"foreign_keys": [
+						"PostTags(PostId)->posts(id)",
+						"PostTags(TagId)->tags(id)"
+					],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "absent",
+				"invocation": null,
+				"admitted": false,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": null,
+				"changes": null,
+				"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet"
+			},
+			"agreement": null,
+			"outcome": "not-applicable"
+		},
+		{
+			"id": "tenant-scope",
+			"category": "tenant-scope",
+			"kind": "counterexample",
+			"purpose": "A tenant discriminator attribute with a defaultScope and a named scope that filter on it: the scopes exist only in query behaviour.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/tenant-scope/models.mjs",
+						"sha256": "d24f24ceb99859f1ba83bc8af8c57bdc0ef0d329bb3bd738f94600133af04945"
+					}
+				]
+			},
+			"oracle_steps": [
+				"tenant-scope"
+			],
+			"expected": {
+				"tenant-scope": {
+					"tables": [
+						"documents"
+					],
+					"columns": [
+						"documents.id",
+						"documents.tenant_id"
+					],
+					"primary_keys": [
+						"documents(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "absent",
+				"invocation": null,
+				"admitted": false,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": null,
+				"changes": null,
+				"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet"
+			},
+			"agreement": null,
+			"outcome": "not-applicable"
+		},
+		{
+			"id": "unknown-env-table-name",
+			"category": "unknown-construct",
+			"kind": "counterexample",
+			"purpose": "A tableName built from process.env: the same source yields different tables depending on the environment at run time.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/unknown-env-table-name/models.mjs",
+						"sha256": "68f5493355f1786e028123fe16aa61f085cb69272b11e53af5a2803b40f56550"
+					}
+				]
+			},
+			"oracle_steps": [
+				"unknown-env-table-name-unset",
+				"unknown-env-table-name-prefixed"
+			],
+			"expected": {
+				"unknown-env-table-name-unset": {
+					"tables": [
+						"events"
+					],
+					"columns": [
+						"events.id"
+					],
+					"primary_keys": [
+						"events(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				},
+				"unknown-env-table-name-prefixed": {
+					"tables": [
+						"tenant_a_events"
+					],
+					"columns": [
+						"tenant_a_events.id"
+					],
+					"primary_keys": [
+						"tenant_a_events(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "absent",
+				"invocation": null,
+				"admitted": false,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": null,
+				"changes": null,
+				"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet"
+			},
+			"agreement": null,
+			"outcome": "not-applicable"
+		},
+		{
+			"id": "drift",
+			"category": "migration-drift",
+			"kind": "counterexample",
+			"purpose": "One attribute replaced by another between two versions of a model, which is also what a rename looks like.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/drift-v1/models.mjs",
+						"sha256": "593e8fab916ee642a05a5fb951f7ede4d2aed37ddee16600fbcb8947446b1df8"
+					},
+					{
+						"path": "fixtures/drift-v2/models.mjs",
+						"sha256": "0576bbbd890b7671238393ebc13e4ac0cf76792586c7b740ce2159f94c1a61ff"
+					}
+				]
+			},
+			"oracle_steps": [
+				"drift-v1",
+				"drift-v2"
+			],
+			"expected": {
+				"drift-v1": {
+					"tables": [
+						"accounts"
+					],
+					"columns": [
+						"accounts.full_name",
+						"accounts.id"
+					],
+					"primary_keys": [
+						"accounts(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				},
+				"drift-v2": {
+					"tables": [
+						"accounts"
+					],
+					"columns": [
+						"accounts.display_name",
+						"accounts.id"
+					],
+					"primary_keys": [
+						"accounts(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				}
+			},
+			"expected_changes": [
+				"add-column accounts.display_name",
+				"drop-column accounts.full_name"
+			],
+			"provider": {
+				"mode": "absent",
+				"invocation": null,
+				"admitted": false,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": null,
+				"changes": null,
+				"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet"
+			},
+			"agreement": null,
+			"outcome": "not-applicable"
+		}
+	],
+	"probes": {
+		"migration_plane": {
+			"basis": "hand-authored-fixture",
+			"claim": "sequelize-cli migrations are JavaScript files under migrations/ that call queryInterface. The probe file was written by hand in the shape sequelize-cli generates; it was not produced by the tool. The repository migration scanner reads Flyway and Liquibase layouts only, so it reports no tool for it, while the same scanner detects a Flyway control file, so an empty result is not a scanner that finds nothing.",
+			"layout": [
+				{
+					"from": "fixtures/migration-probe/20260101000000-create-users.js",
+					"to": "migrations/20260101000000-create-users.js"
+				}
+			],
+			"control": {
+				"from": "fixtures/migration-probe/control-V1__init.sql",
+				"to": "db/migration/V1__init.sql"
+			},
+			"observed": {
+				"tool": "none",
+				"files": 0,
+				"tables": 0
+			},
+			"control_observed": {
+				"tool": "flyway",
+				"files": 1,
+				"tables": 1
+			}
+		},
+		"live_database": {
+			"status": "blocked",
+			"reason": "No PostgreSQL server was available to the offline scratch install this record was produced in, so the checks that need one (sequelize.sync({ alter: true }), queryInterface.describeTable, scanners/db/introspect.mjs) were not run.",
+			"requires": "A reachable PostgreSQL service outside the scratch npm install, provisioned separately from this record.",
+			"affected": [
+				"live-database-drift"
+			]
+		}
+	},
+	"oracle": {
+		"module_type": "module",
+		"scope": "A Sequelize instance on the postgres dialect whose query method is stubbed: sync() builds each fixture model through queryInterface.createTable, and the generated CREATE TABLE statements are captured next to the model definitions as JSON. No connection is opened and no migration or diff tool is run. Indexes that sync() creates after the tables are not captured.",
+		"steps": [
+			{
+				"id": "normal",
+				"case": "normal",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/normal/models.mjs"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/normal.out",
+				"exit_code": 0,
+				"output_sha256": "55b7c25488420e3c971a81b38a9e56b60d307236d001ab34836690ac53dbd804",
+				"output_bytes": 577,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "composite-key",
+				"case": "composite-key",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/composite-key/models.mjs"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/composite-key.out",
+				"exit_code": 0,
+				"output_sha256": "6f980d212f6645ee077309710c99a3326ea20ca6d4ffbce1d25185af64fcd40e",
+				"output_bytes": 1470,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "naming",
+				"case": "naming",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/naming/models.mjs"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/naming.out",
+				"exit_code": 0,
+				"output_sha256": "e1d54b96deefd8714b776d8347601f2d45f1d4491422d68a88ced5c56759f333",
+				"output_bytes": 2187,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "relation",
+				"case": "relation",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/relation/models.mjs"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/relation.out",
+				"exit_code": 0,
+				"output_sha256": "885986fdc5f0d209fa61779710fae52bb2d83b91d3d857c3f1eea0303735364a",
+				"output_bytes": 979,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "relation-implicit-m2m",
+				"case": "relation-implicit-m2m",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/relation-implicit-m2m/models.mjs"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/relation-implicit-m2m.out",
+				"exit_code": 0,
+				"output_sha256": "e8cd0a9ab49ffcd7d0d3c9d844227045d39e4d430cfec9c7182e11d95d3276ca",
+				"output_bytes": 1817,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "tenant-scope",
+				"case": "tenant-scope",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/tenant-scope/models.mjs"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/tenant-scope.out",
+				"exit_code": 0,
+				"output_sha256": "06ccb87ef5babe8a09ec8fc7b8282e849b84619a2f3588550707c13541866915",
+				"output_bytes": 580,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "unknown-env-table-name-unset",
+				"case": "unknown-env-table-name",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/unknown-env-table-name/models.mjs"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/unknown-env-table-name-unset.out",
+				"exit_code": 0,
+				"output_sha256": "b8a57265d5b36ed388ef772b82e7e92604db525e89fae9626b45952d8bd540f9",
+				"output_bytes": 391,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "unknown-env-table-name-prefixed",
+				"case": "unknown-env-table-name",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/unknown-env-table-name/models.mjs"
+				],
+				"env": {
+					"TABLE_PREFIX": "tenant_a_"
+				},
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/unknown-env-table-name-prefixed.out",
+				"exit_code": 0,
+				"output_sha256": "1e5273ed0a2f9abd77d8ee2da83ea3df8e136a0d234bedbc3b6e4d8b9ee6cf6b",
+				"output_bytes": 409,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "drift-v1",
+				"case": "drift",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/drift-v1/models.mjs"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/drift-v1.out",
+				"exit_code": 0,
+				"output_sha256": "cafda2a4357bc0e01446d0a2987b1c1729d07d79eedae7cf75c3e9dced508ab4",
+				"output_bytes": 577,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "drift-v2",
+				"case": "drift",
+				"role": "expected-schema",
+				"argv": [
+					"node",
+					"oracle/introspect.mjs",
+					"fixtures/drift-v2/models.mjs"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stdout"
+					}
+				],
+				"result_file": "oracle/results/drift-v2.out",
+				"exit_code": 0,
+				"output_sha256": "522bd9f631fc6c7317cec00d7be5f46c7b55af4722fbdae3931b0a32f93d42c5",
+				"output_bytes": 586,
+				"runs": 2,
+				"deterministic": true
+			}
+		],
+		"environment": {
+			"node": "v24.19.0",
+			"npm": "11.17.0",
+			"platform": "darwin",
+			"arch": "arm64",
+			"installed": {
+				"sequelize": "6.37.8",
+				"pg": "8.23.1",
+				"pg-hstore": "2.3.4"
+			},
+			"recorded_by": "adapters/persistence/js-orm-oracle.mjs sequelize --write"
+		},
+		"blocked": [
+			{
+				"id": "offline-schema-diff",
+				"reason": "Sequelize ships no command that diffs two model versions offline, so the drift case has no tool-produced expected change; the change set is derived by comparing the two recorded schemas.",
+				"affects": [
+					"schema-version-add-drop-column"
+				]
+			},
+			{
+				"id": "live-database",
+				"reason": "Oracle output from a running database (sequelize.sync({ alter: true }), queryInterface.describeTable) was not recorded: no PostgreSQL server was available to the offline scratch install and starting one needs a database service outside it.",
+				"affects": [
+					"live-database-drift"
+				]
+			}
+		]
+	},
+	"evidence_plan": {
+		"ORM-sequelize-02": {
+			"goal": "Provide Sequelize persistence facts once the upstream facts exist, then compare them with the SQL recorded here, construct by construct.",
+			"constructs": [
+				"define-model-table-and-primary-key",
+				"composite-primary-key",
+				"implicit-table-name-pluralization",
+				"belongs-to-foreign-key",
+				"belongs-to-many-implicit-through",
+				"env-dependent-table-name",
+				"schema-version-add-drop-column",
+				"migration-files-scan"
+			],
+			"depends_on": [
+				"ORM-sequelize-01",
+				"T10-02"
+			],
+			"blocked_by": [
+				"CR-T10-003"
+			],
+			"exit_criteria": [
+				"The T04 declaration and call semantic facts that CR-T10-003 waits for are available and a Sequelize provider is admitted in the persistence catalog.",
+				"Each construct planned in this step is compared with the recorded oracle; none is claimed supported without an agreeing comparison, and a construct the provider cannot resolve stays unknown.",
+				"The oracle results are re-recorded for sequelize 6.37.8 (js-orm-oracle.mjs sequelize --check) and are unchanged."
+			],
+			"evidence_level_after": "oracle-compared",
+			"runtime_note": "The step stays offline on a stubbed connection: no database connection and no application run, so runtime-tested is not claimed."
+		},
+		"ORM-sequelize-03": {
+			"goal": "Cross-check the provider against a live PostgreSQL instance and the migration plane, then issue a limited certification for the pinned version and profile only.",
+			"constructs": [
+				"live-database-drift"
+			],
+			"depends_on": [
+				"ORM-sequelize-02"
+			],
+			"blocked_by": [
+				"CR-T10-003",
+				"live-database"
+			],
+			"exit_criteria": [
+				"A PostgreSQL service outside the scratch install is reachable and the commands, exit codes and output hashes of the live run are recorded.",
+				"The certification names the pinned Sequelize version, the profile in this record and its construct list; release lines under pins.not_covered stay outside it.",
+				"The live run can be reproduced from the recorded commands alone."
+			],
+			"evidence_level_after": "oracle-compared",
+			"runtime_note": "A live-database run verifies the schema against a database, not an application; runtime-tested stays unclaimed unless an application is exercised."
+		}
+	},
+	"limits": [
+		"Transitive dependencies of the pinned packages were resolved when the oracle was installed and are not locked; only the direct pins are verified.",
+		"Recorded on the Node, npm and platform named in oracle.environment; the CI matrix (Node 22.x and 24.x on Linux) was not exercised.",
+		"Release lines listed under pins.not_covered exist but were not exercised; no claim is made for them or for any version other than the pins.",
+		"Nothing here was run against a database server or an application runtime; status.runtime_tested stays false.",
+		"The migration scanner (scanners/db/migrations.mjs) reads Flyway and Liquibase layouts only; see probes.migration_plane.",
+		"Only sequelize 6.37.8 with the postgres dialect (pg and pg-hstore installed, no server contacted) was run; other dialects are outside this record.",
+		"The repository has no Sequelize provider (the catalog entry is blocked on CR-T10-003), so no case compares provider output and the evidence level stays oracle-recorded.",
+		"The captured SQL comes from a stubbed query method; indexes that sync() creates after the tables are not captured."
+	]
+}

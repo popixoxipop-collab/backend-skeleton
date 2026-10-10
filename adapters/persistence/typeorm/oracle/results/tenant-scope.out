@@ -1,0 +1,32 @@
+{
+  "entities": [
+    {
+      "name": "Order",
+      "tableName": "orders",
+      "primary": [
+        "id"
+      ],
+      "columns": [
+        {
+          "prop": "id",
+          "db": "id",
+          "type": "Number",
+          "primary": true,
+          "nullable": false
+        },
+        {
+          "prop": "tenantId",
+          "db": "tenantId",
+          "type": "varchar",
+          "primary": false,
+          "nullable": false
+        }
+      ],
+      "foreignKeys": []
+    }
+  ],
+  "ddl": [
+    "CREATE TABLE \"orders\" (\"id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL, \"tenantId\" varchar NOT NULL)",
+    "CREATE INDEX \"IDX_208a358e9fe8abe6e1d8245980\" ON \"orders\" (\"tenantId\") "
+  ]
+}

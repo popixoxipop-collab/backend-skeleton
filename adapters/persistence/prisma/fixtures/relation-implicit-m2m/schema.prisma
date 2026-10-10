@@ -1,0 +1,14 @@
+// fixture-pin: prisma@7.10.0 case: relation-implicit-m2m
+datasource db {
+  provider = "postgresql"
+}
+
+model Post {
+  id   Int   @id
+  tags Tag[]
+}
+
+model Tag {
+  id    Int    @id
+  posts Post[]
+}

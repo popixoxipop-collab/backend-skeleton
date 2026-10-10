@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "accounts" DROP COLUMN "full_name",
+ADD COLUMN     "display_name" TEXT NOT NULL;
+

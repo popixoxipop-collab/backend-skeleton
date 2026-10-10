@@ -1,0 +1,24 @@
+{
+  "entities": [
+    {
+      "name": "Profile",
+      "tableName": "profiles",
+      "primary": [
+        "profile_id"
+      ],
+      "columns": [
+        {
+          "prop": "id",
+          "db": "profile_id",
+          "type": "Number",
+          "primary": true,
+          "nullable": false
+        }
+      ],
+      "foreignKeys": []
+    }
+  ],
+  "ddl": [
+    "CREATE TABLE \"profiles\" (\"profile_id\" integer PRIMARY KEY AUTOINCREMENT NOT NULL)"
+  ]
+}

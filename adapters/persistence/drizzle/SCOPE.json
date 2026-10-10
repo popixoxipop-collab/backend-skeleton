@@ -1,0 +1,1172 @@
+{
+	"contract": "bskel.internal.persistence-orm-scope/0",
+	"target_id": "ORM-drizzle-01",
+	"orm": "drizzle",
+	"catalog": {
+		"id": "drizzle",
+		"state": "blocked-upstream-facts",
+		"ingestion": "persistence-source-facts",
+		"producer": "t04-js-ts",
+		"requires_live_verification": true,
+		"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet",
+		"limitations": []
+	},
+	"status": {
+		"support_completed": false,
+		"runtime_tested": false,
+		"evidence_level": "oracle-recorded",
+		"statement": "Development target, not a completed support claim. The target is blocked on upstream facts (CR-T10-003) and the repository has no Drizzle provider, so nothing is compared. The record holds the fixture schemas and the SQL drizzle-kit 0.31.11 (drizzle-orm 0.45.4) generates offline for them; every construct is unsupported or unknown until a provider exists. Nothing was run against a database or an application runtime."
+	},
+	"pins": {
+		"checked_at": "2026-10-08T15:03:06Z",
+		"packages": [
+			{
+				"name": "drizzle-orm",
+				"version": "0.45.4",
+				"role": "orm",
+				"oracle_install": true,
+				"registry_check": {
+					"command": "npm view drizzle-orm@0.45.4 version",
+					"exit_code": 0,
+					"output": "0.45.4",
+					"output_sha256": "36750cecd0c02b473fdbaa651819979e083938f38e0239ab9a0ed4e2313ed7ac"
+				}
+			},
+			{
+				"name": "drizzle-kit",
+				"version": "0.31.11",
+				"role": "orm-cli",
+				"oracle_install": true,
+				"registry_check": {
+					"command": "npm view drizzle-kit@0.31.11 version",
+					"exit_code": 0,
+					"output": "0.31.11",
+					"output_sha256": "94c9d15091c3396a4117fcc201e1e5ca7a81b4889b9988395815d0c55cec8c55"
+				}
+			}
+		],
+		"not_covered": [
+			{
+				"name": "drizzle-orm",
+				"version": "1.0.0-beta.22",
+				"dist_tag": "beta",
+				"reason": "the 1.0 line is published only as beta; schema API and drizzle-kit snapshot format differ and were not exercised",
+				"registry_check": {
+					"command": "npm view drizzle-orm@beta version",
+					"exit_code": 0,
+					"output": "1.0.0-beta.22",
+					"output_sha256": "a426d9f0ed601730cc7f4e4dc23cc2098e1eb1961b5246a3078ed41cdb58e32b"
+				}
+			},
+			{
+				"name": "drizzle-kit",
+				"version": "1.0.0-beta.22",
+				"dist_tag": "beta",
+				"reason": "the 1.0 line is published only as beta; generate and migration output were not exercised",
+				"registry_check": {
+					"command": "npm view drizzle-kit@beta version",
+					"exit_code": 0,
+					"output": "1.0.0-beta.22",
+					"output_sha256": "a426d9f0ed601730cc7f4e4dc23cc2098e1eb1961b5246a3078ed41cdb58e32b"
+				}
+			}
+		]
+	},
+	"profile": {
+		"id": "drizzle-orm-0.45.4-kit-0.31.11-postgresql-offline",
+		"versions": [
+			"drizzle-kit@0.31.11",
+			"drizzle-orm@0.45.4"
+		],
+		"platform": "PostgreSQL dialect, offline drizzle-kit generate; recorded on Node v24.19.0 (npm 11.17.0) darwin-arm64; CI Node 22.x and 24.x on Linux not exercised",
+		"capabilities": []
+	},
+	"constructs": [
+		{
+			"id": "pg-table-and-primary-key",
+			"category": "baseline",
+			"construct": "pgTable with a named primary key column",
+			"orm_behavior": "pgTable('users', { id: text('user_pk').primaryKey() }) creates table users with primary key column user_pk; the column name is the string given to the column builder.",
+			"support": "unsupported",
+			"implementation": "blocked",
+			"gap_behavior": "absent-provider",
+			"facets": [
+				"tables",
+				"columns",
+				"primary_keys"
+			],
+			"cases": [
+				"normal"
+			],
+			"planned_in": "ORM-drizzle-02"
+		},
+		{
+			"id": "composite-primary-key",
+			"category": "composite-key",
+			"construct": "primaryKey({ columns }) and references()",
+			"orm_behavior": "primaryKey({ columns: [t.userId, t.tenantId] }) in the table callback declares the composite key in the listed order (tenant_users(user_id,tenant_id)) and references() adds one foreign key per column.",
+			"support": "unsupported",
+			"implementation": "blocked",
+			"gap_behavior": "absent-provider",
+			"facets": [
+				"primary_keys",
+				"foreign_keys"
+			],
+			"cases": [
+				"composite-key"
+			],
+			"planned_in": "ORM-drizzle-02"
+		},
+		{
+			"id": "casing-option-name-derivation",
+			"category": "naming-strategy",
+			"construct": "column builders without a name",
+			"orm_behavior": "Columns declared without a name take it from the casing option of drizzle-kit: with snake_case the property displayName is stored as display_name, with the default it stays displayName. The option is a drizzle-kit setting (the oracle passes --casing), not part of the schema file.",
+			"support": "unknown",
+			"implementation": "blocked",
+			"gap_behavior": "absent-provider",
+			"facets": [
+				"columns"
+			],
+			"cases": [
+				"naming-casing"
+			],
+			"planned_in": "ORM-drizzle-02"
+		},
+		{
+			"id": "relations-api-without-references",
+			"category": "relation",
+			"construct": "relations() with fields and references",
+			"orm_behavior": "relations() describes how tables relate for the query builder only; the generated SQL has no foreign key for it. Only references() on a column produces a foreign key.",
+			"support": "unsupported",
+			"implementation": "blocked",
+			"gap_behavior": "absent-provider",
+			"facets": [
+				"foreign_keys"
+			],
+			"cases": [
+				"relation-relations-api"
+			],
+			"planned_in": "ORM-drizzle-02"
+		},
+		{
+			"id": "tenant-row-level-security",
+			"category": "tenant-scope",
+			"construct": "pgPolicy and enableRLS()",
+			"orm_behavior": "pgPolicy and enableRLS() produce ALTER TABLE ... ENABLE ROW LEVEL SECURITY and CREATE POLICY statements; they are not tables, columns or keys, so no persistence fact describes them.",
+			"support": "unsupported",
+			"implementation": "none",
+			"gap_behavior": "not-modeled",
+			"facets": [],
+			"cases": [
+				"tenant-scope"
+			],
+			"planned_in": null
+		},
+		{
+			"id": "custom-table-creator",
+			"category": "unknown-construct",
+			"construct": "pgTableCreator with a name callback",
+			"orm_behavior": "pgTableCreator takes a callback that maps every table name (posts becomes app_posts); the physical name exists only after the callback has run.",
+			"support": "unknown",
+			"implementation": "blocked",
+			"gap_behavior": "absent-provider",
+			"facets": [
+				"tables"
+			],
+			"cases": [
+				"unknown-table-creator"
+			],
+			"planned_in": "ORM-drizzle-02"
+		},
+		{
+			"id": "pg-schema-namespace",
+			"category": "schema-qualification",
+			"construct": "pgSchema(name).table(...)",
+			"orm_behavior": "pgSchema('auth').table('accounts', ...) places the table in the auth schema (auth.accounts) and emits CREATE SCHEMA for it.",
+			"support": "unsupported",
+			"implementation": "blocked",
+			"gap_behavior": "absent-provider",
+			"facets": [
+				"tables",
+				"columns",
+				"primary_keys"
+			],
+			"cases": [
+				"pg-schema"
+			],
+			"planned_in": "ORM-drizzle-02"
+		},
+		{
+			"id": "schema-version-add-column",
+			"category": "migration-drift",
+			"construct": "column added between two schema versions",
+			"orm_behavior": "drizzle-kit generate between two versions that differ by one added column writes one ALTER TABLE ... ADD COLUMN statement (profiles.nickname).",
+			"support": "unsupported",
+			"implementation": "blocked",
+			"gap_behavior": "absent-provider",
+			"facets": [
+				"changes"
+			],
+			"cases": [
+				"drift"
+			],
+			"planned_in": "ORM-drizzle-02"
+		},
+		{
+			"id": "rename-needs-interactive-prompt",
+			"category": "migration-drift",
+			"construct": "column replaced by a column of another name",
+			"orm_behavior": "When one column disappears and another appears in the same table, drizzle-kit generate asks whether it is a rename; without an interactive terminal it prints an error and writes no migration, so this record holds no expected change for the replaced-column case.",
+			"support": "unknown",
+			"implementation": "blocked",
+			"gap_behavior": "absent-provider",
+			"facets": [],
+			"cases": [
+				"drift"
+			],
+			"planned_in": "ORM-drizzle-03"
+		},
+		{
+			"id": "migration-files-scan",
+			"category": "migration-drift",
+			"construct": "numbered .sql files in the drizzle-kit out directory",
+			"orm_behavior": "drizzle-kit writes numbered .sql migration files into its out directory; the repository migration scanner does not read that layout (tool none in the probe).",
+			"support": "unsupported",
+			"implementation": "blocked",
+			"gap_behavior": "not-modeled",
+			"facets": [],
+			"cases": [
+				"drift"
+			],
+			"planned_in": "ORM-drizzle-02"
+		},
+		{
+			"id": "live-database-drift",
+			"category": "migration-drift",
+			"construct": "schema compared with a running database",
+			"orm_behavior": "drizzle-kit push and pull compare a schema with a running PostgreSQL server; none was available to the offline scratch install.",
+			"support": "unsupported",
+			"implementation": "blocked",
+			"gap_behavior": "not-modeled",
+			"facets": [],
+			"cases": [
+				"drift"
+			],
+			"planned_in": "ORM-drizzle-03"
+		}
+	],
+	"cases": [
+		{
+			"id": "normal",
+			"category": "baseline",
+			"kind": "normal",
+			"purpose": "pgTable with a text primary key column named in the column builder and one plain column.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/normal/schema.ts",
+						"sha256": "cd35df9e63fb5dd965eadb1a6366289c8c14599740e3a75a3a9302882768f06d"
+					}
+				]
+			},
+			"oracle_steps": [
+				"normal"
+			],
+			"expected": {
+				"normal": {
+					"tables": [
+						"users"
+					],
+					"columns": [
+						"users.email",
+						"users.user_pk"
+					],
+					"primary_keys": [
+						"users(user_pk)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "absent",
+				"invocation": null,
+				"admitted": false,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": null,
+				"changes": null,
+				"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet"
+			},
+			"agreement": null,
+			"outcome": "not-applicable"
+		},
+		{
+			"id": "composite-key",
+			"category": "composite-key",
+			"kind": "normal",
+			"purpose": "A join table with a primaryKey({ columns }) callback and a references() foreign key on each key column.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/composite-key/schema.ts",
+						"sha256": "abbd4a056be9d2246c99ba672a4a21c2e94d74cd7c091097439a117ed4826cf8"
+					}
+				]
+			},
+			"oracle_steps": [
+				"composite-key"
+			],
+			"expected": {
+				"composite-key": {
+					"tables": [
+						"tenant_users",
+						"tenants",
+						"users"
+					],
+					"columns": [
+						"tenant_users.tenant_id",
+						"tenant_users.user_id",
+						"tenants.tenant_pk",
+						"users.user_pk"
+					],
+					"primary_keys": [
+						"tenant_users(user_id,tenant_id)",
+						"tenants(tenant_pk)",
+						"users(user_pk)"
+					],
+					"foreign_keys": [
+						"tenant_users(tenant_id)->tenants(tenant_pk)",
+						"tenant_users(user_id)->users(user_pk)"
+					],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "absent",
+				"invocation": null,
+				"admitted": false,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": null,
+				"changes": null,
+				"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet"
+			},
+			"agreement": null,
+			"outcome": "not-applicable"
+		},
+		{
+			"id": "naming-casing",
+			"category": "naming-strategy",
+			"kind": "counterexample",
+			"purpose": "Columns declared without a name (text()): the physical name depends on the casing option given to drizzle-kit, which the schema file does not contain.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/naming-casing/schema.ts",
+						"sha256": "25ea70763747316e133b13945c60c2c8cdf4a9b05511f4d043bdcb78388970fd"
+					}
+				]
+			},
+			"oracle_steps": [
+				"naming-casing-snake",
+				"naming-casing-default"
+			],
+			"expected": {
+				"naming-casing-snake": {
+					"tables": [
+						"user_accounts"
+					],
+					"columns": [
+						"user_accounts.display_name",
+						"user_accounts.user_id"
+					],
+					"primary_keys": [
+						"user_accounts(user_id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				},
+				"naming-casing-default": {
+					"tables": [
+						"user_accounts"
+					],
+					"columns": [
+						"user_accounts.displayName",
+						"user_accounts.userId"
+					],
+					"primary_keys": [
+						"user_accounts(userId)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "absent",
+				"invocation": null,
+				"admitted": false,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": null,
+				"changes": null,
+				"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet"
+			},
+			"agreement": null,
+			"outcome": "not-applicable"
+		},
+		{
+			"id": "relation-relations-api",
+			"category": "relation",
+			"kind": "counterexample",
+			"purpose": "A relationship declared only through relations(): it reads like a foreign key but the generated SQL carries none.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/relation-relations-api/schema.ts",
+						"sha256": "cf5f94dc67abaccdfc00d6c4f1c4c8fcb45a4b80e6fb475a4b7b26961ae0895e"
+					}
+				]
+			},
+			"oracle_steps": [
+				"relation-relations-api"
+			],
+			"expected": {
+				"relation-relations-api": {
+					"tables": [
+						"authors",
+						"books"
+					],
+					"columns": [
+						"authors.id",
+						"books.author_id",
+						"books.id"
+					],
+					"primary_keys": [
+						"authors(id)",
+						"books(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "absent",
+				"invocation": null,
+				"admitted": false,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": null,
+				"changes": null,
+				"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet"
+			},
+			"agreement": null,
+			"outcome": "not-applicable"
+		},
+		{
+			"id": "tenant-scope",
+			"category": "tenant-scope",
+			"kind": "counterexample",
+			"purpose": "A tenant discriminator column guarded by a row-level-security policy: the policy and enableRLS() appear in the SQL but are neither tables, columns nor keys.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/tenant-scope/schema.ts",
+						"sha256": "3d1b24e3bd69d1194a4b62f170966b142d4ab53e9c4335006b58bdde0a107fc7"
+					}
+				]
+			},
+			"oracle_steps": [
+				"tenant-scope"
+			],
+			"expected": {
+				"tenant-scope": {
+					"tables": [
+						"documents"
+					],
+					"columns": [
+						"documents.id",
+						"documents.tenant_id"
+					],
+					"primary_keys": [
+						"documents(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": [
+						"alter-table-enable-row-level-security",
+						"create-policy"
+					]
+				}
+			},
+			"provider": {
+				"mode": "absent",
+				"invocation": null,
+				"admitted": false,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": null,
+				"changes": null,
+				"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet"
+			},
+			"agreement": null,
+			"outcome": "not-applicable"
+		},
+		{
+			"id": "unknown-table-creator",
+			"category": "unknown-construct",
+			"kind": "counterexample",
+			"purpose": "pgTableCreator with a name callback that prefixes every table: the physical name (app_posts) exists only after the callback has run.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/unknown-table-creator/schema.ts",
+						"sha256": "27099dc22e2651960f7f4d7087e64bd01695d1f5523cf36fed45620b88236ccc"
+					}
+				]
+			},
+			"oracle_steps": [
+				"unknown-table-creator"
+			],
+			"expected": {
+				"unknown-table-creator": {
+					"tables": [
+						"app_posts"
+					],
+					"columns": [
+						"app_posts.id"
+					],
+					"primary_keys": [
+						"app_posts(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": []
+				}
+			},
+			"provider": {
+				"mode": "absent",
+				"invocation": null,
+				"admitted": false,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": null,
+				"changes": null,
+				"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet"
+			},
+			"agreement": null,
+			"outcome": "not-applicable"
+		},
+		{
+			"id": "pg-schema",
+			"category": "schema-qualification",
+			"kind": "normal",
+			"purpose": "A table declared through pgSchema(\"auth\"): the table is schema-qualified and the schema needs its own CREATE SCHEMA.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/pg-schema/schema.ts",
+						"sha256": "0312afa5d9e7d1da65396ffd2cd3e425259db81acd151a02dc2cd17747079e69"
+					}
+				]
+			},
+			"oracle_steps": [
+				"pg-schema"
+			],
+			"expected": {
+				"pg-schema": {
+					"tables": [
+						"auth.accounts"
+					],
+					"columns": [
+						"auth.accounts.id"
+					],
+					"primary_keys": [
+						"auth.accounts(id)"
+					],
+					"foreign_keys": [],
+					"unmodeled": [
+						"create-schema"
+					]
+				}
+			},
+			"provider": {
+				"mode": "absent",
+				"invocation": null,
+				"admitted": false,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": null,
+				"changes": null,
+				"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet"
+			},
+			"agreement": null,
+			"outcome": "not-applicable"
+		},
+		{
+			"id": "drift",
+			"category": "migration-drift",
+			"kind": "counterexample",
+			"purpose": "Three versions of one table: adding a column is a deterministic diff, while replacing a column with one of another name makes drizzle-kit ask whether it is a rename.",
+			"fixture": {
+				"files": [
+					{
+						"path": "fixtures/drift/v1.ts",
+						"sha256": "aca495a32b893f208a9d8b66a63f077a0b603814a9f3cf76299efb409e982172"
+					},
+					{
+						"path": "fixtures/drift/v2.ts",
+						"sha256": "4f9ad31bbfbb450182b08048f51e271d19292c086d26c66b7711eb9c4a00fd6d"
+					},
+					{
+						"path": "fixtures/drift/v3-add.ts",
+						"sha256": "67d26469ad6b90a918efabd3323601fa89aee7983493d1013ea355fb12a1ec94"
+					}
+				]
+			},
+			"oracle_steps": [
+				"drift-add",
+				"drift-rename"
+			],
+			"expected": {
+				"drift-add": {
+					"changes": [
+						"add-column profiles.nickname"
+					]
+				},
+				"drift-rename": {
+					"blocked": true,
+					"reason": "Error: Interactive prompts require a TTY terminal",
+					"new_migration_files": 0
+				}
+			},
+			"expected_changes": [
+				"add-column profiles.nickname"
+			],
+			"provider": {
+				"mode": "absent",
+				"invocation": null,
+				"admitted": false,
+				"facts": null,
+				"unknowns": [],
+				"inferred_tables": [],
+				"diagnostics": [],
+				"detected": null,
+				"changes": null,
+				"blocker": "CR-T10-003: T04 declaration/call semantic facts are not available yet"
+			},
+			"agreement": null,
+			"outcome": "not-applicable"
+		}
+	],
+	"probes": {
+		"migration_plane": {
+			"basis": "oracle-output",
+			"claim": "drizzle-kit writes numbered .sql files into its out directory, a layout the repository migration scanner does not read: it reports no tool. The file content is the recorded oracle output of the normal case, and the same SQL in a Flyway layout is detected, so an empty result is not a scanner that finds nothing.",
+			"layout": [
+				{
+					"from": "oracle/results/normal.out",
+					"to": "drizzle/0000_init.sql"
+				}
+			],
+			"control": {
+				"from": "oracle/results/normal.out",
+				"to": "db/migration/V1__init.sql"
+			},
+			"observed": {
+				"tool": "none",
+				"files": 0,
+				"tables": 0
+			},
+			"control_observed": {
+				"tool": "flyway",
+				"files": 1,
+				"tables": 1
+			}
+		},
+		"live_database": {
+			"status": "blocked",
+			"reason": "No PostgreSQL server was available to the offline scratch install this record was produced in, so the checks that need one (drizzle-kit push, drizzle-kit pull, scanners/db/introspect.mjs) were not run.",
+			"requires": "A reachable PostgreSQL service outside the scratch npm install, provisioned separately from this record.",
+			"affected": [
+				"live-database-drift"
+			]
+		}
+	},
+	"oracle": {
+		"module_type": "commonjs",
+		"scope": "drizzle-kit generate run offline with the postgresql dialect in a scratch npm install of the pinned drizzle-orm and drizzle-kit packages: it writes the SQL migration Drizzle would produce for each fixture schema, and for the drift case the SQL that separates two schema versions. It does not cover drizzle-kit push, pull or migrate, the relational query builder, or any database.",
+		"steps": [
+			{
+				"id": "normal",
+				"case": "normal",
+				"role": "expected-schema",
+				"clean": [
+					"out/normal"
+				],
+				"argv": [
+					"node_modules/.bin/drizzle-kit",
+					"generate",
+					"--dialect",
+					"postgresql",
+					"--schema",
+					"./fixtures/normal/schema.ts",
+					"--out",
+					"./out/normal",
+					"--name",
+					"init"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "file",
+						"path": "out/normal/0000_init.sql"
+					}
+				],
+				"result_file": "oracle/results/normal.out",
+				"exit_code": 0,
+				"output_sha256": "7309c4abb55ddd9e40514a842fe8ae1d0c1b16a5c69d5fc455ed5ad870c74038",
+				"output_bytes": 87,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "composite-key",
+				"case": "composite-key",
+				"role": "expected-schema",
+				"clean": [
+					"out/composite-key"
+				],
+				"argv": [
+					"node_modules/.bin/drizzle-kit",
+					"generate",
+					"--dialect",
+					"postgresql",
+					"--schema",
+					"./fixtures/composite-key/schema.ts",
+					"--out",
+					"./out/composite-key",
+					"--name",
+					"init"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "file",
+						"path": "out/composite-key/0000_init.sql"
+					}
+				],
+				"result_file": "oracle/results/composite-key.out",
+				"exit_code": 0,
+				"output_sha256": "c03695fc4882360854f36b0299ee51f86366fba762582a0c4cb4f3d9bac5cc61",
+				"output_bytes": 782,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "naming-casing-snake",
+				"case": "naming-casing",
+				"role": "expected-schema",
+				"clean": [
+					"out/naming-casing-snake"
+				],
+				"argv": [
+					"node_modules/.bin/drizzle-kit",
+					"generate",
+					"--dialect",
+					"postgresql",
+					"--schema",
+					"./fixtures/naming-casing/schema.ts",
+					"--out",
+					"./out/naming-casing-snake",
+					"--name",
+					"init",
+					"--casing",
+					"snake_case"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "file",
+						"path": "out/naming-casing-snake/0000_init.sql"
+					}
+				],
+				"result_file": "oracle/results/naming-casing-snake.out",
+				"exit_code": 0,
+				"output_sha256": "85fcd24f68fcd92d9512d0757852b9c276a555ca9a587d4d9aa459288a6d431f",
+				"output_bytes": 102,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "naming-casing-default",
+				"case": "naming-casing",
+				"role": "expected-schema",
+				"clean": [
+					"out/naming-casing-default"
+				],
+				"argv": [
+					"node_modules/.bin/drizzle-kit",
+					"generate",
+					"--dialect",
+					"postgresql",
+					"--schema",
+					"./fixtures/naming-casing/schema.ts",
+					"--out",
+					"./out/naming-casing-default",
+					"--name",
+					"init"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "file",
+						"path": "out/naming-casing-default/0000_init.sql"
+					}
+				],
+				"result_file": "oracle/results/naming-casing-default.out",
+				"exit_code": 0,
+				"output_sha256": "4bd821de0296ad67297afc09671a16e41d827c40171599ebc548eef778f453cb",
+				"output_bytes": 100,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "relation-relations-api",
+				"case": "relation-relations-api",
+				"role": "expected-schema",
+				"clean": [
+					"out/relation-relations-api"
+				],
+				"argv": [
+					"node_modules/.bin/drizzle-kit",
+					"generate",
+					"--dialect",
+					"postgresql",
+					"--schema",
+					"./fixtures/relation-relations-api/schema.ts",
+					"--out",
+					"./out/relation-relations-api",
+					"--name",
+					"init"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "file",
+						"path": "out/relation-relations-api/0000_init.sql"
+					}
+				],
+				"result_file": "oracle/results/relation-relations-api.out",
+				"exit_code": 0,
+				"output_sha256": "d070c16a65d3b6f2d52829059dd65bd0eee67e7da6eef0637c27fb6eb0b5d6b1",
+				"output_bytes": 171,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "tenant-scope",
+				"case": "tenant-scope",
+				"role": "expected-schema",
+				"clean": [
+					"out/tenant-scope"
+				],
+				"argv": [
+					"node_modules/.bin/drizzle-kit",
+					"generate",
+					"--dialect",
+					"postgresql",
+					"--schema",
+					"./fixtures/tenant-scope/schema.ts",
+					"--out",
+					"./out/tenant-scope",
+					"--name",
+					"init"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "file",
+						"path": "out/tenant-scope/0000_init.sql"
+					}
+				],
+				"result_file": "oracle/results/tenant-scope.out",
+				"exit_code": 0,
+				"output_sha256": "840d8b047dbc173b3bf171a97289ae39d1c730069769cec42b95056ce9fbfe52",
+				"output_bytes": 337,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "unknown-table-creator",
+				"case": "unknown-table-creator",
+				"role": "expected-schema",
+				"clean": [
+					"out/unknown-table-creator"
+				],
+				"argv": [
+					"node_modules/.bin/drizzle-kit",
+					"generate",
+					"--dialect",
+					"postgresql",
+					"--schema",
+					"./fixtures/unknown-table-creator/schema.ts",
+					"--out",
+					"./out/unknown-table-creator",
+					"--name",
+					"init"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "file",
+						"path": "out/unknown-table-creator/0000_init.sql"
+					}
+				],
+				"result_file": "oracle/results/unknown-table-creator.out",
+				"exit_code": 0,
+				"output_sha256": "3443f82f24e2068733d0f0fcc03ed9c3bd19089acef0b78548a63f9fe9384eb8",
+				"output_bytes": 62,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "pg-schema",
+				"case": "pg-schema",
+				"role": "expected-schema",
+				"clean": [
+					"out/pg-schema"
+				],
+				"argv": [
+					"node_modules/.bin/drizzle-kit",
+					"generate",
+					"--dialect",
+					"postgresql",
+					"--schema",
+					"./fixtures/pg-schema/schema.ts",
+					"--out",
+					"./out/pg-schema",
+					"--name",
+					"init"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "file",
+						"path": "out/pg-schema/0000_init.sql"
+					}
+				],
+				"result_file": "oracle/results/pg-schema.out",
+				"exit_code": 0,
+				"output_sha256": "a928721ecd8117567cd54df4c9aaf9728437191cdc4b4f045ecb02e933606e52",
+				"output_bytes": 115,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "drift-add",
+				"case": "drift",
+				"role": "migration-diff",
+				"pre": [
+					{
+						"argv": [
+							"node_modules/.bin/drizzle-kit",
+							"generate",
+							"--dialect",
+							"postgresql",
+							"--schema",
+							"./fixtures/drift/v1.ts",
+							"--out",
+							"./out/drift-add",
+							"--name",
+							"init"
+						],
+						"expect_exit": 0
+					}
+				],
+				"clean": [
+					"out/drift-add"
+				],
+				"argv": [
+					"node_modules/.bin/drizzle-kit",
+					"generate",
+					"--dialect",
+					"postgresql",
+					"--schema",
+					"./fixtures/drift/v3-add.ts",
+					"--out",
+					"./out/drift-add",
+					"--name",
+					"add"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "file",
+						"path": "out/drift-add/0001_add.sql"
+					}
+				],
+				"result_file": "oracle/results/drift-add.out",
+				"exit_code": 0,
+				"output_sha256": "46e71b629dfc1af5fde575d23400390ddfb54d1c4df0d3aacf1585e4dabb8bd0",
+				"output_bytes": 50,
+				"runs": 2,
+				"deterministic": true
+			},
+			{
+				"id": "drift-rename",
+				"case": "drift",
+				"role": "blocked-probe",
+				"pre": [
+					{
+						"argv": [
+							"node_modules/.bin/drizzle-kit",
+							"generate",
+							"--dialect",
+							"postgresql",
+							"--schema",
+							"./fixtures/drift/v1.ts",
+							"--out",
+							"./out/drift-rename",
+							"--name",
+							"init"
+						],
+						"expect_exit": 0
+					}
+				],
+				"clean": [
+					"out/drift-rename"
+				],
+				"argv": [
+					"node_modules/.bin/drizzle-kit",
+					"generate",
+					"--dialect",
+					"postgresql",
+					"--schema",
+					"./fixtures/drift/v2.ts",
+					"--out",
+					"./out/drift-rename",
+					"--name",
+					"next"
+				],
+				"expect_exit": 0,
+				"capture": [
+					{
+						"kind": "stderr",
+						"first_line": true
+					},
+					{
+						"kind": "listing",
+						"path": "out/drift-rename"
+					}
+				],
+				"result_file": "oracle/results/drift-rename.out",
+				"exit_code": 0,
+				"output_sha256": "048e9b03df63ab19509be0ba24ad830decfb7c2ef685d85b61fc2813ee375270",
+				"output_bytes": 241,
+				"runs": 2,
+				"deterministic": true
+			}
+		],
+		"environment": {
+			"node": "v24.19.0",
+			"npm": "11.17.0",
+			"platform": "darwin",
+			"arch": "arm64",
+			"installed": {
+				"drizzle-orm": "0.45.4",
+				"drizzle-kit": "0.31.11"
+			},
+			"recorded_by": "adapters/persistence/js-orm-oracle.mjs drizzle --write"
+		},
+		"blocked": [
+			{
+				"id": "drift-rename",
+				"reason": "drizzle-kit generate asks whether a replaced column is a rename and requires an interactive terminal for the answer; run without one it prints \"Interactive prompts require a TTY terminal\", exits 0 and writes no migration, so no expected change exists for that case.",
+				"affects": [
+					"rename-needs-interactive-prompt"
+				]
+			},
+			{
+				"id": "live-database",
+				"reason": "Oracle output from a running database (drizzle-kit push, drizzle-kit pull) was not recorded: no PostgreSQL server was available to the offline scratch install and starting one needs a database service outside it.",
+				"affects": [
+					"live-database-drift"
+				]
+			}
+		]
+	},
+	"evidence_plan": {
+		"ORM-drizzle-02": {
+			"goal": "Provide Drizzle persistence facts once the upstream facts exist, then compare them with the oracle results recorded here, construct by construct.",
+			"constructs": [
+				"pg-table-and-primary-key",
+				"composite-primary-key",
+				"casing-option-name-derivation",
+				"relations-api-without-references",
+				"custom-table-creator",
+				"pg-schema-namespace",
+				"schema-version-add-column",
+				"migration-files-scan"
+			],
+			"depends_on": [
+				"ORM-drizzle-01",
+				"T10-02"
+			],
+			"blocked_by": [
+				"CR-T10-003"
+			],
+			"exit_criteria": [
+				"The T04 declaration and call semantic facts that CR-T10-003 waits for are available and a Drizzle provider is admitted in the persistence catalog.",
+				"Each construct planned in this step is compared with the recorded oracle; none is claimed supported without an agreeing comparison, and a construct the provider cannot resolve stays unknown.",
+				"The oracle results are re-recorded for drizzle-orm 0.45.4 and drizzle-kit 0.31.11 (js-orm-oracle.mjs drizzle --check) and are unchanged."
+			],
+			"evidence_level_after": "oracle-compared",
+			"runtime_note": "The step stays offline: no database connection and no application run, so runtime-tested is not claimed."
+		},
+		"ORM-drizzle-03": {
+			"goal": "Cross-check the provider against a live PostgreSQL instance, record the replaced-column case from a run with an interactive terminal, then issue a limited certification for the pinned versions and profile only.",
+			"constructs": [
+				"rename-needs-interactive-prompt",
+				"live-database-drift"
+			],
+			"depends_on": [
+				"ORM-drizzle-02"
+			],
+			"blocked_by": [
+				"CR-T10-003",
+				"live-database"
+			],
+			"exit_criteria": [
+				"A PostgreSQL service outside the scratch install is reachable and the commands, exit codes and output hashes of the live run are recorded.",
+				"The replaced-column case is recorded from a drizzle-kit run that has an interactive terminal, with the answer given and the resulting SQL.",
+				"The certification names the pinned Drizzle versions, the profile in this record and its construct list; release lines under pins.not_covered stay outside it."
+			],
+			"evidence_level_after": "oracle-compared",
+			"runtime_note": "A live-database run verifies the schema against a database, not an application; runtime-tested stays unclaimed unless an application is exercised."
+		}
+	},
+	"limits": [
+		"Transitive dependencies of the pinned packages were resolved when the oracle was installed and are not locked; only the direct pins are verified.",
+		"Recorded on the Node, npm and platform named in oracle.environment; the CI matrix (Node 22.x and 24.x on Linux) was not exercised.",
+		"Release lines listed under pins.not_covered exist but were not exercised; no claim is made for them or for any version other than the pins.",
+		"Nothing here was run against a database server or an application runtime; status.runtime_tested stays false.",
+		"The migration scanner (scanners/db/migrations.mjs) reads Flyway and Liquibase layouts only; see probes.migration_plane.",
+		"Only drizzle-orm 0.45.4 with drizzle-kit 0.31.11 and the postgresql dialect were run; the mysql and sqlite dialects are outside this record.",
+		"The repository has no Drizzle provider (the catalog entry is blocked on CR-T10-003), so no case compares provider output and the evidence level stays oracle-recorded.",
+		"drizzle-kit generate ran without a terminal; steps that need prompts are recorded as blocked in oracle.blocked."
+	]
+}

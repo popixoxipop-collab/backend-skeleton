@@ -1,0 +1,28 @@
+{
+  "models": [
+    {
+      "name": "User",
+      "table": "users",
+      "primaryKeyAttributes": [
+        "id"
+      ],
+      "columns": [
+        {
+          "attr": "id",
+          "field": "user_pk",
+          "primaryKey": true,
+          "allowNull": true
+        },
+        {
+          "attr": "email",
+          "field": "email",
+          "primaryKey": false,
+          "allowNull": false
+        }
+      ]
+    }
+  ],
+  "sql": [
+    "CREATE TABLE IF NOT EXISTS \"users\" (\"user_pk\" VARCHAR(255) , \"email\" VARCHAR(255) NOT NULL, PRIMARY KEY (\"user_pk\"));"
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "models": [
+    {
+      "name": "Tenant",
+      "table": "tenants",
+      "primaryKeyAttributes": [
+        "id"
+      ],
+      "columns": [
+        {
+          "attr": "id",
+          "field": "tenant_pk",
+          "primaryKey": true,
+          "allowNull": true
+        }
+      ]
+    },
+    {
+      "name": "User",
+      "table": "users",
+      "primaryKeyAttributes": [
+        "id"
+      ],
+      "columns": [
+        {
+          "attr": "id",
+          "field": "user_pk",
+          "primaryKey": true,
+          "allowNull": true
+        }
+      ]
+    },
+    {
+      "name": "TenantUser",
+      "table": "tenant_users",
+      "primaryKeyAttributes": [
+        "userId",
+        "tenantId"
+      ],
+      "columns": [
+        {
+          "attr": "userId",
+          "field": "user_id",
+          "primaryKey": true,
+          "allowNull": true
+        },
+        {
+          "attr": "tenantId",
+          "field": "tenant_id",
+          "primaryKey": true,
+          "allowNull": true
+        }
+      ]
+    }
+  ],
+  "sql": [
+    "CREATE TABLE IF NOT EXISTS \"tenants\" (\"tenant_pk\" VARCHAR(255) , PRIMARY KEY (\"tenant_pk\"));",
+    "CREATE TABLE IF NOT EXISTS \"users\" (\"user_pk\" VARCHAR(255) , PRIMARY KEY (\"user_pk\"));",
+    "CREATE TABLE IF NOT EXISTS \"tenant_users\" (\"user_id\" VARCHAR(255)  REFERENCES \"users\" (\"user_pk\"), \"tenant_id\" VARCHAR(255)  REFERENCES \"tenants\" (\"tenant_pk\"), PRIMARY KEY (\"user_id\",\"tenant_id\"));"
+  ]
+}
