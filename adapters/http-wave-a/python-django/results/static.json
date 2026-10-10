@@ -1,0 +1,215 @@
+{
+ "fixtures": {
+  "counterexamples/deployment-prefix": {
+   "layers": {
+    "t06-django-shadow": {
+     "flags": [],
+     "routes": [
+      {
+       "method": null,
+       "path": "/ping/"
+      }
+     ]
+    },
+    "t12-django-drf-leaf": {
+     "flags": [
+      {
+       "code": "DRF_ACTION_METHOD_FACT_MISSING",
+       "where": "?:0"
+      }
+     ],
+     "observations": 1,
+     "routes": [],
+     "status": "blocked"
+    }
+   }
+  },
+  "counterexamples/dynamic-route-factory": {
+   "layers": {
+    "t06-django-shadow": {
+     "flags": [
+      {
+       "code": "urlpatterns-dynamic",
+       "where": "urls:0"
+      }
+     ],
+     "routes": []
+    },
+    "t12-django-drf-leaf": {
+     "flags": [
+      {
+       "code": "DRF_ACTION_METHOD_FACT_MISSING",
+       "where": "?:0"
+      },
+      {
+       "code": "T06_DJANGO_UNKNOWN:urlpatterns-dynamic",
+       "where": "urls:0"
+      }
+     ],
+     "observations": 0,
+     "routes": [],
+     "status": "blocked"
+    }
+   }
+  },
+  "counterexamples/generated-admin": {
+   "layers": {
+    "t06-django-shadow": {
+     "flags": [],
+     "routes": [
+      {
+       "method": null,
+       "path": "/admin/"
+      },
+      {
+       "method": null,
+       "path": "/ping/"
+      }
+     ]
+    },
+    "t12-django-drf-leaf": {
+     "flags": [
+      {
+       "code": "DRF_ACTION_METHOD_FACT_MISSING",
+       "where": "?:0"
+      }
+     ],
+     "observations": 2,
+     "routes": [],
+     "status": "blocked"
+    }
+   }
+  },
+  "counterexamples/generated-drf-router": {
+   "layers": {
+    "t06-django-shadow": {
+     "flags": [
+      {
+       "code": "include-target-not-literal-module",
+       "where": "urls:0"
+      }
+     ],
+     "routes": []
+    },
+    "t12-django-drf-leaf": {
+     "flags": [
+      {
+       "code": "DRF_ACTION_METHOD_FACT_MISSING",
+       "where": "?:0"
+      },
+      {
+       "code": "T06_DJANGO_UNKNOWN:include-target-not-literal-module",
+       "where": "urls:0"
+      }
+     ],
+     "observations": 0,
+     "routes": [],
+     "status": "blocked"
+    }
+   }
+  },
+  "counterexamples/middleware-auth": {
+   "layers": {
+    "t06-django-shadow": {
+     "flags": [
+      {
+       "code": "view-call-not-statically-classifiable",
+       "where": "urls:0"
+      }
+     ],
+     "routes": [
+      {
+       "method": null,
+       "path": "/public/"
+      }
+     ]
+    },
+    "t12-django-drf-leaf": {
+     "flags": [
+      {
+       "code": "DRF_ACTION_METHOD_FACT_MISSING",
+       "where": "?:0"
+      },
+      {
+       "code": "T06_DJANGO_UNKNOWN:view-call-not-statically-classifiable",
+       "where": "urls:0"
+      }
+     ],
+     "observations": 1,
+     "routes": [],
+     "status": "blocked"
+    }
+   }
+  },
+  "counterexamples/router-prefix": {
+   "layers": {
+    "t06-django-shadow": {
+     "flags": [
+      {
+       "code": "route-pattern-not-literal",
+       "where": "urls:0"
+      }
+     ],
+     "routes": []
+    },
+    "t12-django-drf-leaf": {
+     "flags": [
+      {
+       "code": "T06_DJANGO_UNKNOWN:route-pattern-not-literal",
+       "where": "urls:0"
+      },
+      {
+       "code": "DRF_ACTION_METHOD_FACT_MISSING",
+       "where": "?:0"
+      }
+     ],
+     "observations": 0,
+     "routes": [],
+     "status": "blocked"
+    }
+   }
+  },
+  "normal": {
+   "layers": {
+    "t06-django-shadow": {
+     "flags": [],
+     "routes": [
+      {
+       "method": null,
+       "path": "/api/ping/"
+      },
+      {
+       "method": null,
+       "path": "/health/"
+      },
+      {
+       "method": null,
+       "path": "/items/<int:pk>/"
+      },
+      {
+       "method": null,
+       "path": "/^legacy/(?P<slug>[-\\w]+)/$"
+      }
+     ]
+    },
+    "t12-django-drf-leaf": {
+     "flags": [
+      {
+       "code": "DRF_ACTION_METHOD_FACT_MISSING",
+       "where": "?:0"
+      }
+     ],
+     "observations": 4,
+     "routes": [],
+     "status": "blocked"
+    }
+   }
+  }
+ },
+ "layers": [
+  "t06-django-shadow",
+  "t12-django-drf-leaf"
+ ],
+ "schema": "bskel.internal.python-scope-static-run/0",
+ "target": "django"
+}

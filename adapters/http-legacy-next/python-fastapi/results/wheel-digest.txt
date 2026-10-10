@@ -1,0 +1,1 @@
+3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d  fastapi-0.143.0-py3-none-any.whl

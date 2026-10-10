@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bskel.internal/schemas/python-http-scope-record/0",
+  "title": "Python HTTP target scope record (HTTP-python-*-01)",
+  "description": "Shape only, plus the two rules that keep a record from asserting what cannot be recomputed: a command whose output is not stored carries no hash and no byte count, every other command carries both. verify.mjs recomputes or compares exactly everything it can derive from the stored evidence and seals the whole record with record_digest; its header names the prose it cannot derive.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "item", "framework", "track", "claims", "runtime_tested", "evidence_level", "registration", "layers", "fixtures", "must_catch", "scope", "conformance", "pin", "oracle_tool", "oracle_range", "executed_commands", "limits", "plan", "record_digest"],
+  "properties": {
+    "schema": { "const": "bskel.internal.python-http-scope-record/0" },
+    "record_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "item": { "enum": ["HTTP-python-fastapi-01", "HTTP-python-flask-01", "HTTP-python-django-01", "HTTP-python-starlette-01", "HTTP-python-litestar-01"] },
+    "framework": { "enum": ["fastapi", "flask", "django", "starlette", "litestar"] },
+    "track": { "enum": ["T11", "T12", "T13"] },
+    "claims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["supported", "runtime_tested", "extraction", "statement"],
+      "properties": {
+        "supported": { "type": "boolean" },
+        "runtime_tested": { "type": "boolean" },
+        "extraction": { "enum": ["partial-static", "none"] },
+        "statement": { "$ref": "#/$defs/text" }
+      }
+    },
+    "runtime_tested": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reason"],
+      "properties": { "status": { "const": "BLOCKED" }, "reason": { "$ref": "#/$defs/text" } }
+    },
+    "evidence_level": { "enum": ["oracle-compared", "scope-and-oracle-baseline"] },
+    "registration": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "entry"],
+          "properties": { "source": { "$ref": "#/$defs/text" }, "entry": { "type": "object" } }
+        }
+      ]
+    },
+    "layers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "source", "role"],
+        "properties": { "id": { "$ref": "#/$defs/text" }, "source": { "$ref": "#/$defs/text" }, "role": { "$ref": "#/$defs/text" } }
+      }
+    },
+    "fixtures": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "role", "files"],
+        "properties": {
+          "id": { "$ref": "#/$defs/text" },
+          "role": { "enum": ["normal", "counterexample"] },
+          "files": { "type": "object", "minProperties": 1, "additionalProperties": { "$ref": "#/$defs/sha256" } }
+        }
+      }
+    },
+    "must_catch": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "construct", "fixture", "minimal_counterexample", "rule", "expected", "layers"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "construct": { "$ref": "#/$defs/text" },
+          "fixture": { "$ref": "#/$defs/text" },
+          "minimal_counterexample": { "$ref": "#/$defs/text" },
+          "rule": { "enum": ["catch-or-flag", "catch-generated", "oracle-blind"] },
+          "blind_property": { "$ref": "#/$defs/text" },
+          "expected": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["routes", "generated"],
+            "properties": { "routes": { "$ref": "#/$defs/strings" }, "generated": { "$ref": "#/$defs/strings" } }
+          },
+          "layers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["outcome", "class", "missed", "extra", "unresolved", "generated_unseen", "flags", "covering_flags"],
+              "properties": {
+                "outcome": { "enum": ["caught", "left-unknown", "flagged", "omitted-unflagged", "wrong-unflagged"] },
+                "class": { "enum": ["exact", "method-unresolved", "incomplete", "wrong"] },
+                "missed": { "$ref": "#/$defs/strings" },
+                "extra": { "$ref": "#/$defs/strings" },
+                "unresolved": { "$ref": "#/$defs/strings" },
+                "generated_unseen": { "type": "integer", "minimum": 0 },
+                "flags": { "$ref": "#/$defs/strings" },
+                "covering_flags": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["code", "covers"],
+                    "properties": { "code": { "$ref": "#/$defs/text" }, "text_includes": { "$ref": "#/$defs/text" }, "covers": { "$ref": "#/$defs/text" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["supported", "unknown_flagged", "unsupported_gap", "unassessed", "oracle_blind"],
+      "properties": {
+        "supported": { "$ref": "#/$defs/strings" },
+        "unknown_flagged": { "$ref": "#/$defs/strings" },
+        "unsupported_gap": { "$ref": "#/$defs/strings" },
+        "unassessed": { "$ref": "#/$defs/strings" },
+        "oracle_blind": { "$ref": "#/$defs/strings" }
+      }
+    },
+    "conformance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": { "enum": ["COMPARED", "BLOCKED"] },
+        "layers": { "$ref": "#/$defs/strings" },
+        "compared_fixtures": { "type": "integer", "minimum": 1 },
+        "reason": { "$ref": "#/$defs/text" }
+      }
+    },
+    "pin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["python", "packages", "installed", "registry", "existing_profile_pin"],
+      "properties": {
+        "python": { "type": "string", "pattern": "^3\\.[0-9]+\\.[0-9]+$" },
+        "packages": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["pypi", "role", "version", "wheel", "wheel_sha256", "registry_sha256", "released_after_pin_not_covered"],
+            "properties": {
+              "pypi": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+              "role": { "enum": ["framework", "companion"] },
+              "version": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)*$" },
+              "wheel": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*[.]whl$" },
+              "wheel_sha256": { "$ref": "#/$defs/sha256" },
+              "registry_sha256": { "$ref": "#/$defs/sha256" },
+              "released_after_pin_not_covered": { "$ref": "#/$defs/strings" }
+            }
+          }
+        },
+        "installed": { "$ref": "#/$defs/strings" },
+        "registry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fetched_utc", "extract_sha256"],
+          "properties": { "fetched_utc": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z[.][.][0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" }, "extract_sha256": { "$ref": "#/$defs/sha256" } }
+        },
+        "existing_profile_pin": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "value", "check_command"],
+              "properties": {
+                "source": { "$ref": "#/$defs/text" },
+                "value": {
+                  "type": "object",
+                  "required": ["repo", "ref"],
+                  "properties": { "repo": { "type": "string", "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$" }, "ref": { "type": "string", "pattern": "^[0-9a-f]{40}$" } }
+                },
+                "check_command": { "const": "profile-ref-check" }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "oracle_tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": { "path": { "$ref": "#/$defs/text" }, "sha256": { "$ref": "#/$defs/sha256" } }
+    },
+    "oracle_range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "platform", "can_verify", "cannot_verify"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/text" },
+        "platform": { "type": "object" },
+        "can_verify": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/text" } },
+        "cannot_verify": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/text" } }
+      }
+    },
+    "executed_commands": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "command", "exit_code"],
+        "properties": {
+          "id": { "$ref": "#/$defs/text" },
+          "command": { "$ref": "#/$defs/text" },
+          "exit_code": { "type": "integer" },
+          "stdout_sha256": { "$ref": "#/$defs/sha256" },
+          "stdout_bytes": { "type": "integer", "minimum": 0 },
+          "stored_as": { "type": "string", "pattern": "^results/[A-Za-z0-9._-]+$" },
+          "stdout_inline": { "type": "string" },
+          "stdout_empty": { "const": true },
+          "stdout_unstored": { "$ref": "#/$defs/text" }
+        },
+        "if": { "required": ["stdout_unstored"], "properties": { "stdout_unstored": true } },
+        "then": { "properties": { "stdout_sha256": false, "stdout_bytes": false } },
+        "else": { "required": ["stdout_sha256", "stdout_bytes"], "properties": { "stdout_sha256": true, "stdout_bytes": true } }
+      }
+    },
+    "limits": { "type": "array", "minItems": 3, "items": { "$ref": "#/$defs/text" } },
+    "plan": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/text" } }
+  },
+  "$defs": {
+    "text": { "type": "string", "minLength": 3 },
+    "strings": { "type": "array", "items": { "type": "string" } },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

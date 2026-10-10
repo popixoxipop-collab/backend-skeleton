@@ -1,0 +1,558 @@
+{
+ "fixtures": {
+  "counterexamples/app-level-decorator": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_html",
+     "path": "/docs"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_redirect",
+     "path": "/docs/oauth2-redirect"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "openapi",
+     "path": "/openapi.json"
+    },
+    {
+     "generated": false,
+     "kind": "APIRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "ping",
+     "path": "/ping"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "redoc_html",
+     "path": "/redoc"
+    }
+   ]
+  },
+  "counterexamples/deployment-prefix": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_html",
+     "path": "/docs"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_redirect",
+     "path": "/docs/oauth2-redirect"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "openapi",
+     "path": "/openapi.json"
+    },
+    {
+     "generated": false,
+     "kind": "APIRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "ping",
+     "path": "/ping"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "redoc_html",
+     "path": "/redoc"
+    }
+   ]
+  },
+  "counterexamples/dynamic-route-factory": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_html",
+     "path": "/docs"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_redirect",
+     "path": "/docs/oauth2-redirect"
+    },
+    {
+     "generated": false,
+     "kind": "APIRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "handler",
+     "path": "/dyn/alpha"
+    },
+    {
+     "generated": false,
+     "kind": "APIRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "handler",
+     "path": "/dyn/beta"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "openapi",
+     "path": "/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "redoc_html",
+     "path": "/redoc"
+    }
+   ]
+  },
+  "counterexamples/generated-routes": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_html",
+     "path": "/api-docs"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "openapi",
+     "path": "/api-openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_redirect",
+     "path": "/docs/oauth2-redirect"
+    },
+    {
+     "generated": false,
+     "kind": "APIRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "ping",
+     "path": "/ping"
+    }
+   ]
+  },
+  "counterexamples/middleware-auth": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_html",
+     "path": "/docs"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_redirect",
+     "path": "/docs/oauth2-redirect"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "openapi",
+     "path": "/openapi.json"
+    },
+    {
+     "generated": false,
+     "kind": "APIRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "data",
+     "path": "/private/data"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "redoc_html",
+     "path": "/redoc"
+    }
+   ]
+  },
+  "counterexamples/mount-subapp": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_html",
+     "path": "/docs"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_redirect",
+     "path": "/docs/oauth2-redirect"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "openapi",
+     "path": "/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "redoc_html",
+     "path": "/redoc"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_html",
+     "path": "/sub/docs"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_redirect",
+     "path": "/sub/docs/oauth2-redirect"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "openapi",
+     "path": "/sub/openapi.json"
+    },
+    {
+     "generated": false,
+     "kind": "APIRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "sub_ping",
+     "path": "/sub/ping"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "redoc_html",
+     "path": "/sub/redoc"
+    }
+   ]
+  },
+  "counterexamples/root-route-trailing-slash": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_html",
+     "path": "/docs"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_redirect",
+     "path": "/docs/oauth2-redirect"
+    },
+    {
+     "generated": false,
+     "kind": "APIRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "list_items",
+     "path": "/items/"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "openapi",
+     "path": "/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "redoc_html",
+     "path": "/redoc"
+    }
+   ]
+  },
+  "counterexamples/router-prefix": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "kind": "APIRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "read_item",
+     "path": "/api/v1/items/{item_id}"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_html",
+     "path": "/docs"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_redirect",
+     "path": "/docs/oauth2-redirect"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "openapi",
+     "path": "/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "redoc_html",
+     "path": "/redoc"
+    }
+   ]
+  },
+  "normal": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_html",
+     "path": "/docs"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "swagger_ui_redirect",
+     "path": "/docs/oauth2-redirect"
+    },
+    {
+     "generated": false,
+     "kind": "APIRoute",
+     "methods": [
+      "POST"
+     ],
+     "name": "create_item",
+     "path": "/items/create"
+    },
+    {
+     "generated": false,
+     "kind": "APIRoute",
+     "methods": [
+      "GET"
+     ],
+     "name": "read_item",
+     "path": "/items/{item_id}"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "openapi",
+     "path": "/openapi.json"
+    },
+    {
+     "generated": true,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "redoc_html",
+     "path": "/redoc"
+    }
+   ]
+  }
+ },
+ "framework": {
+  "name": "fastapi",
+  "version": "0.143.0"
+ },
+ "oracle": "framework-route-table",
+ "python": {
+  "implementation": "cpython",
+  "machine": "arm64",
+  "system": "Darwin",
+  "version": "3.12.13"
+ }
+}

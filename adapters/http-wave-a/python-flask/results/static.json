@@ -1,0 +1,216 @@
+{
+ "fixtures": {
+  "counterexamples/default-methods": {
+   "layers": {
+    "t06-flask-shadow": {
+     "flags": [],
+     "routes": [
+      {
+       "method": null,
+       "path": "/ping"
+      }
+     ]
+    },
+    "t12-flask-leaf": {
+     "flags": [
+      {
+       "code": "FLASK_METHOD_SEMANTICS_UNRESOLVED",
+       "where": "app:0"
+      }
+     ],
+     "routes": []
+    }
+   }
+  },
+  "counterexamples/deployment-prefix": {
+   "layers": {
+    "t06-flask-shadow": {
+     "flags": [],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/ping"
+      }
+     ]
+    },
+    "t12-flask-leaf": {
+     "flags": [],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/ping"
+      }
+     ]
+    }
+   }
+  },
+  "counterexamples/dynamic-route-factory": {
+   "layers": {
+    "t06-flask-shadow": {
+     "flags": [],
+     "routes": []
+    },
+    "t12-flask-leaf": {
+     "flags": [],
+     "routes": []
+    }
+   }
+  },
+  "counterexamples/generated-routes": {
+   "layers": {
+    "t06-flask-shadow": {
+     "flags": [
+      {
+       "code": "registration-limitation",
+       "text": "register_blueprint(url_prefix=...) mount overrides are not composed in this shadow slice.",
+       "where": "app:7"
+      }
+     ],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/admin/"
+      }
+     ]
+    },
+    "t12-flask-leaf": {
+     "flags": [],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/admin/"
+      }
+     ]
+    }
+   }
+  },
+  "counterexamples/imperative-registration": {
+   "layers": {
+    "t06-flask-shadow": {
+     "flags": [],
+     "routes": []
+    },
+    "t12-flask-leaf": {
+     "flags": [],
+     "routes": []
+    }
+   }
+  },
+  "counterexamples/middleware-auth": {
+   "layers": {
+    "t06-flask-shadow": {
+     "flags": [],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/private"
+      },
+      {
+       "method": "GET",
+       "path": "/public"
+      }
+     ]
+    },
+    "t12-flask-leaf": {
+     "flags": [],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/private"
+      },
+      {
+       "method": "GET",
+       "path": "/public"
+      }
+     ]
+    }
+   }
+  },
+  "counterexamples/router-prefix": {
+   "layers": {
+    "t06-flask-shadow": {
+     "flags": [
+      {
+       "code": "registration-limitation",
+       "text": "register_blueprint(url_prefix=...) mount overrides are not composed in this shadow slice.",
+       "where": "app:7"
+      }
+     ],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/api/ping"
+      }
+     ]
+    },
+    "t12-flask-leaf": {
+     "flags": [],
+     "routes": [
+      {
+       "method": "GET",
+       "path": "/api/ping"
+      }
+     ]
+    }
+   }
+  },
+  "normal": {
+   "layers": {
+    "t06-flask-shadow": {
+     "flags": [
+      {
+       "code": "registration-limitation",
+       "text": "register_blueprint(url_prefix=...) mount overrides are not composed in this shadow slice.",
+       "where": "app:17"
+      }
+     ],
+     "routes": [
+      {
+       "method": "POST",
+       "path": "/api/items"
+      },
+      {
+       "method": "GET",
+       "path": "/health"
+      },
+      {
+       "method": "DELETE",
+       "path": "/items/<int:item_id>"
+      },
+      {
+       "method": "GET",
+       "path": "/items/<int:item_id>"
+      }
+     ]
+    },
+    "t12-flask-leaf": {
+     "flags": [],
+     "routes": [
+      {
+       "method": "POST",
+       "path": "/api/items"
+      },
+      {
+       "method": "GET",
+       "path": "/health"
+      },
+      {
+       "method": "DELETE",
+       "path": "/items/<int:item_id>"
+      },
+      {
+       "method": "GET",
+       "path": "/items/<int:item_id>"
+      }
+     ]
+    }
+   }
+  }
+ },
+ "layers": [
+  "t06-flask-shadow",
+  "t12-flask-leaf"
+ ],
+ "schema": "bskel.internal.python-scope-static-run/0",
+ "target": "flask"
+}

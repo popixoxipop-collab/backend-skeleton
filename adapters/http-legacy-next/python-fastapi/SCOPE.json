@@ -1,0 +1,742 @@
+{
+  "schema": "bskel.internal.python-http-scope-record/0",
+  "item": "HTTP-python-fastapi-01",
+  "framework": "fastapi",
+  "track": "T11",
+  "claims": {
+    "supported": false,
+    "runtime_tested": false,
+    "extraction": "partial-static",
+    "statement": "Scope record, not a support claim. Static extraction is partial: the legacy regex adapter and the T06 shadow were compared with the framework route table on the recorded fixtures; only caught entries were exact, unsupported_gap entries are known silent omissions or wrong paths. Nothing here is Runtime-tested. Any later support statement is limited to the scope.supported entries, to the layers named in them, to the pinned framework version and to the registration state recorded here."
+  },
+  "runtime_tested": {
+    "status": "BLOCKED",
+    "reason": "Runtime-tested needs a request-level verifier (T16 / beval in the audit plan) that serves requests against a pinned install; none was run. This package only read the framework route table at import time, so every runtime or request claim stays BLOCKED."
+  },
+  "evidence_level": "oracle-compared",
+  "registration": null,
+  "layers": [
+    {
+      "id": "legacy-adapter",
+      "source": "scanners/adapters/python-fastapi.mjs",
+      "role": "T11 legacy regex adapter (detectPythonFastApiRoot, scanPythonFastApi); scans files that contain APIRouter("
+    },
+    {
+      "id": "t06-fastapi-shadow",
+      "source": "scanners/language/python/fastapi-shadow.mjs",
+      "role": "T06 AST shadow (buildFastApiShadow) over the Python project facts"
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "normal",
+      "role": "normal",
+      "files": {
+        "app.py": "6db2890282380c88f53a5966265a00577fe5690a5b1789378ad0a3f142670eb2",
+        "requirements.txt": "cb2b5fde5f825e61de784fa3098c51872a331c2981710d5e62a36b5623271d5f"
+      }
+    },
+    {
+      "id": "counterexamples/app-level-decorator",
+      "role": "counterexample",
+      "files": {
+        "app.py": "a125f85ed94526dc978a981021de2438a23b1f14fe911d63e3055718b85bb260",
+        "requirements.txt": "cb2b5fde5f825e61de784fa3098c51872a331c2981710d5e62a36b5623271d5f"
+      }
+    },
+    {
+      "id": "counterexamples/deployment-prefix",
+      "role": "counterexample",
+      "files": {
+        "app.py": "c680e46f4106ace297d35e8bc01a2b3aef51e96fcd24634cfaa730e7279f0293",
+        "requirements.txt": "cb2b5fde5f825e61de784fa3098c51872a331c2981710d5e62a36b5623271d5f"
+      }
+    },
+    {
+      "id": "counterexamples/dynamic-route-factory",
+      "role": "counterexample",
+      "files": {
+        "app.py": "79f99fdd9e478a058d9ed5d51fccb2f32b73a5081da7de380653188b39590313",
+        "requirements.txt": "cb2b5fde5f825e61de784fa3098c51872a331c2981710d5e62a36b5623271d5f"
+      }
+    },
+    {
+      "id": "counterexamples/generated-routes",
+      "role": "counterexample",
+      "files": {
+        "app.py": "1fc9769174957de819ca415c07c59fe08663821dcdf198403b8982e003c73e30",
+        "requirements.txt": "cb2b5fde5f825e61de784fa3098c51872a331c2981710d5e62a36b5623271d5f"
+      }
+    },
+    {
+      "id": "counterexamples/middleware-auth",
+      "role": "counterexample",
+      "files": {
+        "app.py": "04c111d0bb5907ffe805e8b5e11edf8ab6f592e15b9e3217b8183e33a6bb573d",
+        "requirements.txt": "cb2b5fde5f825e61de784fa3098c51872a331c2981710d5e62a36b5623271d5f"
+      }
+    },
+    {
+      "id": "counterexamples/mount-subapp",
+      "role": "counterexample",
+      "files": {
+        "app.py": "221340c0e571771b86331fd57f9054cfd2de35541a3247d9b2db71fef3421d5f",
+        "requirements.txt": "cb2b5fde5f825e61de784fa3098c51872a331c2981710d5e62a36b5623271d5f"
+      }
+    },
+    {
+      "id": "counterexamples/root-route-trailing-slash",
+      "role": "counterexample",
+      "files": {
+        "app.py": "3c91d3fa2f132274aa884baf4c4aca1faa4e820635ac9a312e66559af9c042ea",
+        "requirements.txt": "cb2b5fde5f825e61de784fa3098c51872a331c2981710d5e62a36b5623271d5f"
+      }
+    },
+    {
+      "id": "counterexamples/router-prefix",
+      "role": "counterexample",
+      "files": {
+        "app.py": "7ef1b2ed619814c7631eb3e234c5c1b2d61f549d8756528e2a0296b65ce089c7",
+        "requirements.txt": "cb2b5fde5f825e61de784fa3098c51872a331c2981710d5e62a36b5623271d5f"
+      }
+    }
+  ],
+  "must_catch": [
+    {
+      "id": "normal-literal-routes",
+      "construct": "APIRouter(prefix=literal) with @router.get/@router.post literal paths, included by app.include_router(router) without a prefix (the supported baseline)",
+      "fixture": "normal",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "GET /items/{item_id}",
+          "POST /items/create"
+        ],
+        "generated": [
+          "GET /docs",
+          "GET /docs/oauth2-redirect",
+          "GET /openapi.json",
+          "GET /redoc"
+        ]
+      },
+      "layers": {
+        "legacy-adapter": {
+          "outcome": "caught",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 4,
+          "flags": [],
+          "covering_flags": []
+        },
+        "t06-fastapi-shadow": {
+          "outcome": "caught",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 4,
+          "flags": [
+            "include-router-mount-not-composed"
+          ],
+          "covering_flags": []
+        }
+      }
+    },
+    {
+      "id": "dynamic-route-factory",
+      "construct": "router.add_api_route(...) called in a loop with handlers built by a factory",
+      "fixture": "counterexamples/dynamic-route-factory",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "GET /dyn/alpha",
+          "GET /dyn/beta"
+        ],
+        "generated": [
+          "GET /docs",
+          "GET /docs/oauth2-redirect",
+          "GET /openapi.json",
+          "GET /redoc"
+        ]
+      },
+      "layers": {
+        "legacy-adapter": {
+          "outcome": "omitted-unflagged",
+          "class": "incomplete",
+          "missed": [
+            "GET /dyn/alpha",
+            "GET /dyn/beta"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 4,
+          "flags": [],
+          "covering_flags": []
+        },
+        "t06-fastapi-shadow": {
+          "outcome": "omitted-unflagged",
+          "class": "incomplete",
+          "missed": [
+            "GET /dyn/alpha",
+            "GET /dyn/beta"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 4,
+          "flags": [
+            "include-router-mount-not-composed"
+          ],
+          "covering_flags": []
+        }
+      }
+    },
+    {
+      "id": "router-prefix",
+      "construct": "app.include_router(router, prefix=...) stacked on APIRouter(prefix=...) (prefix composed from two levels)",
+      "fixture": "counterexamples/router-prefix",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "GET /api/v1/items/{item_id}"
+        ],
+        "generated": [
+          "GET /docs",
+          "GET /docs/oauth2-redirect",
+          "GET /openapi.json",
+          "GET /redoc"
+        ]
+      },
+      "layers": {
+        "legacy-adapter": {
+          "outcome": "flagged",
+          "class": "wrong",
+          "missed": [
+            "GET /api/v1/items/{item_id}"
+          ],
+          "extra": [
+            "GET /items/{item_id}"
+          ],
+          "unresolved": [],
+          "generated_unseen": 4,
+          "flags": [
+            "include_router-prefix"
+          ],
+          "covering_flags": [
+            {
+              "code": "include_router-prefix",
+              "covers": "signal raised for the include_router(prefix=...) call: the route is reported without that prefix and the signal says so"
+            }
+          ]
+        },
+        "t06-fastapi-shadow": {
+          "outcome": "flagged",
+          "class": "wrong",
+          "missed": [
+            "GET /api/v1/items/{item_id}"
+          ],
+          "extra": [
+            "GET /items/{item_id}"
+          ],
+          "unresolved": [],
+          "generated_unseen": 4,
+          "flags": [
+            "include-router-mount-not-composed"
+          ],
+          "covering_flags": [
+            {
+              "code": "include-router-mount-not-composed",
+              "covers": "unknown raised for the include_router mount whose prefix the shadow does not compose"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "root-route-trailing-slash",
+      "construct": "@router.get(\"/\") on APIRouter(prefix=\"/items\"): the registered path keeps the trailing slash (/items/)",
+      "fixture": "counterexamples/root-route-trailing-slash",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "GET /items/"
+        ],
+        "generated": [
+          "GET /docs",
+          "GET /docs/oauth2-redirect",
+          "GET /openapi.json",
+          "GET /redoc"
+        ]
+      },
+      "layers": {
+        "legacy-adapter": {
+          "outcome": "wrong-unflagged",
+          "class": "wrong",
+          "missed": [
+            "GET /items/"
+          ],
+          "extra": [
+            "GET /items"
+          ],
+          "unresolved": [],
+          "generated_unseen": 4,
+          "flags": [],
+          "covering_flags": []
+        },
+        "t06-fastapi-shadow": {
+          "outcome": "wrong-unflagged",
+          "class": "wrong",
+          "missed": [
+            "GET /items/"
+          ],
+          "extra": [
+            "GET /items"
+          ],
+          "unresolved": [],
+          "generated_unseen": 4,
+          "flags": [
+            "include-router-mount-not-composed"
+          ],
+          "covering_flags": []
+        }
+      }
+    },
+    {
+      "id": "app-level-decorator",
+      "construct": "@app.get(...) directly on the FastAPI application, in a file without APIRouter",
+      "fixture": "counterexamples/app-level-decorator",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "GET /ping"
+        ],
+        "generated": [
+          "GET /docs",
+          "GET /docs/oauth2-redirect",
+          "GET /openapi.json",
+          "GET /redoc"
+        ]
+      },
+      "layers": {
+        "legacy-adapter": {
+          "outcome": "omitted-unflagged",
+          "class": "incomplete",
+          "missed": [
+            "GET /ping"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 4,
+          "flags": [],
+          "covering_flags": []
+        },
+        "t06-fastapi-shadow": {
+          "outcome": "flagged",
+          "class": "incomplete",
+          "missed": [
+            "GET /ping"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 4,
+          "flags": [
+            "router-variable-not-locally-declared"
+          ],
+          "covering_flags": [
+            {
+              "code": "router-variable-not-locally-declared",
+              "covers": "raised on the @app.get decorator whose receiver is not a locally declared APIRouter, so the route is left unknown"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "mount-subapp",
+      "construct": "app.mount(\"/sub\", sub_app) with the routes declared on the mounted sub-application",
+      "fixture": "counterexamples/mount-subapp",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-or-flag",
+      "expected": {
+        "routes": [
+          "GET /sub/ping"
+        ],
+        "generated": [
+          "GET /docs",
+          "GET /docs/oauth2-redirect",
+          "GET /openapi.json",
+          "GET /redoc",
+          "GET /sub/docs",
+          "GET /sub/docs/oauth2-redirect",
+          "GET /sub/openapi.json",
+          "GET /sub/redoc"
+        ]
+      },
+      "layers": {
+        "legacy-adapter": {
+          "outcome": "omitted-unflagged",
+          "class": "incomplete",
+          "missed": [
+            "GET /sub/ping"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 8,
+          "flags": [],
+          "covering_flags": []
+        },
+        "t06-fastapi-shadow": {
+          "outcome": "flagged",
+          "class": "incomplete",
+          "missed": [
+            "GET /sub/ping"
+          ],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 8,
+          "flags": [
+            "router-variable-not-locally-declared"
+          ],
+          "covering_flags": [
+            {
+              "code": "router-variable-not-locally-declared",
+              "covers": "raised on the @sub.get decorator whose receiver is the mounted sub-application, so the route is left unknown"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "middleware-auth",
+      "construct": "dependency-based authentication (Depends(require_token)) on an APIRouter",
+      "fixture": "counterexamples/middleware-auth",
+      "minimal_counterexample": "app.py",
+      "rule": "oracle-blind",
+      "blind_property": "who may call /private/data (Depends(require_token))",
+      "expected": {
+        "routes": [
+          "GET /private/data"
+        ],
+        "generated": [
+          "GET /docs",
+          "GET /docs/oauth2-redirect",
+          "GET /openapi.json",
+          "GET /redoc"
+        ]
+      },
+      "layers": {
+        "legacy-adapter": {
+          "outcome": "caught",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 4,
+          "flags": [],
+          "covering_flags": []
+        },
+        "t06-fastapi-shadow": {
+          "outcome": "caught",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 4,
+          "flags": [
+            "include-router-mount-not-composed"
+          ],
+          "covering_flags": []
+        }
+      }
+    },
+    {
+      "id": "generated-routes",
+      "construct": "docs and OpenAPI routes the framework adds (docs_url and openapi_url customised, redoc disabled)",
+      "fixture": "counterexamples/generated-routes",
+      "minimal_counterexample": "app.py",
+      "rule": "catch-generated",
+      "expected": {
+        "routes": [
+          "GET /ping"
+        ],
+        "generated": [
+          "GET /api-docs",
+          "GET /api-openapi.json",
+          "GET /docs/oauth2-redirect"
+        ]
+      },
+      "layers": {
+        "legacy-adapter": {
+          "outcome": "omitted-unflagged",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 3,
+          "flags": [],
+          "covering_flags": []
+        },
+        "t06-fastapi-shadow": {
+          "outcome": "omitted-unflagged",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 3,
+          "flags": [
+            "include-router-mount-not-composed"
+          ],
+          "covering_flags": []
+        }
+      }
+    },
+    {
+      "id": "deployment-prefix",
+      "construct": "FastAPI(root_path=\"/svc\") reverse-proxy prefix",
+      "fixture": "counterexamples/deployment-prefix",
+      "minimal_counterexample": "app.py",
+      "rule": "oracle-blind",
+      "blind_property": "root_path /svc (external prefix applied by a proxy)",
+      "expected": {
+        "routes": [
+          "GET /ping"
+        ],
+        "generated": [
+          "GET /docs",
+          "GET /docs/oauth2-redirect",
+          "GET /openapi.json",
+          "GET /redoc"
+        ]
+      },
+      "layers": {
+        "legacy-adapter": {
+          "outcome": "caught",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 4,
+          "flags": [],
+          "covering_flags": []
+        },
+        "t06-fastapi-shadow": {
+          "outcome": "caught",
+          "class": "exact",
+          "missed": [],
+          "extra": [],
+          "unresolved": [],
+          "generated_unseen": 4,
+          "flags": [
+            "include-router-mount-not-composed"
+          ],
+          "covering_flags": []
+        }
+      }
+    }
+  ],
+  "scope": {
+    "supported": [
+      "normal-literal-routes@legacy-adapter",
+      "normal-literal-routes@t06-fastapi-shadow"
+    ],
+    "unknown_flagged": [
+      "app-level-decorator@t06-fastapi-shadow",
+      "mount-subapp@t06-fastapi-shadow",
+      "router-prefix@legacy-adapter",
+      "router-prefix@t06-fastapi-shadow"
+    ],
+    "unsupported_gap": [
+      "app-level-decorator@legacy-adapter",
+      "dynamic-route-factory@legacy-adapter",
+      "dynamic-route-factory@t06-fastapi-shadow",
+      "generated-routes@legacy-adapter",
+      "generated-routes@t06-fastapi-shadow",
+      "mount-subapp@legacy-adapter",
+      "root-route-trailing-slash@legacy-adapter",
+      "root-route-trailing-slash@t06-fastapi-shadow"
+    ],
+    "unassessed": [],
+    "oracle_blind": [
+      "deployment-prefix",
+      "middleware-auth"
+    ]
+  },
+  "conformance": {
+    "status": "COMPARED",
+    "layers": [
+      "legacy-adapter",
+      "t06-fastapi-shadow"
+    ],
+    "compared_fixtures": 9
+  },
+  "pin": {
+    "python": "3.12.13",
+    "packages": [
+      {
+        "pypi": "fastapi",
+        "role": "framework",
+        "version": "0.143.0",
+        "wheel": "fastapi-0.143.0-py3-none-any.whl",
+        "wheel_sha256": "3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d",
+        "registry_sha256": "3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d",
+        "released_after_pin_not_covered": []
+      }
+    ],
+    "installed": [
+      "annotated-doc==0.0.5",
+      "annotated-types==0.8.0",
+      "anyio==4.15.1",
+      "fastapi==0.143.0",
+      "idna==3.20",
+      "opentelemetry-api==1.45.1",
+      "pip==26.1.2",
+      "pydantic==2.14.0",
+      "pydantic_core==2.50.0",
+      "starlette==1.7.0",
+      "typing-inspection==0.4.4",
+      "typing_extensions==4.16.0"
+    ],
+    "registry": {
+      "fetched_utc": "2026-10-08T15:51:12Z..2026-10-08T15:51:13Z",
+      "extract_sha256": "0a4221729c6a70b9bd5adf1c14a0b9ba922fee3a1c834a67bee61cf20b7fcc36"
+    },
+    "existing_profile_pin": null
+  },
+  "oracle_tool": {
+    "path": "adapters/http-wave-a/python-scope/oracle.py",
+    "sha256": "8b92d4f59f922afc97ad113205df27083d757730045e45ce9a42e0a843808ded"
+  },
+  "oracle_range": {
+    "kind": "Framework route table read at import time through public framework APIs, in a venv holding exactly the pinned wheel(s). oracle.py shares no code with the scanners and never serves a request.",
+    "platform": {
+      "implementation": "cpython",
+      "machine": "arm64",
+      "system": "Darwin",
+      "version": "3.12.13"
+    },
+    "can_verify": [
+      "which paths and methods the framework registers after importing the fixture (non-generated pairs)",
+      "which routes the framework generates itself (docs, openapi, static, admin) and their paths",
+      "prefix composition, mounts and include flattening exactly as the framework computes them",
+      "trailing-slash and converter spelling of the registered path"
+    ],
+    "cannot_verify": [
+      "request handling: middleware execution, authentication outcomes, redirects, status codes or response bodies",
+      "deployment prefix behaviour (root_path, APPLICATION_ROOT, FORCE_SCRIPT_NAME, reverse-proxy rewriting)",
+      "any framework version or Python version other than the pinned ones",
+      "routes registered after import (at request time) or by code the fixture does not execute"
+    ]
+  },
+  "executed_commands": [
+    {
+      "id": "registry-fastapi",
+      "command": "curl -fsS https://pypi.org/pypi/fastapi/json",
+      "exit_code": 0,
+      "stdout_unstored": "PyPI JSON API response at fetch time. It is volatile registry state and is not stored, so this command carries no hash and no size. results/registry.json keeps the fields this record relies on and is bound by pin.registry.extract_sha256, and each pinned wheel hash must equal the hash pip downloaded."
+    },
+    {
+      "id": "venv",
+      "command": "python3.12 -m venv $VENV",
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "stdout_empty": true
+    },
+    {
+      "id": "install",
+      "command": "python -m pip install --disable-pip-version-check --no-cache-dir --only-binary=:all: -q fastapi==0.143.0",
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "stdout_empty": true
+    },
+    {
+      "id": "freeze",
+      "command": "python -m pip freeze --all",
+      "exit_code": 0,
+      "stdout_sha256": "543284e19e666784a0e8841cc9c0103d4e7fe8258ad1f37e60e3958f7131ad1f",
+      "stdout_bytes": 231,
+      "stored_as": "results/environment.txt"
+    },
+    {
+      "id": "wheel",
+      "command": "python -m pip download --no-deps --no-cache-dir --only-binary=:all: --disable-pip-version-check -d wheels -q fastapi==0.143.0",
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "stdout_empty": true
+    },
+    {
+      "id": "wheel-digest",
+      "command": "shasum -a 256 fastapi-0.143.0-py3-none-any.whl",
+      "exit_code": 0,
+      "stdout_sha256": "e69d216e8fe65cd8d250128999875a8aab53b6f0c01b98bf13087bc2c4ea3f72",
+      "stdout_bytes": 99,
+      "stored_as": "results/wheel-digest.txt"
+    },
+    {
+      "id": "oracle-1",
+      "command": "$VENV/bin/python adapters/http-wave-a/python-scope/oracle.py fastapi adapters/http-legacy-next/python-fastapi/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "198e48f7bef0228719e945e9ec4acb731c05328fda9bae4c26325aa69963bfbd",
+      "stdout_bytes": 9452,
+      "stored_as": "results/oracle.json"
+    },
+    {
+      "id": "oracle-2",
+      "command": "$VENV/bin/python adapters/http-wave-a/python-scope/oracle.py fastapi adapters/http-legacy-next/python-fastapi/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "198e48f7bef0228719e945e9ec4acb731c05328fda9bae4c26325aa69963bfbd",
+      "stdout_bytes": 9452,
+      "stored_as": "results/oracle.json"
+    },
+    {
+      "id": "static-1",
+      "command": "node adapters/http-wave-a/python-scope/static-runner.mjs fastapi adapters/http-legacy-next/python-fastapi/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "2c8595259c4ea1b25ff41551ea90d00619852bae9ab9e13405ece8614d5f850b",
+      "stdout_bytes": 4215,
+      "stored_as": "results/static.json"
+    },
+    {
+      "id": "static-2",
+      "command": "node adapters/http-wave-a/python-scope/static-runner.mjs fastapi adapters/http-legacy-next/python-fastapi/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "2c8595259c4ea1b25ff41551ea90d00619852bae9ab9e13405ece8614d5f850b",
+      "stdout_bytes": 4215,
+      "stored_as": "results/static.json"
+    },
+    {
+      "id": "static-py312",
+      "command": "BSKEL_PYTHON=python3.12 node adapters/http-wave-a/python-scope/static-runner.mjs fastapi adapters/http-legacy-next/python-fastapi/fixtures",
+      "exit_code": 0,
+      "stdout_sha256": "2c8595259c4ea1b25ff41551ea90d00619852bae9ab9e13405ece8614d5f850b",
+      "stdout_bytes": 4215,
+      "stored_as": "results/static.json"
+    }
+  ],
+  "limits": [
+    "Route-set evidence only: the oracle is the framework route table read at import time. Nothing in this record issued an HTTP request, so no entry is Runtime-tested.",
+    "HEAD and OPTIONS are dropped on both sides. A scanner pair whose method is null compares as \"-\" and is reported as unresolved when the oracle has a real method for that path, never as an exact match.",
+    "An outcome of flagged means the named flag is present in the layer output for that fixture and the covers text says why it applies; it is not proof the layer understood the construct. A flag that also fires on exact fixtures is not counted as covering unless the missed construct is the one it names.",
+    "CI does not reinstall the framework: the stored oracle output is bound by sha256, by the pin and by the sha256 of oracle.py. Only the in-repo static scanners are re-run live, which needs python3 on PATH (a missing python3 fails the verification, it is never skipped).",
+    "Only the pinned version was run. Releases uploaded after the pinned wheel are listed per package and are not covered.",
+    "record_digest seals the whole record, so an edit that is not re-sealed fails. Prose is sealed, not recomputed: statement, reasons, limits, plan, oracle_range text, layer roles, construct and covers texts and the stdout_unstored text are not derived from evidence, so a re-sealed prose edit is not detected by the verifier and must be caught in review.",
+    "In the pinned FastAPI version, app.include_router keeps a lazy included router in app.routes, so oracle.py flattens app.routes with the public fastapi.routing.iter_route_contexts; that call was not checked against any other FastAPI version.",
+    "The T06 include-router-mount-not-composed unknown also fires on exact fixtures that call include_router; it is counted as covering only where the missed construct is the include_router prefix (router-prefix).",
+    "The legacy adapter only scans files that contain APIRouter( ; the app-level-decorator and mount-subapp fixtures have none, so their routes are neither extracted nor flagged by it.",
+    "A caught or flagged outcome of a catch-or-flag entry covers the routes the fixture declares. The routes FastAPI adds itself (docs, redoc, openapi and the oauth2 redirect) are reported as generated by oracle.py and are assessed only under the generated-routes entry, so a supported ordinary-route entry says nothing about them.",
+    "Held to shape, order and the hash of the file, not recomputed from a second source: the values the comparisons do not read (in the registry extract the info_version, requires_python, size, upload time and yanked flag; in an oracle row the kind, name, view, regex and viewset_actions; in a generated group its name; in pip freeze the packages besides the pinned ones and the order of the lines), a method every comparison drops (HEAD, OPTIONS) and the path of a generated route that has no other method. The PyPI response is not stored, so a registry command states no hash and no size. A set of method and path pairs collapses a pair that two different routes register. The members of a SCOPE.json object may be reordered without changing the seal (it sorts keys); the order of the must-catch, limits and plan lists is sealed but is the author's."
+  ],
+  "plan": [
+    "HTTP-python-fastapi-02: turn each unsupported_gap entry (add_api_route loops, mount, trailing-slash join, generated docs routes, app-level decorators in the legacy adapter) into caught or flagged, using these fixtures as the regression corpus.",
+    "HTTP-python-fastapi-03: Runtime-tested stays BLOCKED until a request-level verifier exists."
+  ],
+  "record_digest": "c888c7d972e5cee160b41a494b39110ede0b1a3d2b4f47376a60e1aacd25bcb4"
+}

@@ -1,0 +1,159 @@
+{
+ "fixtures": {
+  "counterexamples/deployment-prefix": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "ping",
+     "path": "/ping"
+    }
+   ]
+  },
+  "counterexamples/dynamic-route-factory": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "endpoint",
+     "path": "/alpha"
+    },
+    {
+     "generated": false,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "endpoint",
+     "path": "/beta"
+    }
+   ]
+  },
+  "counterexamples/generated-routes": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "ping",
+     "path": "/ping"
+    },
+    {
+     "generated": true,
+     "kind": "Mount",
+     "methods": null,
+     "name": "static",
+     "path": "/static"
+    }
+   ]
+  },
+  "counterexamples/middleware-auth": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "private",
+     "path": "/private"
+    },
+    {
+     "generated": false,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "public",
+     "path": "/public"
+    }
+   ]
+  },
+  "counterexamples/router-prefix": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "ping",
+     "path": "/api/v1/ping"
+    }
+   ]
+  },
+  "normal": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "health",
+     "path": "/api/ping"
+    },
+    {
+     "generated": false,
+     "kind": "Route",
+     "methods": [
+      "GET",
+      "HEAD"
+     ],
+     "name": "health",
+     "path": "/health"
+    },
+    {
+     "generated": false,
+     "kind": "Route",
+     "methods": [
+      "DELETE",
+      "GET",
+      "HEAD"
+     ],
+     "name": "item",
+     "path": "/items/{item_id:int}"
+    }
+   ]
+  }
+ },
+ "framework": {
+  "name": "starlette",
+  "version": "1.7.0"
+ },
+ "oracle": "framework-route-table",
+ "python": {
+  "implementation": "cpython",
+  "machine": "arm64",
+  "system": "Darwin",
+  "version": "3.12.13"
+ }
+}

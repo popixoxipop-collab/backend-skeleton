@@ -1,0 +1,273 @@
+{
+ "fixtures": {
+  "counterexamples/default-methods": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "ping",
+     "path": "/ping"
+    },
+    {
+     "generated": true,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "static",
+     "path": "/static/<path:filename>"
+    }
+   ]
+  },
+  "counterexamples/deployment-prefix": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "ping",
+     "path": "/ping"
+    },
+    {
+     "generated": true,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "static",
+     "path": "/static/<path:filename>"
+    }
+   ]
+  },
+  "counterexamples/dynamic-route-factory": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "alpha",
+     "path": "/alpha"
+    },
+    {
+     "generated": false,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "beta",
+     "path": "/beta"
+    },
+    {
+     "generated": true,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "static",
+     "path": "/static/<path:filename>"
+    }
+   ]
+  },
+  "counterexamples/generated-routes": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "admin.admin_index",
+     "path": "/admin/"
+    },
+    {
+     "generated": true,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "admin.static",
+     "path": "/admin/admin_static/<path:filename>"
+    },
+    {
+     "generated": true,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "static",
+     "path": "/assets/<path:filename>"
+    }
+   ]
+  },
+  "counterexamples/imperative-registration": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "ping",
+     "path": "/ping"
+    },
+    {
+     "generated": true,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "static",
+     "path": "/static/<path:filename>"
+    }
+   ]
+  },
+  "counterexamples/middleware-auth": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "private",
+     "path": "/private"
+    },
+    {
+     "generated": false,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "public",
+     "path": "/public"
+    },
+    {
+     "generated": true,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "static",
+     "path": "/static/<path:filename>"
+    }
+   ]
+  },
+  "counterexamples/router-prefix": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": true,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "static",
+     "path": "/static/<path:filename>"
+    },
+    {
+     "generated": false,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "api.ping",
+     "path": "/v2/ping"
+    }
+   ]
+  },
+  "normal": {
+   "error": null,
+   "generated_groups": [],
+   "routes": [
+    {
+     "generated": false,
+     "methods": [
+      "OPTIONS",
+      "POST"
+     ],
+     "name": "api.create_item",
+     "path": "/api/items"
+    },
+    {
+     "generated": false,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "health",
+     "path": "/health"
+    },
+    {
+     "generated": false,
+     "methods": [
+      "DELETE",
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "item",
+     "path": "/items/<int:item_id>"
+    },
+    {
+     "generated": true,
+     "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+     ],
+     "name": "static",
+     "path": "/static/<path:filename>"
+    }
+   ]
+  }
+ },
+ "framework": {
+  "name": "flask",
+  "version": "3.1.3"
+ },
+ "oracle": "framework-route-table",
+ "python": {
+  "implementation": "cpython",
+  "machine": "arm64",
+  "system": "Darwin",
+  "version": "3.12.13"
+ }
+}

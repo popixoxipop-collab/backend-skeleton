@@ -1,0 +1,19 @@
+{
+ "source": "PyPI JSON API https://pypi.org/pypi/<project>/json",
+ "fetched_utc": "2026-10-08T15:51:12Z..2026-10-08T15:51:13Z",
+ "projects": {
+  "litestar": {
+   "info_version": "2.24.0",
+   "requires_python": "<4.0,>=3.8",
+   "pinned": {
+    "version": "2.24.0",
+    "filename": "litestar-2.24.0-py3-none-any.whl",
+    "sha256": "0ef13630173ea147847363f03f0459877ab14a572e68b2af7a25796055513a31",
+    "size": 581807,
+    "upload_time_iso_8601": "2026-06-11T11:26:58.509354Z",
+    "yanked": false
+   },
+   "released_after_pin": []
+  }
+ }
+}
