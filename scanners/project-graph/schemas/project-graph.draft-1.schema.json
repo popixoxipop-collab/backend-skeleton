@@ -1,0 +1,292 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:project-graph:draft-1",
+  "title": "sbf.project-graph/draft-1",
+  "description": "Draft, T02-owned description of the object returned by buildProjectGraph() in scanners/project-graph/index.mjs (buildRegisteredProjectGraph() adds registry_load_errors). Not a stable SBF contract: project_id is repo-local planning identity only, the shape may change until T00/T01 approve a cross-tool seam, and absence of a facet means unknown, not none. See ../INTERFACE_RFC.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "repo_root", "projects", "project_edges", "unresolved", "files_read", "notes"],
+  "properties": {
+    "schema": { "const": "sbf.project-graph/draft-1" },
+    "repo_root": { "const": "." },
+    "projects": { "type": "array", "items": { "$ref": "#/$defs/project" } },
+    "project_edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } },
+    "unresolved": { "type": "array", "items": { "$ref": "#/$defs/unresolved" } },
+    "files_read": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/relPath" } },
+    "notes": { "type": "array", "items": { "type": "string" } },
+    "registry_load_errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "message"],
+        "properties": {
+          "file": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The base name of the registry file that failed to load. The registry records the joined path of a .mjs file, so the base name is not empty; see ../INTERFACE_RFC.md section 2.6."
+          },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "relPath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!(?:[\\s\\S]*/)?\\.\\.(?:/|$))[\\s\\S]+$",
+      "description": "A repo-relative path with / separators. Rejects only a leading / and a .. segment. A backslash, a drive-like first segment such as c: and a line terminator are legal in a POSIX file name and the builder emits them as found, so they are accepted."
+    },
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "projectId": { "type": "string", "pattern": "^project:[\\s\\S]+$" },
+    "role": { "enum": ["active", "reference", "generated", "vendor", "template"] },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "digest"],
+      "properties": { "path": { "$ref": "#/$defs/relPath" }, "digest": { "$ref": "#/$defs/digest" } }
+    },
+    "marker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "kind", "digest"],
+      "properties": {
+        "path": { "$ref": "#/$defs/relPath" },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The nine default marker rules emit the values listed under examples. A markerRules entry supplied by the caller can emit any non-empty string, so this is not an enum. The builder copies the value as given; see ../INTERFACE_RFC.md section 2.5.",
+          "examples": ["node-package", "python-project", "jvm-build", "jvm-workspace", "ruby-bundle", "go-module", "rust-package", "php-package", "dotnet-project"]
+        },
+        "digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter_id", "title", "specificity", "confidence", "verification_basis", "capabilities"],
+      "properties": {
+        "adapter_id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string" },
+        "specificity": { "type": "number" },
+        "confidence": { "type": "string" },
+        "verification_basis": { "type": "string" },
+        "capabilities": { "type": "object" }
+      }
+    },
+    "httpFacet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidates", "selected_adapter", "selection_reason", "ambiguous_adapter_ids"],
+      "properties": {
+        "candidates": { "type": "array", "items": { "$ref": "#/$defs/candidate" } },
+        "selected_adapter": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "description": "The id of the selected first-class adapter, or null. A non-null value is a non-empty string, as for a candidate adapter_id: buildProjectScanPlan() tests this field for truthiness, so an empty string would drop the application from the plan. See ../INTERFACE_RFC.md section 2.6."
+        },
+        "selection_reason": { "enum": ["unique-highest-specificity", "specificity-tie", "no-first-class-adapter"] },
+        "ambiguous_adapter_ids": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "selection_reason": { "const": "unique-highest-specificity" } }, "required": ["selection_reason"] },
+          "then": { "properties": { "selected_adapter": { "type": "string", "minLength": 1 }, "ambiguous_adapter_ids": { "type": "array", "maxItems": 0 }, "candidates": { "type": "array", "minItems": 1 } } }
+        },
+        {
+          "if": { "properties": { "selection_reason": { "const": "specificity-tie" } }, "required": ["selection_reason"] },
+          "then": { "properties": { "selected_adapter": { "type": "null" }, "ambiguous_adapter_ids": { "type": "array", "minItems": 2 }, "candidates": { "type": "array", "minItems": 2 } } }
+        },
+        {
+          "if": { "properties": { "selection_reason": { "const": "no-first-class-adapter" } }, "required": ["selection_reason"] },
+          "then": { "properties": { "selected_adapter": { "type": "null" }, "ambiguous_adapter_ids": { "type": "array", "maxItems": 0 }, "candidates": { "type": "array", "maxItems": 0 } } }
+        }
+      ]
+    },
+    "readSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter_id", "files", "fingerprint"],
+      "properties": {
+        "adapter_id": { "type": "string", "minLength": 1 },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "digest", "role"],
+            "properties": { "path": { "$ref": "#/$defs/relPath" }, "digest": { "$ref": "#/$defs/digest" }, "role": { "$ref": "#/$defs/role" } }
+          }
+        },
+        "fingerprint": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "localPackage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "private", "dependency_names", "workspace_patterns", "evidence"],
+      "properties": {
+        "name": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "description": "The name field of package.json, or null when the field is absent, not a string or empty. A non-null value is a non-empty string, because the edge builder skips a falsy name. See ../INTERFACE_RFC.md section 2.6."
+        },
+        "private": { "type": "boolean" },
+        "dependency_names": { "type": "array", "items": { "type": "string" } },
+        "workspace_patterns": { "type": "array", "items": { "type": "string" } },
+        "evidence": { "$ref": "#/$defs/evidence" }
+      }
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id", "root", "project_role", "kind", "markers", "facets", "fallback_adapter", "selected_adapter_read_set", "child_project_roots", "nested_detections", "local_package"],
+      "properties": {
+        "project_id": { "$ref": "#/$defs/projectId" },
+        "root": { "$ref": "#/$defs/relPath" },
+        "project_role": { "$ref": "#/$defs/role" },
+        "kind": { "enum": ["application", "ambiguous", "aggregate", "unrecognized"] },
+        "markers": { "type": "array", "items": { "$ref": "#/$defs/marker" } },
+        "facets": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["http"],
+          "properties": { "http": { "$ref": "#/$defs/httpFacet" } }
+        },
+        "fallback_adapter": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "description": "The id of the fallback adapter that detected a project with no candidate, or null. A non-null value is a non-empty string, as for a candidate adapter_id. A fallback adapter that has no id is recorded as null, which no schema can tell from no fallback; see ../INTERFACE_RFC.md section 2.5."
+        },
+        "selected_adapter_read_set": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/readSet" }] },
+        "child_project_roots": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/relPath" } },
+        "nested_detections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["adapter_id", "detected_root"],
+            "properties": { "adapter_id": { "type": "string", "minLength": 1 }, "detected_root": { "$ref": "#/$defs/relPath" } }
+          }
+        },
+        "local_package": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/localPackage" }] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "application" } }, "required": ["kind"] },
+          "then": { "properties": { "fallback_adapter": { "type": "null" }, "facets": { "type": "object", "properties": { "http": { "type": "object", "properties": { "selection_reason": { "const": "unique-highest-specificity" } } } } } } }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "ambiguous" } }, "required": ["kind"] },
+          "then": { "properties": { "fallback_adapter": { "type": "null" }, "selected_adapter_read_set": { "type": "null" }, "facets": { "type": "object", "properties": { "http": { "type": "object", "properties": { "selection_reason": { "const": "specificity-tie" } } } } } } }
+        },
+        {
+          "if": { "properties": { "kind": { "enum": ["aggregate", "unrecognized"] } }, "required": ["kind"] },
+          "then": { "properties": { "selected_adapter_read_set": { "type": "null" }, "facets": { "type": "object", "properties": { "http": { "type": "object", "properties": { "selection_reason": { "const": "no-first-class-adapter" } } } } } } }
+        }
+      ]
+    },
+    "edge": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "from_project_id", "to_project_id", "evidence"],
+          "properties": {
+            "kind": { "const": "contains" },
+            "from_project_id": { "$ref": "#/$defs/projectId" },
+            "to_project_id": { "$ref": "#/$defs/projectId" },
+            "evidence": { "type": "array", "maxItems": 0 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "from_project_id", "to_project_id", "dependency_name", "evidence"],
+          "properties": {
+            "kind": { "const": "local-package-dependency" },
+            "from_project_id": { "$ref": "#/$defs/projectId" },
+            "to_project_id": { "$ref": "#/$defs/projectId" },
+            "dependency_name": { "type": "string", "minLength": 1 },
+            "evidence": { "type": "array", "minItems": 1, "maxItems": 1, "items": { "$ref": "#/$defs/evidence" } }
+          }
+        }
+      ]
+    },
+    "unresolved": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "path", "message"],
+          "properties": {
+            "kind": { "enum": ["directory-read", "marker-read"] },
+            "path": { "$ref": "#/$defs/relPath" },
+            "message": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "project_id", "path", "message"],
+          "properties": {
+            "kind": { "const": "package-metadata-read" },
+            "project_id": { "$ref": "#/$defs/projectId" },
+            "path": { "$ref": "#/$defs/relPath" },
+            "message": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "package_name", "project_ids", "message"],
+          "properties": {
+            "kind": { "const": "ambiguous-local-package-name" },
+            "package_name": { "type": "string", "minLength": 1 },
+            "project_ids": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/projectId" } },
+            "message": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "project_id", "package_name", "candidate_project_ids", "message"],
+          "properties": {
+            "kind": { "const": "ambiguous-local-package-dependency" },
+            "project_id": { "$ref": "#/$defs/projectId" },
+            "package_name": { "type": "string", "minLength": 1 },
+            "candidate_project_ids": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/projectId" } },
+            "message": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "project_root", "adapter_id", "message"],
+          "properties": {
+            "kind": { "enum": ["adapter-detect-error", "unlocated-detection", "selected-adapter-missing", "adapter-read-set-error"] },
+            "project_root": { "$ref": "#/$defs/relPath" },
+            "adapter_id": { "type": "string", "minLength": 1 },
+            "message": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "project_root", "adapter_id", "detected_root", "message"],
+          "properties": {
+            "kind": { "const": "out-of-scope-detection" },
+            "project_root": { "$ref": "#/$defs/relPath" },
+            "adapter_id": { "type": "string", "minLength": 1 },
+            "detected_root": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The detected root relative to the repo root, as posixRel() writes it. Unlike a relPath it can leave the repo with a .. segment, so it is not a relPath. It is never empty: the builder writes . for the repo root itself. See ../INTERFACE_RFC.md section 2.6."
+            },
+            "message": { "type": "string" }
+          }
+        }
+      ]
+    }
+  }
+}
