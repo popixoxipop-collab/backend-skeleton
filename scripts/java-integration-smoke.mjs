@@ -99,7 +99,8 @@ const testEnv = {
 	BSKEL_TEST_DB_PASSWORD: dbPassword,
 };
 try {
-	sh('./gradlew', ['test', '--tests', 'com.example.demo.global.handle.HandleLifecycleIntegrationTest', '--console=plain'], scratch, { env: testEnv });
+	// --no-watch-fs on both ./gradlew calls: FS watching can miss Node's rewrite and leave compileJava UP-TO-DATE (see java-compile-smoke.mjs).
+	sh('./gradlew', ['test', '--tests', 'com.example.demo.global.handle.HandleLifecycleIntegrationTest', '--console=plain', '--no-watch-fs'], scratch, { env: testEnv });
 } catch (err) {
 	fail(`./gradlew test failed (exit ${err.status}) -- see output above`);
 }
@@ -133,7 +134,7 @@ await resetClient.end();
 
 console.log('java-integration-smoke: running the real @SpringBootTest suite (./gradlew test) with registry enforcement ON...');
 try {
-	sh('./gradlew', ['test', '--tests', 'com.example.demo.global.handle.HandleRegistryEnforcementIntegrationTest', '--console=plain'], scratch, { env: testEnv });
+	sh('./gradlew', ['test', '--tests', 'com.example.demo.global.handle.HandleRegistryEnforcementIntegrationTest', '--console=plain', '--no-watch-fs'], scratch, { env: testEnv });
 } catch (err) {
 	fail(`./gradlew test (enforcement ON) failed (exit ${err.status}) -- see output above`);
 }
