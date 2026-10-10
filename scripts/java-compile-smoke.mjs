@@ -216,6 +216,19 @@ if (report.pass !== true) {
 
 console.log('java-compile-smoke: PASS -- generated Java compiled cleanly via bskel verify --build.');
 
+// Real, live-reproduced Gradle daemon staleness, found while adding the phases below: a
+// brand-new source file created by an EXTERNAL process (Node's fs.writeFileSync, not a
+// Gradle-visible build action) was sometimes not picked up by the VERY NEXT `./gradlew`
+// invocation -- `compileTestJava` failed with "cannot find symbol" for a class that existed
+// correctly on disk (confirmed by inspecting the failed run's scratch dir directly), and a
+// second attempt hit the same class of staleness one step later ("No tests found for given
+// includes" despite the test file existing). Gradle's own file-system-watching daemon feature
+// (default-on since Gradle 6.7, used for incremental-build performance) is the documented cause
+// of exactly this race between an OS file-change notification and an immediately-following build
+// invocation. Disabled here, right after the first build, for the rest of THIS scratch repo's
+// builds only -- the SignSmokeTest phase below failed with it enabled on the macOS runner.
+fs.appendFileSync(path.join(scratch, 'gradle.properties'), '\norg.gradle.vfs.watch=false\n');
+
 // D-resolver-policy-contract (PC12): the load-bearing proof -- a REAL Spring application context,
 // not just a compile check, showing the unresolved LedgerAuthorizationPolicy genuinely blocks
 // LedgerResolver from being constructed (negative), a hand-supplied policy bean genuinely
@@ -405,19 +418,6 @@ console.log('java-compile-smoke: PASS -- a real Java-signed receipt verified cor
 // transition), authors real rules against it, re-emits the runtime resources, and drives the real
 // generated RuleSetLoader/RuleCheck from a JUnit test -- same "read a Node-written input, write a
 // Node-read output" shape SignSmokeTest above already established.
-// Real, live-reproduced Gradle daemon staleness, found while adding the phases below: a
-// brand-new source file created by an EXTERNAL process (Node's fs.writeFileSync, not a
-// Gradle-visible build action) was sometimes not picked up by the VERY NEXT `./gradlew`
-// invocation -- `compileTestJava` failed with "cannot find symbol" for a class that existed
-// correctly on disk (confirmed by inspecting the failed run's scratch dir directly), and a
-// second attempt hit the same class of staleness one step later ("No tests found for given
-// includes" despite the test file existing). Gradle's own file-system-watching daemon feature
-// (default-on since Gradle 6.7, used for incremental-build performance) is the documented cause
-// of exactly this race between an OS file-change notification and an immediately-following build
-// invocation. Disabled here, for the rest of THIS scratch repo's builds only -- not touching the
-// SignSmokeTest phase above, which has run reliably without it.
-fs.appendFileSync(path.join(scratch, 'gradle.properties'), '\norg.gradle.vfs.watch=false\n');
-
 console.log('java-compile-smoke: business rules -- real OpenAPI doc, real rules, real JVM execution...');
 const rulesOpenApiDoc = {
 	openapi: '3.1.0',
