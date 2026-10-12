@@ -1763,11 +1763,11 @@
       },
       {
         "id": "hash-rule",
-        "statement": "For a value that JSON can write, the hash of t16HashJson is the sha256 of the value written with sorted keys at every depth, two-space indentation and one final newline; the runtime inspector reports that hash of the binding document as bindingHash."
+        "statement": "For JSON data, which is arrays and plain objects (objects whose prototype is Object.prototype) that hold strings, finite numbers, booleans, null and more arrays and plain objects, the hash of t16HashJson is the sha256 of the value written with two-space indentation and one final newline and with the keys of every object, at every depth, sorted by UTF-16 code unit, except that keys that are array indexes (the text of a whole number from 0 to 4294967294 without a leading zero, such as 2 and 10) come first, in numeric order; the runtime inspector reports that hash of the binding document as bindingHash."
       },
       {
         "id": "hash-input-domain",
-        "statement": "t16HashJson does not hash every value. A BigInt (as the value, as an array element or as an enumerable string-keyed property, also when nested in other values) throws a TypeError. A cycle through plain objects and arrays, or a nesting deep enough to exhaust the stack, throws a RangeError, and a cycle through a class instance or an object without prototype throws a TypeError. Undefined, a function, a symbol and a call without an argument throw nothing and share one hash, that of the text undefined with a final newline; NaN, Infinity and null share one hash as well. Whenever it returns, the result is a string of 64 lowercase hexadecimal characters."
+        "statement": "t16HashJson does not hash every value. A BigInt (as the value, as an array element or as an enumerable string-keyed property, also when nested in other values) throws a TypeError. A cycle through plain objects and arrays, or a nesting deep enough to exhaust the stack, throws a RangeError, and a cycle through a class instance or an object without prototype throws a TypeError. Undefined, a function, a symbol and a call without an argument throw nothing and share one hash, that of the text undefined with a final newline; NaN, Infinity and null share one hash as well. A class instance and an object without prototype are not sorted: their keys, and the keys of everything inside them, come out in the order in which the engine lists them (array indexes first, in numeric order, then the other keys in the order in which they were added), so the same keys added in another order can give another hash. Whenever it returns, the result is a string of 64 lowercase hexadecimal characters."
       },
       {
         "id": "reference-equality",

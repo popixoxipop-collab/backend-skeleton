@@ -807,6 +807,12 @@ const RULE_TESTS = {
     assert.equal(M.evidence.t16HashJson(value), crypto.createHash('sha256').update(text).digest('hex'));
     const runtime = M.evidence.inspectRuntimeBehaviorProjection({ expected: evidence.expected, ...evidence.runtimeBehavior });
     assert.equal(runtime.bindingHash, M.evidence.t16HashJson(evidence.documents.binding));
+    const hash = (input) => M.evidence.t16HashJson(input);
+    assert.equal(hash({ a: 1, b: { y: [{ n: 1, m: 2 }], x: 3 } }), hash({ b: { x: 3, y: [{ m: 2, n: 1 }] }, a: 1 }));
+    const writtenOrder = ['0', '2', '10', '4294967294', '-1', '01', '4294967295', 'B', 'b', String.fromCharCode(0xe9), String.fromCodePoint(0x10000), String.fromCharCode(0xffff)];
+    const withValues = writtenOrder.map((key, index) => [key, index]);
+    const orderedText = `{\n${withValues.map(([key, index]) => `  ${JSON.stringify(key)}: ${index}`).join(',\n')}\n}\n`;
+    for (const entries of [withValues, [...withValues].reverse()]) assert.equal(hash(Object.fromEntries(entries)), crypto.createHash('sha256').update(orderedText).digest('hex'));
   },
   'hash-input-domain': async () => {
     const { M } = await validInputs();
@@ -820,6 +826,29 @@ const RULE_TESTS = {
       }
       return 'no error';
     };
+    class Keyed {
+      constructor(keys) {
+        for (const key of keys) this[key] = 1;
+      }
+    }
+    const plainOf = (keys) => Object.fromEntries(keys.map((key) => [key, 1]));
+    const unsortedKinds = [
+      ['a class instance', (keys) => new Keyed(keys)],
+      ['an object without prototype', (keys) => Object.assign(Object.create(null), plainOf(keys))]
+    ];
+    for (const [label, make] of unsortedKinds) {
+      assert.notEqual(hash(make(['b', 'a'])), hash(make(['a', 'b'])), `${label}: the same keys added in another order give another hash`);
+      assert.equal(hash(make(['a', 'b'])), hash(plainOf(['a', 'b'])), `${label} whose keys were added in sorted order is written as the plain object is`);
+      assert.equal(hash(make(['10', '2'])), hash(make(['2', '10'])), `${label}: array indexes come out in numeric order whatever the order added`);
+      const holding = (keys) => {
+        const holder = make(['k']);
+        holder.k = plainOf(keys);
+        holder.list = [plainOf(keys)];
+        return holder;
+      };
+      assert.notEqual(hash(holding(['b', 'a'])), hash(holding(['a', 'b'])), `${label}: the plain objects and arrays inside it are not sorted`);
+      assert.notEqual(hash({ outer: [make(['b', 'a'])] }), hash({ outer: [make(['a', 'b'])] }), `${label} inside plain objects and arrays is still not sorted`);
+    }
     const loop = { a: 1 };
     loop.self = loop;
     const ring = [1];
