@@ -1,0 +1,281 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:game-native-export-envelope:draft-1",
+  "title": "backend-skeleton native export envelope (draft, shadow only)",
+  "description": "Shape of the object that createNativeExportEnvelope in native-export-envelope.mjs returns and verifyNativeExportEnvelope accepts (schema sbf.game-native-export-envelope/draft-1, envelope_revision 2). The envelope binds the exact bytes of one engine export and of the source files it came from; it interprets nothing and verifies nothing about the engine. Every claim is false by construction. This file checks shape only: it cannot see bytes, so a byte hash that does not belong to the payload still validates, and it cannot express that source input paths are unique. The test native-export-envelope-schema.test.mjs lists where this schema is stricter or looser than the code.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "envelope_revision",
+    "status",
+    "engine",
+    "evidence_class",
+    "engine_version",
+    "platform",
+    "producer",
+    "source_inputs",
+    "artifact",
+    "payload_descriptor",
+    "claims"
+  ],
+  "properties": {
+    "schema": {
+      "description": "Identity of this envelope format.",
+      "const": "sbf.game-native-export-envelope/draft-1"
+    },
+    "envelope_revision": {
+      "description": "Revision of the envelope shape inside the draft.",
+      "const": 2
+    },
+    "status": {
+      "description": "bound-uninterpreted: the bytes are bound to this envelope and nothing in them was interpreted. It is not a support, runtime or correctness status.",
+      "const": "bound-uninterpreted"
+    },
+    "engine": {
+      "description": "The engine the producer says the export belongs to. There is no value for an unknown engine: an engine outside this list is rejected, not recorded as unknown.",
+      "enum": ["unreal", "unity", "godot"]
+    },
+    "evidence_class": {
+      "description": "How the producer says the export was made. Which classes an engine accepts is stated by the allOf rules below.",
+      "enum": ["source-export", "editor-export", "headless-export"]
+    },
+    "engine_version": {
+      "description": "Free text from the producer, not verified.",
+      "type": "string",
+      "minLength": 1
+    },
+    "platform": {
+      "description": "Free text from the producer, not verified.",
+      "type": "string",
+      "minLength": 1
+    },
+    "producer": {
+      "$ref": "#/$defs/producer"
+    },
+    "source_inputs": {
+      "description": "Exact source files the export was made from, sorted by path by the builder. Required to be non-empty for the evidence class source-export. Paths are unique in the code; this schema cannot express that.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source_input"
+      }
+    },
+    "artifact": {
+      "$ref": "#/$defs/export_artifact"
+    },
+    "payload_descriptor": {
+      "$ref": "#/$defs/payload_descriptor"
+    },
+    "claims": {
+      "$ref": "#/$defs/claims"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "engine": {
+            "const": "godot"
+          }
+        },
+        "required": ["engine"]
+      },
+      "then": {
+        "properties": {
+          "evidence_class": {
+            "enum": ["source-export", "headless-export"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "engine": {
+            "enum": ["unreal", "unity"]
+          }
+        },
+        "required": ["engine"]
+      },
+      "then": {
+        "properties": {
+          "evidence_class": {
+            "enum": ["source-export", "editor-export"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence_class": {
+            "const": "source-export"
+          }
+        },
+        "required": ["evidence_class"]
+      },
+      "then": {
+        "properties": {
+          "source_inputs": {
+            "type": "array",
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "description": "Lower-case hexadecimal SHA-256 digest.",
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "size_bytes": {
+      "description": "Byte length, a non-negative safe integer.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "media_type": {
+      "description": "type/subtype without white space, the rule of the code. The pattern is the whole check and nothing parses the text, so a parameter written without white space is accepted as part of the subtype (text/plain;charset=utf-8 is accepted) and white space anywhere is rejected (text/plain; charset=utf-8 is rejected), as is a missing slash.",
+      "type": "string",
+      "pattern": "^[^\\s/]+/[^\\s]+$"
+    },
+    "portable_path": {
+      "description": "Repo-relative POSIX path: non-empty, no leading slash, no drive prefix, no backslash, no NUL, and no empty, dot or dot-dot segment.",
+      "type": "string",
+      "pattern": "^(?![A-Za-z]:/)(?:(?!\\.\\.?(?:/|$))[^/\\\\\\0]+)(?:/(?!\\.\\.?(?:/|$))[^/\\\\\\0]+)*$"
+    },
+    "producer": {
+      "description": "Declaration of the tool that made the export. Nothing verifies it: implementation_sha256 only has to look like a digest, and claims.producer_identity_verified stays false.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "implementation_sha256"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "implementation_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "export_artifact": {
+      "description": "Identity of the exported payload: the SHA-256 and the length of its exact bytes. Formatting-only changes of the JSON give another identity.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_ref", "family", "version", "media_type", "byte_sha256", "size_bytes"],
+      "properties": {
+        "artifact_ref": {
+          "const": "sbf.artifact-ref/1"
+        },
+        "family": {
+          "const": "game-native-export"
+        },
+        "version": {
+          "const": "draft-1"
+        },
+        "media_type": {
+          "const": "application/json"
+        },
+        "byte_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "size_bytes": {
+          "$ref": "#/$defs/size_bytes"
+        }
+      }
+    },
+    "source_artifact": {
+      "description": "Identity of one source file: the SHA-256 and the length of its exact bytes.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_ref", "family", "version", "media_type", "byte_sha256", "size_bytes"],
+      "properties": {
+        "artifact_ref": {
+          "const": "sbf.artifact-ref/1"
+        },
+        "family": {
+          "const": "game-native-source"
+        },
+        "version": {
+          "const": "draft-1"
+        },
+        "media_type": {
+          "$ref": "#/$defs/media_type"
+        },
+        "byte_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "size_bytes": {
+          "$ref": "#/$defs/size_bytes"
+        }
+      }
+    },
+    "source_input": {
+      "description": "One exact source file bound to the export.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "role", "artifact"],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/portable_path"
+        },
+        "role": {
+          "enum": ["active", "reference", "generated", "vendor", "template"]
+        },
+        "artifact": {
+          "$ref": "#/$defs/source_artifact"
+        }
+      }
+    },
+    "payload_descriptor": {
+      "description": "Not authoritative. A convenience copy of what the payload says about itself: declared_schema is the value of the payload's own string property schema (null when it has none) and top_level_keys are its top-level property names, sorted. Neither is verified against anything and neither is an identity or a trust signal; the bytes in artifact are the only binding.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["declared_schema", "top_level_keys"],
+      "properties": {
+        "declared_schema": {
+          "type": ["string", "null"]
+        },
+        "top_level_keys": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "claims": {
+      "description": "Every claim is false by construction. The envelope never asserts that the producer was identified, that the engine was run, or that edges or state transitions were established.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "producer_identity_verified",
+        "runtime_behavior_verified",
+        "causal_edges_verified",
+        "state_transitions_verified"
+      ],
+      "properties": {
+        "producer_identity_verified": {
+          "const": false
+        },
+        "runtime_behavior_verified": {
+          "const": false
+        },
+        "causal_edges_verified": {
+          "const": false
+        },
+        "state_transitions_verified": {
+          "const": false
+        }
+      }
+    }
+  }
+}

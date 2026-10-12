@@ -1,0 +1,3909 @@
+{
+  "schema": "bskel.track-baseline-record/2",
+  "schema_status": "provisional",
+  "track": "T17 Game plane and engine expansion",
+  "item": "T17-01",
+  "suite_id": "T17",
+  "title": "Exact-revision baseline of the current game-next behaviour, its failure cases and its remaining limits",
+  "base_commit": "15a38e923cb5e079c6f8e2a4c2a9386406c41f52",
+  "base_tree": "1bffe4fecb9801a92a6cd18dd62d6d7e1e7c0cd1",
+  "observed_on": "2026-10-11",
+  "environment": {
+    "generated_with_node": "v24.19.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "loaded_packages": {
+      "ajv": "8.20.0",
+      "fast-deep-equal": "3.1.3",
+      "fast-uri": "3.1.7",
+      "json-schema-traverse": "1.0.0",
+      "require-from-string": "2.0.2"
+    },
+    "fixture_text_packages": [
+      "@react-three/fiber",
+      "three"
+    ]
+  },
+  "source_dir": "adapters/game-next",
+  "test_dir": "test/game-next",
+  "files": [
+    {
+      "role": "source",
+      "path": "adapters/game-next/native-export-envelope.mjs",
+      "bytes": 10376,
+      "git_blob_sha1": "d40d8d4a4acd088c058c147e833ea4e5f7e49ecb",
+      "sha256": "062cf507132976f1f5d4f63af72b1ab85e4377fb4c4ab2780ea541826c385d8c"
+    },
+    {
+      "role": "source",
+      "path": "adapters/game-next/native-structure-normalizer.mjs",
+      "bytes": 18393,
+      "git_blob_sha1": "d5bfadea4a0b4e5d6b1c5f8d620fd53bc95c0761",
+      "sha256": "cc72bcd499338f40020a15e0826b4d3b4b8be8ab96eef0571b58ed02c60bf917"
+    },
+    {
+      "role": "source",
+      "path": "adapters/game-next/native-text-source-exporters.mjs",
+      "bytes": 12263,
+      "git_blob_sha1": "b993cfe5947c5d31c40c0661ee6f30d0c0e71b96",
+      "sha256": "9c126c80aa9325ffab85258f487523dd2ed98d7f273605a4e712379ed95bd9d1"
+    },
+    {
+      "role": "test",
+      "path": "test/game-next/native-structure-media-type.test.mjs",
+      "bytes": 5146,
+      "git_blob_sha1": "6d3ebbc1315c4fba91d2bfc56075616fc22121e7",
+      "sha256": "92390fa6417523bb4248b8991604db620f59f4193e848541a2334ccfdd385a9f",
+      "test_count": 6
+    },
+    {
+      "role": "test",
+      "path": "test/game-next/native-text-source-exporters.test.mjs",
+      "bytes": 9585,
+      "git_blob_sha1": "2c90c73c169b3bd95553d5dc638417187f2a0848",
+      "sha256": "1082bcafb66896751f0902c8df04f11d57a9667f385d0e68a393b9569dc4d0ee",
+      "test_count": 10
+    },
+    {
+      "role": "external_dependency",
+      "path": "contracts/webgame.mjs",
+      "bytes": 5448,
+      "git_blob_sha1": "f17b6c5f548d9312dd3e4c4da490d472553dc85f",
+      "sha256": "36c84c37a798613017e704e814b534c9a7c1b5cb539949b4ec8212a481e30c88"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/adapters/_express-shared.mjs",
+      "bytes": 13792,
+      "git_blob_sha1": "bd4616d0030de508911933ac415a239b40d40e61",
+      "sha256": "c580e27aed15fad55b36d4b6dd76fd4c89f9ccc419b54f240f47f24e0fbf5c6f"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/text-util.mjs",
+      "bytes": 3372,
+      "git_blob_sha1": "26df2e47019d3fea20dfd20b83be93a7f33c19ed",
+      "sha256": "293383368952be98c7f868847c8184ebc5df49615a3bdd7861613a372e8d2198"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/webgame.mjs",
+      "bytes": 12897,
+      "git_blob_sha1": "fb39a39973447c51ca006008fc43afe06a0a7f59",
+      "sha256": "312ba2beee88b0f8e89adf10311f89b7d5877084fc2f6327aafe073181fa97ff"
+    },
+    {
+      "role": "external_dependency",
+      "path": "schemas/webgame-contract.schema.json",
+      "bytes": 8177,
+      "git_blob_sha1": "197238f080400f3c6394baec003bbc2f192542de",
+      "sha256": "dcacaa68f0c42fc091b9b9cd827f0a73d689c01c90ada35a7a6f1e83de967a46"
+    },
+    {
+      "role": "external_dependency",
+      "path": "schemas/webgame-scan.schema.json",
+      "bytes": 9976,
+      "git_blob_sha1": "09ae9213f2706b3651429da46da29bffb746844c",
+      "sha256": "230e8562bf7d09dbdf2ae4baa9504a7db2523ed4d920791761beecc2374e300e"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/webgame-contract.test.mjs",
+      "bytes": 8282,
+      "git_blob_sha1": "78e512e282ede1d8b932185972896e76ebd53f04",
+      "sha256": "4741b90b20c11a389322ee9f0e4e8836c41ba5e9c52278f5cf73152e879670ce"
+    },
+    {
+      "role": "external_dependency",
+      "path": "package-lock.json",
+      "bytes": 8925,
+      "git_blob_sha1": "34da67575f01e97724c4b5ee944b67ae4435e003",
+      "sha256": "f53dc054a10dafadcb217a17f3805253bdafc123b0943026ee453dee20210087"
+    },
+    {
+      "role": "runner",
+      "path": "scripts/run-next-nested-tests.mjs",
+      "bytes": 6886,
+      "git_blob_sha1": "daccc6c9112e1db2f8353d5ac38fd3d44f48e41e",
+      "sha256": "acb8db06506f5bb1d52ff4f82b54b9a4db9fd3d45409a02da4d546c55c0dacac"
+    }
+  ],
+  "commands": [
+    {
+      "id": "direct-tap",
+      "command": "node --test test/game-next/native-structure-media-type.test.mjs test/game-next/native-text-source-exporters.test.mjs",
+      "revision": "15a38e923cb5e079c6f8e2a4c2a9386406c41f52",
+      "exit_code": 0,
+      "result": {
+        "tests": 16,
+        "suites": 0,
+        "pass": 16,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "id": "nested-runner",
+      "command": "node scripts/run-next-nested-tests.mjs T17",
+      "revision": "15a38e923cb5e079c6f8e2a4c2a9386406c41f52",
+      "exit_code": 0,
+      "runner_files": 2,
+      "first_line": "NESTED_SUITE T17 RUN 2 files",
+      "result": {
+        "tests": 16,
+        "suites": 0,
+        "pass": 16,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "id": "legacy-tap",
+      "command": "node --test test/webgame-contract.test.mjs",
+      "revision": "15a38e923cb5e079c6f8e2a4c2a9386406c41f52",
+      "exit_code": 0,
+      "result": {
+        "tests": 5,
+        "suites": 0,
+        "pass": 5,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    }
+  ],
+  "shared": {
+    "producer-text": {
+      "id": "t17-baseline-text-exporter",
+      "version": "0-draft",
+      "implementation_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+    },
+    "producer-hand": {
+      "id": "t17-baseline-hand-written",
+      "version": "0-draft",
+      "implementation_sha256": "7777777777777777777777777777777777777777777777777777777777777777"
+    },
+    "unity-text": {
+      "$lines": [
+        "%YAML 1.1",
+        "%TAG !u! tag:unity3d.com,2011:",
+        "--- !u!1 &6",
+        "GameObject:",
+        "  m_Name: Hero",
+        "  m_Component:",
+        "  - component: {fileID: 8}",
+        "  - component: {fileID: 50}",
+        "--- !u!4 &8",
+        "Transform:",
+        "  m_GameObject: {fileID: 6}",
+        "  m_Father: {fileID: 0}",
+        "--- !u!114 &50",
+        "MonoBehaviour:",
+        "  m_GameObject: {fileID: 6}",
+        "  m_Script: {fileID: 11500000, guid: 9cbd8cdf99d44b58972fbc7f6f38088f, type: 3}"
+      ]
+    },
+    "godot-text": {
+      "$lines": [
+        "[gd_scene load_steps=2 format=3]",
+        "",
+        "[ext_resource type=\"Script\" path=\"res://player.gd\" id=\"1\"]",
+        "[sub_resource type=\"Resource\" id=\"Stats\"]",
+        "",
+        "[node name=\"Main\" type=\"Node3D\"]",
+        "",
+        "[node name=\"Player\" type=\"CharacterBody3D\" parent=\".\"]",
+        "script = ExtResource(\"1\")",
+        "",
+        "[connection signal=\"hit\" from=\"Player\" to=\".\" method=\"_on_hit\"]"
+      ]
+    },
+    "unity-options": {
+      "path": "Assets/Scenes/Main.unity",
+      "engineVersion": "6000-test",
+      "platform": "source-only",
+      "producer": {
+        "$use": "producer-text"
+      }
+    },
+    "godot-options": {
+      "path": "game/main.tscn",
+      "engineVersion": "4-test",
+      "platform": "source-only",
+      "producer": {
+        "$use": "producer-text"
+      }
+    },
+    "unity-envelope": {
+      "$call": {
+        "module": "adapters/game-next/native-text-source-exporters.mjs",
+        "fn": "buildUnityTextSceneExport",
+        "args": [
+          {
+            "$use": "unity-text"
+          },
+          {
+            "$use": "unity-options"
+          }
+        ]
+      },
+      "$get": "envelope"
+    },
+    "unity-payload-bytes": {
+      "$call": {
+        "module": "adapters/game-next/native-text-source-exporters.mjs",
+        "fn": "buildUnityTextSceneExport",
+        "args": [
+          {
+            "$use": "unity-text"
+          },
+          {
+            "$use": "unity-options"
+          }
+        ]
+      },
+      "$get": "payload_bytes"
+    },
+    "godot-envelope": {
+      "$call": {
+        "module": "adapters/game-next/native-text-source-exporters.mjs",
+        "fn": "buildGodotTextSceneExport",
+        "args": [
+          {
+            "$use": "godot-text"
+          },
+          {
+            "$use": "godot-options"
+          }
+        ]
+      },
+      "$get": "envelope"
+    },
+    "godot-payload-bytes": {
+      "$call": {
+        "module": "adapters/game-next/native-text-source-exporters.mjs",
+        "fn": "buildGodotTextSceneExport",
+        "args": [
+          {
+            "$use": "godot-text"
+          },
+          {
+            "$use": "godot-options"
+          }
+        ]
+      },
+      "$get": "payload_bytes"
+    },
+    "unity-source-ref": {
+      "$call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeSourceRef",
+        "args": [
+          {
+            "$use": "unity-text"
+          },
+          {
+            "path": "Assets/Scenes/Main.unity",
+            "role": "active",
+            "mediaType": "text/yaml"
+          }
+        ]
+      }
+    },
+    "unity-verify-options": {
+      "sourceBytes": {
+        "$use": "unity-payload-bytes"
+      },
+      "sourceInputBytes": {
+        "Assets/Scenes/Main.unity": {
+          "$use": "unity-text"
+        }
+      }
+    },
+    "unreal-type": {
+      "id": "Game.MyPawn",
+      "kind": "class",
+      "name": "AMyPawn",
+      "base": "APawn",
+      "specifiers": [
+        "BlueprintType"
+      ],
+      "properties": [
+        {
+          "name": "Health",
+          "type": "float",
+          "specifiers": [
+            "Replicated"
+          ]
+        },
+        {
+          "name": "Ammo",
+          "type": "int32",
+          "specifiers": [
+            "ReplicatedUsing=OnRep_Ammo"
+          ]
+        }
+      ],
+      "functions": [
+        {
+          "name": "ServerFire",
+          "specifiers": [
+            "Server",
+            "Reliable"
+          ]
+        },
+        {
+          "name": "OnRep_Ammo",
+          "specifiers": []
+        }
+      ]
+    },
+    "unreal-export": {
+      "schema": "sbf.game-unreal-structure-export/draft-1",
+      "types": [
+        {
+          "$use": "unreal-type"
+        }
+      ]
+    },
+    "unreal-text": {
+      "$json": {
+        "$use": "unreal-export"
+      }
+    },
+    "unreal-options": {
+      "engine": "unreal",
+      "evidenceClass": "editor-export",
+      "engineVersion": "5.4-test",
+      "platform": "linux-x64",
+      "producer": {
+        "$use": "producer-hand"
+      }
+    },
+    "unreal-envelope": {
+      "$call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "unreal-text"
+          },
+          {
+            "$use": "unreal-options"
+          }
+        ]
+      }
+    },
+    "unreal-normalized": {
+      "$call": {
+        "module": "adapters/game-next/native-structure-normalizer.mjs",
+        "fn": "normalizeNativeStructureExport",
+        "args": [
+          {
+            "$use": "unreal-text"
+          },
+          {
+            "$use": "unreal-envelope"
+          }
+        ]
+      }
+    },
+    "v-unknown-field-text": {
+      "$json": {
+        "$edit": {
+          "$use": "unreal-export"
+        },
+        "set": [
+          [
+            "/types/0/mystery",
+            "x"
+          ]
+        ]
+      }
+    },
+    "v-unknown-field-envelope": {
+      "$call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "v-unknown-field-text"
+          },
+          {
+            "$use": "unreal-options"
+          }
+        ]
+      }
+    },
+    "v-duplicate-type-text": {
+      "$json": {
+        "$edit": {
+          "$use": "unreal-export"
+        },
+        "set": [
+          [
+            "/types/1",
+            {
+              "$use": "unreal-type"
+            }
+          ]
+        ]
+      }
+    },
+    "v-duplicate-type-envelope": {
+      "$call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "v-duplicate-type-text"
+          },
+          {
+            "$use": "unreal-options"
+          }
+        ]
+      }
+    },
+    "v-replication-text": {
+      "$json": {
+        "$edit": {
+          "$use": "unreal-export"
+        },
+        "set": [
+          [
+            "/types/0/properties/0/specifiers",
+            [
+              "Replicated",
+              "ReplicatedUsing=OnRep_Health"
+            ]
+          ]
+        ]
+      }
+    },
+    "v-replication-envelope": {
+      "$call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "v-replication-text"
+          },
+          {
+            "$use": "unreal-options"
+          }
+        ]
+      }
+    },
+    "v-rpc-mode-text": {
+      "$json": {
+        "$edit": {
+          "$use": "unreal-export"
+        },
+        "set": [
+          [
+            "/types/0/functions/0/specifiers",
+            [
+              "Server",
+              "Client"
+            ]
+          ]
+        ]
+      }
+    },
+    "v-rpc-mode-envelope": {
+      "$call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "v-rpc-mode-text"
+          },
+          {
+            "$use": "unreal-options"
+          }
+        ]
+      }
+    },
+    "v-rpc-reliability-text": {
+      "$json": {
+        "$edit": {
+          "$use": "unreal-export"
+        },
+        "set": [
+          [
+            "/types/0/functions/0/specifiers",
+            [
+              "Server",
+              "Reliable",
+              "Unreliable"
+            ]
+          ]
+        ]
+      }
+    },
+    "v-rpc-reliability-envelope": {
+      "$call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "v-rpc-reliability-text"
+          },
+          {
+            "$use": "unreal-options"
+          }
+        ]
+      }
+    },
+    "three-source": {
+      "$lines": [
+        "",
+        "import * as THREE from 'three';",
+        "",
+        "const scene = new THREE.Scene();",
+        "const player = new THREE.Mesh();",
+        "const renderer = new THREE.WebGLRenderer();",
+        "scene.add(player);",
+        "",
+        "function updatePlayer(dt) {",
+        "  player.position.z += dt;",
+        "}",
+        "function animate() {",
+        "  requestAnimationFrame(animate);",
+        "  updatePlayer(1 / 60);",
+        "  renderer.render(scene, camera);",
+        "}",
+        "function onKey(event) {",
+        "  if (event.code === 'KeyW') updatePlayer(1);",
+        "}",
+        "window.addEventListener('keydown', onKey);",
+        "",
+        "const socket = new WebSocket('wss://example.invalid/game');",
+        "loader.load('/assets/player.glb');",
+        "animate();"
+      ]
+    },
+    "three-project": {
+      "$project": {
+        "package.json": {
+          "$json": {
+            "name": "fixture",
+            "dependencies": {
+              "three": "^0.180.0",
+              "@dimforge/rapier3d": "^0.19.0"
+            }
+          },
+          "$indent": 2
+        },
+        "src/game.ts": {
+          "$use": "three-source"
+        }
+      }
+    },
+    "three-edited-project": {
+      "$project": {
+        "package.json": {
+          "$json": {
+            "name": "fixture",
+            "dependencies": {
+              "three": "^0.180.0",
+              "@dimforge/rapier3d": "^0.19.0"
+            }
+          },
+          "$indent": 2
+        },
+        "src/game.ts": {
+          "$concat": [
+            {
+              "$use": "three-source"
+            },
+            "// edited after the contract was emitted\n"
+          ]
+        }
+      }
+    },
+    "r3f-source": {
+      "$lines": [
+        "",
+        "import { Canvas } from '@react-three/fiber';",
+        "",
+        "function updateWorld() {}",
+        "export function Game() {",
+        "  return <Canvas><mesh name=\"hero\" onClick={selectHero} /></Canvas>;",
+        "}"
+      ]
+    },
+    "r3f-project": {
+      "$project": {
+        "package.json": {
+          "$json": {
+            "name": "fixture",
+            "dependencies": {
+              "three": "^0.180.0",
+              "@react-three/fiber": "^9.0.0"
+            }
+          },
+          "$indent": 2
+        },
+        "src/game.ts": {
+          "$use": "r3f-source"
+        }
+      }
+    },
+    "three-minimal-project": {
+      "$project": {
+        "package.json": {
+          "$json": {
+            "name": "fixture",
+            "dependencies": {
+              "three": "^0.180.0"
+            }
+          },
+          "$indent": 2
+        },
+        "src/game.ts": {
+          "$lines": [
+            "import * as THREE from 'three';",
+            "const scene = new THREE.Scene();",
+            "function animate(){ requestAnimationFrame(animate); }"
+          ]
+        }
+      }
+    },
+    "three-dependency-only-project": {
+      "$project": {
+        "package.json": {
+          "$json": {
+            "name": "fixture",
+            "dependencies": {
+              "three": "^0.180.0"
+            }
+          },
+          "$indent": 2
+        },
+        "src/game.ts": {
+          "$lines": [
+            "const x = 1;"
+          ]
+        }
+      }
+    },
+    "other-engines-project": {
+      "$project": {
+        "package.json": {
+          "$json": {
+            "name": "fixture",
+            "dependencies": {
+              "@babylonjs/core": "^7.0.0",
+              "phaser": "^3.80.0"
+            }
+          },
+          "$indent": 2
+        },
+        "src/game.ts": {
+          "$lines": [
+            "import { Scene } from '@babylonjs/core';",
+            "const scene = new Scene(engine);",
+            "function update() {}"
+          ]
+        }
+      }
+    },
+    "invalid-package-json-project": {
+      "$project": {
+        "package.json": "{ not json",
+        "src/game.ts": {
+          "$lines": [
+            "const x = 1;"
+          ]
+        }
+      }
+    },
+    "feature-id": "001-gameplay",
+    "feature-uid": "11111111-1111-4111-8111-111111111111",
+    "three-scan": {
+      "$call": {
+        "module": "scanners/webgame.mjs",
+        "fn": "scanWebgame",
+        "args": [
+          {
+            "$use": "three-project"
+          }
+        ]
+      }
+    },
+    "three-contract": {
+      "$call": {
+        "module": "contracts/webgame.mjs",
+        "fn": "buildWebgameContract",
+        "args": [
+          {
+            "featureId": {
+              "$use": "feature-id"
+            },
+            "featureUid": {
+              "$use": "feature-uid"
+            },
+            "scan": {
+              "$use": "three-scan"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "fixtures": [
+    {
+      "id": "scanner-module-exports",
+      "class": "normal",
+      "origin": "sorted export names of the legacy scanner module",
+      "call": {
+        "module": "scanners/webgame.mjs",
+        "fn": "$exports"
+      },
+      "expect": [
+        [
+          "",
+          [
+            "WEBGAME_SCANNER_REVISION",
+            "detectWebgameProjects",
+            "scanWebgame"
+          ]
+        ]
+      ],
+      "output_sha256": "24d3401c52f6f0eec0a173dff733eefffd208160b907062fa8a0e66b3d290483"
+    },
+    {
+      "id": "contract-module-exports",
+      "class": "normal",
+      "origin": "sorted export names of the legacy contract module",
+      "call": {
+        "module": "contracts/webgame.mjs",
+        "fn": "$exports"
+      },
+      "expect": [
+        [
+          "",
+          [
+            "WEBGAME_CONTRACT_VERSION",
+            "buildWebgameContract",
+            "verifyWebgameContractSnapshot"
+          ]
+        ]
+      ],
+      "output_sha256": "5285a75e9fb744f62a9f81ae6c7971107b1a563f8f886c8e60572186378262da"
+    },
+    {
+      "id": "three-project-scan-is-complete",
+      "class": "normal",
+      "origin": "legacy scanWebgame on a throw-away Three.js project: scene, mesh, renderer, update function, animation loop, key listener, socket and glb load",
+      "call": {
+        "module": "scanners/webgame.mjs",
+        "fn": "scanWebgame",
+        "args": [
+          {
+            "$use": "three-project"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/schema",
+          "sbf.webgame-scan/1"
+        ],
+        [
+          "/adapter",
+          "typescript-webgame"
+        ],
+        [
+          "/adapter_revision",
+          1
+        ],
+        [
+          "/engines",
+          [
+            "three"
+          ]
+        ],
+        [
+          "/completeness",
+          {
+            "status": "complete",
+            "scene_count": 1,
+            "entity_count": 1,
+            "loop_count": 1
+          }
+        ],
+        [
+          "/warnings",
+          [
+            {
+              "code": "WEBGAME_INPUT_EFFECT_UNRESOLVED",
+              "message": "input triggers were found, but v1 deliberately does not infer which state/entity mutation each trigger causes"
+            }
+          ]
+        ],
+        [
+          "/scenes/0/kind",
+          "three-scene"
+        ],
+        [
+          "/scenes/0/provenance",
+          "static-new-expression"
+        ],
+        [
+          "/network",
+          {
+            "sockets": [
+              {
+                "kind": "WebSocket",
+                "endpoint": "wss://example.invalid/game",
+                "file": "src/game.ts",
+                "line": 22,
+                "provenance": "literal-constructor"
+              }
+            ]
+          }
+        ],
+        [
+          "/assets",
+          [
+            {
+              "uri": "/assets/player.glb",
+              "file": "src/game.ts",
+              "line": 23,
+              "provenance": "literal-asset-reference"
+            }
+          ]
+        ]
+      ],
+      "output_sha256": "1ffe5d1ca0240d0a7bf8bf5621a883002741f67fdb2caae913f2dcaf2e3d193c"
+    },
+    {
+      "id": "r3f-canvas-project-scan-is-complete",
+      "class": "normal",
+      "origin": "legacy scanWebgame on a throw-away React Three Fiber project: a Canvas with one named mesh",
+      "call": {
+        "module": "scanners/webgame.mjs",
+        "fn": "scanWebgame",
+        "args": [
+          {
+            "$use": "r3f-project"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/engines",
+          [
+            "@react-three/fiber",
+            "three"
+          ]
+        ],
+        [
+          "/completeness",
+          {
+            "status": "complete",
+            "scene_count": 1,
+            "entity_count": 1,
+            "loop_count": 0
+          }
+        ],
+        [
+          "/scenes/0/kind",
+          "react-three-fiber-canvas"
+        ],
+        [
+          "/scenes/0/provenance",
+          "jsx-canvas"
+        ],
+        [
+          "/entities/0/symbol",
+          "hero"
+        ],
+        [
+          "/entities/0/kind",
+          "jsx:mesh"
+        ],
+        [
+          "/warnings",
+          [
+            {
+              "code": "WEBGAME_INPUT_EFFECT_UNRESOLVED",
+              "message": "input triggers were found, but v1 deliberately does not infer which state/entity mutation each trigger causes"
+            }
+          ]
+        ]
+      ],
+      "output_sha256": "e98a862bbe8cbae563f5eea321e55918d8d130aaa5a230fcd6e263cf937086ec"
+    },
+    {
+      "id": "scene-and-loop-alone-make-a-scan-complete",
+      "class": "normal",
+      "origin": "legacy scanWebgame on three lines: an import, a Scene and an animation loop; complete is reached with no entity and no input",
+      "call": {
+        "module": "scanners/webgame.mjs",
+        "fn": "scanWebgame",
+        "args": [
+          {
+            "$use": "three-minimal-project"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/completeness",
+          {
+            "status": "complete",
+            "scene_count": 1,
+            "entity_count": 0,
+            "loop_count": 1
+          }
+        ],
+        [
+          "/warnings",
+          []
+        ],
+        [
+          "/entities",
+          []
+        ],
+        [
+          "/input",
+          {
+            "listeners": [],
+            "keys": []
+          }
+        ]
+      ],
+      "output_sha256": "0c42f4d0cec83e824a5797dca93001b54a9aaa5a430323e1c5b3133e8cb80b6d"
+    },
+    {
+      "id": "three-contract-is-emitted",
+      "class": "normal",
+      "origin": "legacy buildWebgameContract on the Three.js scan",
+      "call": {
+        "module": "contracts/webgame.mjs",
+        "fn": "buildWebgameContract",
+        "args": [
+          {
+            "featureId": {
+              "$use": "feature-id"
+            },
+            "featureUid": {
+              "$use": "feature-uid"
+            },
+            "scan": {
+              "$use": "three-scan"
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/sbf_webgame_contract",
+          "1"
+        ],
+        [
+          "/feature_id",
+          "001-gameplay"
+        ],
+        [
+          "/feature_uid",
+          "11111111-1111-4111-8111-111111111111"
+        ],
+        [
+          "/completeness",
+          {
+            "status": "complete",
+            "scene_count": 1,
+            "entity_count": 1,
+            "loop_count": 1
+          }
+        ],
+        [
+          "/warnings",
+          [
+            {
+              "code": "WEBGAME_INPUT_EFFECT_UNRESOLVED",
+              "message": "input triggers were found, but v1 deliberately does not infer which state/entity mutation each trigger causes"
+            }
+          ]
+        ],
+        [
+          "/source/engines",
+          [
+            "three"
+          ]
+        ]
+      ],
+      "output_sha256": "32e31e07f64c6173bc67608ffb07af2f5b2b21e13292bc1863ed52bd2db0bee2"
+    },
+    {
+      "id": "contract-verifies-against-its-own-scan",
+      "class": "normal",
+      "origin": "legacy verifyWebgameContractSnapshot with the contract and a scan of the same files",
+      "call": {
+        "module": "contracts/webgame.mjs",
+        "fn": "verifyWebgameContractSnapshot",
+        "args": [
+          {
+            "contract": {
+              "$use": "three-contract"
+            },
+            "scan": {
+              "$use": "three-scan"
+            },
+            "featureId": {
+              "$use": "feature-id"
+            },
+            "featureUid": {
+              "$use": "feature-uid"
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/current",
+          true
+        ],
+        [
+          "/changes",
+          []
+        ]
+      ],
+      "output_sha256": "bc535c34dfa9b5497329211a10947eb5eab47247d337c5b7c8344ef44ec50d27"
+    },
+    {
+      "id": "contract-detects-a-changed-source",
+      "class": "negative",
+      "origin": "legacy verifyWebgameContractSnapshot with the contract and a scan of the same project after one line was appended",
+      "call": {
+        "module": "contracts/webgame.mjs",
+        "fn": "verifyWebgameContractSnapshot",
+        "args": [
+          {
+            "contract": {
+              "$use": "three-contract"
+            },
+            "scan": {
+              "$call": {
+                "module": "scanners/webgame.mjs",
+                "fn": "scanWebgame",
+                "args": [
+                  {
+                    "$use": "three-edited-project"
+                  }
+                ]
+              }
+            },
+            "featureId": {
+              "$use": "feature-id"
+            },
+            "featureUid": {
+              "$use": "feature-uid"
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/current",
+          false
+        ],
+        [
+          "/changes",
+          [
+            {
+              "field": "source.source_hash",
+              "expected": "1e0a4425fbd5acaf6b8e71b4c1ee05e5833991ef6dc07fd526e17c5cf0b12c82",
+              "actual": "f419c3cffc56c0ba527cfeb183ef606fbd0bcd10e037d9f0720c1e993d1d70ca"
+            },
+            {
+              "field": "contract_digest",
+              "expected": "eb0325170074e5bc6876a352c89ce833bdd12f4708ddab51039c6f2e0bbedac8",
+              "actual": "32e31e07f64c6173bc67608ffb07af2f5b2b21e13292bc1863ed52bd2db0bee2"
+            }
+          ]
+        ]
+      ],
+      "output_sha256": "2ed343b80405b0c14cd82b3999037924242ce28c46c2b45b506a802c30a90ba3"
+    },
+    {
+      "id": "contract-verify-reports-another-feature-id",
+      "class": "negative",
+      "origin": "legacy verifyWebgameContractSnapshot with the feature id of another feature",
+      "call": {
+        "module": "contracts/webgame.mjs",
+        "fn": "verifyWebgameContractSnapshot",
+        "args": [
+          {
+            "contract": {
+              "$use": "three-contract"
+            },
+            "scan": {
+              "$use": "three-scan"
+            },
+            "featureId": "002-other",
+            "featureUid": {
+              "$use": "feature-uid"
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/current",
+          false
+        ],
+        [
+          "/changes/0/field",
+          "feature_id"
+        ],
+        [
+          "/changes/0/expected",
+          "002-other"
+        ],
+        [
+          "/changes/0/actual",
+          "001-gameplay"
+        ]
+      ],
+      "output_sha256": "8a74e76f4c09260ee106be7f64a9dd580b9a875c49d53721881bb9f76b9d7da3"
+    },
+    {
+      "id": "dependency-without-scene-is-partial",
+      "class": "negative",
+      "origin": "legacy scanWebgame on a project whose package.json names three but whose source has no scene and no loop",
+      "call": {
+        "module": "scanners/webgame.mjs",
+        "fn": "scanWebgame",
+        "args": [
+          {
+            "$use": "three-dependency-only-project"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/engines",
+          [
+            "three"
+          ]
+        ],
+        [
+          "/completeness",
+          {
+            "status": "partial",
+            "scene_count": 0,
+            "entity_count": 0,
+            "loop_count": 0
+          }
+        ],
+        [
+          "/warnings/0/code",
+          "WEBGAME_SCENE_UNRESOLVED"
+        ],
+        [
+          "/warnings/1/code",
+          "WEBGAME_SIMULATION_LOOP_UNRESOLVED"
+        ]
+      ],
+      "output_sha256": "a6fcc55cf58eb4c366adaab4b4eafe1b0b16f9c716d77e24b7a209a30fec4efb"
+    },
+    {
+      "id": "unsupported-engines-are-blocked",
+      "class": "negative",
+      "origin": "legacy scanWebgame on a project that declares Babylon.js and Phaser only",
+      "call": {
+        "module": "scanners/webgame.mjs",
+        "fn": "scanWebgame",
+        "args": [
+          {
+            "$use": "other-engines-project"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/engines",
+          []
+        ],
+        [
+          "/completeness",
+          {
+            "status": "blocked",
+            "scene_count": 0,
+            "entity_count": 0,
+            "loop_count": 0
+          }
+        ],
+        [
+          "/warnings/0/code",
+          "WEBGAME_ENGINE_NOT_DETECTED"
+        ]
+      ],
+      "output_sha256": "07c082a6269f7f38881e0af60d6def4ff2e6b2d3b4aff7eecf78aa26342f7c8a"
+    },
+    {
+      "id": "invalid-package-json-is-blocked",
+      "class": "negative",
+      "origin": "legacy scanWebgame on a project whose package.json is not JSON",
+      "call": {
+        "module": "scanners/webgame.mjs",
+        "fn": "scanWebgame",
+        "args": [
+          {
+            "$use": "invalid-package-json-project"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/engines",
+          []
+        ],
+        [
+          "/completeness",
+          {
+            "status": "blocked",
+            "scene_count": 0,
+            "entity_count": 0,
+            "loop_count": 0
+          }
+        ],
+        [
+          "/warnings/0/code",
+          "WEBGAME_ENGINE_NOT_DETECTED"
+        ]
+      ],
+      "output_sha256": "07c082a6269f7f38881e0af60d6def4ff2e6b2d3b4aff7eecf78aa26342f7c8a"
+    },
+    {
+      "id": "contract-refuses-a-blocked-scan",
+      "class": "negative",
+      "origin": "legacy buildWebgameContract on the scan of a project with an unsupported engine",
+      "call": {
+        "module": "contracts/webgame.mjs",
+        "fn": "buildWebgameContract",
+        "args": [
+          {
+            "featureId": {
+              "$use": "feature-id"
+            },
+            "featureUid": {
+              "$use": "feature-uid"
+            },
+            "scan": {
+              "$call": {
+                "module": "scanners/webgame.mjs",
+                "fn": "scanWebgame",
+                "args": [
+                  {
+                    "$use": "other-engines-project"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "Error"
+        ],
+        [
+          "/threw/message",
+          "cannot emit a webgame contract: no supported webgame engine was detected"
+        ]
+      ],
+      "output_sha256": "a43f0409f4bc07eb04695e763685e9d0d95d71054e66b190d81da8507092b1e5"
+    },
+    {
+      "id": "contract-from-a-partial-scan-keeps-its-warnings",
+      "class": "negative",
+      "origin": "legacy buildWebgameContract on the partial scan of a project without a scene",
+      "call": {
+        "module": "contracts/webgame.mjs",
+        "fn": "buildWebgameContract",
+        "args": [
+          {
+            "featureId": {
+              "$use": "feature-id"
+            },
+            "featureUid": {
+              "$use": "feature-uid"
+            },
+            "scan": {
+              "$call": {
+                "module": "scanners/webgame.mjs",
+                "fn": "scanWebgame",
+                "args": [
+                  {
+                    "$use": "three-dependency-only-project"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/completeness",
+          {
+            "status": "partial",
+            "scene_count": 0,
+            "entity_count": 0,
+            "loop_count": 0
+          }
+        ],
+        [
+          "/warnings/0/code",
+          "WEBGAME_SCENE_UNRESOLVED"
+        ]
+      ],
+      "output_sha256": "55285d8fc44fe4fb5f2ca76bb41a79ecf5ffe0eb49357b33927d3fdf058cf011"
+    },
+    {
+      "id": "contract-builder-accepts-any-feature-uid",
+      "class": "negative",
+      "origin": "observed limit: legacy buildWebgameContract copies a feature uid that is not a UUID",
+      "call": {
+        "module": "contracts/webgame.mjs",
+        "fn": "buildWebgameContract",
+        "args": [
+          {
+            "featureId": {
+              "$use": "feature-id"
+            },
+            "featureUid": "not-a-uuid",
+            "scan": {
+              "$use": "three-scan"
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/feature_uid",
+          "not-a-uuid"
+        ]
+      ],
+      "output_sha256": "cca9594f7803262d2196d729506418c3da4aba64fc9196562e371c8eaa4a743c"
+    },
+    {
+      "id": "envelope-module-exports",
+      "class": "normal",
+      "origin": "sorted export names of the envelope module",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "$exports"
+      },
+      "expect": [
+        [
+          "",
+          [
+            "NATIVE_EXPORT_ENVELOPE_REVISION",
+            "NATIVE_EXPORT_ENVELOPE_SCHEMA",
+            "createNativeExportEnvelope",
+            "createNativeSourceRef",
+            "verifyNativeExportEnvelope"
+          ]
+        ]
+      ],
+      "output_sha256": "ecbab46ee7dfdeb25dd22532b18a3eb58ec864735d8fd0d2d814725a0f143ad4"
+    },
+    {
+      "id": "unreal-envelope-is-bound-and-uninterpreted",
+      "class": "normal",
+      "origin": "createNativeExportEnvelope on the hand-written Unreal export text",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "unreal-text"
+          },
+          {
+            "$use": "unreal-options"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/schema",
+          "sbf.game-native-export-envelope/draft-1"
+        ],
+        [
+          "/envelope_revision",
+          2
+        ],
+        [
+          "/status",
+          "bound-uninterpreted"
+        ],
+        [
+          "/engine",
+          "unreal"
+        ],
+        [
+          "/evidence_class",
+          "editor-export"
+        ],
+        [
+          "/source_inputs",
+          []
+        ],
+        [
+          "/payload_descriptor",
+          {
+            "declared_schema": "sbf.game-unreal-structure-export/draft-1",
+            "top_level_keys": [
+              "schema",
+              "types"
+            ]
+          }
+        ],
+        [
+          "/artifact/family",
+          "game-native-export"
+        ],
+        [
+          "/artifact/media_type",
+          "application/json"
+        ],
+        [
+          "/artifact/size_bytes",
+          422
+        ],
+        [
+          "/artifact/byte_sha256",
+          "5fe784c0e03780f240f3bc03319336d506ba17fe3978d72635cdbe99c3ed6eae"
+        ],
+        [
+          "/claims",
+          {
+            "producer_identity_verified": false,
+            "runtime_behavior_verified": false,
+            "causal_edges_verified": false,
+            "state_transitions_verified": false
+          }
+        ]
+      ],
+      "output_sha256": "bb64f563c52abc5a151c8e869afe2583e9743fb3015a2ffa51bbb66a7659780f"
+    },
+    {
+      "id": "envelope-verifies-with-its-own-bytes",
+      "class": "normal",
+      "origin": "verifyNativeExportEnvelope with the envelope and the bytes it binds",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "verifyNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "unreal-envelope"
+          },
+          {
+            "sourceBytes": {
+              "$use": "unreal-text"
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          true
+        ],
+        [
+          "/errors",
+          []
+        ]
+      ],
+      "output_sha256": "f2e6221bac7112ea123f706c89500b263e72f0f9bc7068fb74bdbaf8c51fbc38"
+    },
+    {
+      "id": "source-ref-binds-exact-source-bytes",
+      "class": "normal",
+      "origin": "createNativeSourceRef on the Unity scene text",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeSourceRef",
+        "args": [
+          {
+            "$use": "unity-text"
+          },
+          {
+            "path": "Assets/Scenes/Main.unity",
+            "role": "active",
+            "mediaType": "text/yaml"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/path",
+          "Assets/Scenes/Main.unity"
+        ],
+        [
+          "/role",
+          "active"
+        ],
+        [
+          "/artifact/family",
+          "game-native-source"
+        ],
+        [
+          "/artifact/media_type",
+          "text/yaml"
+        ],
+        [
+          "/artifact/size_bytes",
+          363
+        ],
+        [
+          "/artifact/byte_sha256",
+          "58c582f21f3e0e9fae95d6b83df91d9104b34cd022bea58f925eaa06b160f2f6"
+        ]
+      ],
+      "output_sha256": "75affde698147225dd5d93ffc67f95696bf37c71334b4b7c0a15dc47772ff0fe"
+    },
+    {
+      "id": "unity-envelope-verifies-with-payload-and-source-bytes",
+      "class": "normal",
+      "origin": "verifyNativeExportEnvelope with the Unity exporter envelope, its payload bytes and its source scene bytes",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "verifyNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "unity-envelope"
+          },
+          {
+            "$use": "unity-verify-options"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          true
+        ],
+        [
+          "/errors",
+          []
+        ]
+      ],
+      "output_sha256": "f2e6221bac7112ea123f706c89500b263e72f0f9bc7068fb74bdbaf8c51fbc38"
+    },
+    {
+      "id": "unknown-engine-is-refused",
+      "class": "negative",
+      "origin": "createNativeExportEnvelope with the engine cryengine",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "unreal-text"
+          },
+          {
+            "$edit": {
+              "$use": "unreal-options"
+            },
+            "set": [
+              [
+                "/engine",
+                "cryengine"
+              ]
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "unsupported native engine: cryengine"
+        ]
+      ],
+      "output_sha256": "fd80742167bfe4a1325b99a3e72042655b460daf5d30030215cd5b8436a85236"
+    },
+    {
+      "id": "godot-refuses-editor-export",
+      "class": "negative",
+      "origin": "createNativeExportEnvelope with the Godot engine and the evidence class editor-export",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "unreal-text"
+          },
+          {
+            "$edit": {
+              "$use": "unreal-options"
+            },
+            "set": [
+              [
+                "/engine",
+                "godot"
+              ]
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "unsupported evidence class for godot: editor-export"
+        ]
+      ],
+      "output_sha256": "62f33ac3165a56af45816e63041327a8e0706c7d2c68427f017d6892c872ecdd"
+    },
+    {
+      "id": "unreal-refuses-headless-export",
+      "class": "negative",
+      "origin": "createNativeExportEnvelope with the Unreal engine and the evidence class headless-export",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "unreal-text"
+          },
+          {
+            "$edit": {
+              "$use": "unreal-options"
+            },
+            "set": [
+              [
+                "/evidenceClass",
+                "headless-export"
+              ]
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "unsupported evidence class for unreal: headless-export"
+        ]
+      ],
+      "output_sha256": "ce2f221f7389353c2e2049b8470f8c2542f95bf789e9b34ead1b24265de31e9a"
+    },
+    {
+      "id": "source-export-needs-a-source-input",
+      "class": "negative",
+      "origin": "createNativeExportEnvelope with the evidence class source-export and no source input",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "unreal-text"
+          },
+          {
+            "$edit": {
+              "$use": "unreal-options"
+            },
+            "set": [
+              [
+                "/evidenceClass",
+                "source-export"
+              ]
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "source-export requires at least one exact source input"
+        ]
+      ],
+      "output_sha256": "f9fe75da5df4300ae8a2ff9ec07f0eccdc82352618f6974ff4a3f8d14672e7d2"
+    },
+    {
+      "id": "producer-digest-must-be-sha256-hex",
+      "class": "negative",
+      "origin": "createNativeExportEnvelope with a producer digest that is not 64 hex characters",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "unreal-text"
+          },
+          {
+            "$edit": {
+              "$use": "unreal-options"
+            },
+            "set": [
+              [
+                "/producer/implementation_sha256",
+                "abc"
+              ]
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "producer.implementation_sha256 must be a SHA-256 hex digest"
+        ]
+      ],
+      "output_sha256": "c42639fb48ffa1dd809d7c5c269f501d883ef5727a488ffdd4183982b1c78f4c"
+    },
+    {
+      "id": "producer-extra-field-is-refused",
+      "class": "negative",
+      "origin": "createNativeExportEnvelope with a producer that carries an unknown field",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "unreal-text"
+          },
+          {
+            "$edit": {
+              "$use": "unreal-options"
+            },
+            "set": [
+              [
+                "/producer/extra",
+                "x"
+              ]
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "producer contains unsupported fields: extra"
+        ]
+      ],
+      "output_sha256": "9ec59f948217f3c51521c71b54c849447d93c8a9919abeb7db86590db1563264"
+    },
+    {
+      "id": "non-object-export-is-refused",
+      "class": "negative",
+      "origin": "createNativeExportEnvelope on a JSON array",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeExportEnvelope",
+        "args": [
+          "[]",
+          {
+            "$use": "unreal-options"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "Error"
+        ],
+        [
+          "/threw/message",
+          "native export JSON must be a top-level object"
+        ]
+      ],
+      "output_sha256": "28f77ece636035aebf34ec05126a6116b8348551d700af648fa22d4b5b1e68ab"
+    },
+    {
+      "id": "export-over-the-byte-budget-is-refused",
+      "class": "negative",
+      "origin": "createNativeExportEnvelope with maxBytes 4",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "unreal-text"
+          },
+          {
+            "$edit": {
+              "$use": "unreal-options"
+            },
+            "set": [
+              [
+                "/maxBytes",
+                4
+              ]
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "RangeError"
+        ],
+        [
+          "/threw/message",
+          "native export exceeds byte budget: 422 > 4"
+        ]
+      ],
+      "output_sha256": "791b42f1178fdb471503d8ab1a966d6d6ddfd9c5fb9f8052749294920e1b5337"
+    },
+    {
+      "id": "duplicate-source-input-path-is-refused",
+      "class": "negative",
+      "origin": "createNativeExportEnvelope with the same source input twice",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "unity-payload-bytes"
+          },
+          {
+            "engine": "unity",
+            "evidenceClass": "source-export",
+            "engineVersion": "6000-test",
+            "platform": "source-only",
+            "producer": {
+              "$use": "producer-text"
+            },
+            "sourceInputs": [
+              {
+                "$use": "unity-source-ref"
+              },
+              {
+                "$use": "unity-source-ref"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "duplicate source input path: Assets/Scenes/Main.unity"
+        ]
+      ],
+      "output_sha256": "9007ad6a65eff78032bda91198a0e75695a44523d0ce903604972b42fa84edf1"
+    },
+    {
+      "id": "media-type-with-no-break-space-is-refused",
+      "class": "negative",
+      "origin": "createNativeSourceRef with a media type that ends in U+00A0",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeSourceRef",
+        "args": [
+          {
+            "$use": "unity-text"
+          },
+          {
+            "path": "Assets/Scenes/Main.unity",
+            "mediaType": "text/yaml "
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "media type is invalid"
+        ]
+      ],
+      "output_sha256": "c743e03eb40fa5503219aed93cf498437509f25af44c2912497f4cf36470ad35"
+    },
+    {
+      "id": "source-ref-accepts-a-media-type-parameter-without-a-space",
+      "class": "normal",
+      "origin": "createNativeSourceRef with the media type text/plain;charset=utf-8 (no space after the semicolon)",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeSourceRef",
+        "args": [
+          {
+            "$use": "unity-text"
+          },
+          {
+            "path": "Assets/Scenes/Main.unity",
+            "mediaType": "text/plain;charset=utf-8"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/artifact/media_type",
+          "text/plain;charset=utf-8"
+        ],
+        [
+          "/role",
+          "active"
+        ]
+      ],
+      "output_sha256": "d5162db75b158c6335796b8076e5f53678e996d270b60853d69b125b109bf4fc"
+    },
+    {
+      "id": "media-type-with-a-space-after-the-semicolon-is-refused",
+      "class": "negative",
+      "origin": "createNativeSourceRef with the media type text/plain; charset=utf-8 (a space after the semicolon; the same parameter without the space is accepted)",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeSourceRef",
+        "args": [
+          {
+            "$use": "unity-text"
+          },
+          {
+            "path": "Assets/Scenes/Main.unity",
+            "mediaType": "text/plain; charset=utf-8"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "media type is invalid"
+        ]
+      ],
+      "output_sha256": "c743e03eb40fa5503219aed93cf498437509f25af44c2912497f4cf36470ad35"
+    },
+    {
+      "id": "media-type-with-a-line-separator-is-refused",
+      "class": "negative",
+      "origin": "createNativeSourceRef with a media type that ends in U+2028",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeSourceRef",
+        "args": [
+          {
+            "$use": "unity-text"
+          },
+          {
+            "path": "Assets/Scenes/Main.unity",
+            "mediaType": "text/yaml "
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "media type is invalid"
+        ]
+      ],
+      "output_sha256": "c743e03eb40fa5503219aed93cf498437509f25af44c2912497f4cf36470ad35"
+    },
+    {
+      "id": "media-type-without-a-slash-is-refused",
+      "class": "negative",
+      "origin": "createNativeSourceRef with the media type textyaml",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeSourceRef",
+        "args": [
+          {
+            "$use": "unity-text"
+          },
+          {
+            "path": "Assets/Scenes/Main.unity",
+            "mediaType": "textyaml"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "media type is invalid"
+        ]
+      ],
+      "output_sha256": "c743e03eb40fa5503219aed93cf498437509f25af44c2912497f4cf36470ad35"
+    },
+    {
+      "id": "source-ref-accepts-a-structured-suffix-media-type",
+      "class": "normal",
+      "origin": "createNativeSourceRef with the media type image/svg+xml",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeSourceRef",
+        "args": [
+          {
+            "$use": "unity-text"
+          },
+          {
+            "path": "Assets/Scenes/Main.unity",
+            "mediaType": "image/svg+xml"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/artifact/media_type",
+          "image/svg+xml"
+        ],
+        [
+          "/role",
+          "active"
+        ]
+      ],
+      "output_sha256": "e1034b04fb9dd10886c486de231eee36a7a48941b2ba6da19e6797bd9d92b5b6"
+    },
+    {
+      "id": "source-ref-rejects-an-unknown-role",
+      "class": "negative",
+      "origin": "createNativeSourceRef with the source role main",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeSourceRef",
+        "args": [
+          {
+            "$use": "unity-text"
+          },
+          {
+            "path": "Assets/Scenes/Main.unity",
+            "role": "main"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "unsupported source role: main"
+        ]
+      ],
+      "output_sha256": "17ca65869ee37f85767c3400102902ca0c471c76f209684192af7353ef49c36c"
+    },
+    {
+      "id": "source-ref-refuses-a-parent-path",
+      "class": "negative",
+      "origin": "createNativeSourceRef with a path that contains a parent segment",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "createNativeSourceRef",
+        "args": [
+          {
+            "$use": "unity-text"
+          },
+          {
+            "path": "Assets/../Main.unity"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "source path must not contain empty, dot, or parent segments"
+        ]
+      ],
+      "output_sha256": "37540b93d25393e76a17bc59b797acc212d7fd4b0e8f0552a0b5d183aa2d496d"
+    },
+    {
+      "id": "verify-rejects-a-true-claim",
+      "class": "negative",
+      "origin": "verifyNativeExportEnvelope with runtime_behavior_verified set to true",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "verifyNativeExportEnvelope",
+        "args": [
+          {
+            "$edit": {
+              "$use": "unreal-envelope"
+            },
+            "set": [
+              [
+                "/claims/runtime_behavior_verified",
+                true
+              ]
+            ]
+          },
+          {
+            "sourceBytes": {
+              "$use": "unreal-text"
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          false
+        ],
+        [
+          "/errors",
+          [
+            "claims.runtime_behavior_verified"
+          ]
+        ]
+      ],
+      "output_sha256": "e9ef3e50c07a6a8a5053ef49ef027910789b0d67b4344876d5d055807f01986b"
+    },
+    {
+      "id": "verify-rejects-changed-bytes",
+      "class": "negative",
+      "origin": "verifyNativeExportEnvelope with the bytes of the export plus one space",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "verifyNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "unreal-envelope"
+          },
+          {
+            "sourceBytes": {
+              "$concat": [
+                {
+                  "$use": "unreal-text"
+                },
+                " "
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          false
+        ],
+        [
+          "/errors",
+          [
+            "artifact-bytes"
+          ]
+        ]
+      ],
+      "output_sha256": "c5580cb781f074b8bd470cc0ac9fa92dd1a30f511d2316a2fb42dbdc7d7ee43e"
+    },
+    {
+      "id": "verify-rejects-changed-source-input-bytes",
+      "class": "negative",
+      "origin": "verifyNativeExportEnvelope with source scene bytes that differ from the bound source input",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "verifyNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "unity-envelope"
+          },
+          {
+            "sourceBytes": {
+              "$use": "unity-payload-bytes"
+            },
+            "sourceInputBytes": {
+              "Assets/Scenes/Main.unity": {
+                "$concat": [
+                  {
+                    "$use": "unity-text"
+                  },
+                  "# changed\n"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          false
+        ],
+        [
+          "/errors",
+          [
+            "source_input_bytes.mismatch:Assets/Scenes/Main.unity"
+          ]
+        ]
+      ],
+      "output_sha256": "1a72dc443ff9bac510a3d74ba49d2c972705977f1145b78c0a0017486cc62641"
+    },
+    {
+      "id": "verify-rejects-missing-source-input-bytes",
+      "class": "negative",
+      "origin": "verifyNativeExportEnvelope with no bytes for the bound source input",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "verifyNativeExportEnvelope",
+        "args": [
+          {
+            "$use": "unity-envelope"
+          },
+          {
+            "sourceBytes": {
+              "$use": "unity-payload-bytes"
+            },
+            "sourceInputBytes": {}
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          false
+        ],
+        [
+          "/errors",
+          [
+            "source_input_bytes.missing:Assets/Scenes/Main.unity"
+          ]
+        ]
+      ],
+      "output_sha256": "c281b66ea5a3890c4e649538141c49e3c810a4cf6f1127891d77b42f3b44c265"
+    },
+    {
+      "id": "verify-rejects-an-unknown-engine",
+      "class": "negative",
+      "origin": "verifyNativeExportEnvelope with the engine changed to cryengine",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "verifyNativeExportEnvelope",
+        "args": [
+          {
+            "$edit": {
+              "$use": "unreal-envelope"
+            },
+            "set": [
+              [
+                "/engine",
+                "cryengine"
+              ]
+            ]
+          },
+          {
+            "sourceBytes": {
+              "$use": "unreal-text"
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          false
+        ],
+        [
+          "/errors",
+          [
+            "engine-profile"
+          ]
+        ]
+      ],
+      "output_sha256": "855ce5e176d1022bd2fb01e624b32847bf2d17f5577cfad702d4c43eac79660f"
+    },
+    {
+      "id": "verify-rejects-another-schema-id",
+      "class": "negative",
+      "origin": "verifyNativeExportEnvelope with the schema id changed to draft-2",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "verifyNativeExportEnvelope",
+        "args": [
+          {
+            "$edit": {
+              "$use": "unreal-envelope"
+            },
+            "set": [
+              [
+                "/schema",
+                "sbf.game-native-export-envelope/draft-2"
+              ]
+            ]
+          },
+          {
+            "sourceBytes": {
+              "$use": "unreal-text"
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          false
+        ],
+        [
+          "/errors",
+          [
+            "schema"
+          ]
+        ]
+      ],
+      "output_sha256": "7704461a3daa0d4dddfc72dea021f30369cefad6591c0402cfa64973643160ed"
+    },
+    {
+      "id": "verify-rejects-empty-source-inputs-for-source-export",
+      "class": "negative",
+      "origin": "verifyNativeExportEnvelope on the Unity envelope with its source inputs emptied",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "verifyNativeExportEnvelope",
+        "args": [
+          {
+            "$edit": {
+              "$use": "unity-envelope"
+            },
+            "set": [
+              [
+                "/source_inputs",
+                []
+              ]
+            ]
+          },
+          {
+            "sourceBytes": {
+              "$use": "unity-payload-bytes"
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          false
+        ],
+        [
+          "/errors",
+          [
+            "source_inputs.required"
+          ]
+        ]
+      ],
+      "output_sha256": "797f68a217801b198621ef035b6faa1a44d2a9dc604c6f8e8a026e6e7228c0e2"
+    },
+    {
+      "id": "verify-without-bytes-checks-structure-only",
+      "class": "negative",
+      "origin": "observed limit: verifyNativeExportEnvelope without bytes accepts an envelope whose byte digest is an arbitrary well-formed value",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "verifyNativeExportEnvelope",
+        "args": [
+          {
+            "$edit": {
+              "$use": "unreal-envelope"
+            },
+            "set": [
+              [
+                "/artifact/byte_sha256",
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              ]
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          true
+        ],
+        [
+          "/errors",
+          []
+        ]
+      ],
+      "output_sha256": "f2e6221bac7112ea123f706c89500b263e72f0f9bc7068fb74bdbaf8c51fbc38"
+    },
+    {
+      "id": "verify-accepts-an-extra-top-level-key",
+      "class": "negative",
+      "origin": "observed limit: verifyNativeExportEnvelope accepts an unknown top-level key",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "verifyNativeExportEnvelope",
+        "args": [
+          {
+            "$edit": {
+              "$use": "unreal-envelope"
+            },
+            "set": [
+              [
+                "/unreviewed_note",
+                "x"
+              ]
+            ]
+          },
+          {
+            "sourceBytes": {
+              "$use": "unreal-text"
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          true
+        ],
+        [
+          "/errors",
+          []
+        ]
+      ],
+      "output_sha256": "f2e6221bac7112ea123f706c89500b263e72f0f9bc7068fb74bdbaf8c51fbc38"
+    },
+    {
+      "id": "verify-accepts-a-missing-engine-version",
+      "class": "negative",
+      "origin": "observed limit: verifyNativeExportEnvelope accepts an envelope without engine_version",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "verifyNativeExportEnvelope",
+        "args": [
+          {
+            "$edit": {
+              "$use": "unreal-envelope"
+            },
+            "delete": [
+              "/engine_version"
+            ]
+          },
+          {
+            "sourceBytes": {
+              "$use": "unreal-text"
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          true
+        ],
+        [
+          "/errors",
+          []
+        ]
+      ],
+      "output_sha256": "f2e6221bac7112ea123f706c89500b263e72f0f9bc7068fb74bdbaf8c51fbc38"
+    },
+    {
+      "id": "verify-accepts-an-empty-platform",
+      "class": "negative",
+      "origin": "observed limit: verifyNativeExportEnvelope accepts an empty platform",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "verifyNativeExportEnvelope",
+        "args": [
+          {
+            "$edit": {
+              "$use": "unreal-envelope"
+            },
+            "set": [
+              [
+                "/platform",
+                ""
+              ]
+            ]
+          },
+          {
+            "sourceBytes": {
+              "$use": "unreal-text"
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          true
+        ],
+        [
+          "/errors",
+          []
+        ]
+      ],
+      "output_sha256": "f2e6221bac7112ea123f706c89500b263e72f0f9bc7068fb74bdbaf8c51fbc38"
+    },
+    {
+      "id": "verify-accepts-a-missing-payload-descriptor",
+      "class": "negative",
+      "origin": "observed limit: verifyNativeExportEnvelope accepts an envelope without payload_descriptor",
+      "call": {
+        "module": "adapters/game-next/native-export-envelope.mjs",
+        "fn": "verifyNativeExportEnvelope",
+        "args": [
+          {
+            "$edit": {
+              "$use": "unreal-envelope"
+            },
+            "delete": [
+              "/payload_descriptor"
+            ]
+          },
+          {
+            "sourceBytes": {
+              "$use": "unreal-text"
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          true
+        ],
+        [
+          "/errors",
+          []
+        ]
+      ],
+      "output_sha256": "f2e6221bac7112ea123f706c89500b263e72f0f9bc7068fb74bdbaf8c51fbc38"
+    },
+    {
+      "id": "normalizer-module-exports",
+      "class": "normal",
+      "origin": "sorted export names of the normalizer module",
+      "call": {
+        "module": "adapters/game-next/native-structure-normalizer.mjs",
+        "fn": "$exports"
+      },
+      "expect": [
+        [
+          "",
+          [
+            "NATIVE_STRUCTURE_REVISION",
+            "NATIVE_STRUCTURE_SCHEMA",
+            "normalizeNativeStructureExport",
+            "verifyNativeStructureInvariants"
+          ]
+        ]
+      ],
+      "output_sha256": "e16655511082129c4f2898a9cf58b052fe32e6dcdaacb159d57712783e6e5acb"
+    },
+    {
+      "id": "unreal-export-is-normalized-as-declared-structure",
+      "class": "normal",
+      "origin": "normalizeNativeStructureExport on the hand-written Unreal export and its envelope",
+      "call": {
+        "module": "adapters/game-next/native-structure-normalizer.mjs",
+        "fn": "normalizeNativeStructureExport",
+        "args": [
+          {
+            "$use": "unreal-text"
+          },
+          {
+            "$use": "unreal-envelope"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/schema",
+          "sbf.game-native-structure/draft-1"
+        ],
+        [
+          "/normalizer_revision",
+          2
+        ],
+        [
+          "/status",
+          "declared-structure-only"
+        ],
+        [
+          "/nodes/length",
+          5
+        ],
+        [
+          "/relations/length",
+          5
+        ],
+        [
+          "/relations/0/kind",
+          "declared-base"
+        ],
+        [
+          "/relations/0/to_symbol",
+          "APawn"
+        ],
+        [
+          "/declarations/replication",
+          [
+            {
+              "id": "unreal:replication:Game.MyPawn:Ammo",
+              "subject": "unreal:property:Game.MyPawn:Ammo",
+              "mode": "ReplicatedUsing",
+              "notify": "OnRep_Ammo",
+              "evidence": "declared-specifier"
+            },
+            {
+              "id": "unreal:replication:Game.MyPawn:Health",
+              "subject": "unreal:property:Game.MyPawn:Health",
+              "mode": "Replicated",
+              "notify": null,
+              "evidence": "declared-specifier"
+            }
+          ]
+        ],
+        [
+          "/declarations/rpc",
+          [
+            {
+              "id": "unreal:rpc:Game.MyPawn:ServerFire",
+              "subject": "unreal:function:Game.MyPawn:ServerFire",
+              "mode": "Server",
+              "reliability": "reliable",
+              "evidence": "declared-specifier"
+            }
+          ]
+        ],
+        [
+          "/declarations/signals",
+          []
+        ],
+        [
+          "/claims",
+          {
+            "producer_identity_verified": false,
+            "source_structure_verified": false,
+            "runtime_behavior_verified": false,
+            "causal_edges_verified": false,
+            "state_transitions_verified": false
+          }
+        ]
+      ],
+      "output_sha256": "3bac6ed3ca1e2fff77b5bbc512457978088d8273e665dcaa2c135e0fce593568"
+    },
+    {
+      "id": "normalized-structure-passes-its-invariants",
+      "class": "normal",
+      "origin": "verifyNativeStructureInvariants on the normalized Unreal structure",
+      "call": {
+        "module": "adapters/game-next/native-structure-normalizer.mjs",
+        "fn": "verifyNativeStructureInvariants",
+        "args": [
+          {
+            "$use": "unreal-normalized"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          true
+        ],
+        [
+          "/errors",
+          []
+        ]
+      ],
+      "output_sha256": "f2e6221bac7112ea123f706c89500b263e72f0f9bc7068fb74bdbaf8c51fbc38"
+    },
+    {
+      "id": "godot-envelope-with-unreal-payload-is-refused",
+      "class": "negative",
+      "origin": "normalizeNativeStructureExport with an envelope that declares Godot over the bytes of an Unreal export",
+      "call": {
+        "module": "adapters/game-next/native-structure-normalizer.mjs",
+        "fn": "normalizeNativeStructureExport",
+        "args": [
+          {
+            "$use": "unreal-text"
+          },
+          {
+            "$call": {
+              "module": "adapters/game-next/native-export-envelope.mjs",
+              "fn": "createNativeExportEnvelope",
+              "args": [
+                {
+                  "$use": "unreal-text"
+                },
+                {
+                  "$edit": {
+                    "$use": "unreal-options"
+                  },
+                  "set": [
+                    [
+                      "/engine",
+                      "godot"
+                    ],
+                    [
+                      "/evidenceClass",
+                      "headless-export"
+                    ]
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "Error"
+        ],
+        [
+          "/threw/message",
+          "native structure schema mismatch: expected sbf.game-godot-scene-export/draft-1, got sbf.game-unreal-structure-export/draft-1"
+        ]
+      ],
+      "output_sha256": "9cf63b4b3eef6f627f4dbacf0055cc6987ed5921d01591a8a1907615a034d59b"
+    },
+    {
+      "id": "unknown-payload-field-is-refused",
+      "class": "negative",
+      "origin": "normalizeNativeStructureExport on an Unreal export with a field the profile does not define",
+      "call": {
+        "module": "adapters/game-next/native-structure-normalizer.mjs",
+        "fn": "normalizeNativeStructureExport",
+        "args": [
+          {
+            "$use": "v-unknown-field-text"
+          },
+          {
+            "$use": "v-unknown-field-envelope"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "types[0] contains unsupported fields: mystery"
+        ]
+      ],
+      "output_sha256": "da6b66c65ea9fd4c9c1584f9a9e65a384007d8461ec0cc7f81878487ac153822"
+    },
+    {
+      "id": "duplicate-derived-identity-is-refused",
+      "class": "negative",
+      "origin": "normalizeNativeStructureExport on an Unreal export that declares the same type twice",
+      "call": {
+        "module": "adapters/game-next/native-structure-normalizer.mjs",
+        "fn": "normalizeNativeStructureExport",
+        "args": [
+          {
+            "$use": "v-duplicate-type-text"
+          },
+          {
+            "$use": "v-duplicate-type-envelope"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "Error"
+        ],
+        [
+          "/threw/message",
+          "duplicate native node id: unreal:type:Game.MyPawn"
+        ]
+      ],
+      "output_sha256": "0e7b9c6df3f3ab1d53f92f45abbfc3172410c9dfc6ac22f757433b87070a4a10"
+    },
+    {
+      "id": "conflicting-replication-specifiers-are-refused",
+      "class": "negative",
+      "origin": "normalizeNativeStructureExport on a property that is Replicated and ReplicatedUsing",
+      "call": {
+        "module": "adapters/game-next/native-structure-normalizer.mjs",
+        "fn": "normalizeNativeStructureExport",
+        "args": [
+          {
+            "$use": "v-replication-text"
+          },
+          {
+            "$use": "v-replication-envelope"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "conflicting Unreal replication specifiers on Game.MyPawn:Health"
+        ]
+      ],
+      "output_sha256": "bf496e93b2d50641e46cb3060c977ee249405d638bdff9899162d0f3c9c11482"
+    },
+    {
+      "id": "conflicting-rpc-modes-are-refused",
+      "class": "negative",
+      "origin": "normalizeNativeStructureExport on a function that is Server and Client",
+      "call": {
+        "module": "adapters/game-next/native-structure-normalizer.mjs",
+        "fn": "normalizeNativeStructureExport",
+        "args": [
+          {
+            "$use": "v-rpc-mode-text"
+          },
+          {
+            "$use": "v-rpc-mode-envelope"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "conflicting Unreal RPC modes on Game.MyPawn:ServerFire"
+        ]
+      ],
+      "output_sha256": "78776f298888c384a179855b825098f359ddae1dbff8b59257058672ac93ce8b"
+    },
+    {
+      "id": "conflicting-rpc-reliability-is-refused",
+      "class": "negative",
+      "origin": "normalizeNativeStructureExport on a function that is Reliable and Unreliable",
+      "call": {
+        "module": "adapters/game-next/native-structure-normalizer.mjs",
+        "fn": "normalizeNativeStructureExport",
+        "args": [
+          {
+            "$use": "v-rpc-reliability-text"
+          },
+          {
+            "$use": "v-rpc-reliability-envelope"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "conflicting Unreal RPC reliability on Game.MyPawn:ServerFire"
+        ]
+      ],
+      "output_sha256": "4d025df45ba7ce75559be6781cd0c83a19949076159fccc8541dbf730174227c"
+    },
+    {
+      "id": "normalizer-refuses-changed-bytes",
+      "class": "negative",
+      "origin": "normalizeNativeStructureExport with the bytes of the export plus one space",
+      "call": {
+        "module": "adapters/game-next/native-structure-normalizer.mjs",
+        "fn": "normalizeNativeStructureExport",
+        "args": [
+          {
+            "$concat": [
+              {
+                "$use": "unreal-text"
+              },
+              " "
+            ]
+          },
+          {
+            "$use": "unreal-envelope"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "Error"
+        ],
+        [
+          "/threw/message",
+          "native export envelope invalid: artifact-bytes"
+        ]
+      ],
+      "output_sha256": "62bffcd484a4a2566bb0e0daf903e245b2b4024ca37d94a2e91f2dc6789ebca2"
+    },
+    {
+      "id": "normalizer-refuses-an-envelope-with-a-true-claim",
+      "class": "negative",
+      "origin": "normalizeNativeStructureExport with causal_edges_verified set to true in the envelope",
+      "call": {
+        "module": "adapters/game-next/native-structure-normalizer.mjs",
+        "fn": "normalizeNativeStructureExport",
+        "args": [
+          {
+            "$use": "unreal-text"
+          },
+          {
+            "$edit": {
+              "$use": "unreal-envelope"
+            },
+            "set": [
+              [
+                "/claims/causal_edges_verified",
+                true
+              ]
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "Error"
+        ],
+        [
+          "/threw/message",
+          "native export envelope invalid: claims.causal_edges_verified"
+        ]
+      ],
+      "output_sha256": "66908ea450050937981510488319367c62fa76c1db2754834540ba9d30741317"
+    },
+    {
+      "id": "invariants-reject-a-true-source-structure-claim",
+      "class": "negative",
+      "origin": "verifyNativeStructureInvariants with source_structure_verified set to true",
+      "call": {
+        "module": "adapters/game-next/native-structure-normalizer.mjs",
+        "fn": "verifyNativeStructureInvariants",
+        "args": [
+          {
+            "$edit": {
+              "$use": "unreal-normalized"
+            },
+            "set": [
+              [
+                "/claims/source_structure_verified",
+                true
+              ]
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          false
+        ],
+        [
+          "/errors",
+          [
+            "claims.source_structure_verified"
+          ]
+        ]
+      ],
+      "output_sha256": "a0dc3958fc77eaec3e7b5631269eae2df5d37ff320ce32783b9b3e65910c1a54"
+    },
+    {
+      "id": "invariants-reject-an-empty-value",
+      "class": "negative",
+      "origin": "verifyNativeStructureInvariants on an empty object",
+      "call": {
+        "module": "adapters/game-next/native-structure-normalizer.mjs",
+        "fn": "verifyNativeStructureInvariants",
+        "args": [
+          {}
+        ]
+      },
+      "expect": [
+        [
+          "/valid",
+          false
+        ],
+        [
+          "/errors/length",
+          10
+        ],
+        [
+          "/errors/0",
+          "schema"
+        ]
+      ],
+      "output_sha256": "b9aeb744d8bcb43da97f0143cabb30b3b6a80ce1b34bfa4c817593571f95d072"
+    },
+    {
+      "id": "exporters-module-exports",
+      "class": "normal",
+      "origin": "sorted export names of the text source exporter module",
+      "call": {
+        "module": "adapters/game-next/native-text-source-exporters.mjs",
+        "fn": "$exports"
+      },
+      "expect": [
+        [
+          "",
+          [
+            "NATIVE_SOURCE_EXPORTER_REVISION",
+            "buildGodotTextSceneExport",
+            "buildUnityTextSceneExport",
+            "parseGodotTextScene",
+            "parseUnityTextScene"
+          ]
+        ]
+      ],
+      "output_sha256": "4d98a9a78f85ba818f78a980f7981dac7101c4464eb38366e6f347fd031d2121"
+    },
+    {
+      "id": "unity-text-scene-is-exported",
+      "class": "normal",
+      "origin": "buildUnityTextSceneExport on a Unity text scene with one object, a transform and a script component",
+      "call": {
+        "module": "adapters/game-next/native-text-source-exporters.mjs",
+        "fn": "buildUnityTextSceneExport",
+        "args": [
+          {
+            "$use": "unity-text"
+          },
+          {
+            "$use": "unity-options"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/payload/schema",
+          "sbf.game-unity-serialized-export/draft-1"
+        ],
+        [
+          "/payload/documents/length",
+          3
+        ],
+        [
+          "/payload/documents/0/name",
+          "Hero"
+        ],
+        [
+          "/payload/documents/2/references/0/guid",
+          "9cbd8cdf99d44b58972fbc7f6f38088f"
+        ],
+        [
+          "/diagnostics",
+          [
+            {
+              "line": 6,
+              "code": "UNITY_UNMODELED_LINE"
+            }
+          ]
+        ],
+        [
+          "/envelope/engine",
+          "unity"
+        ],
+        [
+          "/envelope/evidence_class",
+          "source-export"
+        ],
+        [
+          "/envelope/source_inputs/0/path",
+          "Assets/Scenes/Main.unity"
+        ],
+        [
+          "/envelope/source_inputs/0/artifact/media_type",
+          "text/yaml"
+        ],
+        [
+          "/envelope/claims",
+          {
+            "producer_identity_verified": false,
+            "runtime_behavior_verified": false,
+            "causal_edges_verified": false,
+            "state_transitions_verified": false
+          }
+        ]
+      ],
+      "output_sha256": "792f5bb3a02816de38d6dc738a34ce5ff37be7701dc7d6ea08a4895ad9954bff"
+    },
+    {
+      "id": "godot-text-scene-is-exported",
+      "class": "normal",
+      "origin": "buildGodotTextSceneExport on a Godot text scene with two nodes, two resources and one signal connection",
+      "call": {
+        "module": "adapters/game-next/native-text-source-exporters.mjs",
+        "fn": "buildGodotTextSceneExport",
+        "args": [
+          {
+            "$use": "godot-text"
+          },
+          {
+            "$use": "godot-options"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/payload/schema",
+          "sbf.game-godot-scene-export/draft-1"
+        ],
+        [
+          "/payload/scenes/0/nodes/length",
+          2
+        ],
+        [
+          "/payload/scenes/0/resources/length",
+          2
+        ],
+        [
+          "/payload/scenes/0/signal_connections",
+          [
+            {
+              "signal": "hit",
+              "from": "Player",
+              "to": ".",
+              "method": "_on_hit"
+            }
+          ]
+        ],
+        [
+          "/diagnostics",
+          []
+        ],
+        [
+          "/envelope/engine",
+          "godot"
+        ],
+        [
+          "/envelope/evidence_class",
+          "source-export"
+        ],
+        [
+          "/envelope/source_inputs/0/artifact/media_type",
+          "text/plain"
+        ]
+      ],
+      "output_sha256": "fc3bd15eab05b6bd888e2a6c7cd112f218b746ef671d432b3a1348661f7c1f38"
+    },
+    {
+      "id": "unity-export-is-normalized",
+      "class": "normal",
+      "origin": "normalizeNativeStructureExport on the Unity exporter output",
+      "call": {
+        "module": "adapters/game-next/native-structure-normalizer.mjs",
+        "fn": "normalizeNativeStructureExport",
+        "args": [
+          {
+            "$use": "unity-payload-bytes"
+          },
+          {
+            "$use": "unity-envelope"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/status",
+          "declared-structure-only"
+        ],
+        [
+          "/engine",
+          "unity"
+        ],
+        [
+          "/evidence_class",
+          "source-export"
+        ],
+        [
+          "/nodes/length",
+          3
+        ],
+        [
+          "/relations/length",
+          5
+        ],
+        [
+          "/declarations",
+          {
+            "replication": [],
+            "rpc": [],
+            "signals": []
+          }
+        ],
+        [
+          "/claims",
+          {
+            "producer_identity_verified": false,
+            "source_structure_verified": false,
+            "runtime_behavior_verified": false,
+            "causal_edges_verified": false,
+            "state_transitions_verified": false
+          }
+        ]
+      ],
+      "output_sha256": "14a5511ddf0f7673c233081a537a851d960100e7ecc085c5b37882c6e94dbc7e"
+    },
+    {
+      "id": "godot-export-is-normalized",
+      "class": "normal",
+      "origin": "normalizeNativeStructureExport on the Godot exporter output",
+      "call": {
+        "module": "adapters/game-next/native-structure-normalizer.mjs",
+        "fn": "normalizeNativeStructureExport",
+        "args": [
+          {
+            "$use": "godot-payload-bytes"
+          },
+          {
+            "$use": "godot-envelope"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/status",
+          "declared-structure-only"
+        ],
+        [
+          "/engine",
+          "godot"
+        ],
+        [
+          "/evidence_class",
+          "source-export"
+        ],
+        [
+          "/nodes/length",
+          5
+        ],
+        [
+          "/relations/length",
+          4
+        ],
+        [
+          "/declarations/signals/0/id",
+          "godot:signal:game/main.tscn:0"
+        ],
+        [
+          "/claims",
+          {
+            "producer_identity_verified": false,
+            "source_structure_verified": false,
+            "runtime_behavior_verified": false,
+            "causal_edges_verified": false,
+            "state_transitions_verified": false
+          }
+        ]
+      ],
+      "output_sha256": "c0a8308b84dc514303fe70fa7ce3079c2e53cdfb6dc71f61a865c0bec022961a"
+    },
+    {
+      "id": "unity-without-yaml-header-is-refused",
+      "class": "negative",
+      "origin": "buildUnityTextSceneExport on text without the YAML and tag headers",
+      "call": {
+        "module": "adapters/game-next/native-text-source-exporters.mjs",
+        "fn": "buildUnityTextSceneExport",
+        "args": [
+          {
+            "$lines": [
+              "GameObject:",
+              "  m_Name: Hero"
+            ]
+          },
+          {
+            "$use": "unity-options"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "Error"
+        ],
+        [
+          "/threw/message",
+          "Unity source must declare YAML and !u! tag headers"
+        ]
+      ],
+      "output_sha256": "c150b11727c20b86787879fd4c8a51bfb771120667366697d3cca7fabb130244"
+    },
+    {
+      "id": "unity-wrong-extension-is-refused",
+      "class": "negative",
+      "origin": "buildUnityTextSceneExport with a source path that ends in .txt",
+      "call": {
+        "module": "adapters/game-next/native-text-source-exporters.mjs",
+        "fn": "buildUnityTextSceneExport",
+        "args": [
+          {
+            "$use": "unity-text"
+          },
+          {
+            "$edit": {
+              "$use": "unity-options"
+            },
+            "set": [
+              [
+                "/path",
+                "Assets/Scenes/Main.txt"
+              ]
+            ]
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "TypeError"
+        ],
+        [
+          "/threw/message",
+          "Unity source path must end in .unity or .prefab"
+        ]
+      ],
+      "output_sha256": "8b7b73169db8b245cc4def067978718e3c695e533af2108312abd58d3cf6be1e"
+    },
+    {
+      "id": "unity-duplicate-file-id-is-refused",
+      "class": "negative",
+      "origin": "buildUnityTextSceneExport on a scene that declares file id 8 twice",
+      "call": {
+        "module": "adapters/game-next/native-text-source-exporters.mjs",
+        "fn": "buildUnityTextSceneExport",
+        "args": [
+          {
+            "$concat": [
+              {
+                "$use": "unity-text"
+              },
+              {
+                "$lines": [
+                  "--- !u!4 &8",
+                  "Transform:"
+                ]
+              }
+            ]
+          },
+          {
+            "$use": "unity-options"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "Error"
+        ],
+        [
+          "/threw/message",
+          "Unity source contains duplicate document file IDs"
+        ]
+      ],
+      "output_sha256": "56071d503ff7a81cc6110139a8c38d86d37f30773cdcf0cb41fa9222ae5e849b"
+    },
+    {
+      "id": "godot-without-scene-header-is-refused",
+      "class": "negative",
+      "origin": "buildGodotTextSceneExport on text without a gd_scene declaration",
+      "call": {
+        "module": "adapters/game-next/native-text-source-exporters.mjs",
+        "fn": "buildGodotTextSceneExport",
+        "args": [
+          {
+            "$lines": [
+              "[node name=\"Main\" type=\"Node3D\"]"
+            ]
+          },
+          {
+            "$use": "godot-options"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "Error"
+        ],
+        [
+          "/threw/message",
+          "Godot source must begin with a gd_scene declaration"
+        ]
+      ],
+      "output_sha256": "57ca4faf266dfc0a8c31b709cb0727ad2cdfd6c27aa2ed09118ef9f921a95560"
+    },
+    {
+      "id": "godot-duplicate-node-path-is-refused",
+      "class": "negative",
+      "origin": "buildGodotTextSceneExport on a scene that declares the node Player twice",
+      "call": {
+        "module": "adapters/game-next/native-text-source-exporters.mjs",
+        "fn": "buildGodotTextSceneExport",
+        "args": [
+          {
+            "$concat": [
+              {
+                "$use": "godot-text"
+              },
+              "[node name=\"Player\" type=\"CharacterBody3D\" parent=\".\"]\n"
+            ]
+          },
+          {
+            "$use": "godot-options"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/threw/name",
+          "Error"
+        ],
+        [
+          "/threw/message",
+          "Godot source contains duplicate derived node paths"
+        ]
+      ],
+      "output_sha256": "51e8a406a57643c26da77e43867eb6fbce7c6ab399d5be4a3556e68306f12321"
+    },
+    {
+      "id": "godot-unmodeled-section-is-only-a-diagnostic",
+      "class": "negative",
+      "origin": "buildGodotTextSceneExport on a scene with an editable section the exporter does not model",
+      "call": {
+        "module": "adapters/game-next/native-text-source-exporters.mjs",
+        "fn": "buildGodotTextSceneExport",
+        "args": [
+          {
+            "$concat": [
+              {
+                "$use": "godot-text"
+              },
+              "[editable path=\"Player\"]\n"
+            ]
+          },
+          {
+            "$use": "godot-options"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/diagnostics",
+          [
+            {
+              "line": 12,
+              "code": "GODOT_UNMODELED_SECTION",
+              "section": "editable"
+            }
+          ]
+        ],
+        [
+          "/payload/scenes/0/nodes/length",
+          2
+        ]
+      ],
+      "output_sha256": "87b390b7a954a84c8b5e75bdbb8e907cecfc2e67e0318fd2fe1f35901aeb1a0a"
+    }
+  ],
+  "artifact_digest": {
+    "value": "673d61c1df8b4aeb79d7da57b4ecd62bbf381a3f800cbc579ef2fb6b5dc2bda2"
+  },
+  "ci_observations": [
+    {
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "workflow": "CI",
+      "run_id": 38075313210,
+      "run_number": 1964,
+      "run_attempt": 1,
+      "event": "push",
+      "head_sha": "15a38e923cb5e079c6f8e2a4c2a9386406c41f52",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "job_id": 114280949479,
+          "name": "nested-next (22.x)",
+          "runner": "macstudio",
+          "conclusion": "success",
+          "step": "T17 game-next",
+          "step_conclusion": "success"
+        },
+        {
+          "job_id": 114280949550,
+          "name": "nested-next (24.x)",
+          "runner": "macstudio",
+          "conclusion": "success",
+          "step": "T17 game-next",
+          "step_conclusion": "success"
+        }
+      ],
+      "jobs_listed": 19,
+      "pages": 1,
+      "observed_via": "gh api, read-only, per_page=100"
+    }
+  ],
+  "limits": [
+    {
+      "id": "scanner-detects-only-three-and-react-three-fiber",
+      "status": "UNSUPPORTED",
+      "statement": "The legacy webgame scanner takes an engine from the package.json dependencies and knows the names three and @react-three/fiber (the engines of the complete scans among the fixtures). A project that declares other web engines only (the fixture declares @babylonjs/core and phaser) is reported with no engine, completeness blocked and the warning WEBGAME_ENGINE_NOT_DETECTED. Nothing else is marked supported: no other web engine, and none of Unreal, Unity or Godot, is recognised by the scanner.",
+      "fixtures": [
+        "unsupported-engines-are-blocked",
+        "three-project-scan-is-complete",
+        "r3f-canvas-project-scan-is-complete"
+      ]
+    },
+    {
+      "id": "blocked-does-not-say-why",
+      "status": "UNKNOWN",
+      "statement": "A project with an unsupported engine and a project whose package.json is not JSON are both reported with no engine, completeness blocked and the same first warning, WEBGAME_ENGINE_NOT_DETECTED. A caller of the scan cannot tell a damaged manifest from an unsupported engine.",
+      "fixtures": [
+        "unsupported-engines-are-blocked",
+        "invalid-package-json-is-blocked"
+      ]
+    },
+    {
+      "id": "complete-means-a-scene-and-a-loop-were-found",
+      "status": "UNKNOWN",
+      "statement": "Completeness is a verdict on what the text scan found: a scan is complete when it found at least one scene and at least one named update system or animation loop, and partial when either is missing. A source with a scene and an animation loop and no entity, no input handler and no warning is complete, while a project that only declares the three dependency is partial and carries the warnings WEBGAME_SCENE_UNRESOLVED and WEBGAME_SIMULATION_LOOP_UNRESOLVED. Complete does not mean that the game runs or that its behaviour was observed.",
+      "fixtures": [
+        "scene-and-loop-alone-make-a-scan-complete",
+        "dependency-without-scene-is-partial",
+        "three-project-scan-is-complete"
+      ]
+    },
+    {
+      "id": "input-effects-are-not-inferred",
+      "status": "UNSUPPORTED",
+      "statement": "Where the scanner finds input triggers it keeps the warning WEBGAME_INPUT_EFFECT_UNRESOLVED: it deliberately does not infer which state or entity mutation a trigger causes. The warning is present on scans whose completeness is complete, so no causal edge and no state transition is recorded for the legacy plane, and none is claimed.",
+      "fixtures": [
+        "three-project-scan-is-complete",
+        "r3f-canvas-project-scan-is-complete"
+      ]
+    },
+    {
+      "id": "contract-is-emitted-from-a-partial-scan",
+      "status": "UNKNOWN",
+      "statement": "buildWebgameContract refuses a blocked scan with an error, but it emits a contract from a partial scan and carries the partial completeness and the scanner warnings. The existence of a webgame contract is therefore not proof of a complete game structure; a consumer has to read the completeness and the warnings.",
+      "fixtures": [
+        "contract-refuses-a-blocked-scan",
+        "contract-from-a-partial-scan-keeps-its-warnings",
+        "three-contract-is-emitted"
+      ]
+    },
+    {
+      "id": "contract-identity-is-what-the-caller-passes",
+      "status": "UNKNOWN",
+      "statement": "The contract builder copies the feature id and the feature uid it receives without checking them (a feature uid that is not a UUID is accepted), so whether a feature uid belongs to a registered feature is decided by the caller of the builder, not by the builder. Freshness is compared field by field: a different feature id and a changed source hash are reported as stale, and a contract checked against the scan it was built from is current.",
+      "fixtures": [
+        "contract-builder-accepts-any-feature-uid",
+        "contract-verify-reports-another-feature-id",
+        "contract-detects-a-changed-source",
+        "contract-verifies-against-its-own-scan"
+      ]
+    },
+    {
+      "id": "scanner-is-reached-only-through-the-cli",
+      "status": "UNKNOWN",
+      "statement": "The files listed under references are the only files outside adapters/game-next and test/game-next at the base commit that name scanWebgame or the scanner module path: its definition, the command line entry point and the pinned legacy test. No scan registry, adapter list or library module calls the legacy webgame scanner. A call through a path that is built at run time would not match.",
+      "references": {
+        "pattern": "scanWebgame|scanners/webgame",
+        "paths": [
+          "bin/bskel.mjs",
+          "scanners/webgame.mjs",
+          "test/webgame-contract.test.mjs"
+        ]
+      }
+    },
+    {
+      "id": "cli-commands-are-not-run-by-a-recorded-command",
+      "status": "NOT_RECORDED",
+      "statement": "No recorded command runs bskel webgame scan, bskel webgame contract emit or bskel webgame contract verify. The pinned legacy test calls the scanner and the contract builder directly. The only other test file that names webgame (listed under references) checks the argument parsing of these commands, the default options of webgame scan and that webgame contract emit and webgame contract verify refuse an empty argument list, and runs none of them. Exit codes of the commands, their schema validation and the files they write are not recorded.",
+      "references": {
+        "pattern": "webgame",
+        "paths": [
+          "test/cli-contract.test.mjs",
+          "test/webgame-contract.test.mjs"
+        ],
+        "within": [
+          "test"
+        ]
+      }
+    },
+    {
+      "id": "shadow-plane-is-not-named-outside-its-directories",
+      "status": "UNKNOWN",
+      "statement": "None of the game-next modules (the export envelope, the structure normalizer and the text source exporters) is named by a file outside adapters/game-next and test/game-next at the base commit. A control search for game-next finds files in the same scope, so the search can match. The scanner, the contract builder, the command line and the T20 requirement module do not call the modules; they run only inside their own tests.",
+      "references": {
+        "pattern": "native-export-envelope|native-structure-normalizer|native-text-source-exporters",
+        "paths": [],
+        "control": {
+          "pattern": "game-next",
+          "paths": [
+            ".github/workflows/ci.yml",
+            "next/t00/ownership-map.json",
+            "scanners/project-graph/INTERFACE_RFC.md",
+            "scripts/run-next-nested-tests.mjs"
+          ]
+        }
+      }
+    },
+    {
+      "id": "shadow-plane-is-not-in-the-published-package",
+      "status": "UNSUPPORTED",
+      "statement": "The files list of package.json, which decides what npm publishes, names directories such as scanners/ and contracts/ but has no adapters entry (the control pattern finds the scanners entry in the same file). adapters/game-next is therefore not part of the published package, while the legacy scanner and the legacy contract builder are.",
+      "references": {
+        "pattern": "\"adapters",
+        "paths": [],
+        "control": {
+          "pattern": "\"scanners/",
+          "paths": [
+            "package.json"
+          ]
+        },
+        "within": [
+          "package.json"
+        ]
+      }
+    },
+    {
+      "id": "root-npm-test-runs-the-legacy-test-only",
+      "status": "UNSUPPORTED",
+      "statement": "The root test script is node --test test/*.test.mjs. It matches the pinned legacy test directly under test/ and it does not match test/game-next, whose tests run through node scripts/run-next-nested-tests.mjs T17 (CI job nested-next) or through node --test on their files (the direct-tap command). A green root npm test is not evidence for the game-next modules.",
+      "references": {
+        "pattern": "\"test\": \"node --test test/\\*\\.test\\.mjs\"",
+        "paths": [
+          "package.json"
+        ],
+        "within": [
+          "package.json"
+        ]
+      }
+    },
+    {
+      "id": "bridge-is-described-but-not-on-main",
+      "status": "UNSUPPORTED",
+      "statement": "At the base commit, README.md of adapters/game-next describes a legacy webgame bridge (a projection of a webgame contract into a game graph with its own invariant checker) and cites tests for it; the references list shows that it is the only file under adapters/game-next that names the bridge module. None of the paths under absent exists at the base commit, so none of this is behaviour of the base commit. The bridge, its checker and the dedicated envelope and schema tests are recorded as unsupported. The change that adds this record also corrects that README; the record keeps describing the base commit.",
+      "references": {
+        "pattern": "legacy-webgame-bridge",
+        "paths": [
+          "adapters/game-next/README.md"
+        ],
+        "within": [
+          "adapters/game-next"
+        ],
+        "excluded": []
+      },
+      "absent": [
+        "adapters/game-next/legacy-webgame-bridge.mjs",
+        "test/game-next/game-next-bridge.test.mjs",
+        "test/game-next/game-native-export-envelope.test.mjs",
+        "test/game-next/game-next-schema.test.mjs"
+      ]
+    },
+    {
+      "id": "no-schema-and-no-engine-adapter-directories",
+      "status": "UNSUPPORTED",
+      "statement": "At the base commit there is no adapters/game directory (the planned home of the per-engine adapters for Godot, R3F, three.js, Unity and Unreal), no next/t17 directory and no JSON schema file for the native export envelope in adapters/game-next. The only files that name adapters/game/ are the ownership data of the T00 track (references). No per-engine adapter exists and none is claimed. The change that adds this record also adds the schema file of the envelope; the record keeps describing the base commit.",
+      "references": {
+        "pattern": "adapters/game/",
+        "paths": [
+          "next/t00/fixtures/plan-write-scopes.json",
+          "next/t00/ownership-map.json"
+        ]
+      },
+      "absent": [
+        "adapters/game",
+        "next/t17",
+        "adapters/game-next/native-export-envelope.schema.json"
+      ]
+    },
+    {
+      "id": "exporters-cover-unity-and-godot-text-only",
+      "status": "UNSUPPORTED",
+      "statement": "The exporter module exports builders and parsers for Unity and Godot text scenes only. There is no Unreal exporter: Unreal data enters only as a ready-made JSON export through the envelope and the normalizer. The builders refuse a Unity path that is not a .unity or .prefab file, a Unity text without the YAML and tag headers, and a Godot text without a gd_scene declaration.",
+      "fixtures": [
+        "exporters-module-exports",
+        "unity-wrong-extension-is-refused",
+        "unity-without-yaml-header-is-refused",
+        "godot-without-scene-header-is-refused"
+      ]
+    },
+    {
+      "id": "exporters-drop-unmodeled-text-with-a-diagnostic",
+      "status": "UNKNOWN",
+      "statement": "A Unity line that the exporter does not model and a Godot section that it does not model are left out with a diagnostic (UNITY_UNMODELED_LINE, GODOT_UNMODELED_SECTION) and the export still succeeds. A successful export does not say that the whole source text was understood; the diagnostics list what was left out.",
+      "fixtures": [
+        "unity-text-scene-is-exported",
+        "godot-unmodeled-section-is-only-a-diagnostic"
+      ]
+    },
+    {
+      "id": "envelope-binds-bytes-and-claims-nothing-more",
+      "status": "UNSUPPORTED",
+      "statement": "The native export envelope has the status bound-uninterpreted. It binds the exact payload bytes (and, for a source export, the exact source bytes) by hash, and its claims (producer identity, runtime behavior, causal edges, state transitions) are all false. A verifier refuses an envelope in which a claim is true. The producer implementation digest is declared metadata, not an attestation. Nothing recorded here is a certification claim.",
+      "fixtures": [
+        "unreal-envelope-is-bound-and-uninterpreted",
+        "verify-rejects-a-true-claim",
+        "producer-digest-must-be-sha256-hex"
+      ]
+    },
+    {
+      "id": "normalized-structure-is-declared-only",
+      "status": "UNSUPPORTED",
+      "statement": "The normalizer turns a bound payload into declarations only: the status is declared-structure-only, relations are declarations (for example a declared base), and source_structure_verified is false next to the claims of the envelope. An invariant check refuses a normalized structure in which the source structure claim is true. Replication and RPC declarations are carried as declared specifiers; no runtime behavior is derived from them.",
+      "fixtures": [
+        "unreal-export-is-normalized-as-declared-structure",
+        "unity-export-is-normalized",
+        "godot-export-is-normalized",
+        "invariants-reject-a-true-source-structure-claim"
+      ]
+    },
+    {
+      "id": "verifier-checks-less-than-the-envelope-states",
+      "status": "UNKNOWN",
+      "statement": "verifyNativeExportEnvelope reports an envelope as valid when it carries an additional top-level key, when engine_version is missing, when platform is empty and when the payload descriptor is missing, and without the payload bytes it checks the structure only. Those fields are therefore not enforced by the verifier; this record documents the code as it is and does not change it.",
+      "fixtures": [
+        "verify-accepts-an-extra-top-level-key",
+        "verify-accepts-a-missing-engine-version",
+        "verify-accepts-an-empty-platform",
+        "verify-accepts-a-missing-payload-descriptor",
+        "verify-without-bytes-checks-structure-only"
+      ]
+    },
+    {
+      "id": "source-media-types-are-restricted",
+      "status": "UNSUPPORTED",
+      "statement": "A source media type is accepted only as type/subtype without any white space, and nothing parses it: it is matched as a whole against one pattern (a part with neither white space nor a slash, a slash, a part without white space). A parameter written without white space is therefore accepted and kept as part of the string: text/plain;charset=utf-8 is accepted. It is the white space that is refused: text/plain; charset=utf-8 is refused (a space after the semicolon), as are a type with a no-break space or a line separator inside and a type without a slash, all with the message media type is invalid. A structured-suffix type such as image/svg+xml is accepted. Media type parameters are neither parsed nor checked.",
+      "fixtures": [
+        "source-ref-accepts-a-media-type-parameter-without-a-space",
+        "media-type-with-a-space-after-the-semicolon-is-refused",
+        "media-type-with-no-break-space-is-refused",
+        "media-type-with-a-line-separator-is-refused",
+        "media-type-without-a-slash-is-refused",
+        "source-ref-accepts-a-structured-suffix-media-type"
+      ]
+    },
+    {
+      "id": "derived-identities-are-names-not-project-identity",
+      "status": "UNKNOWN",
+      "statement": "Node ids of the normalized structure are derived from engine-visible names and paths (the Unreal type id and the Godot signal id in the fixtures), and a second declaration that derives the same id is refused. They are not a project-wide identity: the envelope carries no feature uid and no project identifier, so no cross-tool identity is claimed.",
+      "fixtures": [
+        "duplicate-derived-identity-is-refused",
+        "unreal-export-is-normalized-as-declared-structure",
+        "godot-export-is-normalized"
+      ]
+    },
+    {
+      "id": "real-engine-export-is-blocked",
+      "status": "BLOCKED",
+      "statement": "No Unreal, Unity or Godot editor or headless tool is run by any recorded command, and none is allowed to be: the T20 helper only builds a non-executable requirement object, and its handoff note (references) says that actual engine launch stays blocked until T16 and T00 define an admitted runner profile. The Unreal fixture is a hand-written JSON export and the Unity and Godot fixtures parse hand-written scene text; no export from a real engine is recorded.",
+      "fixtures": [
+        "unreal-envelope-is-bound-and-uninterpreted",
+        "unity-text-scene-is-exported",
+        "godot-text-scene-is-exported"
+      ],
+      "references": {
+        "pattern": "engine launch remains blocked",
+        "paths": [
+          "lib/trust-next/T17_NATIVE_EXPORT_HANDOFF.md"
+        ],
+        "within": [
+          "lib/trust-next"
+        ]
+      }
+    },
+    {
+      "id": "historical-replay-records-no-game-plane",
+      "status": "UNKNOWN",
+      "statement": "The historical replay (its scripts, its test and its fixture directory) records no revision of the game plane: none of them matches the words webgame, game-next, three.js, react-three, r3f, Unreal, Unity or Godot (case-insensitive git grep; a control search for reconciliation-next finds files in the same scope). The match is by those words only, so a fixture that names the game plane in other words would not be found.",
+      "references": {
+        "pattern": "webgame|game-next|three\\.js|threejs|react-three|r3f|unreal|unity|godot",
+        "paths": [],
+        "control": {
+          "pattern": "reconciliation-next",
+          "paths": [
+            "scripts/historical-replay-generate.mjs",
+            "scripts/historical-replay.mjs",
+            "test/fixtures/historical-replay/manifest.json"
+          ]
+        },
+        "within": [
+          "test/fixtures/historical-replay",
+          "scripts/historical-replay.mjs",
+          "scripts/historical-replay-generate.mjs",
+          "test/historical-replay.test.mjs"
+        ],
+        "ignore_case": true
+      }
+    },
+    {
+      "id": "ajv-installed-files-are-not-hashed",
+      "status": "NOT_RECORDED",
+      "statement": "The pinned legacy test imports ajv (ajv/dist/2020.js). The commands run in an extracted copy of the base commit whose node_modules is linked to the node_modules of the checkout that runs them (installed by npm ci). Before the link is made, the version of every package the pinned files import, and of the packages those require, is compared with the version the pinned package-lock.json states (environment.loaded_packages), and a difference fails the test. The scan of the imports is textual and ignores comments, template literals and regular expressions, so a specifier that is built at run time is not seen, and the files inside the installed packages are not hashed: only their versions are compared. The packages that import-shaped lines name only inside fixture text (environment.fixture_text_packages) are never loaded."
+    },
+    {
+      "id": "fixtures-are-minimal-synthetic-inputs",
+      "status": "NOT_RECORDED",
+      "statement": "Only minimal hand-written inputs are recorded: small web game projects written into temporary directories, short Unity and Godot scene texts and a small Unreal JSON export. Behaviour on real game repositories, real engine projects or real editor exports, and any performance or scale figure, is not recorded. The scanned projects have no installed packages."
+    },
+    {
+      "id": "outputs-depend-on-the-generating-platform",
+      "status": "NOT_RECORDED",
+      "statement": "The recorded outputs, hashes and counts were generated on the machine and Node version named in the environment section; other operating systems, architectures and Node versions were not observed by the generator. The CI observation lists the Node versions of the nested-next job as reported by CI, not as re-run here."
+    }
+  ],
+  "verification": {
+    "recomputed": "bytes, git_blob_sha1 and sha256 of every pinned file, per-file and total test counts, the exit code and counts of every recorded command, the first runner line, every fixture output hash and every expected value, the reference lists and absent paths of the limits that carry them, the installed version of every package in environment.loaded_packages against package-lock.json at the base commit, the package names that import-shaped lines name only inside fixture text, and the per-file table, every test count, the NESTED_SUITE line and the base commit that README.md, INTERFACE_RFC.md and INTEGRATION.md state are compared by baseline-record.test.mjs with the values it recomputed, never with a copy kept in the documents.",
+    "levels": [
+      "always: the record is well formed, and any single tampered hash, size, test count, exit code, expected value, limit status or commit id is reported; artifact_digest covers every field except its own value, so an edit of a limit statement, a fixture class, a call, a shared input, a title or this text that is not re-sealed is reported",
+      "live files: size, sha256 and blob id are recomputed from the checkout; a file that disagrees in one hash or in size alone is damage and fails; a file that matches neither hash is drift, which skips the live replays while the pinned commit decides; an unrecorded file in the track directories is accepted only when it is a markdown file or one of the files this track adds (listed in the record library), anything else also moves the tree",
+      "pinned commit: the base commit is fetched once when absent and the sizes and digests of all pinned files, the runner included, are recomputed from its own blobs; if the commit is unavailable the test fails, and only BASELINE_ALLOW_UNVERIFIED=1 turns that into an explicit skip",
+      "ancestry: a shallow checkout is deepened with git fetch --no-tags --unshallow origin and the base commit must be an ancestor of HEAD",
+      "commands: every recorded command is re-run in an extracted copy of the base commit (node_modules linked from the checkout once the installed versions equal environment.loaded_packages, which package-lock.json at the base commit states) and must reproduce exit code, counts, per-file counts and every fixture output",
+      "references: the files that match each recorded pattern inside the recorded scope, outside the track directories unless the limit says otherwise, are recomputed with git grep at the pinned commit and must equal the list in the limit; an empty list is accepted only with a control that finds files in the same scope; paths recorded as absent must not exist at the pinned commit while their directory does",
+      "documents: the per-file table, every \"<n> tests\" figure, the NESTED_SUITE line and the base commit in README.md, INTERFACE_RFC.md and INTEGRATION.md describe the pinned base commit and are compared with this record, whose counts and first runner line the commands level reproduces"
+    ],
+    "not_recomputed": [
+      "ci_observations: read once from the CI API (gh api, read-only) and kept for traceability; no test re-reads them",
+      "environment: describes the machine this record was generated on",
+      "prose: limit statements, fixture origins, the title and this text are bound only by artifact_digest, which reports an edit that is not re-sealed; an editor who re-seals the record is caught only by review of the diff and by the recomputed values above",
+      "the files inside the installed packages (ajv and the packages it requires): not hashed; only their versions are compared with package-lock.json at the base commit",
+      "fixture inputs: the project files, scene texts and the Unreal export that the fixtures use are small hand-written texts kept in the shared section of this record; no export of a real engine and no real repository is among them",
+      "README.md, INTERFACE_RFC.md and INTEGRATION.md: only the numbers and the base commit named above are recomputed here; the paths, exported names and vocabulary they cite are checked by interface-doc.test.mjs, the explanatory text is not recomputed"
+    ]
+  }
+}

@@ -1,108 +1,63 @@
-# game-next adapter bridge
+# game-next: native export intake (draft, shadow only)
 
-This directory is an opt-in, draft bridge for the T17 game-plane expansion. It does not replace or mutate `sbf.webgame-contract/1`.
+This directory is an opt-in, draft intake for the T17 game-plane expansion. It does not replace or mutate `sbf.webgame-contract/1`, and nothing outside `adapters/game-next` and `test/game-next` loads it.
 
-## Legacy webgame bridge (design record; not on `main`)
+Every statement in this directory describes one revision, the base commit 15a38e923cb5e079c6f8e2a4c2a9386406c41f52 that `BASELINE.json` pins. Reading order: this file; `INTERFACE_RFC.md` (inputs, outputs, identity, unknown and partial semantics, file ownership); `NATIVE_STRUCTURE_FORMATS.md` (payload formats); `native-export-envelope.schema.json` (shape of the envelope); `INTEGRATION.md` (cross-track handoff). `test/game-next/interface-doc.test.mjs` reads three of these texts, `README.md`, `INTERFACE_RFC.md` and `INTEGRATION.md`, and fails when one of them names a file, an exported name or a value that the repository does not have. The prose of `NATIVE_STRUCTURE_FORMATS.md` and the descriptive values inside `native-export-envelope.schema.json` are not compared by that test; `test/game-next/native-export-envelope-schema.test.mjs` compares the schema with the envelope that the code builds and checks, of its descriptive values, only the three that describe the payload descriptor, the status property and the media type.
 
-> Not on `main` (checked at `ad24e0d8`, 2026-10-03): `legacy-webgame-bridge.mjs` and the tests
-> `test/game-next/game-next-bridge.test.mjs`, `game-native-export-envelope.test.mjs` and
-> `game-next-schema.test.mjs` exist only in the head of PR #68, which was closed without merge.
-> This section and the bridge items under "Invariants" describe that unmerged draft, not code on `main`.
+## What is not here
 
-`legacy-webgame-bridge.mjs` projects the exact bytes of an existing `sbf.webgame-contract/1` document into a conservative draft game graph:
-
-- the bridge accepts UTF-8 contract bytes, parses those bytes, and derives an exact-byte `sbf.artifact-ref/1`-shaped reference for the input artifact;
-- formatting-only JSON changes therefore produce a different source artifact identity even when the parsed game meaning is equivalent;
-- source-backed scene/entity/input/system/loop/renderer/network/asset declarations become typed graph nodes;
-- literal `scene.hierarchy` observations become `hierarchy-symbolic` relations;
-- physics package declarations become deterministic physics nodes;
-- legacy `behavior.triggers` and `behavior.systems` are *not* converted to edges, because those planes are projections of separately observed input/system facts;
-- causal edges, state transitions, dynamic hierarchy and runtime state remain unresolved.
-
-The exact-byte artifact shape follows the current T01 candidate boundary so T17 can preserve source-contract bytes, but the game graph itself remains an internal draft and does not promote or replace T01 or legacy HTTP identity contracts.
-
-### Authority boundary
-
-`sbf.webgame-contract/1` remains the authoritative game contract. The draft graph records:
-
-```text
-exact webgame contract bytes
-        |
-        +-- byte_sha256 + size_bytes --> source_contract.artifact
-        |
-        +-- parsed v1 items ----------> draft game graph nodes/relations
-```
-
-A persisted graph can be checked against the exact source bytes with `verifyLegacyBridgeInvariants(graph, { sourceBytes })`. Different bytes fail the artifact check even if they parse to the same JSON value.
+An earlier text of this file described a bridge that turned `sbf.webgame-contract/1` documents into a draft game graph, and three test files for that bridge, for the export envelope and for a schema. None of them is part of the repository at this revision, so this file neither describes nor relies on them (limit `bridge-is-described-but-not-on-main` in `BASELINE.json`). The same limit list records what else is absent: engine adapter directories, any call from the scanner, the registry or the command line into these modules, and any export from a real engine.
 
 ## Native engine export intake
 
-`native-export-envelope.mjs` is a **data-only intake boundary** for future Unreal, Unity and Godot exporters. It does not launch an editor, compiler or engine.
+`native-export-envelope.mjs` is a **data-only intake boundary** for Unreal, Unity and Godot exports. It does not launch an editor, compiler or engine, and it imports nothing but `node:crypto`.
 
-It currently accepts exact UTF-8 JSON export bytes with a bounded size and binds:
+It accepts exact UTF-8 JSON export bytes with a bounded size (8 MiB unless the option `maxBytes` says otherwise) and binds:
 
-- engine;
-- evidence class;
+- engine and evidence class (section 3 of `INTERFACE_RFC.md` lists which engine accepts which evidence class);
 - engine version and platform;
 - producer ID/version plus a declared implementation SHA-256 field (metadata only; not attestation);
 - exact export byte SHA-256 and byte length;
+- the exact source files the export came from (`source_inputs`, see "Source provenance");
 - a non-authoritative payload descriptor containing only declared schema and top-level keys.
 
-The allowed evidence classes deliberately stop short of runtime certification:
+The evidence classes deliberately stop short of runtime certification. The envelope hard-codes these claims to false: `producer_identity_verified`, `runtime_behavior_verified`, `causal_edges_verified` and `state_transitions_verified`. The normalized structure adds `source_structure_verified`, also false.
 
-| Engine | Accepted draft evidence classes |
-|---|---|
-| Unreal | `source-export`, `editor-export` |
-| Unity | `source-export`, `editor-export` |
-| Godot | `source-export`, `headless-export` |
+Therefore the presence of an Unreal, Unity or Godot export artifact is never enough to claim producer attestation, runtime behavior or causality; such evidence would have to be established separately, and nothing in this directory produces it.
 
-The envelope hard-codes these claims to false:
-
-```text
-producer_identity_verified = false
-runtime_behavior_verified  = false
-causal_edges_verified       = false
-state_transitions_verified  = false
-```
-
-Therefore the presence of an Unreal/Unity/Godot export artifact is never enough to claim producer attestation, runtime behavior or causality. T20/T16 must supply those evidence classes separately.
-
-Actual engine/editor execution remains a separate T20 target-runtime isolation task and future T17 engine-specific exporter task. T08 language facts may feed source-export producers, but this module does not import or execute T08 code.
+Actual engine or editor execution remains a separate target-runtime isolation task (track T20) and a future T17 engine-specific exporter task. T08 language facts may feed source-export producers, but this module does not import or execute T08 code.
 
 ## Invariants
-
-The legacy bridge (unmerged; see the note under "Legacy webgame bridge") fails closed on:
-
-- invalid UTF-8 or malformed JSON;
-- another webgame contract version;
-- duplicate derived node/relation IDs;
-- invented causal edges or state transitions;
-- a mismatched source artifact when exact bytes are supplied to the invariant checker.
 
 The native export envelope fails closed on:
 
 - unsupported engine/evidence-class combinations;
-- invalid UTF-8/non-object JSON;
+- invalid UTF-8 or non-object JSON;
 - byte-budget overflow;
-- malformed producer implementation digest;
+- a malformed producer implementation digest;
 - mismatched exact export bytes;
-- mutation of runtime/causal/transition claims to true.
+- mutation of runtime, causal or transition claims to true.
 
 These draft files are not public replacement contracts. They are internal migration surfaces while legacy consumers keep reading the exact v1 webgame contract.
 
 ## Focused tests
 
-```bash
-node --test test/game-next/native-structure-media-type.test.mjs
-node --test test/game-next/native-text-source-exporters.test.mjs
-```
+| Test file | Tests | Covers |
+|---|---|---|
+| `native-structure-media-type.test.mjs` | 6 | media types of source inputs, and agreement between the envelope constructor and the structure invariant check |
+| `native-text-source-exporters.test.mjs` | 10 | Unity and Godot text exporters: structure, source provenance, diagnostics, fail-closed inputs |
 
-These are the two test files in `test/game-next/` on `main`. Both import `native-export-envelope.mjs`; the dedicated envelope suite `game-native-export-envelope.test.mjs` is not on `main`. The bridge suite `game-next-bridge.test.mjs` (which also ran a real `scanWebgame -> buildWebgameContract -> bridgeLegacyWebgameContract` pipeline and checked that a discovered `KeyW` and `movePlayer` never become a causal edge) and `game-next-schema.test.mjs` are likewise only in the closed PR #68.
+The two files above are the ones that existed at the base commit; together they hold 16 tests, and `BASELINE.json` pins both files, their counts and their hashes. Three more test files sit beside them:
+
+- `test/game-next/baseline-record.test.mjs` recomputes the size and hashes of every pinned file, the test counts (including the 5 legacy tests), the exit code and counts of every recorded command, the output and expected values of every fixture, the reference lists of the limits that carry them, the installed package versions and the figures of this text. It does not recompute `ci_observations`, `environment`, prose (limit statements, fixture origins, the title), the files inside the installed packages, fixture inputs or the explanatory text of `README.md`, `INTERFACE_RFC.md` and `INTEGRATION.md`; the record lists them under `not_recomputed`, and `artifact_digest` only reports an edit that was not re-sealed, it does not show that a claim is true;
+- `test/game-next/native-export-envelope-schema.test.mjs` checks `native-export-envelope.schema.json` against the envelope that the code builds and verifies, and lists where schema and code differ;
+- `test/game-next/interface-doc.test.mjs` compares `INTERFACE_RFC.md` with the code, and checks the paths and names that this file and `INTEGRATION.md` cite.
+
+Run one of them directly with `node --test test/game-next/native-structure-media-type.test.mjs` (or any other file named above). All of them together run as `node scripts/run-next-nested-tests.mjs T17`.
 
 ## Test discovery integration
 
-T17 tests intentionally live under `test/game-next/**`, the T17-owned test namespace. The root `npm test` glob only expands `test/*.test.mjs`, so a green root `npm test` does **not** prove these nested suites ran. On `main` the nested-next CI job runs them as the `T17 game-next` step (`.github/workflows/ci.yml:154-155`, `node scripts/run-next-nested-tests.mjs T17`). The two commands above remain valid for a direct local run.
-
+T17 tests intentionally live under `test/game-next/**`, the T17-owned test namespace. The root `npm test` glob only expands `test/*.test.mjs`, so a green root `npm test` does **not** prove these nested suites ran. The nested-next CI job runs them as the step `T17 game-next`, which executes `node scripts/run-next-nested-tests.mjs T17`. At the base commit that command printed `NESTED_SUITE T17 RUN 2 files` and ran the two files of the table; the files added beside them raise the count, and the baseline test recomputes the figure instead of this file stating it.
 
 ## Native structure normalization
 
@@ -120,18 +75,17 @@ It preserves only structural declarations:
 - Unity serialized object `class_id`/`file_id`, component/parent links and GUID/fileID references;
 - Godot scene/node/resource declarations and signal connection declarations.
 
-It does not convert those declarations into runtime behavior. All verification/causality/state claims remain false. Unknown payload fields, engine/schema mismatches, duplicate derived identities, conflicting Unreal network specifiers, and exact-byte mismatches fail closed.
+It does not convert those declarations into runtime behavior. All verification, causality and state claims remain false. Unknown payload fields, engine/schema mismatches, duplicate derived identities, conflicting Unreal network specifiers and exact-byte mismatches fail closed.
 
 See `NATIVE_STRUCTURE_FORMATS.md` for the source semantics and official engine documentation used to constrain the draft formats.
 
 ### Source provenance for source-only exporters
 
-Native export envelope revision 2 now carries `source_inputs[]`. Each item contains a repo-relative POSIX path, a source role, and an exact-byte `sbf.artifact-ref/1`-shaped reference with family `game-native-source`.
+Native export envelope revision 2 carries the list `source_inputs`. Each item contains a repo-relative POSIX path, a source role, and an exact-byte `sbf.artifact-ref/1`-shaped reference with family `game-native-source`.
 
 `source-export` is rejected when this list is empty. The envelope verifier can additionally receive the actual source bytes by path and rejects missing or mismatched bytes. Absolute paths, parent traversal, backslashes and duplicate source paths fail closed.
 
-The normalized native structure retains the same source refs unchanged. This establishes byte identity/provenance, but does not set `source_structure_verified`; independent verification remains a separate evidence step.
-
+The normalized native structure retains the same source refs unchanged. This establishes byte identity and provenance, but does not set `source_structure_verified`; independent verification remains a separate evidence step.
 
 ## Source-only Unity and Godot exporters
 
@@ -148,15 +102,10 @@ Each source parser:
 4. creates a `source-export` native envelope that contains the exact source ref;
 5. feeds the existing native structure normalizer.
 
-Unknown Unity lines and unsupported Godot sections/lines are diagnostics; they are not converted into behavior. The output remains `declared-structure-only`, and all producer/source/runtime/causal verification claims remain false.
+Unknown Unity lines and unsupported Godot sections or lines are diagnostics (`UNITY_UNMODELED_LINE`, `GODOT_UNMODELED_LINE`, `GODOT_UNMODELED_SECTION`); they are not converted into behavior, and they are not carried by the envelope, the payload or the normalized structure. The output remains `declared-structure-only`, and all producer, source, runtime and causal verification claims remain false.
 
 The first source-only slice does **not** parse:
+
 - arbitrary Unity YAML semantics, nested managed-reference graphs, prefab override execution, or runtime lifecycle;
 - arbitrary Godot property expressions, script execution, imported binary resources, or runtime signal emission;
 - Unreal C++ source. Unreal source analysis remains a T08/T17 integration boundary.
-
-Focused test:
-
-```bash
-node --test test/game-next/native-text-source-exporters.test.mjs
-```
