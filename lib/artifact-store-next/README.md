@@ -1,0 +1,5 @@
+# artifact-store-next
+
+This directory holds the shadow artifact store of track T21. `store.mjs` keeps immutable blobs addressed by the sha256 of their bytes, writes each through a temporary file and a rename, and verifies size and digest on every read. `cache-index.mjs` maps a cache key to a blob under a lock that is named by its `lockName` option and fails closed when its index file is damaged. `gc.mjs` lists, and only when told to deletes, blobs that nothing refers to. Nothing in the stable scan calls this code and nothing here is active by default.
+
+The interface, the identity rules, the failure behaviour, the promotion gates and the file ownership for this directory and for `lib/scan-scheduler-next` are in the [interface RFC](../scan-scheduler-next/INTERFACE_RFC.md). What was measured and pinned at the base commit `15a38e923cb5e079c6f8e2a4c2a9386406c41f52` is the record `lib/scan-scheduler-next/BASELINE.json`. Both documents are checked against the code by `test/perf-next/t21-interface-rfc.test.mjs`.

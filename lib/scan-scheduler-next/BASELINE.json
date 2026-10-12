@@ -1,0 +1,4810 @@
+{
+  "schema": "bskel.track-baseline-record/2",
+  "schema_status": "provisional",
+  "track": "T21 performance, artifact store and incremental scan scheduler",
+  "item": "T21-01",
+  "suite_id": "T21",
+  "title": "Exact-commit baseline of the current artifact store and scan scheduler behaviour, its failure cases and its remaining limits",
+  "base_commit": "15a38e923cb5e079c6f8e2a4c2a9386406c41f52",
+  "base_tree": "1bffe4fecb9801a92a6cd18dd62d6d7e1e7c0cd1",
+  "observed_on": "2026-10-11",
+  "environment": {
+    "generated_with_node": "v24.19.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "ripgrep": "ripgrep 15.2.0",
+    "loaded_packages": {
+      "ajv": "8.20.0",
+      "fast-deep-equal": "3.1.3",
+      "fast-uri": "3.1.7",
+      "json-schema-traverse": "1.0.0",
+      "require-from-string": "2.0.2"
+    }
+  },
+  "source_dirs": [
+    "lib/artifact-store-next",
+    "lib/scan-scheduler-next"
+  ],
+  "input_dirs": {
+    "code": [
+      "scanners/adapters"
+    ],
+    "data": [
+      "test/fixtures/java-spring",
+      "test/fixtures/javascript-express/backend",
+      "test/fixtures/python-fastapi/backend",
+      "test/fixtures/ruby-rails/backend",
+      "test/fixtures/typescript-express/backend"
+    ]
+  },
+  "test_dir": "test/perf-next",
+  "files": [
+    {
+      "role": "source",
+      "path": "lib/artifact-store-next/cache-index.mjs",
+      "bytes": 4657,
+      "git_blob_sha1": "cbc95e3d5b0186489c3ef96100386c0e8446500a",
+      "sha256": "77ae4feb4eb56507f026c27258427d91e6bfee430bbbf824d3f6a01bebd260d1"
+    },
+    {
+      "role": "source",
+      "path": "lib/artifact-store-next/gc.mjs",
+      "bytes": 3617,
+      "git_blob_sha1": "2c42810c088f6ded15486bec38c62224af497b3c",
+      "sha256": "6b099e425fecf56aa22b7eea0898a8be3b17e5d69384a0af40c68e9c96da4f64"
+    },
+    {
+      "role": "source",
+      "path": "lib/artifact-store-next/store.mjs",
+      "bytes": 2904,
+      "git_blob_sha1": "ca199a07c84d24b48bc82f4e51b46d0e94492fe4",
+      "sha256": "2e8423dcdddc74ce790a6e8c998b86ba6e16e9345ab19db22629602c3299aae3"
+    },
+    {
+      "role": "source",
+      "path": "lib/scan-scheduler-next/cache-key.mjs",
+      "bytes": 2875,
+      "git_blob_sha1": "02069acaae691c0d1be3b06da02c149306dd938c",
+      "sha256": "e864a6a08e6edbde8c0a7844a2cb0dbd526438b64dae7408f09380a5858962c9"
+    },
+    {
+      "role": "source",
+      "path": "lib/scan-scheduler-next/cache-runtime.mjs",
+      "bytes": 1990,
+      "git_blob_sha1": "f2c4f1e24d66a1f2289f9a1f45e55e2df5a4edd3",
+      "sha256": "e3524c48028f4965726fe025412fd70599d3ca87fc18c7d31446edff2ce3b40a"
+    },
+    {
+      "role": "source",
+      "path": "lib/scan-scheduler-next/file-index.mjs",
+      "bytes": 4700,
+      "git_blob_sha1": "70dca5284fae82fa16a8ce45a6205d66d630aa25",
+      "sha256": "e86aa9a230afe7587ec8d641618c5e558c960672ff164d1b100cdf97c50f9130"
+    },
+    {
+      "role": "source",
+      "path": "lib/scan-scheduler-next/invalidation.mjs",
+      "bytes": 2356,
+      "git_blob_sha1": "0b386f70a96d571d02cea5ac6f69abe6796b9b4f",
+      "sha256": "3ae1e9362c9c9912b54e02c5bc001ece6f1302444731e6bc1c273fcc3236a758"
+    },
+    {
+      "role": "source",
+      "path": "lib/scan-scheduler-next/legacy-cache.mjs",
+      "bytes": 5107,
+      "git_blob_sha1": "41bc8c57e166c247bc1729478dcd28aa9b393cfd",
+      "sha256": "8544e6054682f63af490fec88b66f661e82f66a44d168195b49f9c3001f92ae4"
+    },
+    {
+      "role": "source",
+      "path": "lib/scan-scheduler-next/performance-policy.mjs",
+      "bytes": 5992,
+      "git_blob_sha1": "06e25c0f5faa80d6332d0f9a36ad3929e7d3175f",
+      "sha256": "45502eb71139ffac665e1dce6383b6f6f6ccbdf02b2326cb80cb1230044ea956"
+    },
+    {
+      "role": "source",
+      "path": "lib/scan-scheduler-next/project-cache-plan.mjs",
+      "bytes": 4708,
+      "git_blob_sha1": "4fa1458cfb42230179fb1220c0ce4d5588a45eab",
+      "sha256": "a4e3a0a8eaea963c92f56d13e0c5000db7003a74ee1f08e24ec6a21ed334918e"
+    },
+    {
+      "role": "source",
+      "path": "lib/scan-scheduler-next/project-cache-runner.mjs",
+      "bytes": 6215,
+      "git_blob_sha1": "5ed73522291effcc6d66dedfafc551253540d727",
+      "sha256": "03ea346aaf193e78b327d39e28fad8fa5c16fa2431e7ffa042c485e6707c8599"
+    },
+    {
+      "role": "source",
+      "path": "lib/scan-scheduler-next/resource-budget.mjs",
+      "bytes": 1888,
+      "git_blob_sha1": "1ae46ef8cb7080403921c05bc1b01bc268ff9809",
+      "sha256": "4671b7e7867d5296dc6851d8782eb29dc133598d9e9d0385e5e341e73e877fa6"
+    },
+    {
+      "role": "source",
+      "path": "lib/scan-scheduler-next/scheduler.mjs",
+      "bytes": 6830,
+      "git_blob_sha1": "fc1c981dd5d24f74f42f5b6e69e010730d7d70d3",
+      "sha256": "d2d1a972f367d5c90e96bc7c910aa1d87264f9d190f78af0f177bd0c7adc88db"
+    },
+    {
+      "role": "test",
+      "path": "test/perf-next/t21-artifact-gc.test.mjs",
+      "bytes": 2496,
+      "git_blob_sha1": "ec9f674e1461d0c3fdb36b845107c1c9f6a07319",
+      "sha256": "459d326618e406f2a288887f73efd16812d81ec2b5246b034b5cf0596ce96155",
+      "test_count": 4
+    },
+    {
+      "role": "test",
+      "path": "test/perf-next/t21-artifact-store.test.mjs",
+      "bytes": 1261,
+      "git_blob_sha1": "c27f270382b97c9e3d31bae2284d41e623c060a9",
+      "sha256": "367fdd4be818560dd7a1495a359cd9fb049a82d85583738b123caef8613e1fd0",
+      "test_count": 3
+    },
+    {
+      "role": "test",
+      "path": "test/perf-next/t21-benchmark-smoke.test.mjs",
+      "bytes": 1611,
+      "git_blob_sha1": "cfa5b693fa40a99896fd766a1a60baa894b6cb16",
+      "sha256": "6b3cb1fb1f6c4e4d57c15035cad967633b333d1983e3119b9b935516d33b8a81",
+      "test_count": 1
+    },
+    {
+      "role": "test",
+      "path": "test/perf-next/t21-cache-index.test.mjs",
+      "bytes": 4140,
+      "git_blob_sha1": "896daad3976a30035216d286b32e7bafec0ce89a",
+      "sha256": "3f52f1ccea4c5dc5038b68fbf1894176f58ab29a38ca696aac7405612bf3c7db",
+      "test_count": 5
+    },
+    {
+      "role": "test",
+      "path": "test/perf-next/t21-cache-key.test.mjs",
+      "bytes": 1554,
+      "git_blob_sha1": "0fd54fe9c6d11a0aa5971068405b5b7303a95617",
+      "sha256": "8fa421b05f0590200a98ce25121041aff2844a5162543298a2eaa22bbded95fc",
+      "test_count": 3
+    },
+    {
+      "role": "test",
+      "path": "test/perf-next/t21-cache-runtime.test.mjs",
+      "bytes": 3260,
+      "git_blob_sha1": "0a0edd4333e066ba13c5a3d34f3f46e1ae7b2060",
+      "sha256": "4a98ce5b56b1e3e71b706a7f883f49f2896c88def333267833bc580bb65afd58",
+      "test_count": 4
+    },
+    {
+      "role": "test",
+      "path": "test/perf-next/t21-file-index-invalidation.test.mjs",
+      "bytes": 5196,
+      "git_blob_sha1": "a2880d6a86aa826bc9bac74195d6cf4bee52d0f7",
+      "sha256": "be663a4f27c6904d0d90746732f9203d9ad36c327120dd0781fd1fbd91a3118e",
+      "test_count": 5
+    },
+    {
+      "role": "test",
+      "path": "test/perf-next/t21-legacy-cache-equivalence.test.mjs",
+      "bytes": 4596,
+      "git_blob_sha1": "67e04bc262d8038a17b7ad4fda411a737e6e2558",
+      "sha256": "9a47803a666bb2182a370d955de0a8488dc688d33d9e7275cfad304e38b9d76e",
+      "test_count": 8
+    },
+    {
+      "role": "test",
+      "path": "test/perf-next/t21-performance-policy.test.mjs",
+      "bytes": 4597,
+      "git_blob_sha1": "b80f7af25db33b720117b7c9f984d293239c98a8",
+      "sha256": "ca92c6a3fe162eadad0e2122a8d0e6154748cf0333be34b36b2c97e1966d0403",
+      "test_count": 9
+    },
+    {
+      "role": "test",
+      "path": "test/perf-next/t21-project-cache.test.mjs",
+      "bytes": 13857,
+      "git_blob_sha1": "a4fae24b8d17dd7c9434903d647f2446e13be063",
+      "sha256": "ed87c48edb09ed92b6eddc70758a29f4d50ca262dc505a9e1cf331ed999f9f61",
+      "test_count": 10
+    },
+    {
+      "role": "test",
+      "path": "test/perf-next/t21-scheduler.test.mjs",
+      "bytes": 4021,
+      "git_blob_sha1": "eaab08cae243644f4b5751c55cd855280b544f31",
+      "sha256": "d2f1639b95740ef76390a67c3bdf5559f0d0dabf220c814e9602e0693fac1937",
+      "test_count": 6
+    },
+    {
+      "role": "test_support",
+      "path": "test/perf-next/baselines/2026-09-25-container.json",
+      "bytes": 1561,
+      "git_blob_sha1": "cf2c9b6383c94df40a3b6b9d6048b1ccc43f8bc6",
+      "sha256": "f5aa77edb1425024ec8515a382295773e94fc58b40fd0a0353401ee16f8c5f1e"
+    },
+    {
+      "role": "test_support",
+      "path": "test/perf-next/benchmark.mjs",
+      "bytes": 2058,
+      "git_blob_sha1": "0601462385902390821ad6be8efb7425b793d411",
+      "sha256": "87565e37128fd0e7fcd6fe51aa51fdc523a0e386c9d1f82254678099cfe4c1d5"
+    },
+    {
+      "role": "test_support",
+      "path": "test/perf-next/legacy-cache-benchmark.mjs",
+      "bytes": 5520,
+      "git_blob_sha1": "b29c2b448966b2731a0ac83f098656af63f4ad8a",
+      "sha256": "37c9df5603e55361ec5c85f2dc662e11321f5b54f0aacc12c2562f8e58c0b099"
+    },
+    {
+      "role": "external_dependency",
+      "path": "lib/fsutil.mjs",
+      "bytes": 2849,
+      "git_blob_sha1": "20e431552b0121dad5407be63b0c11017ff6a285",
+      "sha256": "f04805bc38b178aaad0328c06ac286d7cf9483fd831df6b1794025c1f80e1b89"
+    },
+    {
+      "role": "external_dependency",
+      "path": "lib/lock.mjs",
+      "bytes": 6270,
+      "git_blob_sha1": "ac35b15775da143bb23b8d01f4c57f5c99ff9784",
+      "sha256": "e737ad291744f530dbe24d8b9cd49696304f251198deda1c72b0d2c5b9365be1"
+    },
+    {
+      "role": "external_dependency",
+      "path": "package-lock.json",
+      "bytes": 8925,
+      "git_blob_sha1": "34da67575f01e97724c4b5ee944b67ae4435e003",
+      "sha256": "f53dc054a10dafadcb217a17f3805253bdafc123b0943026ee453dee20210087"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/adapters/_express-shared.mjs",
+      "bytes": 13792,
+      "git_blob_sha1": "bd4616d0030de508911933ac415a239b40d40e61",
+      "sha256": "c580e27aed15fad55b36d4b6dd76fd4c89f9ccc419b54f240f47f24e0fbf5c6f"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/adapters/_java-spring-analyzer.mjs",
+      "bytes": 19285,
+      "git_blob_sha1": "1427eae0d8d75884bb1a4ceb83060d8f27795725",
+      "sha256": "852ab6874a3bd855f05feee466249726b65da8c30ebf21cae185dd7e7720518e"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/adapters/generic-grep.mjs",
+      "bytes": 6757,
+      "git_blob_sha1": "78923361a885eeba47261157d0ce39e38708ea78",
+      "sha256": "13ae4f14b7fb16af0c8ae39bc29e81afffb52d376fa781d7d33a7585fb26ee13"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/adapters/java-spring.mjs",
+      "bytes": 33351,
+      "git_blob_sha1": "c3b2d2ba91466fb6b1161c6066d23e136975796d",
+      "sha256": "76abcacf8fde31f171eced2a396b90b6ce27874404b764761ec2378f748801cf"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/adapters/javascript-express.mjs",
+      "bytes": 33636,
+      "git_blob_sha1": "5ed116cf7727b231b746e5ab7100011eb687a0aa",
+      "sha256": "c41c797df06e406ae963c4f1356b5d8bb5c9a4e5fc90c4ac27a982b3f496fe84"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/adapters/python-fastapi.mjs",
+      "bytes": 28719,
+      "git_blob_sha1": "f769f36b081106c854bfc831afce44c7ab894831",
+      "sha256": "6601ad11625f40a6874662283b5c80d3cde6e56fc5b2cf3f36a3fc1ada30ee9e"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/adapters/ruby-rails.mjs",
+      "bytes": 26862,
+      "git_blob_sha1": "cff57e5196fd7c9b37ecd7f7041f9ad81ab63373",
+      "sha256": "1623cc4242354a3e42f97f0f02a1a4bebd5ac7ac5b6ea3ef79a2965b09c4b0ff"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/adapters/typescript-express.mjs",
+      "bytes": 104095,
+      "git_blob_sha1": "353084c1be15b85b6d7c5dad8c2d00b3b33ba906",
+      "sha256": "0bba0036bf24ea73c3df3000bb862532680127d899de5f7318881ebc5c5f8dcb"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/index.mjs",
+      "bytes": 20077,
+      "git_blob_sha1": "6e7bfad09300143cc7cc559359401565d4f4a0ee",
+      "sha256": "d6261c741e45df7f7b9b48b812158e575c3a0ef48a5c144d2e68f2733d13d63c"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/registry.mjs",
+      "bytes": 7404,
+      "git_blob_sha1": "86f32a4eabe141dcefd69f3131e692c0f0161f56",
+      "sha256": "f67968e4ef43cc138e4652c7d5b6e877d17e0cf79daa12a42ba83b5d8112ab8e"
+    },
+    {
+      "role": "external_dependency",
+      "path": "scanners/text-util.mjs",
+      "bytes": 3372,
+      "git_blob_sha1": "26df2e47019d3fea20dfd20b83be93a7f33c19ed",
+      "sha256": "293383368952be98c7f868847c8184ebc5df49615a3bdd7861613a372e8d2198"
+    },
+    {
+      "role": "external_dependency",
+      "path": "schemas/adapter.schema.json",
+      "bytes": 1978,
+      "git_blob_sha1": "e46546fc92afbb425244f3924576f7b7d2d9abfe",
+      "sha256": "d790174b3b2bb7c079983794ddc8a96455ca8566a52f5d2cc8d8bb2ed13578ce"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/build.gradle",
+      "bytes": 854,
+      "git_blob_sha1": "d5f5d5908e9f7fa0082388d4200cb548f6744bc6",
+      "sha256": "30fc410992e4083b12bfd9718692c29847920a050d509b6c51aff566d2de6bc9"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/ExampleApplication.java",
+      "bytes": 308,
+      "git_blob_sha1": "ee938e9ea4aea74827673c156ecd414c8bdc6403",
+      "sha256": "7338202fcdd521b699ddd5f5e57313d2b5a80bb2170f5fc99a7459965940c74d"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/annotationstyles/presentation/AnnotationStyleController.java",
+      "bytes": 2519,
+      "git_blob_sha1": "93d52694091e2a11f0c30b8867825b0774c27221",
+      "sha256": "a951c28173a4cbdb6b118d9bb44196400428bae4e8a2caf799ec1a840c3e2a61"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/annotationstyles/presentation/CommentBeforeMethodController.java",
+      "bytes": 975,
+      "git_blob_sha1": "751a108694913d20bc8a88d2b9513b354aee20f7",
+      "sha256": "dcb7bee697a422b0e1fc4d49619b770bad88eb4a160d4d9ce24f5d20936204a7"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/annotationstyles/presentation/GenericWithSpaceController.java",
+      "bytes": 952,
+      "git_blob_sha1": "c45c7d5e4af97bb961e5cf9eb900f1ecd01c20dd",
+      "sha256": "0a5f7c0a146e7977b7925236eacc6ccf7c8e707e81d2a2df993417b14dfda7eb"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/annotationstyles/presentation/InterveningAnnotationController.java",
+      "bytes": 2154,
+      "git_blob_sha1": "091ccdf0ae1588fd31735a333b8ac5a6c407b956",
+      "sha256": "ba6a74924eb425241703d46fc73bbc7d3fe7e179e4b29ce62e8f6aed85e1b3f3"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/annotationstyles/presentation/PackagePrivateMethodController.java",
+      "bytes": 1031,
+      "git_blob_sha1": "376229106886745e4d0d7fce56446dc09506e61f",
+      "sha256": "358e06cb1ea1d393dedb81232db36100897b4c1abf50c282a8861af9d859ee71"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/annotationstyles/presentation/RecordController.java",
+      "bytes": 1204,
+      "git_blob_sha1": "2de4b8cd5f1b07d67e15bc15077747b6fd91382d",
+      "sha256": "5b59ea6598ae0bc9e3840f7de90c02177ce216266bcb9986079690960adc382c"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/annotationstyles/presentation/RequestMappingStyleController.java",
+      "bytes": 1114,
+      "git_blob_sha1": "0df7c3a0442f32a16314fcbd5a1f2d057ed41048",
+      "sha256": "365332e3facdb8125f93a3a75eb8ceb6beece2c6f1bcf377dd7d58f6da1c5981"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/annotationstyles/presentation/SameLineMappingController.java",
+      "bytes": 891,
+      "git_blob_sha1": "136bb1e1177f8d0489351e5afcedbf892844caf3",
+      "sha256": "5617efeacf7a496573714d82fce9f6ed988bfc9005dd015af14b8543f48082c4"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/codeanalysis/domain/CodeAnalysis.java",
+      "bytes": 525,
+      "git_blob_sha1": "e91b092556613771d05547c72099301cbf347356",
+      "sha256": "1a501119967d4e6842534e566672199d735fc7c81cda3e6d261204cf0ad6d31a"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/curriculum/application/CurriculumService.java",
+      "bytes": 704,
+      "git_blob_sha1": "a68df2791a171d93c4a85622a0bfa1cccce1e3c1",
+      "sha256": "d5a09d7c7280b793daf5c73225f10e603dd01b672dd8391dde5401e373431165"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/curriculum/domain/Curriculum.java",
+      "bytes": 286,
+      "git_blob_sha1": "8b56241e69db453941948cc3104f224cdd4eadfc",
+      "sha256": "6d683b3780bf32e924f8d3d3c4d84970564e477b1fdac56dff32f88600bf5b11"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/curriculum/presentation/CurriculumController.java",
+      "bytes": 2243,
+      "git_blob_sha1": "1027a3b1837490797ca868e85d4054b7f85d876e",
+      "sha256": "e61db2c4500e2a17c142993b79b1a199cf0fad55259ec8224b0480e97ebfb8e0"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/curriculum/presentation/CurriculumMaterialController.java",
+      "bytes": 1689,
+      "git_blob_sha1": "a8b6d3894ed9f9a7f4000b3b141ea0c4169662bf",
+      "sha256": "69554280dad23d7dcadfdd44033498f0e07acb03e5ba316b269679672c073d72"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/organization/application/OrganizationService.java",
+      "bytes": 478,
+      "git_blob_sha1": "fb62488890104a130f33ce39b60160c58695c72a",
+      "sha256": "2a01fcde3ddad8521bf48ae347385c029c434e651241d679eb43279f1f8bc270"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/organization/domain/Organization.java",
+      "bytes": 491,
+      "git_blob_sha1": "401ce9fd2dd5c8c7d0a0c4b35fefdb404f0bb648",
+      "sha256": "bffe42250d826ef481e6ece6164e078a2e3375515a510ef29ca708af2c41ee39"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/organization/domain/OrganizationStatus.java",
+      "bytes": 137,
+      "git_blob_sha1": "8a2a5c4218a75e3bc55c52cabcd622cb6b51538f",
+      "sha256": "86a9ddfd71d304bad69a15cc41f65ac3e66e8154001db745be5371f976c02252"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/organization/presentation/OperatorController.java",
+      "bytes": 3281,
+      "git_blob_sha1": "81c2741af1183d0cc14eef48ce770abd168adfe6",
+      "sha256": "7c8b7bba4202cea2b627d736be3477470b0a25178e993ddbe49acffb692a9767"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/organization/presentation/OrganizationController.java",
+      "bytes": 5284,
+      "git_blob_sha1": "aca463e64f3037c570bcf4070f7a8206ddbd91c5",
+      "sha256": "0400dff62ce035527491896e873a151f70fa3da480cb412e3098b3ce84485d09"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/organization/presentation/dto/OrganizationDto.java",
+      "bytes": 155,
+      "git_blob_sha1": "0a033a051ab5fc2847ff2fcca13bbca6be74cc24",
+      "sha256": "bb3c23d2fb6c30d49a6d19bb31ced60e92182f1a21fbd2808ce0c93d5a05f930"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/application/AlphaService.java",
+      "bytes": 197,
+      "git_blob_sha1": "2ad9ccd37cfa48a521c960fcca7eaf817c8d201d",
+      "sha256": "390723915c9ae93ece2a87d9e99620f11d5a16c6d6f71e6f9cbe189ba52b637d"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/application/BetaService.java",
+      "bytes": 192,
+      "git_blob_sha1": "b44e6070d7e0a7a9bc05d44243b4d5487e326c07",
+      "sha256": "82c36c5ffad9e966df50a608e273da62728c36ebbcbeebbc011ac95d650a8a4b"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/application/EpsilonService.java",
+      "bytes": 207,
+      "git_blob_sha1": "77e34779825e8ca05dde4a1ea08ba12d927a3f90",
+      "sha256": "f758efac9b25eb588be1db5b2a226ec378e9cd7b7cd295c3fef3e8aa2bfab630"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/application/GammaService.java",
+      "bytes": 197,
+      "git_blob_sha1": "721dfbaa2346b13548c09b7abaa0f9fc7dfb7b60",
+      "sha256": "7aa97331567a44650e1f74f5702c371abda31bae663d234202e43ee44f234f6d"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/domain/Alpha.java",
+      "bytes": 251,
+      "git_blob_sha1": "5fc620560b41259a00967bfceb6102e83fd8e771",
+      "sha256": "8d5ca5e60fe5bf46b8a3b3fb14f765d0979381485310c243a8468ad4afae75b8"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/domain/Beta.java",
+      "bytes": 249,
+      "git_blob_sha1": "34fe7540516d1f6be349c9bacebd5305201d93d9",
+      "sha256": "3dcf5155bf75795fcfda319ac4d1a34e612ee75651a7356197690c664444f55e"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/domain/Delta.java",
+      "bytes": 559,
+      "git_blob_sha1": "c6515bd82b428d4496d9ede0dc9630351397207a",
+      "sha256": "fa91333cb1fd03a14134c171c835296fe277473d4edeb8801681479203f4f87f"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/domain/Epsilon.java",
+      "bytes": 255,
+      "git_blob_sha1": "ca7c9dde597d84b29d94325134dd0383894ef7ce",
+      "sha256": "952dafd0766f750e1ddcc80ce96f98f5f6f16d5689eba89c19c3142032d9c8d6"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/domain/Gamma.java",
+      "bytes": 251,
+      "git_blob_sha1": "5df04bab604e7e34f7a19fbd10d0f66e4c07808e",
+      "sha256": "79b3cfc1e3fdc0692e25ee50594cd6b304136bd5be0443fbb8a919ec75aa4ab7"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/presentation/AlphaController.java",
+      "bytes": 1129,
+      "git_blob_sha1": "566d1a2c5fe1ffc43e60465dba4833053f8d2377",
+      "sha256": "d2e359682cf126d0fa5dc78db86274a2a5ff0dfb3efb8cf62f90a6a76ed2fde7"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/presentation/BetaController.java",
+      "bytes": 1397,
+      "git_blob_sha1": "bb87c3c2eb905455500a02113e240227cb0c031f",
+      "sha256": "35c85b3c7abdfad3d7697cbac1fd2534b977fd85d4029133a821fac474ce742e"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/presentation/DeltaController.java",
+      "bytes": 1059,
+      "git_blob_sha1": "31d3a8315f5b4cb507cabe76952a30ff94e6988e",
+      "sha256": "1c1d82af0de161772ee0e929f621f0c4b111dc64416a72764e1a31074a51e3ff"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/presentation/EpsilonController.java",
+      "bytes": 1261,
+      "git_blob_sha1": "ecaaad296546ce7ee3c584f7679372487894386a",
+      "sha256": "c4d15712aae86e9a9486852f3ca0984a4fd41fbf6296377b7b3bb8f1b1301a32"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/domain/security/presentation/GammaController.java",
+      "bytes": 1102,
+      "git_blob_sha1": "5e80cc2766ceb96a62917453db1c4dfbe84912a2",
+      "sha256": "c42b5e44b33e91060614b0877dadf6f9c95be79d3e6f99a5c5edbc4e99e5508b"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/java/com/example/app/global/config/ApiPathConfig.java",
+      "bytes": 855,
+      "git_blob_sha1": "5873b09ba71f28fd180f2de5933a06ee4ba32666",
+      "sha256": "7d6b1fffd87c50232765dd586a5a5657eaf0d2845e349382c59de165a4ffd439"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/java-spring/src/main/resources/application.yml",
+      "bytes": 40,
+      "git_blob_sha1": "7ee4a8c900886edfb2d9d4e8c29e51e6eac95d0b",
+      "sha256": "dae8b335abf34a782e66123d3faaf75d2bc2033edb9259f710c860b0cbae28eb"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/javascript-express/backend/database.sql",
+      "bytes": 1839,
+      "git_blob_sha1": "7e88d361dd209fd385df6b2cb156c0aaae855c65",
+      "sha256": "1e64570087bf8709750d3bb23a98344640043eab946db621a284724e22b4161a"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/javascript-express/backend/package.json",
+      "bytes": 233,
+      "git_blob_sha1": "27abd5be9acc3a7c77d84928a7f59e541a1ea06d",
+      "sha256": "aff1918310e4e9d197e2c8db31fc1f849e4fb61a006d8e4a3b48c4a93e0cbb61"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/javascript-express/backend/src/app.js",
+      "bytes": 774,
+      "git_blob_sha1": "6b05af20de42e7301f22b7e2ba31326537eeba94",
+      "sha256": "78c8c4055c0bb522a479dd362867fe7011113e808063818a8188d01602f8c91d"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/javascript-express/backend/src/controllers/order.controller.js",
+      "bytes": 1737,
+      "git_blob_sha1": "4584a256e65959c402c9923d6175353fab935fec",
+      "sha256": "6e1b07a0b6eb66cead92c1fde07da2b8edf02c929026c4cfd4d94c235bc88c91"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/javascript-express/backend/src/controllers/order.sql.js",
+      "bytes": 97,
+      "git_blob_sha1": "30a9c383cf0e09f853abbd3fab9045bc2cb7eaba",
+      "sha256": "cf0e95b57a7b718eeb9ab12b92a5f1e827545fc025fdec2f4f52a3a2f61dd2e6"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/javascript-express/backend/src/controllers/user.controller.js",
+      "bytes": 1363,
+      "git_blob_sha1": "cfa5f40694b83fd43625a577fd3fd202c8985e1a",
+      "sha256": "e8d99ba982e28be51a12442f6c432c180f1f5b09b2cb2f75eb4c075a076ebd50"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/javascript-express/backend/src/db.js",
+      "bytes": 581,
+      "git_blob_sha1": "6ad605aa3fb3d6c82e7cc9ff11395df99ad23826",
+      "sha256": "e550792b39c568758e3764b45b40d308f68e7d27f2dcd9708343db2d5a239531"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/javascript-express/backend/src/lambda.js",
+      "bytes": 693,
+      "git_blob_sha1": "000a84eae6de09aa960f010fd4bb8f3833388db5",
+      "sha256": "a7ec7ee8eef9b36da3b71db5e4a048efa181c2dc06788571c7bc9ec2779630f6"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/javascript-express/backend/src/middleware/requireRole.js",
+      "bytes": 97,
+      "git_blob_sha1": "a6f4860c3cb04d618c78e67e9bd75d812bd014c1",
+      "sha256": "15cf7e051f7eb1a422deb916d7f158aa4c0cf20d763d153e6e9efb27c17fe29f"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/javascript-express/backend/src/middleware/verifyToken.js",
+      "bytes": 122,
+      "git_blob_sha1": "058de383c5d98584d9a50b0e7a9221a0e9b2596a",
+      "sha256": "b96ccf823902674d4a359ee993ae0c701a4236d469b38921d853f0075c420ab6"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/javascript-express/backend/src/routes/order.route.js",
+      "bytes": 550,
+      "git_blob_sha1": "d9d5c7c97dd536b1271367c77800b41291d4d6fd",
+      "sha256": "51f705383cf35e0613f67b6f642fb91ad1ec980ea0d8ef2e82b018a434a1782f"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/javascript-express/backend/src/routes/user.route.js",
+      "bytes": 826,
+      "git_blob_sha1": "96b6cc8f583813009311b0164ad59e568d2a5255",
+      "sha256": "4e56a2187c4e5807ce68665d9b54dc71f50d65fda538ff94ff6220919191535a"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/python-fastapi/backend/app/__init__.py",
+      "bytes": 0,
+      "git_blob_sha1": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/python-fastapi/backend/app/api/__init__.py",
+      "bytes": 0,
+      "git_blob_sha1": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/python-fastapi/backend/app/api/deps.py",
+      "bytes": 158,
+      "git_blob_sha1": "21176c2bde1eef8af9430898fc06a56efb58b535",
+      "sha256": "12e130b8c62f3e7ef7e1f2452028c1e934590a7d7c776b7eb31172f890b4e75a"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/python-fastapi/backend/app/api/items.py",
+      "bytes": 187,
+      "git_blob_sha1": "033f99c4e9e330b06f9e4985665448f9182ad477",
+      "sha256": "299626dc7f73324892f2cddb67ec4d14e1e71ab36451f80e3a03b8ca4c3d1132"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/python-fastapi/backend/app/models.py",
+      "bytes": 321,
+      "git_blob_sha1": "533187e591251d8eaca539ed8b7133d2339cbf05",
+      "sha256": "0eca91940769a8873d0b7b3e103c270153bebf72876aa9caa78434435634ce3f"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/python-fastapi/backend/app/services/__init__.py",
+      "bytes": 0,
+      "git_blob_sha1": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/python-fastapi/backend/app/services/item_service.py",
+      "bytes": 2365,
+      "git_blob_sha1": "1616dd7adeb19044c3d648cfb1887e8c28b2c0cb",
+      "sha256": "4c60f5881bdeac5528e7e2f2da8f2a2076eaac23b2efc5cd0ca1d7e6ad811253"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/python-fastapi/backend/pyproject.toml",
+      "bytes": 83,
+      "git_blob_sha1": "9079c5150996e3fc2442112c0b105a08e002662d",
+      "sha256": "bfb9d49fb7ecd681dd36a0dc6f00d60eb64ae5a6646159d58022de74326c4533"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/ruby-rails/backend/Gemfile",
+      "bytes": 52,
+      "git_blob_sha1": "e65456fb667cd3d1c7a501477faae4abeeaf2a7e",
+      "sha256": "317df244cff37a41c02a7c63d50c3438c9e137dbafe9e200fbcf333d80fe6d1e"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/ruby-rails/backend/app/controllers/api/v1/articles_controller.rb",
+      "bytes": 249,
+      "git_blob_sha1": "4defe208e9ee80cf464c49616d6c588b79eb88b3",
+      "sha256": "db83c599f3533cda78dfa2645547dbe0162a8d748641f9564ba6ab9bc87cd656"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/ruby-rails/backend/app/controllers/health_controller.rb",
+      "bytes": 67,
+      "git_blob_sha1": "10ef2fbec2aec7575dab81ee8d8e93bec2cafddb",
+      "sha256": "a1786c1fee0bab8154878b47798c8fd55e8e4c00ac18224608e48905966f48a4"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/ruby-rails/backend/app/controllers/profiles_controller.rb",
+      "bytes": 87,
+      "git_blob_sha1": "6023ed1ac3f1f5ad74b82e2c523f45ef724e2603",
+      "sha256": "6b3304a8a8b9b75fe4b1edc6522a45f1c41ab6274e3c9879d691c12050e74b95"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/ruby-rails/backend/app/models/application_record.rb",
+      "bytes": 74,
+      "git_blob_sha1": "b63caeb8a5c4a21feec3ea870c4e4a52b89a8fa5",
+      "sha256": "12bf7d0eaefce4d50e0719991e19b48a36a7865aeb7ac745980584806155fdc1"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/ruby-rails/backend/app/models/article.rb",
+      "bytes": 113,
+      "git_blob_sha1": "a64f7ac0d18c6514271c2d67f1553cdc6735ff97",
+      "sha256": "89f3427426a2585b057f629821b7dd4dc8faabc4b422500662c6df9f7f07dfd9"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/ruby-rails/backend/app/models/profile.rb",
+      "bytes": 38,
+      "git_blob_sha1": "8b5c14ea5229eb3b6f1c898fab5833837af64822",
+      "sha256": "0e65eceb87750a602231d2b0faf9f29e6b1531a5a90e0001e8e724e53de80667"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/ruby-rails/backend/config/application.rb",
+      "bytes": 114,
+      "git_blob_sha1": "d391dd21aab14bab313029451e966520e9cd5555",
+      "sha256": "bf0d742d6947defd228f0f59c3714caa1146a23cfd84dc3e1ec1393a41987ebe"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/ruby-rails/backend/config/routes.rb",
+      "bytes": 535,
+      "git_blob_sha1": "7b24d9a49aa75d03c16d6742a93e76586a76cf95",
+      "sha256": "cf1dad6247cdd0210db4d084dd35f2041237bad0a08848065c8b4eca2ca10628"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/typescript-express/backend/package.json",
+      "bytes": 280,
+      "git_blob_sha1": "fd41a83405efd2880bc5117a78e19a1d0e935587",
+      "sha256": "14985c687a6188fff9828786521877d6046605c4d77b92fd7ea6a0bf5838d7d9"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/typescript-express/backend/src/controllers/users/index.ts",
+      "bytes": 218,
+      "git_blob_sha1": "f6f532dcee51435f14c269ca755ecae2344812ca",
+      "sha256": "8f6a14b4923d922d23045a43a2380b270f62b0bf1275b57bef6cb1cbe5f77476"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/typescript-express/backend/src/controllers/users/show.ts",
+      "bytes": 779,
+      "git_blob_sha1": "3dfe7b10eb5e61463225631dced36c2ffa510eb7",
+      "sha256": "8f46c5d365f96cef4d02395241361b6ec071a9f6740553db09d25b489d930839"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/typescript-express/backend/src/data-source.ts",
+      "bytes": 171,
+      "git_blob_sha1": "2a6e57111e3e56ccf097a84dd5be200808b3fa0b",
+      "sha256": "4d0245ecb47c444c2aa8fe6eb25d4360da05e20971aafc00303fd89187a23de6"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/typescript-express/backend/src/middleware/checkJwt.ts",
+      "bytes": 156,
+      "git_blob_sha1": "df8f191e735565945b043febdc5913c1e5741ebf",
+      "sha256": "407137cd5b71b3b19d4eaace3005a57c8160ff3010f89d32c8dd691cb7acb603"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/typescript-express/backend/src/middleware/checkRole.ts",
+      "bytes": 219,
+      "git_blob_sha1": "7c86a08160e652b26a3317d5af08bcbb99e08d98",
+      "sha256": "f3e4e3aab362d2a4753bcfe1b5afe2697912df6f6ddf09e94e8be13553a1007a"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/typescript-express/backend/src/orm/entities/User.ts",
+      "bytes": 342,
+      "git_blob_sha1": "98713edfb02bf276c12aeef8edc150985a0d3fd5",
+      "sha256": "72e87dc72fda0c5321d1bbfe9e64c644873a07144ccbaa50cba24bc43b7fc882"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/typescript-express/backend/src/routes/index.ts",
+      "bytes": 130,
+      "git_blob_sha1": "555972394cca777d6246a4ade7b8411039f1f3af",
+      "sha256": "0ab6dcbcb53b5137c85d1a48c7fe0eae5f4469a1ef8052c03780896b99d4284f"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/typescript-express/backend/src/routes/v1/index.ts",
+      "bytes": 142,
+      "git_blob_sha1": "3de02a84a1510612d65e990889ac187ef98a35c9",
+      "sha256": "d952ec7a45548a51108896cdfdad48fe68ce1808d889785e320c7d84b4328dcd"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/typescript-express/backend/src/routes/v1/users.ts",
+      "bytes": 596,
+      "git_blob_sha1": "c14fd0408c37ac2ae3f5843cc51dad1f3d9f194f",
+      "sha256": "04807295a66fcb835e5e09eb28f6e8613ae43cb3588db9f569136f07cddd0056"
+    },
+    {
+      "role": "external_dependency",
+      "path": "test/fixtures/typescript-express/backend/tsconfig.json",
+      "bytes": 331,
+      "git_blob_sha1": "14c16d0f440aa995c6de162f363ffa8ad5e4aa65",
+      "sha256": "812b8bf813b3f3c0d68bf1b6a7c4a3ae0fb398c70e8315e84bc6baaa0cef5377"
+    },
+    {
+      "role": "runner",
+      "path": "scripts/run-next-nested-tests.mjs",
+      "bytes": 6886,
+      "git_blob_sha1": "daccc6c9112e1db2f8353d5ac38fd3d44f48e41e",
+      "sha256": "acb8db06506f5bb1d52ff4f82b54b9a4db9fd3d45409a02da4d546c55c0dacac"
+    }
+  ],
+  "commands": [
+    {
+      "id": "direct-tap",
+      "command": "node --test test/perf-next/t21-artifact-gc.test.mjs test/perf-next/t21-artifact-store.test.mjs test/perf-next/t21-benchmark-smoke.test.mjs test/perf-next/t21-cache-index.test.mjs test/perf-next/t21-cache-key.test.mjs test/perf-next/t21-cache-runtime.test.mjs test/perf-next/t21-file-index-invalidation.test.mjs test/perf-next/t21-legacy-cache-equivalence.test.mjs test/perf-next/t21-performance-policy.test.mjs test/perf-next/t21-project-cache.test.mjs test/perf-next/t21-scheduler.test.mjs",
+      "revision": "15a38e923cb5e079c6f8e2a4c2a9386406c41f52",
+      "exit_code": 0,
+      "result": {
+        "tests": 58,
+        "suites": 0,
+        "pass": 58,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "id": "nested-runner",
+      "command": "node scripts/run-next-nested-tests.mjs T21",
+      "revision": "15a38e923cb5e079c6f8e2a4c2a9386406c41f52",
+      "exit_code": 0,
+      "runner_files": 11,
+      "first_line": "NESTED_SUITE T21 RUN 11 files",
+      "result": {
+        "tests": 58,
+        "suites": 0,
+        "pass": 58,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "cache-key-field-sensitivity",
+      "class": "normal",
+      "origin": "scenario cacheKeyFieldSensitivity: buildScanCacheKey (cache-key.mjs) with fixed digests, then the same call with each material field changed in turn",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "cacheKeyFieldSensitivity",
+        "args": []
+      },
+      "expect": [
+        [
+          "/base_digest",
+          "3e563daa2445cb088b07d4485b8d26c6885f152f0a260c759a1bda939ad90ac1"
+        ],
+        [
+          "/material_keys",
+          [
+            "namespace",
+            "source_digest",
+            "resolver_digest",
+            "config_digest",
+            "parser_digest",
+            "adapter_digest",
+            "schema_digest",
+            "policy_digest",
+            "runtime_fingerprint"
+          ]
+        ],
+        [
+          "/same_inputs_same_key",
+          true
+        ],
+        [
+          "/each_field_changes_the_key",
+          {
+            "sourceDigest": true,
+            "resolverDigest": true,
+            "configDigest": true,
+            "parserDigest": true,
+            "adapterDigest": true,
+            "schemaDigest": true,
+            "policyDigest": true,
+            "runtimeFingerprint": true,
+            "namespace": true
+          }
+        ],
+        [
+          "/json_key_order_does_not_matter",
+          true
+        ]
+      ],
+      "output_sha256": "54856227305ba6717c097b57a8256134c81ef1438ddf1e2931d8048643fde067"
+    },
+    {
+      "id": "file-index-digests",
+      "class": "normal",
+      "origin": "scenario fileIndexDigests: buildFileIndex (file-index.mjs) over a small tree that the scenario writes into a temporary directory; digests, counts and skipped entries are read from the index",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "fileIndexDigests",
+        "args": []
+      },
+      "expect": [
+        [
+          "/schema",
+          "sbf.scan-file-index/1"
+        ],
+        [
+          "/source_digest",
+          "f92dda1c56cfbaf2f95e55d3aafcf1e31b7984bc029f5c7773cc662155e7729e"
+        ],
+        [
+          "/entries",
+          [
+            {
+              "path": "bin/run.sh",
+              "size": 17,
+              "mode_octal": "755",
+              "sha256": "306c6ca7407560340797866e077e053627ad409277d1b9da58106fce4cf717cb"
+            },
+            {
+              "path": "src/a.js",
+              "size": 20,
+              "mode_octal": "644",
+              "sha256": "037ecd1db38c230c248787e60fd7bfc0cb0101b187b59535b6e7483be762d350"
+            },
+            {
+              "path": "src/b.js",
+              "size": 20,
+              "mode_octal": "644",
+              "sha256": "b5d546753d33709dff508a6f2c2e547f432267fbb05b68d3da74fa5f7bda9f7a"
+            },
+            {
+              "path": "src/nested/c.txt",
+              "size": 6,
+              "mode_octal": "644",
+              "sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03"
+            }
+          ]
+        ],
+        [
+          "/stats",
+          {
+            "files": 4,
+            "bytes": 63,
+            "directories_visited": 4,
+            "skipped_symlinks": 2
+          }
+        ],
+        [
+          "/skipped_symlinks",
+          [
+            "link-to-dir",
+            "link-to-file"
+          ]
+        ],
+        [
+          "/portable_path_issues",
+          []
+        ],
+        [
+          "/repeat_is_identical",
+          true
+        ],
+        [
+          "/source_digest_is_digest_of_entries",
+          true
+        ],
+        [
+          "/narrower_exclusion_list_adds_dist",
+          [
+            "dist/out.js"
+          ]
+        ]
+      ],
+      "output_sha256": "9e339865eabccb851403451c5cff8e5a4c6cf6177bd1f1acbb0694550e4c62c1"
+    },
+    {
+      "id": "file-index-digest-of-the-old-baseline-workload",
+      "class": "normal",
+      "origin": "scenario workloadDigestAgainstOldBaseline: the smallest workload of the pinned old measurement file is regenerated with the layout of test/perf-next/benchmark.mjs and indexed with buildFileIndex; its source digest is compared with the one that file recorded (no timing is read)",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "workloadDigestAgainstOldBaseline",
+        "args": [
+          {
+            "$file": "test/perf-next/baselines/2026-09-25-container.json"
+          }
+        ]
+      },
+      "expect": [
+        [
+          "/old_file_schema",
+          "sbf.t21-benchmark-baseline/1"
+        ],
+        [
+          "/old_file_status",
+          "advisory-measurement-not-slo"
+        ],
+        [
+          "/workloads_in_old_file",
+          [
+            "100x256",
+            "10000x128",
+            "100000x96"
+          ]
+        ],
+        [
+          "/replayed_workload",
+          "100x256"
+        ],
+        [
+          "/files",
+          100
+        ],
+        [
+          "/bytes",
+          24880
+        ],
+        [
+          "/old_file_source_digest",
+          "4a4dd708d379d6c3c55f58a8b407095783b87a52be49be432b6bcbe84a2e4d82"
+        ],
+        [
+          "/recomputed_source_digest",
+          "4a4dd708d379d6c3c55f58a8b407095783b87a52be49be432b6bcbe84a2e4d82"
+        ],
+        [
+          "/recomputed_digest_equals_old_file",
+          true
+        ]
+      ],
+      "output_sha256": "258bad6c5bf9375224b39a7926eeba895b742b3d5c0367ba078cb9b5e647efbc"
+    },
+    {
+      "id": "portable-path-issues",
+      "class": "normal",
+      "origin": "scenario portablePathIssues: portablePathIssuesForPaths (file-index.mjs) over names built from code points (precomposed and decomposed text, names that differ in case only)",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "portablePathIssues",
+        "args": []
+      },
+      "expect": [
+        [
+          "/nfc_and_nfd_differ_as_strings",
+          true
+        ],
+        [
+          "/both_normalise_to_the_same_name",
+          true
+        ],
+        [
+          "/case_and_unicode_collisions",
+          [
+            {
+              "kind": "case-fold-collision",
+              "paths_in_code_units": [
+                "64 6f 63 73 2f 52 45 41 44 4d 45 2e 6d 64",
+                "64 6f 63 73 2f 52 65 61 64 6d 65 2e 6d 64"
+              ]
+            },
+            {
+              "kind": "unicode-nfc-collision",
+              "paths_in_code_units": [
+                "63 61 66 65 301 2e 74 78 74",
+                "63 61 66 e9 2e 74 78 74"
+              ]
+            }
+          ]
+        ],
+        [
+          "/no_collision",
+          []
+        ]
+      ],
+      "output_sha256": "8549af35e24ec2bfd9d838b59630b6b48e24e55419faca22074f88f8746e3859"
+    },
+    {
+      "id": "invalidation-decisions",
+      "class": "normal",
+      "origin": "scenario invalidationDecisions: computeInvalidation (invalidation.mjs) over literal file indexes and dependency edges, no file system; twelve decisions from nothing changed to a change of a global input",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "invalidationDecisions",
+        "args": []
+      },
+      "expect": [
+        [
+          "/nothing_changed",
+          {
+            "schema": "sbf.scan-invalidation/1",
+            "added": [],
+            "deleted": [],
+            "modified": [],
+            "changed": [],
+            "invalidated": [],
+            "global_inputs_changed": false
+          }
+        ],
+        [
+          "/content_changed_with_the_same_size",
+          {
+            "schema": "sbf.scan-invalidation/1",
+            "added": [],
+            "deleted": [],
+            "modified": [
+              "src/a.js"
+            ],
+            "changed": [
+              "src/a.js"
+            ],
+            "invalidated": [
+              "src/a.js"
+            ],
+            "global_inputs_changed": false
+          }
+        ],
+        [
+          "/size_changed",
+          {
+            "schema": "sbf.scan-invalidation/1",
+            "added": [],
+            "deleted": [],
+            "modified": [
+              "src/a.js"
+            ],
+            "changed": [
+              "src/a.js"
+            ],
+            "invalidated": [
+              "src/a.js"
+            ],
+            "global_inputs_changed": false
+          }
+        ],
+        [
+          "/mode_alone_changed",
+          {
+            "schema": "sbf.scan-invalidation/1",
+            "added": [],
+            "deleted": [],
+            "modified": [
+              "src/a.js"
+            ],
+            "changed": [
+              "src/a.js"
+            ],
+            "invalidated": [
+              "src/a.js"
+            ],
+            "global_inputs_changed": false
+          }
+        ],
+        [
+          "/file_added",
+          {
+            "schema": "sbf.scan-invalidation/1",
+            "added": [
+              "src/e.js"
+            ],
+            "deleted": [],
+            "modified": [],
+            "changed": [
+              "src/e.js"
+            ],
+            "invalidated": [
+              "src/e.js"
+            ],
+            "global_inputs_changed": false
+          }
+        ],
+        [
+          "/file_deleted",
+          {
+            "schema": "sbf.scan-invalidation/1",
+            "added": [],
+            "deleted": [
+              "src/d.js"
+            ],
+            "modified": [],
+            "changed": [
+              "src/d.js"
+            ],
+            "invalidated": [
+              "src/d.js"
+            ],
+            "global_inputs_changed": false
+          }
+        ],
+        [
+          "/rename_is_a_deletion_and_an_addition",
+          {
+            "schema": "sbf.scan-invalidation/1",
+            "added": [
+              "src/e.js"
+            ],
+            "deleted": [
+              "src/d.js"
+            ],
+            "modified": [],
+            "changed": [
+              "src/d.js",
+              "src/e.js"
+            ],
+            "invalidated": [
+              "src/d.js",
+              "src/e.js"
+            ],
+            "global_inputs_changed": false
+          }
+        ],
+        [
+          "/dependents_are_invalidated_transitively",
+          {
+            "schema": "sbf.scan-invalidation/1",
+            "added": [],
+            "deleted": [],
+            "modified": [
+              "src/a.js"
+            ],
+            "changed": [
+              "src/a.js"
+            ],
+            "invalidated": [
+              "src/a.js",
+              "src/b.js",
+              "src/c.js"
+            ],
+            "global_inputs_changed": false
+          }
+        ],
+        [
+          "/a_changed_dependent_does_not_invalidate_its_dependency",
+          {
+            "schema": "sbf.scan-invalidation/1",
+            "added": [],
+            "deleted": [],
+            "modified": [
+              "src/c.js"
+            ],
+            "changed": [
+              "src/c.js"
+            ],
+            "invalidated": [
+              "src/c.js"
+            ],
+            "global_inputs_changed": false
+          }
+        ],
+        [
+          "/a_dependency_cycle_terminates",
+          {
+            "schema": "sbf.scan-invalidation/1",
+            "added": [],
+            "deleted": [],
+            "modified": [
+              "src/a.js"
+            ],
+            "changed": [
+              "src/a.js"
+            ],
+            "invalidated": [
+              "src/a.js",
+              "src/b.js"
+            ],
+            "global_inputs_changed": false
+          }
+        ],
+        [
+          "/an_edge_may_name_a_path_outside_both_indexes",
+          {
+            "schema": "sbf.scan-invalidation/1",
+            "added": [],
+            "deleted": [],
+            "modified": [
+              "src/a.js"
+            ],
+            "changed": [
+              "src/a.js"
+            ],
+            "invalidated": [
+              "src/a.js",
+              "src/z.js"
+            ],
+            "global_inputs_changed": false
+          }
+        ],
+        [
+          "/global_inputs_changed_invalidates_every_path",
+          {
+            "schema": "sbf.scan-invalidation/1",
+            "added": [],
+            "deleted": [],
+            "modified": [],
+            "changed": [
+              "src/a.js",
+              "src/b.js",
+              "src/c.js",
+              "src/d.js"
+            ],
+            "invalidated": [
+              "src/a.js",
+              "src/b.js",
+              "src/c.js",
+              "src/d.js"
+            ],
+            "global_inputs_changed": true
+          }
+        ],
+        [
+          "/input_order_does_not_change_the_decision",
+          true
+        ]
+      ],
+      "output_sha256": "d6493423f8d1fa9335ea1ec377b90e4f3eeb2f352b9193d7ea650629bff37159"
+    },
+    {
+      "id": "store-layout-and-refs",
+      "class": "normal",
+      "origin": "scenario storeLayoutAndRefs: createArtifactStore (store.mjs) in a temporary directory; put, has and read of small contents, the blob path, its file mode and the ref digest",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "storeLayoutAndRefs",
+        "args": []
+      },
+      "expect": [
+        [
+          "/ref",
+          {
+            "algorithm": "sha256",
+            "digest": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+            "size": 6
+          }
+        ],
+        [
+          "/string_buffer_and_uint8array_give_the_same_ref",
+          true
+        ],
+        [
+          "/ref_digest_is_sha256_of_the_bytes",
+          true
+        ],
+        [
+          "/empty_content_ref",
+          {
+            "algorithm": "sha256",
+            "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "size": 0
+          }
+        ],
+        [
+          "/blob_path_relative_to_store_root",
+          "blobs/sha256/58/5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03"
+        ],
+        [
+          "/blob_file_mode_octal",
+          "600"
+        ],
+        [
+          "/read_back_text",
+          "hello\n"
+        ],
+        [
+          "/has_stored_ref",
+          true
+        ],
+        [
+          "/has_ref_that_was_never_stored",
+          false
+        ],
+        [
+          "/files_in_store",
+          [
+            "blobs/sha256/58/5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+            "blobs/sha256/e3/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          ]
+        ]
+      ],
+      "output_sha256": "7c251093fe3ef2b5481f5bc371c3eb50d6c82e815759fcf749badb6482a610d0"
+    },
+    {
+      "id": "cache-index-state",
+      "class": "normal",
+      "origin": "scenario cacheIndexState: createCacheIndex (cache-index.mjs) over an artifact store in a temporary repository root; set, get, list, reachableArtifactRefs and remove, then the persisted index text",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "cacheIndexState",
+        "args": []
+      },
+      "expect": [
+        [
+          "/index_schema",
+          "sbf.scan-cache-index/1"
+        ],
+        [
+          "/index_path_relative_to_repo_root",
+          ".sbf/cache-next/index.json"
+        ],
+        [
+          "/entry_b_as_stored",
+          {
+            "artifact": {
+              "algorithm": "sha256",
+              "digest": "93bde121df52be7e7be2582649cf1d6cfcf92b0d7fb018700c9ec67cadeeb26d",
+              "size": 11
+            },
+            "dependencies": [
+              "src/a.js",
+              "src/z.js"
+            ],
+            "metadata": {
+              "adapter": "demo",
+              "note": "second"
+            }
+          }
+        ],
+        [
+          "/entry_a_as_stored",
+          {
+            "artifact": {
+              "algorithm": "sha256",
+              "digest": "230e46460cd37a06fee9de66be38fb14d4f6cb15e623ccbb0e30703d3f48c5a6",
+              "size": 11
+            },
+            "dependencies": []
+          }
+        ],
+        [
+          "/dependencies_are_deduplicated_and_sorted",
+          [
+            "src/a.js",
+            "src/z.js"
+          ]
+        ],
+        [
+          "/listing_is_sorted_by_cache_key",
+          true
+        ],
+        [
+          "/listing",
+          [
+            {
+              "cache_key": "266919072076c2835f284f9e67e590a6dc61af1b5fc3f20495f0cec8d30e2e52",
+              "artifact": {
+                "algorithm": "sha256",
+                "digest": "230e46460cd37a06fee9de66be38fb14d4f6cb15e623ccbb0e30703d3f48c5a6",
+                "size": 11
+              },
+              "dependencies": []
+            },
+            {
+              "cache_key": "5958d2c723007045a682736c2b8386ba6343e3c01e3f50097dd8197b92af6c15",
+              "artifact": {
+                "algorithm": "sha256",
+                "digest": "93bde121df52be7e7be2582649cf1d6cfcf92b0d7fb018700c9ec67cadeeb26d",
+                "size": 11
+              },
+              "dependencies": [
+                "src/a.js",
+                "src/z.js"
+              ],
+              "metadata": {
+                "adapter": "demo",
+                "note": "second"
+              }
+            }
+          ]
+        ],
+        [
+          "/get_known_key",
+          {
+            "artifact": {
+              "algorithm": "sha256",
+              "digest": "230e46460cd37a06fee9de66be38fb14d4f6cb15e623ccbb0e30703d3f48c5a6",
+              "size": 11
+            },
+            "dependencies": []
+          }
+        ],
+        [
+          "/get_unknown_key",
+          null
+        ],
+        [
+          "/get_accepts_a_key_object",
+          true
+        ],
+        [
+          "/reachable_artifact_refs",
+          [
+            {
+              "algorithm": "sha256",
+              "digest": "230e46460cd37a06fee9de66be38fb14d4f6cb15e623ccbb0e30703d3f48c5a6",
+              "size": 11
+            },
+            {
+              "algorithm": "sha256",
+              "digest": "93bde121df52be7e7be2582649cf1d6cfcf92b0d7fb018700c9ec67cadeeb26d",
+              "size": 11
+            }
+          ]
+        ],
+        [
+          "/persisted_text_is_stable_json_plus_newline",
+          true
+        ],
+        [
+          "/persisted_text_sha256",
+          "191c02aa49e14893fc2f97b6474bf57a1d74827e6066307e5f7ef323ce2cccad"
+        ],
+        [
+          "/remove_known_key",
+          true
+        ],
+        [
+          "/remove_same_key_again",
+          false
+        ],
+        [
+          "/entries_left",
+          1
+        ],
+        [
+          "/lock_directory_left_behind",
+          false
+        ]
+      ],
+      "output_sha256": "928648334a82f10864dd6353447d7bda3e3da2fcb18e0242622fd311f17b2a75"
+    },
+    {
+      "id": "gc-dry-run-plan",
+      "class": "normal",
+      "origin": "scenario gcDryRunPlan: collectArtifactGarbage (gc.mjs) in its default dry run over a store whose blobs carry fixed modification times, with a fixed nowMs; plans under several budgets and minimum ages",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "gcDryRunPlan",
+        "args": []
+      },
+      "expect": [
+        [
+          "/blob_sizes",
+          {
+            "keep": 19,
+            "old_a": 19,
+            "old_b": 20,
+            "young": 19
+          }
+        ],
+        [
+          "/default_options_plan",
+          {
+            "schema": "sbf.artifact-gc-result/1",
+            "dry_run": true,
+            "reachable": 1,
+            "total_blobs": 4,
+            "candidates": [
+              {
+                "digest": "79471607af59d26349469048ae5b0111e7372c31148303d43667b7d0ff8dfa31",
+                "size": 20,
+                "relative_path": "79/79471607af59d26349469048ae5b0111e7372c31148303d43667b7d0ff8dfa31"
+              },
+              {
+                "digest": "aad2ed3ae74fc141fc55cc7171d1c83c3b7937a202a189d8fb015e30829d7b5d",
+                "size": 19,
+                "relative_path": "aa/aad2ed3ae74fc141fc55cc7171d1c83c3b7937a202a189d8fb015e30829d7b5d"
+              },
+              {
+                "digest": "eb46ba85c55f57465a62c567df62477281cb19980273a207fe563b6ebdc6aed2",
+                "size": 19,
+                "relative_path": "eb/eb46ba85c55f57465a62c567df62477281cb19980273a207fe563b6ebdc6aed2"
+              }
+            ],
+            "candidate_bytes": 58,
+            "deleted": [],
+            "unexpected": []
+          }
+        ],
+        [
+          "/blobs_after_the_default_plan",
+          4
+        ],
+        [
+          "/min_age_keeps_the_young_blob_out",
+          {
+            "candidates_exclude_young": true,
+            "candidates": 2,
+            "candidate_bytes": 39
+          }
+        ],
+        [
+          "/default_plan_includes_the_young_blob",
+          true
+        ],
+        [
+          "/no_candidate_is_the_referenced_blob",
+          true
+        ],
+        [
+          "/max_delete_count_one",
+          {
+            "candidates": 1,
+            "candidate_bytes": 20
+          }
+        ],
+        [
+          "/max_delete_bytes_twenty",
+          {
+            "candidates": 1,
+            "candidate_bytes": 20
+          }
+        ],
+        [
+          "/candidate_order_is_by_prefix_directory_then_name",
+          true
+        ],
+        [
+          "/blobs_after_every_plan",
+          4
+        ],
+        [
+          "/blob_modified_after_nowMs_is_never_a_candidate_even_at_min_age_zero",
+          {
+            "future_blob_is_a_candidate": false,
+            "other_candidates_unchanged": true
+          }
+        ]
+      ],
+      "output_sha256": "78428e22497d2d18206fda3a8bfe120f7288c383450ac7c911e1aff48d39477c"
+    },
+    {
+      "id": "scheduler-ordering",
+      "class": "normal",
+      "origin": "scenario schedulerOrdering: runTaskGraph (scheduler.mjs) over a small dependency graph with a worker that records start and finish order; one and two at a time, reversed input order, ten repeated runs",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "schedulerOrdering",
+        "args": []
+      },
+      "expect": [
+        [
+          "/one_at_a_time/started",
+          [
+            "b",
+            "c",
+            "a",
+            "d"
+          ]
+        ],
+        [
+          "/one_at_a_time/finished",
+          [
+            "b",
+            "c",
+            "a",
+            "d"
+          ]
+        ],
+        [
+          "/one_at_a_time/results",
+          [
+            {
+              "id": "a",
+              "status": "passed",
+              "value": "done a"
+            },
+            {
+              "id": "b",
+              "status": "passed",
+              "value": "done b"
+            },
+            {
+              "id": "c",
+              "status": "passed",
+              "value": "done c"
+            },
+            {
+              "id": "d",
+              "status": "passed",
+              "value": "done d"
+            }
+          ]
+        ],
+        [
+          "/one_at_a_time/metrics",
+          {
+            "tasks": 4,
+            "started": 4,
+            "passed": 4,
+            "failed": 0,
+            "blocked": 0,
+            "peak_concurrency": 1,
+            "peak_estimated_bytes_in_flight": 0,
+            "max_ready_queue": 2,
+            "byte_admission_deferrals": 0,
+            "concurrency_admission_deferrals": 1,
+            "resource_budget_blocked": 0,
+            "dependency_blocked": 0
+          }
+        ],
+        [
+          "/two_at_a_time/started",
+          [
+            "b",
+            "c",
+            "a",
+            "d"
+          ]
+        ],
+        [
+          "/two_at_a_time/metrics/peak_concurrency",
+          2
+        ],
+        [
+          "/reversing_the_input_order_does_not_change_the_one_at_a_time_run",
+          true
+        ],
+        [
+          "/ten_runs_with_two_workers_are_identical",
+          true
+        ],
+        [
+          "/result_ids_are_sorted_not_in_start_order",
+          true
+        ]
+      ],
+      "output_sha256": "95855b030c547fc7ae8c8a0afb9b70d9a58226e815227902b6bfd0c444a4bb8b"
+    },
+    {
+      "id": "memory-admission-decisions",
+      "class": "normal",
+      "origin": "scenario memoryAdmissionDecisions: deriveMemoryAdmission (resource-budget.mjs) with literal byte counts; nothing is read from the host",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "memoryAdmissionDecisions",
+        "args": []
+      },
+      "expect": [
+        [
+          "/large_host",
+          {
+            "schema": "sbf.scan-memory-admission/1",
+            "status": "ready",
+            "total_bytes": 68719476736,
+            "reserve_fraction": 0.25,
+            "fractional_reserve_bytes": 17179869184,
+            "min_reserve_bytes": 8589934592,
+            "required_reserve_bytes": 17179869184,
+            "admission_bytes": 51539607552,
+            "max_admission_bytes": null
+          }
+        ],
+        [
+          "/small_host_is_blocked",
+          {
+            "schema": "sbf.scan-memory-admission/1",
+            "status": "blocked",
+            "total_bytes": 4294967296,
+            "reserve_fraction": 0.25,
+            "fractional_reserve_bytes": 1073741824,
+            "min_reserve_bytes": 8589934592,
+            "required_reserve_bytes": 8589934592,
+            "admission_bytes": 0,
+            "max_admission_bytes": null,
+            "reason": "INSUFFICIENT_MEMORY_AFTER_RESERVE"
+          }
+        ],
+        [
+          "/exactly_the_minimum_reserve_is_blocked",
+          {
+            "schema": "sbf.scan-memory-admission/1",
+            "status": "blocked",
+            "total_bytes": 8589934592,
+            "reserve_fraction": 0.25,
+            "fractional_reserve_bytes": 2147483648,
+            "min_reserve_bytes": 8589934592,
+            "required_reserve_bytes": 8589934592,
+            "admission_bytes": 0,
+            "max_admission_bytes": null,
+            "reason": "INSUFFICIENT_MEMORY_AFTER_RESERVE"
+          }
+        ],
+        [
+          "/one_byte_over_the_minimum_reserve_is_ready",
+          {
+            "schema": "sbf.scan-memory-admission/1",
+            "status": "ready",
+            "total_bytes": 8589934593,
+            "reserve_fraction": 0.25,
+            "fractional_reserve_bytes": 2147483649,
+            "min_reserve_bytes": 8589934592,
+            "required_reserve_bytes": 8589934592,
+            "admission_bytes": 1,
+            "max_admission_bytes": null
+          }
+        ],
+        [
+          "/admission_is_capped",
+          {
+            "schema": "sbf.scan-memory-admission/1",
+            "status": "ready",
+            "total_bytes": 68719476736,
+            "reserve_fraction": 0.25,
+            "fractional_reserve_bytes": 17179869184,
+            "min_reserve_bytes": 8589934592,
+            "required_reserve_bytes": 17179869184,
+            "admission_bytes": 10737418240,
+            "max_admission_bytes": 10737418240
+          }
+        ],
+        [
+          "/a_cap_of_zero_blocks",
+          {
+            "schema": "sbf.scan-memory-admission/1",
+            "status": "blocked",
+            "total_bytes": 68719476736,
+            "reserve_fraction": 0.25,
+            "fractional_reserve_bytes": 17179869184,
+            "min_reserve_bytes": 8589934592,
+            "required_reserve_bytes": 17179869184,
+            "admission_bytes": 0,
+            "max_admission_bytes": 0,
+            "reason": "INSUFFICIENT_MEMORY_AFTER_RESERVE"
+          }
+        ],
+        [
+          "/a_cap_above_the_available_memory_changes_nothing",
+          {
+            "schema": "sbf.scan-memory-admission/1",
+            "status": "ready",
+            "total_bytes": 68719476736,
+            "reserve_fraction": 0.25,
+            "fractional_reserve_bytes": 17179869184,
+            "min_reserve_bytes": 8589934592,
+            "required_reserve_bytes": 17179869184,
+            "admission_bytes": 51539607552,
+            "max_admission_bytes": 107374182400
+          }
+        ],
+        [
+          "/no_memory_at_all",
+          {
+            "schema": "sbf.scan-memory-admission/1",
+            "status": "blocked",
+            "total_bytes": 0,
+            "reserve_fraction": 0.25,
+            "fractional_reserve_bytes": 0,
+            "min_reserve_bytes": 8589934592,
+            "required_reserve_bytes": 8589934592,
+            "admission_bytes": 0,
+            "max_admission_bytes": null,
+            "reason": "INSUFFICIENT_MEMORY_AFTER_RESERVE"
+          }
+        ],
+        [
+          "/the_minimum_reserve_wins_on_a_mid_size_host",
+          {
+            "schema": "sbf.scan-memory-admission/1",
+            "status": "ready",
+            "total_bytes": 17179869184,
+            "reserve_fraction": 0.1,
+            "fractional_reserve_bytes": 1717986919,
+            "min_reserve_bytes": 8589934592,
+            "required_reserve_bytes": 8589934592,
+            "admission_bytes": 8589934592,
+            "max_admission_bytes": null
+          }
+        ],
+        [
+          "/no_reserve_at_all",
+          {
+            "schema": "sbf.scan-memory-admission/1",
+            "status": "ready",
+            "total_bytes": 1000,
+            "reserve_fraction": 0,
+            "fractional_reserve_bytes": 0,
+            "min_reserve_bytes": 0,
+            "required_reserve_bytes": 0,
+            "admission_bytes": 1000,
+            "max_admission_bytes": null
+          }
+        ],
+        [
+          "/the_fractional_reserve_is_rounded_up",
+          {
+            "schema": "sbf.scan-memory-admission/1",
+            "status": "ready",
+            "total_bytes": 10,
+            "reserve_fraction": 0.25,
+            "fractional_reserve_bytes": 3,
+            "min_reserve_bytes": 0,
+            "required_reserve_bytes": 3,
+            "admission_bytes": 7,
+            "max_admission_bytes": null
+          }
+        ]
+      ],
+      "output_sha256": "4fc069b56589dcbbe90c4f596b236aa90a6babab55b9d637e53e894cd87f2560"
+    },
+    {
+      "id": "project-cache-plan-decisions",
+      "class": "normal",
+      "origin": "scenario projectCachePlanDecisions: buildProjectCachePlan and propagateProjectInvalidation (project-cache-plan.mjs) over hand-written project graph objects (plain data, no project-graph builder is called)",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "projectCachePlanDecisions",
+        "args": []
+      },
+      "expect": [
+        [
+          "/plan_schema",
+          "sbf.project-cache-plan/draft-1"
+        ],
+        [
+          "/graph_schema",
+          "sbf.project-graph/draft-1"
+        ],
+        [
+          "/without_fallback",
+          [
+            [
+              "project:upper",
+              "Apps/upper",
+              "ruby-rails",
+              "first-class",
+              ""
+            ],
+            [
+              "project:api",
+              "apps/api",
+              "java-spring",
+              "first-class",
+              "project:shared"
+            ],
+            [
+              "project:web",
+              "apps/web",
+              "typescript-express",
+              "first-class",
+              "project:shared"
+            ]
+          ]
+        ],
+        [
+          "/with_fallback",
+          [
+            [
+              "project:upper",
+              "Apps/upper",
+              "ruby-rails",
+              "first-class",
+              ""
+            ],
+            [
+              "project:api",
+              "apps/api",
+              "java-spring",
+              "first-class",
+              "project:shared"
+            ],
+            [
+              "project:web",
+              "apps/web",
+              "typescript-express",
+              "first-class",
+              "project:shared"
+            ],
+            [
+              "project:shared",
+              "libs/shared",
+              "javascript-express",
+              "fallback",
+              ""
+            ]
+          ]
+        ],
+        [
+          "/every_namespace_is_a_sha256_digest",
+          true
+        ],
+        [
+          "/input_order_does_not_change_the_plan",
+          true
+        ],
+        [
+          "/editing_a_marker_moves_only_that_projects_namespace",
+          [
+            "project:web"
+          ]
+        ],
+        [
+          "/editing_a_dependency_marker_does_not_move_its_consumers",
+          [
+            "project:shared"
+          ]
+        ],
+        [
+          "/removing_a_dependency_edge_moves_the_consumer",
+          [
+            "project:web"
+          ]
+        ],
+        [
+          "/invalidation_from_the_shared_library",
+          [
+            "project:api",
+            "project:shared",
+            "project:web"
+          ]
+        ],
+        [
+          "/invalidation_from_a_consumer",
+          [
+            "project:web"
+          ]
+        ],
+        [
+          "/invalidation_ignores_containment",
+          [
+            "project:root"
+          ]
+        ],
+        [
+          "/invalidation_from_nothing",
+          []
+        ]
+      ],
+      "output_sha256": "8c1403bc97c1f77cb17c85caf34ca3dd13c5623c40c2e5d0d3a065261cfba603"
+    },
+    {
+      "id": "legacy-scan-cache-shadow",
+      "class": "normal",
+      "origin": "scenario legacyScanCacheShadow: a copy of the pinned fixture project test/fixtures/javascript-express/backend in a temporary directory, run through runLegacyScanCached (legacy-cache.mjs) with the cache off, then as a miss, then as a hit; the stable adapter needs ripgrep",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "legacyScanCacheShadow",
+        "args": []
+      },
+      "expect": [
+        [
+          "/off",
+          {
+            "cache_used": false,
+            "cache_hit": false,
+            "artifact": null
+          }
+        ],
+        [
+          "/missed",
+          {
+            "cache_used": true,
+            "cache_hit": false,
+            "artifact_algorithm": "sha256",
+            "artifact_size_is_positive": true
+          }
+        ],
+        [
+          "/hit",
+          {
+            "cache_used": true,
+            "cache_hit": true
+          }
+        ],
+        [
+          "/result_schema",
+          "sbf.legacy-scan-cache-result/1"
+        ],
+        [
+          "/report_schema",
+          "sbf.scan-report/2"
+        ],
+        [
+          "/report_adapter",
+          "javascript-express"
+        ],
+        [
+          "/one_cache_key_for_off_miss_and_hit",
+          true
+        ],
+        [
+          "/one_source_digest_for_off_miss_and_hit",
+          true
+        ],
+        [
+          "/cache_key",
+          "5fe1c12abb9946197ceb6db80a2b7c372ef3e513fdf86e4a0feec129ae142b78"
+        ],
+        [
+          "/source_digest",
+          "930e96ec62b650f35655dc6b61e84dfc28a399b9c4ec9908204e3690cd7c5266"
+        ],
+        [
+          "/miss_and_hit_reports_serialise_exactly_like_the_uncached_report",
+          true
+        ],
+        [
+          "/hit_artifact_is_the_miss_artifact",
+          true
+        ],
+        [
+          "/index_entries",
+          1
+        ],
+        [
+          "/index_key_is_the_cache_key",
+          true
+        ],
+        [
+          "/index_artifact_is_the_returned_artifact",
+          true
+        ],
+        [
+          "/index_dependencies_are_every_indexed_file",
+          true
+        ],
+        [
+          "/index_metadata",
+          {
+            "adapter_id": "javascript-express",
+            "cache_contract": "t21-legacy-scan-shadow/1",
+            "source_digest": "930e96ec62b650f35655dc6b61e84dfc28a399b9c4ec9908204e3690cd7c5266"
+          }
+        ],
+        [
+          "/store_blob_count",
+          1
+        ],
+        [
+          "/drift",
+          {
+            "other_terms_give_another_key": true,
+            "other_implementation_digest_gives_another_key": true,
+            "other_runtime_fingerprint_gives_another_key": true,
+            "other_cache_namespace_gives_another_key": true
+          }
+        ],
+        [
+          "/after_other_terms_through_the_cache",
+          {
+            "cache_hit": false,
+            "index_entries": 2,
+            "store_blob_count": 2
+          }
+        ]
+      ],
+      "output_sha256": "1841b5e15ff157c42d7265ddc513e570743bb8a3a33df9eaacd651ce193b7791"
+    },
+    {
+      "id": "project-graph-cached-run",
+      "class": "normal",
+      "origin": "scenario projectGraphCachedRun: a hand-written two-project graph over the pinned fixture projects test/fixtures/java-spring and test/fixtures/python-fastapi/backend, run through runProjectGraphCached (project-cache-runner.mjs) with the cache off, as a miss and as a hit; the stable adapters need ripgrep",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "projectGraphCachedRun",
+        "args": []
+      },
+      "expect": [
+        [
+          "/schema",
+          "sbf.project-scan-cache-shadow/draft-1"
+        ],
+        [
+          "/graph_schema",
+          "sbf.project-graph/draft-1"
+        ],
+        [
+          "/plan_schema",
+          "sbf.project-cache-plan/draft-1"
+        ],
+        [
+          "/miss",
+          [
+            {
+              "id": "project:fastapi",
+              "status": "passed",
+              "cache_hit": false
+            },
+            {
+              "id": "project:spring",
+              "status": "passed",
+              "cache_hit": false
+            }
+          ]
+        ],
+        [
+          "/hit",
+          [
+            {
+              "id": "project:fastapi",
+              "status": "passed",
+              "cache_hit": true
+            },
+            {
+              "id": "project:spring",
+              "status": "passed",
+              "cache_hit": true
+            }
+          ]
+        ],
+        [
+          "/off",
+          [
+            {
+              "id": "project:fastapi",
+              "status": "passed",
+              "cache_hit": false
+            },
+            {
+              "id": "project:spring",
+              "status": "passed",
+              "cache_hit": false
+            }
+          ]
+        ],
+        [
+          "/miss_metrics",
+          {
+            "tasks": 2,
+            "passed": 2,
+            "failed": 0,
+            "blocked": 0
+          }
+        ],
+        [
+          "/reports_of_miss_hit_and_off_serialise_identically",
+          true
+        ],
+        [
+          "/hit_artifacts_are_the_miss_artifacts",
+          true
+        ],
+        [
+          "/namespaces_differ_between_projects",
+          true
+        ]
+      ],
+      "output_sha256": "ae70edf11bbb5ad2aedd58eee3ec25e349d46a2c350f0b3b6dc7499139df34e1"
+    },
+    {
+      "id": "cache-key-input-refusals",
+      "class": "negative",
+      "origin": "scenario cacheKeyInputRefusals: buildScanCacheKey with malformed digests, empty strings, and material that stableJson refuses (undefined, non-finite number, bigint, function)",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "cacheKeyInputRefusals",
+        "args": []
+      },
+      "expect": [
+        [
+          "/uppercase_digest/threw",
+          {
+            "name": "TypeError",
+            "message": "sourceDigest must be a lowercase sha256 hex digest"
+          }
+        ],
+        [
+          "/short_digest/threw",
+          {
+            "name": "TypeError",
+            "message": "parserDigest must be a lowercase sha256 hex digest"
+          }
+        ],
+        [
+          "/missing_digest/threw",
+          {
+            "name": "TypeError",
+            "message": "adapterDigest must be a lowercase sha256 hex digest"
+          }
+        ],
+        [
+          "/empty_namespace/threw",
+          {
+            "name": "TypeError",
+            "message": "namespace must be a non-empty string"
+          }
+        ],
+        [
+          "/empty_runtime_fingerprint/threw",
+          {
+            "name": "TypeError",
+            "message": "runtimeFingerprint must be a non-empty string"
+          }
+        ],
+        [
+          "/undefined_material/threw",
+          {
+            "name": "TypeError",
+            "message": "$.a: unsupported cache-key material type undefined"
+          }
+        ],
+        [
+          "/non_finite_material/threw",
+          {
+            "name": "TypeError",
+            "message": "$.a: cache-key material must not contain non-finite numbers"
+          }
+        ],
+        [
+          "/bigint_material/threw",
+          {
+            "name": "TypeError",
+            "message": "$.a: unsupported cache-key material type bigint"
+          }
+        ],
+        [
+          "/function_material/threw",
+          {
+            "name": "TypeError",
+            "message": "$.a: unsupported cache-key material type function"
+          }
+        ]
+      ],
+      "output_sha256": "28e3b888f5149ec32d19afd6e6782235d7d8d1a2b85349155146863f1f1b5694"
+    },
+    {
+      "id": "cache-key-mismatch-is-a-miss",
+      "class": "negative",
+      "origin": "scenario cacheKeyMismatchIsAMiss: runCachedTask (cache-runtime.mjs) twice against one store and one index with two different cache keys; the second key must compute again instead of being served the first entry",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "cacheKeyMismatchIsAMiss",
+        "args": []
+      },
+      "expect": [
+        [
+          "/the_two_keys_differ",
+          true
+        ],
+        [
+          "/sequence",
+          [
+            {
+              "cache_hit": false,
+              "value": {
+                "computed_for": "A"
+              }
+            },
+            {
+              "cache_hit": true,
+              "value": {
+                "computed_for": "A"
+              }
+            },
+            {
+              "cache_hit": false,
+              "value": {
+                "computed_for": "B"
+              }
+            },
+            {
+              "cache_hit": true,
+              "value": {
+                "computed_for": "A"
+              }
+            },
+            {
+              "cache_hit": true,
+              "value": {
+                "computed_for": "B"
+              }
+            }
+          ]
+        ],
+        [
+          "/compute_calls",
+          [
+            "A",
+            "B"
+          ]
+        ],
+        [
+          "/entries_in_the_index",
+          2
+        ],
+        [
+          "/blobs_in_the_store",
+          2
+        ]
+      ],
+      "output_sha256": "704e5dabc5a3e96cbf892731423b418a51841b5c849ec3749d16587eacb102f3"
+    },
+    {
+      "id": "file-index-budget-refused",
+      "class": "negative",
+      "origin": "scenario fileIndexBudgetRefused: buildFileIndex with a file-count budget and a byte budget that the tree exceeds by one, and a tree exactly at both limits",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "fileIndexBudgetRefused",
+        "args": []
+      },
+      "expect": [
+        [
+          "/file_count_budget/threw",
+          {
+            "name": "Error",
+            "code": "INDEX_BUDGET_EXCEEDED",
+            "message": "scan file-index file-count budget exceeded: 4 > 3",
+            "kind": "file-count",
+            "actual": 4,
+            "limit": 3
+          }
+        ],
+        [
+          "/byte_count_budget/threw",
+          {
+            "name": "Error",
+            "code": "INDEX_BUDGET_EXCEEDED",
+            "message": "scan file-index byte-count budget exceeded: 33 > 30",
+            "kind": "byte-count",
+            "actual": 33,
+            "limit": 30
+          }
+        ],
+        [
+          "/exactly_at_both_limits_is_accepted",
+          {
+            "files": 5,
+            "bytes": 55,
+            "directories_visited": 2,
+            "skipped_symlinks": 0
+          }
+        ]
+      ],
+      "output_sha256": "ea78d5bb84ff635b9e7dce7339dcd1ba2a9a3194458f820a89ccc64321849c8b"
+    },
+    {
+      "id": "invalidation-refusals",
+      "class": "negative",
+      "origin": "scenario invalidationRefusals: computeInvalidation with malformed edges, an index of another schema, an index without entries, and no arguments",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "invalidationRefusals",
+        "args": []
+      },
+      "expect": [
+        [
+          "/edge_that_is_not_a_pair_of_strings/threw",
+          {
+            "name": "TypeError",
+            "message": "dependencyEdges entries must be { dependent, dependency } strings"
+          }
+        ],
+        [
+          "/edge_that_is_null/threw",
+          {
+            "name": "TypeError",
+            "message": "dependencyEdges entries must be { dependent, dependency } strings"
+          }
+        ],
+        [
+          "/previous_index_of_another_schema/threw",
+          {
+            "name": "TypeError",
+            "message": "expected sbf.scan-file-index/1"
+          }
+        ],
+        [
+          "/next_index_without_entries/threw",
+          {
+            "name": "TypeError",
+            "message": "expected sbf.scan-file-index/1"
+          }
+        ],
+        [
+          "/no_arguments/threw",
+          {
+            "name": "TypeError",
+            "message": "expected sbf.scan-file-index/1"
+          }
+        ]
+      ],
+      "output_sha256": "c2e453e02c54721eeb3602cc3a2625fcf2119d8ae61a1a7e9993d8d95934efb7"
+    },
+    {
+      "id": "invalidated-entry-not-reused",
+      "class": "negative",
+      "origin": "scenario invalidatedEntryNotReused: runCachedTask over a cache index; a file is edited, buildFileIndex and computeInvalidation name the changed dependency, invalidateDependencies retires the entry and the next run computes again; the key is deliberately independent of file contents",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "invalidatedEntryNotReused",
+        "args": []
+      },
+      "expect": [
+        [
+          "/source_digest_changed",
+          true
+        ],
+        [
+          "/invalidation_decision",
+          {
+            "schema": "sbf.scan-invalidation/1",
+            "added": [],
+            "deleted": [],
+            "modified": [
+              "src/a.js"
+            ],
+            "changed": [
+              "src/a.js"
+            ],
+            "invalidated": [
+              "src/a.js"
+            ],
+            "global_inputs_changed": false
+          }
+        ],
+        [
+          "/first_run",
+          {
+            "cache_hit": false,
+            "value": {
+              "computed_for": "before the edit"
+            }
+          }
+        ],
+        [
+          "/second_run",
+          {
+            "cache_hit": true,
+            "value": {
+              "computed_for": "before the edit"
+            }
+          }
+        ],
+        [
+          "/a_key_that_ignores_the_files_serves_the_old_entry_until_it_is_invalidated",
+          {
+            "cache_hit": true,
+            "value": {
+              "computed_for": "before the edit"
+            }
+          }
+        ],
+        [
+          "/invalidating_a_path_nothing_depends_on_removes_nothing",
+          0
+        ],
+        [
+          "/removed_entries",
+          [
+            {
+              "dependencies": [
+                "src/a.js",
+                "src/b.js"
+              ],
+              "artifact_size": 35
+            }
+          ]
+        ],
+        [
+          "/run_after_invalidation",
+          {
+            "cache_hit": false,
+            "value": {
+              "computed_for": "after the edit"
+            }
+          }
+        ],
+        [
+          "/run_after_invalidation_then_cached",
+          {
+            "cache_hit": true,
+            "value": {
+              "computed_for": "after the edit"
+            }
+          }
+        ],
+        [
+          "/compute_calls",
+          [
+            "before the edit",
+            "after the edit"
+          ]
+        ]
+      ],
+      "output_sha256": "e9d279c391c41d783d82b6c06e21f8cc9d48ff5507e085de5256c2acfefb5c1c"
+    },
+    {
+      "id": "store-corrupt-entry-rejected",
+      "class": "negative",
+      "origin": "scenario storeCorruptEntryRejected: a stored blob is overwritten with same-size different bytes, truncated and removed; read, has and put are called afterwards",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "storeCorruptEntryRejected",
+        "args": []
+      },
+      "expect": [
+        [
+          "/same_size_tamper/threw",
+          {
+            "name": "Error",
+            "code": "ARTIFACT_CORRUPT",
+            "message": "artifact failed integrity check: 885da145cf8d98d45eaf56becd177493ab8c9524072f033fd27e91432215c740"
+          }
+        ],
+        [
+          "/truncated/threw",
+          {
+            "name": "Error",
+            "code": "ARTIFACT_CORRUPT",
+            "message": "artifact failed integrity check: de0a0ae81b4ab9e473bc10afeb70e63b498066ff4917b327dcf73d3977295a1b"
+          }
+        ],
+        [
+          "/removed/threw",
+          {
+            "name": "Error",
+            "code": "ARTIFACT_NOT_FOUND",
+            "message": "artifact not found: 3ea75077c17124af82fba4f94034733a1e1fec70499eae6ef1f0edd3309c25c1"
+          }
+        ],
+        [
+          "/intact_neighbour_still_served",
+          {
+            "served": "left alone\n"
+          }
+        ],
+        [
+          "/ref_with_wrong_size/threw",
+          {
+            "name": "Error",
+            "code": "ARTIFACT_CORRUPT",
+            "message": "artifact failed integrity check: 04017724762a7ca4d5cd28aa1c81f05554058f733377cd23c59ab2d50fdc0995"
+          }
+        ],
+        [
+          "/has_is_an_existence_check_only",
+          {
+            "tampered": true,
+            "truncated": true,
+            "removed": false
+          }
+        ],
+        [
+          "/put_over_a_tampered_blob/threw",
+          {
+            "name": "Error",
+            "code": "ARTIFACT_CORRUPT",
+            "message": "artifact store corruption at <root>/store/blobs/sha256/88/885da145cf8d98d45eaf56becd177493ab8c9524072f033fd27e91432215c740"
+          }
+        ],
+        [
+          "/tampered_blob_is_not_repaired_by_put/threw",
+          {
+            "name": "Error",
+            "code": "ARTIFACT_CORRUPT",
+            "message": "artifact failed integrity check: 885da145cf8d98d45eaf56becd177493ab8c9524072f033fd27e91432215c740"
+          }
+        ],
+        [
+          "/put_after_removal_writes_the_blob_again",
+          {
+            "same_ref": true,
+            "served": {
+              "served": "to be removed\n"
+            }
+          }
+        ]
+      ],
+      "output_sha256": "bc54ae7d0abce2725b1232aa5a9f633f49eaa60677f7143c6046cb419c38c817"
+    },
+    {
+      "id": "store-budget-refused",
+      "class": "negative",
+      "origin": "scenario storeBudgetRefused: createArtifactStore with a content budget; put of content exactly at and over the budget, content of a wrong type, and invalid budget values",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "storeBudgetRefused",
+        "args": []
+      },
+      "expect": [
+        [
+          "/content_of_exactly_the_budget",
+          {
+            "algorithm": "sha256",
+            "digest": "9f9f5111f7b27a781f1f1ddde5ebc2dd2b796bfc7365c9c28b548e564176929f",
+            "size": 16
+          }
+        ],
+        [
+          "/one_byte_over/threw",
+          {
+            "name": "Error",
+            "code": "ARTIFACT_BUDGET_EXCEEDED",
+            "message": "artifact exceeds maxArtifactBytes: 17 > 16"
+          }
+        ],
+        [
+          "/large_buffer_over/threw",
+          {
+            "name": "Error",
+            "code": "ARTIFACT_BUDGET_EXCEEDED",
+            "message": "artifact exceeds maxArtifactBytes: 100 > 16"
+          }
+        ],
+        [
+          "/content_of_a_wrong_type/threw",
+          {
+            "name": "TypeError",
+            "message": "artifact content must be a string, Buffer or Uint8Array"
+          }
+        ],
+        [
+          "/invalid_budget_values",
+          {
+            "zero": {
+              "threw": {
+                "name": "TypeError",
+                "message": "maxArtifactBytes must be a positive integer"
+              }
+            },
+            "negative": {
+              "threw": {
+                "name": "TypeError",
+                "message": "maxArtifactBytes must be a positive integer"
+              }
+            },
+            "fraction": {
+              "threw": {
+                "name": "TypeError",
+                "message": "maxArtifactBytes must be a positive integer"
+              }
+            },
+            "text": {
+              "threw": {
+                "name": "TypeError",
+                "message": "maxArtifactBytes must be a positive integer"
+              }
+            },
+            "not_a_number": {
+              "threw": {
+                "name": "TypeError",
+                "message": "maxArtifactBytes must be a positive integer"
+              }
+            }
+          }
+        ],
+        [
+          "/files_in_store_after_the_refusals",
+          [
+            "blobs/sha256/9f/9f9f5111f7b27a781f1f1ddde5ebc2dd2b796bfc7365c9c28b548e564176929f"
+          ]
+        ]
+      ],
+      "output_sha256": "126865bd86354511161be5453bd00eae50b72dc7a74560faa540ef90248c9e06"
+    },
+    {
+      "id": "path-escape-refused",
+      "class": "negative",
+      "origin": "scenario pathEscapeRefused: digests and refs that would leave the store root through pathForDigest, has and read, and cache index paths outside the repository root",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "pathEscapeRefused",
+        "args": []
+      },
+      "expect": [
+        [
+          "/the_one_valid_blob_path",
+          "blobs/sha256/7b/7b2441693c861bf6969869d8b6f45f098bc8ef07b78ca043a1cb663159aabb10"
+        ],
+        [
+          "/digests_refused_by_pathForDigest",
+          {
+            "parent_traversal": {
+              "threw": {
+                "name": "TypeError",
+                "message": "invalid sha256 digest"
+              }
+            },
+            "dot_dot": {
+              "threw": {
+                "name": "TypeError",
+                "message": "invalid sha256 digest"
+              }
+            },
+            "digest_then_traversal": {
+              "threw": {
+                "name": "TypeError",
+                "message": "invalid sha256 digest"
+              }
+            },
+            "uppercase_digest": {
+              "threw": {
+                "name": "TypeError",
+                "message": "invalid sha256 digest"
+              }
+            },
+            "digest_one_character_short": {
+              "threw": {
+                "name": "TypeError",
+                "message": "invalid sha256 digest"
+              }
+            },
+            "digest_one_character_long": {
+              "threw": {
+                "name": "TypeError",
+                "message": "invalid sha256 digest"
+              }
+            },
+            "empty": {
+              "threw": {
+                "name": "TypeError",
+                "message": "invalid sha256 digest"
+              }
+            },
+            "null_value": {
+              "threw": {
+                "name": "TypeError",
+                "message": "invalid sha256 digest"
+              }
+            },
+            "number_value": {
+              "threw": {
+                "name": "TypeError",
+                "message": "invalid sha256 digest"
+              }
+            }
+          }
+        ],
+        [
+          "/refs_refused_by_has_and_read",
+          {
+            "traversal_digest": {
+              "has": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "invalid sha256 artifact ref"
+                }
+              },
+              "read": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "invalid sha256 artifact ref"
+                }
+              }
+            },
+            "other_algorithm": {
+              "has": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "invalid sha256 artifact ref"
+                }
+              },
+              "read": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "invalid sha256 artifact ref"
+                }
+              }
+            },
+            "negative_size": {
+              "has": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "invalid sha256 artifact ref"
+                }
+              },
+              "read": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "invalid sha256 artifact ref"
+                }
+              }
+            },
+            "fractional_size": {
+              "has": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "invalid sha256 artifact ref"
+                }
+              },
+              "read": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "invalid sha256 artifact ref"
+                }
+              }
+            },
+            "null_ref": {
+              "has": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "invalid sha256 artifact ref"
+                }
+              },
+              "read": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "invalid sha256 artifact ref"
+                }
+              }
+            },
+            "text_ref": {
+              "has": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "invalid sha256 artifact ref"
+                }
+              },
+              "read": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "invalid sha256 artifact ref"
+                }
+              }
+            }
+          }
+        ],
+        [
+          "/cache_index_paths",
+          {
+            "parent_directory": {
+              "threw": {
+                "name": "Error",
+                "message": "cache index path must stay inside repoRoot"
+              }
+            },
+            "deeper_traversal": {
+              "threw": {
+                "name": "Error",
+                "message": "cache index path must stay inside repoRoot"
+              }
+            },
+            "absolute_path_outside_repo_root": {
+              "threw": {
+                "name": "Error",
+                "message": "cache index path must stay inside repoRoot"
+              }
+            },
+            "traversal_that_returns_inside": {
+              "returned": true
+            },
+            "default_path": {
+              "returned": true
+            }
+          }
+        ],
+        [
+          "/files_under_the_root_after_all_refusals",
+          [
+            "store/blobs/sha256/7b/7b2441693c861bf6969869d8b6f45f098bc8ef07b78ca043a1cb663159aabb10"
+          ]
+        ]
+      ],
+      "output_sha256": "58a219a8e503e39cd529547b0002ef1079d04c45b33a9585be5e74b3488e15d9"
+    },
+    {
+      "id": "cache-index-fails-closed",
+      "class": "negative",
+      "origin": "scenario cacheIndexFailsClosed: createCacheIndex over stored index files of the wrong schema, invalid JSON and wrong shapes, and over malformed arguments",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "cacheIndexFailsClosed",
+        "args": []
+      },
+      "expect": [
+        [
+          "/stored_state_that_is_refused",
+          {
+            "wrong_schema": {
+              "get": {
+                "threw": {
+                  "name": "Error",
+                  "message": "invalid cache index: expected sbf.scan-cache-index/1"
+                }
+              },
+              "set": {
+                "threw": {
+                  "name": "Error",
+                  "message": "invalid cache index: expected sbf.scan-cache-index/1"
+                }
+              },
+              "list": {
+                "threw": {
+                  "name": "Error",
+                  "message": "invalid cache index: expected sbf.scan-cache-index/1"
+                }
+              },
+              "file_unchanged_by_the_failed_set": true
+            },
+            "entries_is_an_array": {
+              "get": {
+                "threw": {
+                  "name": "Error",
+                  "message": "invalid cache index: expected sbf.scan-cache-index/1"
+                }
+              },
+              "set": {
+                "threw": {
+                  "name": "Error",
+                  "message": "invalid cache index: expected sbf.scan-cache-index/1"
+                }
+              },
+              "list": {
+                "threw": {
+                  "name": "Error",
+                  "message": "invalid cache index: expected sbf.scan-cache-index/1"
+                }
+              },
+              "file_unchanged_by_the_failed_set": true
+            },
+            "key_is_not_a_digest": {
+              "get": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "cache key must be a lowercase sha256 digest"
+                }
+              },
+              "set": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "cache key must be a lowercase sha256 digest"
+                }
+              },
+              "list": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "cache key must be a lowercase sha256 digest"
+                }
+              },
+              "file_unchanged_by_the_failed_set": true
+            },
+            "entry_is_not_an_object": {
+              "get": {
+                "threw": {
+                  "name": "Error",
+                  "message": "invalid cache index entry: 560a9e7fe3e3f13b0eedfa614d1396bcdf91dc17f52687f57e8f9004963d644b"
+                }
+              },
+              "set": {
+                "threw": {
+                  "name": "Error",
+                  "message": "invalid cache index entry: 560a9e7fe3e3f13b0eedfa614d1396bcdf91dc17f52687f57e8f9004963d644b"
+                }
+              },
+              "list": {
+                "threw": {
+                  "name": "Error",
+                  "message": "invalid cache index entry: 560a9e7fe3e3f13b0eedfa614d1396bcdf91dc17f52687f57e8f9004963d644b"
+                }
+              },
+              "file_unchanged_by_the_failed_set": true
+            },
+            "artifact_ref_other_algorithm": {
+              "get": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "artifact ref must use sha256"
+                }
+              },
+              "set": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "artifact ref must use sha256"
+                }
+              },
+              "list": {
+                "threw": {
+                  "name": "TypeError",
+                  "message": "artifact ref must use sha256"
+                }
+              },
+              "file_unchanged_by_the_failed_set": true
+            },
+            "dependencies_not_strings": {
+              "get": {
+                "threw": {
+                  "name": "Error",
+                  "message": "invalid cache index dependencies: 560a9e7fe3e3f13b0eedfa614d1396bcdf91dc17f52687f57e8f9004963d644b"
+                }
+              },
+              "set": {
+                "threw": {
+                  "name": "Error",
+                  "message": "invalid cache index dependencies: 560a9e7fe3e3f13b0eedfa614d1396bcdf91dc17f52687f57e8f9004963d644b"
+                }
+              },
+              "list": {
+                "threw": {
+                  "name": "Error",
+                  "message": "invalid cache index dependencies: 560a9e7fe3e3f13b0eedfa614d1396bcdf91dc17f52687f57e8f9004963d644b"
+                }
+              },
+              "file_unchanged_by_the_failed_set": true
+            },
+            "not_json": {
+              "get": {
+                "threw_class": "SyntaxError"
+              },
+              "set": {
+                "threw_class": "SyntaxError"
+              },
+              "file_unchanged_by_the_failed_set": true
+            }
+          }
+        ],
+        [
+          "/argument_refusals",
+          {
+            "key_is_not_a_digest": {
+              "threw": {
+                "name": "TypeError",
+                "message": "cache key must be a lowercase sha256 digest"
+              }
+            },
+            "ref_other_algorithm": {
+              "threw": {
+                "name": "TypeError",
+                "message": "artifact ref must use sha256"
+              }
+            },
+            "ref_negative_size": {
+              "threw": {
+                "name": "TypeError",
+                "message": "artifact size must be a non-negative integer"
+              }
+            },
+            "ref_missing": {
+              "threw": {
+                "name": "TypeError",
+                "message": "artifact ref must use sha256"
+              }
+            },
+            "dependencies_not_an_array": {
+              "threw": {
+                "name": "TypeError",
+                "message": "dependencies must be a string array"
+              }
+            },
+            "dependencies_not_strings": {
+              "threw": {
+                "name": "TypeError",
+                "message": "dependencies must be a string array"
+              }
+            },
+            "metadata_not_representable": {
+              "threw": {
+                "name": "TypeError",
+                "message": "$.value: unsupported cache-key material type undefined"
+              }
+            },
+            "invalidate_paths_not_an_array": {
+              "threw": {
+                "name": "TypeError",
+                "message": "paths must be a string array"
+              }
+            }
+          }
+        ],
+        [
+          "/index_file_exists_after_all_refusals",
+          false
+        ],
+        [
+          "/lock_directory_left_behind",
+          false
+        ]
+      ],
+      "output_sha256": "0ff723cbe190d7b79e0bc21b6de8b7903aba896a4bcab14420dacbb8415e0b12"
+    },
+    {
+      "id": "cache-index-symlinked-directory-is-followed",
+      "class": "negative",
+      "origin": "scenario cacheIndexSymlinkedDirectoryIsFollowed: a directory inside the repository root that is a symlink to a directory outside it; createCacheIndex and set go through it. A counterexample: this escape is NOT refused",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "cacheIndexSymlinkedDirectoryIsFollowed",
+        "args": []
+      },
+      "expect": [
+        [
+          "/create_cache_index_through_the_symlink/returned",
+          true
+        ],
+        [
+          "/set_through_the_symlink/returned",
+          true
+        ],
+        [
+          "/visible_through_the_link_inside_the_repo",
+          true
+        ],
+        [
+          "/written_outside_the_repo_root",
+          [
+            "index.json"
+          ]
+        ]
+      ],
+      "output_sha256": "7fc38021a48e92183aff6590494c950d020a6f832d7cd7436441ba7e0dde533e"
+    },
+    {
+      "id": "gc-keeps-referenced-artifacts",
+      "class": "negative",
+      "origin": "scenario gcKeepsReferencedArtifacts: collectArtifactGarbage with dryRun false over a store with referenced blobs, blobs protected by bare digest, an orphan and unexpected entries",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "gcKeepsReferencedArtifacts",
+        "args": []
+      },
+      "expect": [
+        [
+          "/when_no_roots_are_given_every_blob_is_a_candidate",
+          true
+        ],
+        [
+          "/applied",
+          {
+            "dry_run": false,
+            "reachable": 2,
+            "total_blobs": 3,
+            "deleted_count": 1,
+            "unexpected": [
+              "2b/2b2d2fa0c84d999ef6544e65d0488c82b9c11c4a08b7bf2925d130b366a3795b.4242.1700000000000.tmp",
+              "zz"
+            ]
+          }
+        ],
+        [
+          "/deleted_only_the_orphan",
+          true
+        ],
+        [
+          "/referenced_a_after",
+          {
+            "served": "referenced a\n"
+          }
+        ],
+        [
+          "/referenced_b_after",
+          {
+            "served": "referenced b\n"
+          }
+        ],
+        [
+          "/orphan_after/threw",
+          {
+            "name": "Error",
+            "code": "ARTIFACT_NOT_FOUND",
+            "message": "artifact not found: 2b2d2fa0c84d999ef6544e65d0488c82b9c11c4a08b7bf2925d130b366a3795b"
+          }
+        ],
+        [
+          "/unexpected_entries_survive",
+          {
+            "stray_directory_file": true,
+            "leftover_temp_file": true
+          }
+        ],
+        [
+          "/bare_digests_protect_like_refs",
+          {
+            "candidates": 0,
+            "reachable": 2
+          }
+        ],
+        [
+          "/second_apply_finds_nothing_to_delete",
+          0
+        ],
+        [
+          "/wrong_shape_of_a_root/threw",
+          {
+            "name": "TypeError",
+            "message": "reachable entries must be sha256 digests or artifact refs"
+          }
+        ],
+        [
+          "/bad_budget_values",
+          {
+            "minAgeMs": {
+              "threw": {
+                "name": "TypeError",
+                "message": "minAgeMs must be a non-negative integer"
+              }
+            },
+            "maxDeleteCount": {
+              "threw": {
+                "name": "TypeError",
+                "message": "maxDeleteCount must be a non-negative integer"
+              }
+            },
+            "maxDeleteBytes": {
+              "threw": {
+                "name": "TypeError",
+                "message": "maxDeleteBytes must be a non-negative integer"
+              }
+            },
+            "nowMs": {
+              "threw": {
+                "name": "TypeError",
+                "message": "nowMs must be finite"
+              }
+            }
+          }
+        ]
+      ],
+      "output_sha256": "d9b48687bbce631f04093f8baa88c0601d397c7d4fab87b4e6ec086d218c811e"
+    },
+    {
+      "id": "cached-task-fails-closed-on-damage",
+      "class": "negative",
+      "origin": "scenario cachedTaskFailsClosedOnDamage: runCachedTask after the stored blob is damaged (same size) and after it is removed; the task must not be served and must not be recomputed silently",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "cachedTaskFailsClosedOnDamage",
+        "args": []
+      },
+      "expect": [
+        [
+          "/first_run",
+          {
+            "cache_hit": false,
+            "value": {
+              "answer": 42,
+              "run": 1
+            },
+            "artifact": {
+              "algorithm": "sha256",
+              "digest": "347a78eb3e0d8c229f1b13429cdc65073a8003d59e3cc6c8df326aed39902e5c",
+              "size": 22
+            }
+          }
+        ],
+        [
+          "/second_run",
+          {
+            "cache_hit": true,
+            "value": {
+              "answer": 42,
+              "run": 1
+            }
+          }
+        ],
+        [
+          "/same_size_damage_is_a_different_text",
+          true
+        ],
+        [
+          "/run_with_the_blob_damaged/threw",
+          {
+            "name": "Error",
+            "code": "ARTIFACT_CORRUPT",
+            "message": "artifact failed integrity check: 347a78eb3e0d8c229f1b13429cdc65073a8003d59e3cc6c8df326aed39902e5c"
+          }
+        ],
+        [
+          "/run_with_the_blob_removed/threw",
+          {
+            "name": "Error",
+            "code": "ARTIFACT_NOT_FOUND",
+            "message": "artifact not found: 347a78eb3e0d8c229f1b13429cdc65073a8003d59e3cc6c8df326aed39902e5c"
+          }
+        ],
+        [
+          "/compute_calls_before_the_damaged_run",
+          1
+        ],
+        [
+          "/compute_calls_after_both_failed_runs",
+          1
+        ],
+        [
+          "/index_entry_still_present",
+          true
+        ]
+      ],
+      "output_sha256": "ed4ea9b208157db897fb17583ae26047cd2255d82bdce02ee24e8732e168e938"
+    },
+    {
+      "id": "scheduler-budget-blocked",
+      "class": "negative",
+      "origin": "scenario schedulerBudgetBlocked: runTaskGraph with a task whose estimated bytes exceed the budget, tasks that do not fit together, and a task exactly at the budget",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "schedulerBudgetBlocked",
+        "args": []
+      },
+      "expect": [
+        [
+          "/task_over_the_budget_and_its_dependent",
+          {
+            "started": [
+              "small",
+              "after-small"
+            ],
+            "finished": [
+              "small",
+              "after-small"
+            ],
+            "results": [
+              {
+                "id": "after-huge",
+                "status": "blocked",
+                "reason": "DEPENDENCY_NOT_PASSED",
+                "dependency": "huge"
+              },
+              {
+                "id": "after-small",
+                "status": "passed",
+                "value": "done after-small"
+              },
+              {
+                "id": "huge",
+                "status": "blocked",
+                "reason": "RESOURCE_BUDGET_EXCEEDED",
+                "estimated_bytes": 1000,
+                "budget_bytes": 100
+              },
+              {
+                "id": "small",
+                "status": "passed",
+                "value": "done small"
+              }
+            ],
+            "metrics": {
+              "tasks": 4,
+              "started": 2,
+              "passed": 2,
+              "failed": 0,
+              "blocked": 2,
+              "peak_concurrency": 1,
+              "peak_estimated_bytes_in_flight": 10,
+              "max_ready_queue": 2,
+              "byte_admission_deferrals": 0,
+              "concurrency_admission_deferrals": 0,
+              "resource_budget_blocked": 1,
+              "dependency_blocked": 1
+            }
+          }
+        ],
+        [
+          "/two_tasks_that_do_not_fit_together",
+          {
+            "started": [
+              "x",
+              "y"
+            ],
+            "finished": [
+              "x",
+              "y"
+            ],
+            "statuses": [
+              "x:passed",
+              "y:passed"
+            ],
+            "peak_estimated_bytes_in_flight": 600,
+            "peak_concurrency": 1,
+            "byte_admission_deferrals_at_least_one": true
+          }
+        ],
+        [
+          "/task_exactly_at_the_budget_runs",
+          {
+            "statuses": [
+              "exact:passed"
+            ],
+            "started": [
+              "exact"
+            ]
+          }
+        ]
+      ],
+      "output_sha256": "a871e756ed06e6f01a568a074577f0faf27bccc9026547b0e7b8ed60707a7c34"
+    },
+    {
+      "id": "scheduler-failure-propagation",
+      "class": "negative",
+      "origin": "scenario schedulerFailurePropagation: runTaskGraph where a worker throws; the dependents of the failed task are blocked and never reach the worker",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "schedulerFailurePropagation",
+        "args": []
+      },
+      "expect": [
+        [
+          "/started",
+          [
+            "broken",
+            "independent",
+            "throws-text"
+          ]
+        ],
+        [
+          "/results",
+          [
+            {
+              "id": "broken",
+              "status": "failed",
+              "error": "worker failed"
+            },
+            {
+              "id": "independent",
+              "status": "passed",
+              "value": "done independent"
+            },
+            {
+              "id": "needs-broken",
+              "status": "blocked",
+              "reason": "DEPENDENCY_NOT_PASSED",
+              "dependency": "broken"
+            },
+            {
+              "id": "needs-needs-broken",
+              "status": "blocked",
+              "reason": "DEPENDENCY_NOT_PASSED",
+              "dependency": "needs-broken"
+            },
+            {
+              "id": "throws-text",
+              "status": "failed",
+              "error": "plain text"
+            }
+          ]
+        ],
+        [
+          "/blocked_tasks_never_reach_the_worker",
+          true
+        ],
+        [
+          "/metrics",
+          {
+            "tasks": 5,
+            "started": 3,
+            "passed": 1,
+            "failed": 2,
+            "blocked": 2,
+            "peak_concurrency": 1,
+            "peak_estimated_bytes_in_flight": 0,
+            "max_ready_queue": 3,
+            "byte_admission_deferrals": 0,
+            "concurrency_admission_deferrals": 2,
+            "resource_budget_blocked": 0,
+            "dependency_blocked": 2
+          }
+        ]
+      ],
+      "output_sha256": "17750014e4639343ddce0f9c24e81fae7c28ac2a294f40461bbc914f63a96247"
+    },
+    {
+      "id": "scheduler-graph-refusals",
+      "class": "negative",
+      "origin": "scenario schedulerGraphRefusals: runTaskGraph with malformed graphs and options (duplicate id, missing dependency, self dependency, cycle, malformed tasks, invalid byte estimates, worker, concurrency and budget); the worker must never be called",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "schedulerGraphRefusals",
+        "args": []
+      },
+      "expect": [
+        [
+          "/duplicate_id/threw",
+          {
+            "name": "Error",
+            "message": "duplicate task id: a"
+          }
+        ],
+        [
+          "/missing_dependency/threw",
+          {
+            "name": "Error",
+            "message": "a: missing dependency ghost"
+          }
+        ],
+        [
+          "/self_dependency/threw",
+          {
+            "name": "Error",
+            "message": "a: self dependency"
+          }
+        ],
+        [
+          "/cycle/threw",
+          {
+            "name": "Error",
+            "message": "task dependency graph contains a cycle"
+          }
+        ],
+        [
+          "/empty_id/threw",
+          {
+            "name": "TypeError",
+            "message": "every task requires a non-empty id"
+          }
+        ],
+        [
+          "/task_is_not_an_object/threw",
+          {
+            "name": "TypeError",
+            "message": "every task requires a non-empty id"
+          }
+        ],
+        [
+          "/depends_on_not_an_array/threw",
+          {
+            "name": "TypeError",
+            "message": "a: dependsOn must be a string array"
+          }
+        ],
+        [
+          "/estimated_bytes_negative/threw",
+          {
+            "name": "TypeError",
+            "message": "a: estimatedBytes must be a non-negative integer"
+          }
+        ],
+        [
+          "/estimated_bytes_fractional/threw",
+          {
+            "name": "TypeError",
+            "message": "a: estimatedBytes must be a non-negative integer"
+          }
+        ],
+        [
+          "/tasks_not_an_array/threw",
+          {
+            "name": "TypeError",
+            "message": "tasks must be an array"
+          }
+        ],
+        [
+          "/worker_not_a_function/threw",
+          {
+            "name": "TypeError",
+            "message": "worker must be a function"
+          }
+        ],
+        [
+          "/max_concurrency_zero/threw",
+          {
+            "name": "TypeError",
+            "message": "maxConcurrency must be a positive integer"
+          }
+        ],
+        [
+          "/max_concurrency_fractional/threw",
+          {
+            "name": "TypeError",
+            "message": "maxConcurrency must be a positive integer"
+          }
+        ],
+        [
+          "/budget_zero/threw",
+          {
+            "name": "TypeError",
+            "message": "maxEstimatedBytesInFlight must be a positive integer"
+          }
+        ],
+        [
+          "/worker_calls_during_all_refusals",
+          0
+        ]
+      ],
+      "output_sha256": "cd8ac02b5188277037c0a0fd72fcee4575eb5de73d9196e1a0a7c23ce464fb56"
+    },
+    {
+      "id": "memory-admission-refusals",
+      "class": "negative",
+      "origin": "scenario memoryAdmissionDecisions: deriveMemoryAdmission with values it refuses (the refusals entry of the same scenario that records the admission decisions)",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "memoryAdmissionDecisions",
+        "args": []
+      },
+      "expect": [
+        [
+          "/refusals",
+          {
+            "no_arguments": {
+              "threw": {
+                "name": "TypeError",
+                "message": "totalBytes must be a non-negative safe integer"
+              }
+            },
+            "total_missing": {
+              "threw": {
+                "name": "TypeError",
+                "message": "totalBytes must be a non-negative safe integer"
+              }
+            },
+            "total_negative": {
+              "threw": {
+                "name": "TypeError",
+                "message": "totalBytes must be a non-negative safe integer"
+              }
+            },
+            "total_fractional": {
+              "threw": {
+                "name": "TypeError",
+                "message": "totalBytes must be a non-negative safe integer"
+              }
+            },
+            "total_text": {
+              "threw": {
+                "name": "TypeError",
+                "message": "totalBytes must be a non-negative safe integer"
+              }
+            },
+            "total_beyond_the_safe_integers": {
+              "threw": {
+                "name": "TypeError",
+                "message": "totalBytes must be a non-negative safe integer"
+              }
+            },
+            "fraction_of_one": {
+              "threw": {
+                "name": "TypeError",
+                "message": "reserveFraction must be a finite number in [0, 1)"
+              }
+            },
+            "fraction_negative": {
+              "threw": {
+                "name": "TypeError",
+                "message": "reserveFraction must be a finite number in [0, 1)"
+              }
+            },
+            "fraction_not_a_number": {
+              "threw": {
+                "name": "TypeError",
+                "message": "reserveFraction must be a finite number in [0, 1)"
+              }
+            },
+            "fraction_text": {
+              "threw": {
+                "name": "TypeError",
+                "message": "reserveFraction must be a finite number in [0, 1)"
+              }
+            },
+            "minimum_reserve_negative": {
+              "threw": {
+                "name": "TypeError",
+                "message": "minReserveBytes must be a non-negative safe integer"
+              }
+            },
+            "cap_negative": {
+              "threw": {
+                "name": "TypeError",
+                "message": "maxAdmissionBytes must be a non-negative safe integer"
+              }
+            },
+            "cap_fractional": {
+              "threw": {
+                "name": "TypeError",
+                "message": "maxAdmissionBytes must be a non-negative safe integer"
+              }
+            }
+          }
+        ]
+      ],
+      "output_sha256": "4fc069b56589dcbbe90c4f596b236aa90a6babab55b9d637e53e894cd87f2560"
+    },
+    {
+      "id": "performance-gate-decisions",
+      "class": "negative",
+      "origin": "scenario performanceGateDecisions: evaluatePerformanceGate (performance-policy.mjs) with candidates that need no measured figure (no environment identity, other environment, missing workload, too few samples, semantic mismatch, unproven equivalence, missing metrics) and with malformed input and policy; no candidate carries a duration or a memory figure",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "performanceGateDecisions",
+        "args": []
+      },
+      "expect": [
+        [
+          "/no_environment_identity",
+          {
+            "status": "blocked",
+            "checks": [
+              [
+                "MISSING_ENVIRONMENT_IDENTITY",
+                "blocked",
+                null
+              ]
+            ]
+          }
+        ],
+        [
+          "/environment_differs",
+          {
+            "status": "blocked",
+            "checks": [
+              [
+                "ENVIRONMENT_MISMATCH",
+                "blocked",
+                null
+              ]
+            ]
+          }
+        ],
+        [
+          "/workload_missing_on_one_side",
+          {
+            "status": "blocked",
+            "checks": [
+              [
+                "MISSING_OR_INVALID_METRIC",
+                "blocked",
+                "w1"
+              ],
+              [
+                "WORKLOAD_SET_MISMATCH",
+                "blocked",
+                "w2"
+              ]
+            ]
+          }
+        ],
+        [
+          "/too_few_samples",
+          {
+            "status": "blocked",
+            "checks": [
+              [
+                "INSUFFICIENT_SAMPLES",
+                "blocked",
+                "w1"
+              ]
+            ]
+          }
+        ],
+        [
+          "/semantic_mismatch",
+          {
+            "status": "fail",
+            "checks": [
+              [
+                "SEMANTIC_MISMATCH",
+                "fail",
+                "w1"
+              ]
+            ]
+          }
+        ],
+        [
+          "/semantic_equivalence_unproven",
+          {
+            "status": "blocked",
+            "checks": [
+              [
+                "SEMANTIC_EQUIVALENCE_UNPROVEN",
+                "blocked",
+                "w1"
+              ]
+            ]
+          }
+        ],
+        [
+          "/metrics_missing",
+          {
+            "status": "blocked",
+            "checks": [
+              [
+                "MISSING_OR_INVALID_METRIC",
+                "blocked",
+                "w1"
+              ]
+            ]
+          }
+        ],
+        [
+          "/one_blocked_and_one_failed_check",
+          {
+            "status": "blocked",
+            "checks": [
+              [
+                "INSUFFICIENT_SAMPLES",
+                "blocked",
+                "w1"
+              ],
+              [
+                "SEMANTIC_MISMATCH",
+                "fail",
+                "w2"
+              ]
+            ]
+          }
+        ],
+        [
+          "/duplicate_workload_id",
+          {
+            "threw": {
+              "name": "Error",
+              "message": "candidate contains duplicate workload id: w1"
+            }
+          }
+        ],
+        [
+          "/workloads_not_an_array",
+          {
+            "threw": {
+              "name": "TypeError",
+              "message": "candidate.workloads must be an array"
+            }
+          }
+        ],
+        [
+          "/workload_without_id",
+          {
+            "threw": {
+              "name": "TypeError",
+              "message": "candidate workload requires id"
+            }
+          }
+        ],
+        [
+          "/policy_min_samples_zero",
+          {
+            "threw": {
+              "name": "TypeError",
+              "message": "policy.minSamples must be a positive integer"
+            }
+          }
+        ],
+        [
+          "/policy_negative_threshold",
+          {
+            "threw": {
+              "name": "TypeError",
+              "message": "policy.maxColdRegressionPct must be a finite non-negative number"
+            }
+          }
+        ]
+      ],
+      "output_sha256": "575d80ec442188641aa6c8ea4cf60c101a8b02f17c0ef76caf5bc2300e269406"
+    },
+    {
+      "id": "project-cache-plan-refusals",
+      "class": "negative",
+      "origin": "scenario projectCachePlanDecisions: buildProjectCachePlan and propagateProjectInvalidation with a project id that is not in the graph, invalidation ids that are not an array, and malformed graphs",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "projectCachePlanDecisions",
+        "args": []
+      },
+      "expect": [
+        [
+          "/invalidation_of_an_unknown_project/threw",
+          {
+            "name": "Error",
+            "message": "unknown changed project: project:ghost"
+          }
+        ],
+        [
+          "/invalidation_ids_not_an_array/threw",
+          {
+            "name": "TypeError",
+            "message": "changedProjectIds must be a string array"
+          }
+        ],
+        [
+          "/graph_refusals",
+          {
+            "not_an_object": {
+              "threw": {
+                "name": "TypeError",
+                "message": "expected sbf.project-graph/draft-1"
+              }
+            },
+            "wrong_schema": {
+              "threw": {
+                "name": "TypeError",
+                "message": "expected sbf.project-graph/draft-1"
+              }
+            },
+            "projects_not_an_array": {
+              "threw": {
+                "name": "TypeError",
+                "message": "expected sbf.project-graph/draft-1"
+              }
+            },
+            "project_without_root": {
+              "threw": {
+                "name": "TypeError",
+                "message": "project graph contains an invalid project"
+              }
+            },
+            "duplicate_project_id": {
+              "threw": {
+                "name": "Error",
+                "message": "duplicate project_id: project:web"
+              }
+            },
+            "edge_without_kind": {
+              "threw": {
+                "name": "TypeError",
+                "message": "project graph contains an invalid edge"
+              }
+            },
+            "edge_to_unknown_project": {
+              "threw": {
+                "name": "Error",
+                "message": "project edge references an unknown project: project:web -> project:ghost"
+              }
+            }
+          }
+        ]
+      ],
+      "output_sha256": "8c1403bc97c1f77cb17c85caf34ca3dd13c5623c40c2e5d0d3a065261cfba603"
+    },
+    {
+      "id": "legacy-scan-cache-shadow-refusals",
+      "class": "negative",
+      "origin": "scenario legacyScanCacheShadow: runLegacyScanCached with arguments it refuses, and with every stored blob damaged after a hit",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "legacyScanCacheShadow",
+        "args": []
+      },
+      "expect": [
+        [
+          "/refusals",
+          {
+            "missing_implementation_digest": {
+              "threw": {
+                "name": "TypeError",
+                "message": "implementationDigest must be a lowercase sha256 digest"
+              }
+            },
+            "uppercase_implementation_digest": {
+              "threw": {
+                "name": "TypeError",
+                "message": "implementationDigest must be a lowercase sha256 digest"
+              }
+            },
+            "terms_not_an_array": {
+              "threw": {
+                "name": "TypeError",
+                "message": "terms must be a string array"
+              }
+            },
+            "cache_namespace_not_a_digest": {
+              "threw": {
+                "name": "TypeError",
+                "message": "cacheNamespace must be a lowercase sha256 digest"
+              }
+            },
+            "policy_fingerprint_not_a_digest": {
+              "threw": {
+                "name": "TypeError",
+                "message": "policyFingerprint must be a lowercase sha256 digest"
+              }
+            },
+            "adapter_missing": {
+              "threw": {
+                "name": "TypeError",
+                "message": "adapter descriptor is required"
+              }
+            },
+            "repo_root_missing": {
+              "threw": {
+                "name": "TypeError",
+                "message": "repoRoot is required"
+              }
+            }
+          }
+        ],
+        [
+          "/after_damaging_every_stored_blob",
+          {
+            "cached_call": {
+              "threw": {
+                "name": "Error",
+                "code": "ARTIFACT_CORRUPT",
+                "message_prefix": "artifact failed integrity check"
+              }
+            },
+            "uncached_call_still_scans": true
+          }
+        ]
+      ],
+      "output_sha256": "1841b5e15ff157c42d7265ddc513e570743bb8a3a33df9eaacd651ce193b7791"
+    },
+    {
+      "id": "legacy-cache-served-from-a-copied-tree",
+      "class": "negative",
+      "origin": "scenario legacyCacheServedFromACopiedTree: runLegacyScanCached on a project and again on a copy of that tree with its cache; the copy hits the original entry and the served report names the original tree. A counterexample: the cache key holds no repository location",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "legacyCacheServedFromACopiedTree",
+        "args": []
+      },
+      "expect": [
+        [
+          "/first_call_in_the_original_tree",
+          {
+            "cache_hit": false
+          }
+        ],
+        [
+          "/second_call_in_the_original_tree",
+          {
+            "cache_hit": true
+          }
+        ],
+        [
+          "/call_in_the_copied_tree",
+          {
+            "cache_hit": true,
+            "same_cache_key_as_the_original": true
+          }
+        ],
+        [
+          "/original_report_names_the_original_tree",
+          true
+        ],
+        [
+          "/served_report_names_the_original_tree",
+          true
+        ],
+        [
+          "/served_report_names_the_copied_tree",
+          false
+        ],
+        [
+          "/uncached_report_of_the_copy_names_the_copied_tree",
+          true
+        ],
+        [
+          "/served_report_equals_the_uncached_report_of_the_copy",
+          false
+        ],
+        [
+          "/served_report_equals_the_uncached_report_once_the_original_path_is_rewritten",
+          true
+        ],
+        [
+          "/fields_that_carry_the_original_path",
+          [
+            "/related_modules/0/controllers/0/file",
+            "/related_modules/1/controllers/0/file"
+          ]
+        ]
+      ],
+      "output_sha256": "6e3f02b1df87a1a0ae72af9088cb04d9abb3a413abe60424ff751733bf3a2949"
+    },
+    {
+      "id": "project-graph-cached-run-refusals",
+      "class": "negative",
+      "origin": "scenario projectGraphCachedRun: runProjectGraphCached with arguments it refuses (root mismatch, missing adapter), with a marker edited after the graph was built, and with every stored blob damaged",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "projectGraphCachedRun",
+        "args": []
+      },
+      "expect": [
+        [
+          "/refusals",
+          {
+            "planned_adapter_missing": {
+              "threw": {
+                "name": "Error",
+                "code": "PROJECT_ADAPTER_UNAVAILABLE",
+                "message": "planned adapter unavailable: java-spring"
+              }
+            },
+            "implementation_digest_missing": {
+              "threw": {
+                "name": "Error",
+                "message": "missing implementation digest for adapter: java-spring"
+              }
+            },
+            "graph_repo_root_is_another_directory": {
+              "threw": {
+                "name": "Error",
+                "code": "PROJECT_GRAPH_ROOT_MISMATCH",
+                "message": "graph repo_root does not match execution repoRoot"
+              }
+            },
+            "project_root_outside_the_repository": {
+              "threw": {
+                "name": "Error",
+                "message": "project root escapes repository: ../outside"
+              }
+            },
+            "implementation_digests_missing": {
+              "threw": {
+                "name": "TypeError",
+                "message": "implementationDigests map is required"
+              }
+            },
+            "graph_of_another_schema": {
+              "threw": {
+                "name": "TypeError",
+                "message": "expected sbf.project-graph/draft-1"
+              }
+            }
+          }
+        ],
+        [
+          "/stale_marker",
+          {
+            "old_graph": {
+              "threw": {
+                "name": "Error",
+                "code": "PROJECT_GRAPH_STALE",
+                "message": "project marker changed after graph discovery: test/fixtures/python-fastapi/backend/pyproject.toml"
+              }
+            },
+            "fresh_graph": [
+              {
+                "id": "project:fastapi",
+                "status": "passed",
+                "cache_hit": false
+              },
+              {
+                "id": "project:spring",
+                "status": "passed",
+                "cache_hit": true
+              }
+            ],
+            "fresh_graph_metrics": {
+              "tasks": 2,
+              "passed": 2,
+              "failed": 0,
+              "blocked": 0
+            }
+          }
+        ],
+        [
+          "/after_damaging_every_stored_blob",
+          {
+            "blobs_damaged": 2,
+            "results": [
+              {
+                "id": "project:fastapi",
+                "status": "failed",
+                "error_prefix": "artifact failed integrity check"
+              },
+              {
+                "id": "project:spring",
+                "status": "failed",
+                "error_prefix": "artifact failed integrity check"
+              }
+            ],
+            "metrics": {
+              "tasks": 2,
+              "passed": 0,
+              "failed": 2,
+              "blocked": 0
+            }
+          }
+        ]
+      ],
+      "output_sha256": "ae70edf11bbb5ad2aedd58eee3ec25e349d46a2c350f0b3b6dc7499139df34e1"
+    },
+    {
+      "id": "legacy-cache-stale-hit-in-an-excluded-directory",
+      "class": "negative",
+      "origin": "scenario legacyCacheStaleHitInAnExcludedDirectory: a copy of the pinned fixture project test/fixtures/python-fastapi/backend in a temporary directory; one new router file is added under each directory name that the file index skips (and, as the control, under a name it reads), then runLegacyScanCached runs with the cache off and with the cache on. A counterexample: for some names the cached call is a hit that serves the report from before the change; the stable adapter needs ripgrep",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "legacyCacheStaleHitInAnExcludedDirectory",
+        "args": []
+      },
+      "expect": [
+        [
+          "/directory_names_the_index_never_enters",
+          [
+            ".git",
+            ".sbf",
+            "node_modules",
+            ".venv",
+            "venv",
+            "__pycache__",
+            "coverage",
+            "dist",
+            "build"
+          ]
+        ],
+        [
+          "/excluded_names",
+          {
+            ".git": {
+              "the_new_file_is_indexed": false,
+              "source_digest_moved": false,
+              "cache_key_moved": false,
+              "uncached_report_has_the_route": false,
+              "cached_call": {
+                "cache_hit": true
+              },
+              "cached_report_has_the_route": false,
+              "served_a_report_that_misses_the_route": false,
+              "index_entries": 1,
+              "artifacts_reachable_from_the_index": 1
+            },
+            ".sbf": {
+              "the_new_file_is_indexed": false,
+              "source_digest_moved": false,
+              "cache_key_moved": false,
+              "uncached_report_has_the_route": false,
+              "cached_call": {
+                "cache_hit": true
+              },
+              "cached_report_has_the_route": false,
+              "served_a_report_that_misses_the_route": false,
+              "index_entries": 1,
+              "artifacts_reachable_from_the_index": 1
+            },
+            "node_modules": {
+              "the_new_file_is_indexed": false,
+              "source_digest_moved": false,
+              "cache_key_moved": false,
+              "uncached_report_has_the_route": false,
+              "cached_call": {
+                "cache_hit": true
+              },
+              "cached_report_has_the_route": false,
+              "served_a_report_that_misses_the_route": false,
+              "index_entries": 1,
+              "artifacts_reachable_from_the_index": 1
+            },
+            ".venv": {
+              "the_new_file_is_indexed": false,
+              "source_digest_moved": false,
+              "cache_key_moved": false,
+              "uncached_report_has_the_route": false,
+              "cached_call": {
+                "cache_hit": true
+              },
+              "cached_report_has_the_route": false,
+              "served_a_report_that_misses_the_route": false,
+              "index_entries": 1,
+              "artifacts_reachable_from_the_index": 1
+            },
+            "venv": {
+              "the_new_file_is_indexed": false,
+              "source_digest_moved": false,
+              "cache_key_moved": false,
+              "uncached_report_has_the_route": true,
+              "cached_call": {
+                "cache_hit": true
+              },
+              "cached_report_has_the_route": false,
+              "served_a_report_that_misses_the_route": true,
+              "index_entries": 1,
+              "artifacts_reachable_from_the_index": 1
+            },
+            "__pycache__": {
+              "the_new_file_is_indexed": false,
+              "source_digest_moved": false,
+              "cache_key_moved": false,
+              "uncached_report_has_the_route": false,
+              "cached_call": {
+                "cache_hit": true
+              },
+              "cached_report_has_the_route": false,
+              "served_a_report_that_misses_the_route": false,
+              "index_entries": 1,
+              "artifacts_reachable_from_the_index": 1
+            },
+            "coverage": {
+              "the_new_file_is_indexed": false,
+              "source_digest_moved": false,
+              "cache_key_moved": false,
+              "uncached_report_has_the_route": true,
+              "cached_call": {
+                "cache_hit": true
+              },
+              "cached_report_has_the_route": false,
+              "served_a_report_that_misses_the_route": true,
+              "index_entries": 1,
+              "artifacts_reachable_from_the_index": 1
+            },
+            "dist": {
+              "the_new_file_is_indexed": false,
+              "source_digest_moved": false,
+              "cache_key_moved": false,
+              "uncached_report_has_the_route": true,
+              "cached_call": {
+                "cache_hit": true
+              },
+              "cached_report_has_the_route": false,
+              "served_a_report_that_misses_the_route": true,
+              "index_entries": 1,
+              "artifacts_reachable_from_the_index": 1
+            },
+            "build": {
+              "the_new_file_is_indexed": false,
+              "source_digest_moved": false,
+              "cache_key_moved": false,
+              "uncached_report_has_the_route": true,
+              "cached_call": {
+                "cache_hit": true
+              },
+              "cached_report_has_the_route": false,
+              "served_a_report_that_misses_the_route": true,
+              "index_entries": 1,
+              "artifacts_reachable_from_the_index": 1
+            }
+          }
+        ],
+        [
+          "/control_a_name_the_index_reads",
+          {
+            "the_new_file_is_indexed": true,
+            "source_digest_moved": true,
+            "cache_key_moved": true,
+            "uncached_report_has_the_route": true,
+            "cached_call": {
+              "cache_hit": false
+            },
+            "cached_report_has_the_route": true,
+            "served_a_report_that_misses_the_route": false,
+            "index_entries": 2,
+            "artifacts_reachable_from_the_index": 2
+          }
+        ],
+        [
+          "/names_where_a_stale_report_was_served",
+          [
+            "venv",
+            "coverage",
+            "dist",
+            "build"
+          ]
+        ],
+        [
+          "/names_where_index_and_adapter_agree",
+          [
+            ".git",
+            ".sbf",
+            "node_modules",
+            ".venv",
+            "__pycache__"
+          ]
+        ]
+      ],
+      "output_sha256": "3ef4c2993c71ef9d334b168a554cb7ec0ed51bd45a70c14c385ac820913ae5df"
+    },
+    {
+      "id": "project-root-symlink-is-followed",
+      "class": "negative",
+      "origin": "scenario projectRootSymlinkIsFollowed: runProjectGraphCached over a one-project graph whose root is a symlink inside the repository to a copy of the pinned fixture project test/fixtures/python-fastapi/backend outside it, and over a graph whose root leaves the repository lexically. A counterexample: the symlinked root is NOT refused; the stable adapter needs ripgrep",
+      "call": {
+        "module": "test/perf-next/baseline-scenarios.mjs",
+        "fn": "projectRootSymlinkIsFollowed",
+        "args": []
+      },
+      "expect": [
+        [
+          "/the_link_target_is_outside_the_repository_root",
+          true
+        ],
+        [
+          "/through_the_link",
+          {
+            "statuses": [
+              "passed"
+            ],
+            "metrics": {
+              "tasks": 1,
+              "passed": 1,
+              "failed": 0,
+              "blocked": 0
+            },
+            "indexed_files_are_those_of_the_outside_tree": true,
+            "report_holds_a_route_of_the_outside_tree": true
+          }
+        ],
+        [
+          "/a_root_that_leaves_the_repository_lexically",
+          {
+            "threw": {
+              "name": "Error",
+              "message": "project root escapes repository: ../outside"
+            }
+          }
+        ]
+      ],
+      "output_sha256": "b3a51f77625f958e6e43adc66490c0fb654b6cc90d4c2585a8890ebbd106ff73"
+    }
+  ],
+  "artifact_digest": {
+    "value": "ebb193e0cffad6667e7249074e595727ef287c7917464bc8d4ae366618250e49"
+  },
+  "ci_observations": [
+    {
+      "repository": "popixoxipop-collab/backend-skeleton",
+      "workflow": "CI",
+      "run_id": 38075313210,
+      "run_number": 1964,
+      "run_attempt": 1,
+      "event": "push",
+      "head_sha": "15a38e923cb5e079c6f8e2a4c2a9386406c41f52",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "job_id": 114280949479,
+          "name": "nested-next (22.x)",
+          "runner": "macstudio",
+          "conclusion": "success",
+          "step": "T21 perf-next",
+          "step_conclusion": "success"
+        },
+        {
+          "job_id": 114280949550,
+          "name": "nested-next (24.x)",
+          "runner": "macstudio",
+          "conclusion": "success",
+          "step": "T21 perf-next",
+          "step_conclusion": "success"
+        }
+      ],
+      "jobs_listed": 19,
+      "pages": 1,
+      "observed_via": "gh api, read-only, per_page=100"
+    }
+  ],
+  "limits": [
+    {
+      "id": "stable-scan-does-not-use-the-layer",
+      "status": "UNSUPPORTED",
+      "statement": "At the base commit no stable entry point selects the cache index or the scheduler. The only file outside lib/artifact-store-next, lib/scan-scheduler-next and test/perf-next that holds an import line naming either directory (references, recomputed with git grep at the base commit) is a T19 invariants test, which imports createArtifactStore from store.mjs to check read-time integrity. scanners/index.mjs (runScan) and bin/bskel.mjs are not in that list. runLegacyScanCached and runProjectGraphCached run beside the stable scan as shadows, and nothing outside the layer calls them; an import with a computed path would not match the pattern. The old advisory measurement file says the same: \"no persistent cache wired into stable runScan\".",
+      "references": {
+        "pattern": "(import|imp)[ (].*(artifact-store-next|scan-scheduler-next)",
+        "paths": [
+          "test/conformance-next/product-wave2-invariants.test.mjs"
+        ]
+      }
+    },
+    {
+      "id": "layer-mentioned-outside-its-directories",
+      "status": "UNKNOWN",
+      "statement": "The files listed under references, outside lib/artifact-store-next, lib/scan-scheduler-next and test/perf-next, contain the text artifact-store-next or scan-scheduler-next at the base commit (recomputed with git grep): the T19 wave-2 mutation record and mutation catalogue (the catalogue holds find and replace text of lines in cache-key.mjs, invalidation.mjs and store.mjs, so those lines are coupled to files that T19 owns), the T19 invariants test, the T00 ownership map, the nested runner and the draft project-graph RFC. The CI workflow and test/package-install.test.mjs are not in the list; CI reaches the layer only through the nested runner step T21 perf-next.",
+      "references": {
+        "pattern": "artifact-store-next|scan-scheduler-next",
+        "paths": [
+          "evidence/next/T19-WAVE2-MUTATION-RECORD.json",
+          "next/t00/ownership-map.json",
+          "scanners/project-graph/INTERFACE_RFC.md",
+          "scripts/run-next-nested-tests.mjs",
+          "test/conformance-next/product-mutations-wave2.json",
+          "test/conformance-next/product-wave2-invariants.test.mjs"
+        ]
+      }
+    },
+    {
+      "id": "root-npm-test-does-not-run-the-suite",
+      "status": "UNSUPPORTED",
+      "statement": "The root test script is node --test test/*.test.mjs, which matches test files directly under test/ and not test/perf-next. The suite runs through node scripts/run-next-nested-tests.mjs T21 (CI job nested-next, step T21 perf-next) or through node --test on its test files (the direct-tap command), so a green root npm test is not T21 evidence.",
+      "references": {
+        "pattern": "\"test\": \"node --test test/\\*\\.test\\.mjs\"",
+        "paths": [
+          "package.json"
+        ]
+      }
+    },
+    {
+      "id": "layer-ships-in-the-npm-package-without-a-packed-import-test",
+      "status": "NOT_RECORDED",
+      "statement": "package.json lists lib/ in its files array (references), so both source directories are part of the npm package. test/package-install.test.mjs packs and installs the package and runs the installed bskel binary, but it is not among the files that name either directory (see layer-mentioned-outside-its-directories), so no test at the base commit imports a module of the layer from a packed and installed copy. This record runs the layer from an extracted copy of the base commit, not from a packed artifact.",
+      "references": {
+        "pattern": "^ *\"lib/\",?$",
+        "paths": [
+          "package.json"
+        ]
+      }
+    },
+    {
+      "id": "old-container-baseline-is-advisory-not-an-exact-commit-measurement",
+      "status": "NOT_RECORDED",
+      "statement": "No timing measurement at an exact commit on a supported platform; no SLO. The only timing file, test/perf-next/baselines/2026-09-25-container.json (pinned in files with its sha256 and never edited), is labelled \"advisory-measurement-not-slo\", was measured on 2026-09-25 in an environment that the file itself describes as \"assistant container; not a supported-platform certification\" (v22.16.0, Linux 6.18.44 x86_64), and names the implementation branch scale/t21/incremental-store, which is a branch name and not a commit. Its caveats, copied verbatim: \"synthetic generated files only\"; \"warm means a second same-process full rehash, not a cache hit\"; \"timings are not release SLOs\"; \"stable scanner adapters still perform their existing discovery/read paths\". No timing or memory figure of that file is copied or asserted by this record."
+    },
+    {
+      "id": "warm-is-a-same-process-rehash-not-a-cache-hit",
+      "status": "NOT_RECORDED",
+      "statement": "In the old advisory file warm is a second full rehash in the same process: test/perf-next/benchmark.mjs labels it same-process-second-pass-no-cache-yet and never consults the cache index. The legacy cache benchmark (legacy-cache-benchmark.mjs) leaves peak RSS out on purpose and states that a cache hit still rebuilds the content index before the key lookup, so a hit is not a skip of reading the tree. The fixture below replays only the source digest of the smallest old workload (no timing): it equals the digest that the old file recorded, which shows that the old workload can be regenerated, not how fast it ran.",
+      "fixtures": [
+        "file-index-digest-of-the-old-baseline-workload"
+      ]
+    },
+    {
+      "id": "benchmark-covers-one-adapter-once-in-a-pinned-test",
+      "status": "NOT_RECORDED",
+      "statement": "The pinned smoke test (t21-benchmark-smoke.test.mjs) runs the legacy cache benchmark for the javascript-express adapter only, with --samples 1 and --profile-id ci-smoke-unapproved, and asserts that the reported figures are finite and non-negative and that the semantic check holds, not how large they are. The equivalence test (t21-legacy-cache-equivalence.test.mjs) runs all five stable adapters through cache off, miss and hit without timing. No pinned test times more than that one adapter once."
+    },
+    {
+      "id": "performance-gate-has-no-approved-input-and-no-slo",
+      "status": "BLOCKED",
+      "statement": "evaluatePerformanceGate (performance-policy.mjs) measures nothing: it compares candidate reports that a caller supplies. Nothing in the layer produces the approved external peak-RSS measurements that legacy-cache-benchmark.mjs names as the condition for leaving BLOCKED (\"performance gate must remain BLOCKED until approved external peak-RSS measurements are supplied\"), and no SLO exists. The fixture records only the decisions that stop before any figure is compared (identity, workload, sample and semantic checks): blocked, fail or refusal, never pass.",
+      "fixtures": [
+        "performance-gate-decisions"
+      ]
+    },
+    {
+      "id": "cache-index-containment-is-lexical",
+      "status": "UNSUPPORTED",
+      "statement": "createCacheIndex checks that its index path stays inside the repository root with path.resolve and path.relative only, without realpath. A directory inside the root that is a symlink to a directory outside it is therefore followed and the index file is written outside the root (first fixture). Paths that leave the root lexically, and digests and refs that would leave the store root, are refused (second fixture). A caller that needs containment against symlinks has to check it itself.",
+      "fixtures": [
+        "cache-index-symlinked-directory-is-followed",
+        "path-escape-refused"
+      ]
+    },
+    {
+      "id": "project-root-containment-is-lexical",
+      "status": "UNSUPPORTED",
+      "statement": "runProjectGraphCached accepts a project root after path.resolve and path.relative only: project-cache-runner.mjs holds no realpath (the baseline test checks the pinned text). A project root that is a symlink inside the repository to a directory outside it is therefore scanned: the run passes and the indexed files are those of the outside tree (first fixture, field through_the_link). A root that leaves the repository lexically is refused with the message \"project root escapes repository\" (same fixture, last field; project-graph-cached-run-refusals records the same refusal). This is the same lexical check as in cache-index-containment-is-lexical, and a caller that scans trees it does not trust has to refuse symlinks itself. Not recorded: a symlink to a file, symlinks below a project root, and any fix.",
+      "fixtures": [
+        "project-root-symlink-is-followed",
+        "project-graph-cached-run-refusals"
+      ]
+    },
+    {
+      "id": "legacy-cache-reports-embed-the-creating-trees-paths",
+      "status": "UNSUPPORTED",
+      "statement": "The legacy scan cache key holds file digests and no repository location, so a copy of a tree together with its cache hits the cache entry of the original, and the report that is served still names the tree it was created in. A consumer that needs the paths of the tree it asked about cannot use a served report as it is. The fixture records the booleans and the fields that carry the path, never a path.",
+      "fixtures": [
+        "legacy-cache-served-from-a-copied-tree"
+      ]
+    },
+    {
+      "id": "file-index-skips-directories-the-stable-scan-reads",
+      "status": "UNSUPPORTED",
+      "statement": "The file index skips every directory named .git, .sbf, node_modules, .venv, venv, __pycache__, coverage, dist or build, at any depth (DEFAULT_EXCLUDED_DIRS in file-index.mjs, listed in the fixture), and the cache key of runLegacyScanCached holds the digest of that index as its only source digest. The python-fastapi adapter lists the files it reads with ripgrep and four exclusion globs of its own, for .venv, site-packages, node_modules and __pycache__ (references), so it reads Python files under venv, coverage, dist and build that the index never hashes. After one new router file was added under each of those four names, the source digest and the cache key did not move, and the cached call was a hit that served the report from before the change, while an uncached call reported the new route (fixture, field excluded_names). Under .git, .sbf, node_modules, .venv and __pycache__ the adapter does not read the new file either, so the cached report stays right; under a name the index reads (field control_a_name_the_index_reads) the digest moved and the call missed. Only the python-fastapi adapter was run: other adapters list their files with other exclusion rules, so which names are affected depends on the adapter. No fix is recorded.",
+      "fixtures": [
+        "legacy-cache-stale-hit-in-an-excluded-directory"
+      ],
+      "references": {
+        "pattern": "EXCLUDE_GLOBS = \\['!\\*\\*/\\.venv/\\*\\*'",
+        "paths": [
+          "scanners/adapters/python-fastapi.mjs"
+        ]
+      }
+    },
+    {
+      "id": "superseded-cache-entries-are-never-retired",
+      "status": "UNSUPPORTED",
+      "statement": "A legacy cache entry is keyed by the digest of the whole file index and the other key terms, so a changed source state gives another entry and the earlier entry stays in place: in the control of legacy-cache-stale-hit-in-an-excluded-directory, two source states left two index entries and two references to artifacts from the index. In legacy-scan-cache-shadow, for its fixed input, a second set of search terms left two index entries and two blobs in the store. These counts are for those fixed inputs and not a rule: reachableArtifactRefs counts references and is not a blob count, and the store keeps one blob per digest (store-layout-and-refs), so two entries whose artifacts have equal bytes name the same blob. Collection protects every artifact that the index references (gc-keeps-referenced-artifacts), so garbage collection does not reclaim those. cache-index.mjs offers remove and invalidateDependencies, but neither runLegacyScanCached nor runProjectGraphCached calls either (the baseline test checks the pinned text of both modules), so entries stay until a caller retires them. No retention policy, size limit or eviction is recorded.",
+      "fixtures": [
+        "legacy-cache-stale-hit-in-an-excluded-directory",
+        "legacy-scan-cache-shadow",
+        "store-layout-and-refs",
+        "gc-keeps-referenced-artifacts"
+      ]
+    },
+    {
+      "id": "gc-takes-no-lock-and-its-clock-is-an-argument",
+      "status": "UNKNOWN",
+      "statement": "collectArtifactGarbage takes no lock: lib/lock.mjs guards the cache index (set, remove, invalidateDependencies) and the garbage collector does not use it. No pinned test runs a put concurrently with an applied collection, so what happens to a blob that is stored between the scan of the roots and the delete is not recorded. The age rule compares the modification time of a blob with the nowMs argument (default: the current time): a blob stamped after nowMs counts as young even for a minimum age of zero. The fixtures pass a fixed nowMs; with the default, the same call depends on the clock.",
+      "fixtures": [
+        "gc-dry-run-plan",
+        "gc-keeps-referenced-artifacts"
+      ]
+    },
+    {
+      "id": "scheduler-has-no-timeout-or-cancellation",
+      "status": "UNSUPPORTED",
+      "statement": "runTaskGraph (scheduler.mjs) has no timeout, cancellation or retry: the source holds no timer and no abort signal (the baseline test checks the pinned text), so a task that never settles occupies its slot for the life of the run, and a worker error is recorded as the failure of that task and blocks its dependents (fixture).",
+      "fixtures": [
+        "scheduler-failure-propagation"
+      ]
+    },
+    {
+      "id": "project-graph-input-is-a-draft-schema",
+      "status": "UNKNOWN",
+      "statement": "buildProjectCachePlan and runProjectGraphCached take the project graph as plain data of the draft schema sbf.project-graph/draft-1. scanners/project-graph/INTERFACE_RFC.md (the file listed under references) states the status \"draft / provisional, not a stable SBF contract\" and that this layer consumes the graph as plain data. The fixtures use hand-written graph objects, not the output of the project-graph builder, so their agreement is not recorded here.",
+      "references": {
+        "pattern": "project-cache-plan",
+        "paths": [
+          "scanners/project-graph/INTERFACE_RFC.md"
+        ]
+      }
+    },
+    {
+      "id": "no-consumer-runner-or-provider-integration",
+      "status": "NOT_RECORDED",
+      "statement": "No consumer, runner or provider integration of the scheduler and the store is recorded. By the import search in stable-scan-does-not-use-the-layer nothing outside the layer calls them (a computed import path would not match), and the nested runner only runs and counts the test files of the suite. The combination of consumers, runner, provider and packed artifact belongs to audit item T21-05 and is not claimed here."
+    },
+    {
+      "id": "no-promotion-rollback-or-supported-scope-evidence",
+      "status": "NOT_RECORDED",
+      "statement": "No rollback plan, supported-scope record or approvable promotion evidence is recorded for the layer; those belong to audit item T21-06 and are not claimed here. The schema identifiers of the layer (sbf.*/1 and the /draft-1 identifiers of the project graph and the project cache plan) are recorded as they stand and are not promoted by this record."
+    },
+    {
+      "id": "hashes-generated-on-one-platform",
+      "status": "NOT_RECORDED",
+      "statement": "Every output hash and count was generated on the machine named in environment (one operating system, one CPU architecture) and replayed there on two Node majors; no other platform was run. The fixtures listed here run a stable adapter and need ripgrep (rg) on PATH, which the stable adapters call; without it the replay fails with a message and is never skipped. The version of ripgrep is named in environment and is not compared.",
+      "fixtures": [
+        "legacy-scan-cache-shadow",
+        "legacy-scan-cache-shadow-refusals",
+        "legacy-cache-served-from-a-copied-tree",
+        "project-graph-cached-run",
+        "project-graph-cached-run-refusals",
+        "legacy-cache-stale-hit-in-an-excluded-directory",
+        "project-root-symlink-is-followed"
+      ]
+    },
+    {
+      "id": "fixtures-are-synthetic-inputs",
+      "status": "NOT_RECORDED",
+      "statement": "Every fixture input is a small tree or literal data written by the scenario module, or one of the pinned fixture projects; no real repository, no large tree and no concurrent load is replayed. Scale, timing and memory behaviour are not recorded."
+    },
+    {
+      "id": "installed-package-files-are-not-hashed",
+      "status": "NOT_RECORDED",
+      "statement": "The pinned modules load ajv (scanners/registry.mjs validates adapter descriptors), so the replays run against the node_modules of the checkout once the installed version of every package in environment.loaded_packages equals the version that package-lock.json states at the base commit. The files inside the installed packages are not hashed."
+    },
+    {
+      "id": "scenario-module-is-not-hashed",
+      "status": "NOT_RECORDED",
+      "statement": "test/perf-next/baseline-scenarios.mjs, the module that every fixture calls, belongs to the PR that adds this record and is not hashed: the base commit does not hold it, and a hash would force a new record for every edit of a comment. It is bound only by the output hash and the expected values of the fixtures that call it, so a change that alters an output is reported and a change that alters none is not."
+    }
+  ],
+  "verification": {
+    "recomputed": "bytes, git_blob_sha1 and sha256 of every pinned file, per-file and total test counts, the exit code and counts of both commands, the first runner line, every fixture output hash and every expected value, the reference lists of the limits that carry them, the installed version of every package in environment.loaded_packages against package-lock.json at the base commit, the quotations from the old advisory measurement file and from the benchmark scripts that the limits make (compared with the pinned text), and the per-file table, every test count, the NESTED_SUITE line and the base commit that INTERFACE_RFC.md and the store README state are compared by baseline-record.test.mjs with the values it recomputed, never with a copy kept in the documents.",
+    "levels": [
+      "always: the record is well formed, and any single tampered hash, size, test count, exit code, expected value, limit status or commit id is reported; artifact_digest covers every field except its own value, so an edit of a limit statement, a fixture class, a call, a title or this text that is not re-sealed is reported",
+      "live files: size, sha256 and blob id of every pinned file are recomputed from the checkout; a file that disagrees in one hash or in size alone is damage and fails; a file that matches neither hash is drift, and so is a non-markdown file in lib/artifact-store-next, lib/scan-scheduler-next or test/perf-next that the record neither pins nor names as an own file; drift skips the live replays while the pinned commit decides",
+      "pinned commit: the base commit is fetched once when absent; the tree id equals base_tree; the sizes and digests of all pinned files, the runner included, are recomputed from its own blobs; the directory listings of both source directories, the test directory and the input directories equal the pinned files; the suite entry of the nested runner at that commit names the recorded source and test directories; if the commit is unavailable the test fails, and only BASELINE_ALLOW_UNVERIFIED=1 turns that into an explicit skip",
+      "ancestry: a shallow checkout is deepened with git fetch --no-tags --unshallow origin and the base commit must be an ancestor of HEAD",
+      "commands: both recorded commands are re-run in an extracted copy of the base commit (node_modules linked from the checkout once the installed versions equal environment.loaded_packages, which package-lock.json at the base commit states; the scenario module of this record is copied in) and must reproduce exit code, counts, per-file counts and every fixture output",
+      "references: the files outside the track directories that match each recorded pattern are recomputed with git grep at the pinned commit and must equal the list in the limit",
+      "documents: the per-file table, every \"<n> tests\" figure, the NESTED_SUITE line and the base commit in INTERFACE_RFC.md and the store README describe the pinned base commit and are compared with this record, whose counts and first runner line the commands level reproduces"
+    ],
+    "not_recomputed": [
+      "ci_observations: read once from the CI API (gh api, read-only) and kept for traceability; no test re-reads them",
+      "environment: describes the machine this record was generated on; the ripgrep version is informational (ripgrep must be installed, its version is not compared)",
+      "prose: limit statements, fixture origins, the title and this text are bound only by artifact_digest, which reports an edit that is not re-sealed; an editor who re-seals the record is caught only by review of the diff and by the recomputed values above",
+      "the files inside the installed packages that the pinned files load (environment.loaded_packages): not hashed; only their versions are compared with package-lock.json at the base commit",
+      "support data: the inputs of the fixtures are synthetic (written by the scenario module) or pinned fixture projects; their values are not independently checked",
+      "the scenario module test/perf-next/baseline-scenarios.mjs: an own file of the PR, not hashed; bound only by the fixture output hashes and expected values",
+      "INTERFACE_RFC.md and the store README: only the numbers and the base commit named above are recomputed, not the explanatory text; t21-interface-rfc.test.mjs compares the names, constants and vocabularies of the RFC with the code of the working tree separately"
+    ]
+  }
+}
