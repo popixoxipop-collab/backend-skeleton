@@ -1,0 +1,62 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://bskel.internal/schemas/http-wave-a-leaf/0",
+ "title": "HTTP wave A leaf output (provisional)",
+ "description": "One output of a leaf module in adapters/http-wave-a, contract bskel.internal.http-wave-a-leaf/0. Provisional: the contract id ends in /0 and nothing outside the layer reads it. INTERFACE_RFC.md section 3 lists where this schema is stricter or looser than the code; test/http-wave-a/interface-rfc.test.mjs validates real outputs against it and proves each listed difference.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": ["contract", "profileId", "registration", "productionDefault", "status", "sourceContracts", "routes", "unknowns", "observations", "evidence"],
+ "properties": {
+  "contract": { "const": "bskel.internal.http-wave-a-leaf/0" },
+  "profileId": { "type": "string", "minLength": 1 },
+  "registration": { "const": "unregistered" },
+  "productionDefault": { "const": false },
+  "status": { "enum": ["candidate", "blocked"] },
+  "sourceContracts": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+  "routes": { "type": "array", "items": { "$ref": "#/$defs/route" } },
+  "unknowns": { "type": "array", "items": { "$ref": "#/$defs/unknown" } },
+  "observations": { "type": "array", "items": { "$ref": "#/$defs/plainObject" } },
+  "evidence": { "$ref": "#/$defs/plainObject" }
+ },
+ "if": { "required": ["status"], "properties": { "status": { "const": "blocked" } } },
+ "then": { "properties": { "routes": { "type": "array", "maxItems": 0 } } },
+ "$defs": {
+  "route": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["method", "path", "handler", "source", "provenance"],
+   "properties": {
+    "method": { "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] },
+    "path": { "type": "string", "pattern": "^/" },
+    "handler": { "type": ["string", "null"], "minLength": 1 },
+    "source": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/plainObject" }] },
+    "provenance": { "type": "string", "minLength": 1 }
+   }
+  },
+  "unknown": {
+   "allOf": [
+    { "$ref": "#/$defs/plainObject" },
+    { "type": "object", "required": ["code"], "properties": { "code": { "type": "string", "minLength": 1 } } }
+   ]
+  },
+  "plainObject": {
+   "type": "object",
+   "propertyNames": { "not": { "enum": ["supported", "support", "capability", "capabilities"] } },
+   "additionalProperties": { "$ref": "#/$defs/value" }
+  },
+  "plainArray": {
+   "type": "array",
+   "items": { "$ref": "#/$defs/value" }
+  },
+  "value": {
+   "anyOf": [
+    { "type": "string" },
+    { "type": "number" },
+    { "type": "boolean" },
+    { "type": "null" },
+    { "$ref": "#/$defs/plainObject" },
+    { "$ref": "#/$defs/plainArray" }
+   ]
+  }
+ }
+}

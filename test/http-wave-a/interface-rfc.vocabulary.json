@@ -1,0 +1,877 @@
+{
+ "schema": "bskel.t12-interface-vocabulary/1",
+ "contract": "bskel.internal.http-wave-a-leaf/0",
+ "schemas": {
+  "leaf": "bskel.internal.http-wave-a-leaf/0",
+  "native_language": "bskel.native-language/1",
+  "dsl_route_candidates": "sbf.dsl-route-candidates/1",
+  "js_ts_source_facts": "bskel.internal.js-ts-source-facts/0",
+  "js_ts_structure": "bskel.internal.js-ts-structure/0"
+ },
+ "foreign_schemas": [
+  "sbf.contract-ref/1",
+  "sbf.artifact-ref/1",
+  "sbf.identity-envelope/1"
+ ],
+ "foreign_keys": [
+  "contract_hash"
+ ],
+ "forbidden_keys": [
+  "supported",
+  "support",
+  "capability",
+  "capabilities"
+ ],
+ "forbidden_route_keys": [
+  "operationId"
+ ],
+ "modules": {
+  "_shared": [
+   "HTTP_WAVE_A_LEAF_CONTRACT",
+   "blockedProjection",
+   "defineProfile",
+   "joinHttpPath",
+   "literalArgument",
+   "localDecoratorNamesFromModuleFacts",
+   "makeRoute",
+   "projection",
+   "routeOrUnknown"
+  ],
+  "aspnet-core": [
+   "ASPNET_CORE_PROFILE",
+   "projectAspNetCoreFacts"
+  ],
+  "django-drf": [
+   "DJANGO_DRF_PROFILE",
+   "projectDjangoDrfShadow"
+  ],
+  "fastify": [
+   "FASTIFY_PROFILE",
+   "projectFastifyFacts"
+  ],
+  "flask": [
+   "FLASK_PROFILE",
+   "projectFlaskShadow"
+  ],
+  "gin": [
+   "GIN_PROFILE",
+   "projectGinFacts"
+  ],
+  "laravel": [
+   "LARAVEL_PROFILE",
+   "projectLaravelCandidates"
+  ],
+  "nestjs": [
+   "NESTJS_PROFILE",
+   "projectNestJsFacts"
+  ],
+  "python-scope/static-runner": [
+   "STATIC_LAYERS",
+   "STATIC_LAYER_SOURCES",
+   "STATIC_RUNNER_SCHEMA",
+   "canonical",
+   "fixtureDirs",
+   "runStatic",
+   "serializeStatic",
+   "walk"
+  ],
+  "python-scope/verify": [
+   "REPO_ROOT",
+   "SCOPE_TARGETS",
+   "canonicalJson",
+   "compareLayer",
+   "derivePartition",
+   "expectedCommands",
+   "liveRegistration",
+   "loadRecord",
+   "oraclePairs",
+   "outcomeOf",
+   "printedRecord",
+   "pythonJson",
+   "recordDir",
+   "sealOf",
+   "sealRecord",
+   "verifyItems",
+   "verifyLiveTree",
+   "verifyScopeRecord",
+   "verifyStoredRecord"
+  ]
+ },
+ "leaves": [
+  {
+   "module": "aspnet-core",
+   "profile": "ASPNET_CORE_PROFILE",
+   "id": "csharp-aspnet-core",
+   "state": "candidate",
+   "owner": "T08",
+   "function": "projectAspNetCoreFacts",
+   "input": "T08 analyze-response of language `csharp`, protocol `bskel.native-language/1`",
+   "unusable": "TypeError",
+   "route_or_unknown": false,
+   "codes": [
+    "ASPNET_FOREIGN_ROUTE_FACT",
+    "T08_"
+   ],
+   "upstream_contracts": [
+    "bskel.native-language/1"
+   ]
+  },
+  {
+   "module": "django-drf",
+   "profile": "DJANGO_DRF_PROFILE",
+   "id": "python-django",
+   "state": "blocked-upstream-fact-gap",
+   "owner": "T06",
+   "function": "projectDjangoDrfShadow",
+   "input": "T06 `buildDjangoUrlShadow` result with the arrays `registrations` and `unknowns`",
+   "unusable": "blocked output",
+   "route_or_unknown": false,
+   "codes": [
+    "DJANGO_DRF_UPSTREAM_FACTS_MISSING",
+    "DRF_ACTION_METHOD_FACT_MISSING",
+    "T06_DJANGO_UNKNOWN"
+   ],
+   "upstream_contracts": [
+    "T06 buildDjangoUrlShadow output"
+   ]
+  },
+  {
+   "module": "fastify",
+   "profile": "FASTIFY_PROFILE",
+   "id": "node-fastify",
+   "state": "blocked-upstream-fact-gap",
+   "owner": "T04/T02",
+   "function": "projectFastifyFacts",
+   "input": "none, the argument is ignored",
+   "unusable": "ignored, always blocked",
+   "route_or_unknown": false,
+   "codes": [
+    "FASTIFY_UPSTREAM_RECEIVER_FACT_MISSING"
+   ],
+   "upstream_contracts": [
+    "bskel.internal.js-ts-source-facts/0",
+    "bskel.internal.js-ts-structure/0"
+   ]
+  },
+  {
+   "module": "flask",
+   "profile": "FLASK_PROFILE",
+   "id": "python-flask",
+   "state": "candidate",
+   "owner": "T06",
+   "function": "projectFlaskShadow",
+   "input": "T06 `buildFlaskRouteShadow` result with the arrays `registrations` and `unknowns`",
+   "unusable": "TypeError",
+   "route_or_unknown": true,
+   "codes": [
+    "FLASK_METHOD_SEMANTICS_UNRESOLVED",
+    "T06_FLASK_UNKNOWN"
+   ],
+   "upstream_contracts": [
+    "T06 buildFlaskRouteShadow output"
+   ]
+  },
+  {
+   "module": "gin",
+   "profile": "GIN_PROFILE",
+   "id": "go-gin",
+   "state": "candidate",
+   "owner": "T08",
+   "function": "projectGinFacts",
+   "input": "T08 analyze-response of language `go`, protocol `bskel.native-language/1`",
+   "unusable": "TypeError",
+   "route_or_unknown": true,
+   "codes": [
+    "GIN_FOREIGN_ROUTE_FACT",
+    "T08_"
+   ],
+   "upstream_contracts": [
+    "bskel.native-language/1"
+   ]
+  },
+  {
+   "module": "laravel",
+   "profile": "LARAVEL_PROFILE",
+   "id": "php-laravel",
+   "state": "candidate",
+   "owner": "T07",
+   "function": "projectLaravelCandidates",
+   "input": "T07 envelope with contract `sbf.dsl-route-candidates/1` and framework `laravel`",
+   "unusable": "TypeError",
+   "route_or_unknown": true,
+   "codes": [
+    "T07_"
+   ],
+   "upstream_contracts": [
+    "sbf.dsl-route-candidates/1"
+   ]
+  },
+  {
+   "module": "nestjs",
+   "profile": "NESTJS_PROFILE",
+   "id": "typescript-nestjs",
+   "state": "candidate",
+   "owner": "T04",
+   "function": "projectNestJsFacts",
+   "input": "T04 `{moduleFacts, structureFacts}`, contracts `bskel.internal.js-ts-source-facts/0` and `bskel.internal.js-ts-structure/0`",
+   "unusable": "TypeError",
+   "route_or_unknown": false,
+   "codes": [
+    "NESTJS_UPSTREAM_FACTS_INCOMPLETE",
+    "NESTJS_FACT_FILE_MISMATCH",
+    "NESTJS_CONTROLLER_DECORATOR_NOT_CALLED",
+    "NESTJS_CONTROLLER_PATH_UNKNOWN",
+    "NESTJS_METHOD_DECORATOR_NOT_CALLED",
+    "NESTJS_METHOD_PATH_UNKNOWN"
+   ],
+   "upstream_contracts": [
+    "bskel.internal.js-ts-source-facts/0",
+    "bskel.internal.js-ts-structure/0"
+   ]
+  }
+ ],
+ "upstream_functions": [
+  "buildFlaskRouteShadow",
+  "buildDjangoUrlShadow"
+ ],
+ "leaf_keys": [
+  "contract",
+  "profileId",
+  "registration",
+  "productionDefault",
+  "status",
+  "sourceContracts",
+  "routes",
+  "unknowns",
+  "observations",
+  "evidence"
+ ],
+ "route_keys": [
+  "method",
+  "path",
+  "handler",
+  "source",
+  "provenance"
+ ],
+ "profile_keys": [
+  "id",
+  "title",
+  "state",
+  "upstreamOwner",
+  "upstreamContracts",
+  "supportedSyntax",
+  "unknownConditions",
+  "versionPin",
+  "realRepoComparison",
+  "registration",
+  "productionDefault",
+  "runtimeTested",
+  "t19Review"
+ ],
+ "unknown_keys": [
+  "code",
+  "reason",
+  "method",
+  "path",
+  "handler",
+  "source",
+  "provenance"
+ ],
+ "input_keys": {
+  "makeRoute": [
+   "method",
+   "path",
+   "handler",
+   "source",
+   "provenance"
+  ],
+  "projection": [
+   "sourceContracts",
+   "routes",
+   "unknowns",
+   "observations",
+   "evidence"
+  ],
+  "projectNestJsFacts": [
+   "moduleFacts",
+   "structureFacts"
+  ]
+ },
+ "profile_states": [
+  "candidate",
+  "blocked-upstream-fact-gap"
+ ],
+ "statuses": [
+  "candidate",
+  "blocked"
+ ],
+ "methods": [
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "HEAD",
+  "OPTIONS"
+ ],
+ "forced": {
+  "registration": "unregistered",
+  "productionDefault": false,
+  "runtimeTested": false,
+  "t19Review": "NOT_REVIEWED"
+ },
+ "reserved_words": [
+  "BLOCKED_INFRA",
+  "NOT_REVIEWED",
+  "PASS_STATIC_REAL_REPO"
+ ],
+ "route_witnesses": [
+  {
+   "method": "ANY",
+   "path": "/a",
+   "code": "ROUTE_METHOD_WILDCARD_UNRESOLVED"
+  },
+  {
+   "method": "TRACE",
+   "path": "/a",
+   "code": "ROUTE_METHOD_UNSUPPORTED"
+  },
+  {
+   "method": "GET",
+   "path": "a",
+   "code": "ROUTE_PATH_UNKNOWN"
+  }
+ ],
+ "prose_limit": "interface-rfc-prose-is-not-compared",
+ "codes": [
+  {
+   "code": "ROUTE_METHOD_WILDCARD_UNRESOLVED",
+   "group": "route",
+   "leaf": "_shared",
+   "reason": "route method is the ANY wildcard; it is kept as an unknown and never expanded into a method list",
+   "fixture": "route-method-any-lowercase"
+  },
+  {
+   "code": "ROUTE_METHOD_UNSUPPORTED",
+   "group": "route",
+   "leaf": "_shared",
+   "reason": "route method is not one of the explicit HTTP methods a supported route can carry",
+   "fixture": "route-method-trace-unsupported"
+  },
+  {
+   "code": "ROUTE_PATH_UNKNOWN",
+   "group": "route",
+   "leaf": "_shared",
+   "reason": "route path is missing, not a string or not an absolute path",
+   "fixture": "route-path-relative-unknown"
+  },
+  {
+   "code": "DJANGO_DRF_UPSTREAM_FACTS_MISSING",
+   "group": "blocked",
+   "leaf": "django-drf",
+   "reason": "T12 requires T06 Django URL facts and a future T06-owned DRF action/method fact surface.",
+   "fixture": "django-blocked-without-shadow"
+  },
+  {
+   "code": "DRF_ACTION_METHOD_FACT_MISSING",
+   "group": "blocked",
+   "leaf": "django-drf",
+   "reason": "T06 has not promoted Router/ViewSet action-to-HTTP-method facts; Django URL observations cannot become HTTP endpoints.",
+   "fixture": "django-blocked-with-shadow-hand-fed"
+  },
+  {
+   "code": "FASTIFY_UPSTREAM_RECEIVER_FACT_MISSING",
+   "group": "blocked",
+   "leaf": "fastify",
+   "reason": "T12 will not recreate a JS parser. A T04/T02-owned fact must bind Fastify instance/plugin receiver identity and registration ownership before HTTP routes can be projected.",
+   "fixture": "fastify-blocked-without-input"
+  },
+  {
+   "code": "ASPNET_FOREIGN_ROUTE_FACT",
+   "group": "leaf",
+   "leaf": "aspnet-core",
+   "reason": "T08 route fact is not an ASP.NET Core route",
+   "fixture": "aspnet-foreign-route-hand-fed"
+  },
+  {
+   "code": "GIN_FOREIGN_ROUTE_FACT",
+   "group": "leaf",
+   "leaf": "gin",
+   "reason": "T08 route fact is not a Gin route",
+   "fixture": "gin-foreign-route-hand-fed"
+  },
+  {
+   "code": "FLASK_METHOD_SEMANTICS_UNRESOLVED",
+   "group": "leaf",
+   "leaf": "flask",
+   "reason": null,
+   "fixture": "flask-methods-unresolved-hand-fed"
+  },
+  {
+   "code": "NESTJS_UPSTREAM_FACTS_INCOMPLETE",
+   "group": "leaf",
+   "leaf": "nestjs",
+   "reason": "T04 module/structure facts are incomplete or syntax-unvalidated",
+   "fixture": "nestjs-incomplete-facts-hand-fed"
+  },
+  {
+   "code": "NESTJS_FACT_FILE_MISMATCH",
+   "group": "leaf",
+   "leaf": "nestjs",
+   "reason": "module and structure facts do not refer to the same source file",
+   "fixture": "nestjs-file-mismatch-hand-fed"
+  },
+  {
+   "code": "NESTJS_CONTROLLER_DECORATOR_NOT_CALLED",
+   "group": "leaf",
+   "leaf": "nestjs",
+   "reason": null,
+   "fixture": "nestjs-decorator-not-called-hand-fed"
+  },
+  {
+   "code": "NESTJS_CONTROLLER_PATH_UNKNOWN",
+   "group": "leaf",
+   "leaf": "nestjs",
+   "reason": null,
+   "fixture": "nestjs-controller-path-unknown-hand-fed"
+  },
+  {
+   "code": "NESTJS_METHOD_DECORATOR_NOT_CALLED",
+   "group": "leaf",
+   "leaf": "nestjs",
+   "reason": null,
+   "fixture": "nestjs-decorator-not-called-hand-fed"
+  },
+  {
+   "code": "NESTJS_METHOD_PATH_UNKNOWN",
+   "group": "leaf",
+   "leaf": "nestjs",
+   "reason": null,
+   "fixture": "nestjs-controller-hand-fed"
+  },
+  {
+   "code": "T06_FLASK_UNKNOWN",
+   "group": "wrapped",
+   "leaf": "flask",
+   "reason": null,
+   "fixture": "flask-methods-unresolved-hand-fed"
+  },
+  {
+   "code": "T06_DJANGO_UNKNOWN",
+   "group": "wrapped",
+   "leaf": "django-drf",
+   "reason": null,
+   "fixture": "django-blocked-with-shadow-hand-fed"
+  }
+ ],
+ "prefixes": [
+  {
+   "prefix": "T07_",
+   "leaves": {
+    "laravel": "laravel-any-dynamic-upstream"
+   }
+  },
+  {
+   "prefix": "T08_",
+   "leaves": {
+    "aspnet-core": "aspnet-mapmethods-diagnostic-upstream",
+    "gin": "gin-any-trace-dynamic-upstream"
+   }
+  }
+ ],
+ "gates": [
+  {
+   "gate": "leaves_registered",
+   "blocker": "leaves-not-registered",
+   "closes_when": "a leaf profile id is in the registry",
+   "state": "open",
+   "limits": [
+    "leaves-are-unregistered-candidates"
+   ]
+  },
+  {
+   "gate": "runtime_tested",
+   "blocker": "leaves-not-runtime-tested",
+   "closes_when": "a profile has `runtimeTested` true",
+   "state": "open",
+   "limits": []
+  },
+  {
+   "gate": "review_accepted",
+   "blocker": "review-not-accepted",
+   "closes_when": "a profile has a `t19Review` other than `NOT_REVIEWED`",
+   "state": "open",
+   "limits": []
+  },
+  {
+   "gate": "blocked_leaves_unblocked",
+   "blocker": "blocked-leaves-not-unblocked",
+   "closes_when": "no profile is in state `blocked-upstream-fact-gap`",
+   "state": "open",
+   "limits": [
+    "django-drf-leaf-blocked",
+    "fastify-leaf-blocked"
+   ]
+  },
+  {
+   "gate": "real_repo_evidence_structured",
+   "blocker": "real-repo-evidence-not-structured",
+   "closes_when": "a `realRepoComparison` is no longer a plain string",
+   "state": "open",
+   "limits": [
+    "real-repo-comparison-is-a-plain-string",
+    "leaf-rerun-markers-describe-history"
+   ]
+  },
+  {
+   "gate": "bridges_built",
+   "blocker": "bridges-not-built",
+   "closes_when": "a module of the layer names `contracts/next`, `schemas/next` or `scanners/capability-next`",
+   "state": "open",
+   "limits": [
+    "no-bridge-to-contracts-next-or-the-capability-vocabulary"
+   ]
+  },
+  {
+   "gate": "schema_frozen",
+   "blocker": "schema-not-frozen",
+   "closes_when": "the contract id no longer ends in `/0`",
+   "state": "open",
+   "limits": []
+  },
+  {
+   "gate": "consumer_exists",
+   "blocker": "consumer-not-present",
+   "closes_when": "a file outside the layer names the contract (state at the base commit)",
+   "state": "open",
+   "limits": [
+    "leaf-contract-has-no-consumer-outside-the-layer"
+   ]
+  }
+ ],
+ "schema_gaps": [
+  {
+   "id": "route-fields",
+   "kind": "stricter",
+   "text": "a route needs a method of the seven, an absolute path, a handler that is null or a non-empty string, a source that is an object or null and a string provenance, none of which `projection` checks (`makeRoute` checks all of them except `source`)"
+  },
+  {
+   "id": "blocked-without-routes",
+   "kind": "stricter",
+   "text": "a `blocked` output has no routes, which `projection` does not enforce"
+  },
+  {
+   "id": "unknown-code",
+   "kind": "stricter",
+   "text": "every unknown is an object with a non-empty string `code`, which `projection` does not check"
+  },
+  {
+   "id": "support-keys",
+   "kind": "stricter",
+   "text": "no key named `supported`, `support`, `capability` or `capabilities` at any depth, while the layer copies `evidence` and `observations` as given"
+  },
+  {
+   "id": "plain-contents",
+   "kind": "stricter",
+   "text": "`sourceContracts` holds non-empty strings and each observation and `evidence` is a plain object, while `projection` copies whatever it is given"
+  },
+  {
+   "id": "order-and-ties",
+   "kind": "looser",
+   "text": "does not check the sort order and does not tie `profileId` and `status` to a profile"
+  },
+  {
+   "id": "open-contents",
+   "kind": "looser",
+   "text": "accepts a route unknown that has only a `code` while `routeOrUnknown` always emits the unknown keys"
+  }
+ ],
+ "ownership": [
+  {
+   "paths": [
+    "adapters/http-wave-a",
+    "test/http-wave-a"
+   ],
+   "owner": "T12",
+   "t12": "edit",
+   "probes": [
+    "adapters/http-wave-a/INTERFACE_RFC.md",
+    "adapters/http-wave-a/BASELINE.json",
+    "adapters/http-wave-a/leaf-contract.schema.json",
+    "test/http-wave-a/interface-rfc.test.mjs",
+    "test/http-wave-a/interface-rfc.vocabulary.json",
+    "test/http-wave-a/baseline-record.test.mjs",
+    "test/http-wave-a/baseline-record-lib.mjs"
+   ],
+   "expect": {
+    "code": "OK",
+    "owner": "T12"
+   }
+  },
+  {
+   "paths": [
+    "scanners/language/native-server"
+   ],
+   "owner": "T08",
+   "t12": "read only, pinned by BASELINE.json",
+   "probes": [
+    "scanners/language/native-server/csharp.mjs"
+   ],
+   "expect": {
+    "code": "PATH_OWNED_BY_OTHER_TRACK",
+    "owner": "T08"
+   }
+  },
+  {
+   "paths": [
+    "scanners/language/python"
+   ],
+   "owner": "T06",
+   "t12": "read only, pinned by BASELINE.json",
+   "probes": [
+    "scanners/language/python/analyzer.mjs"
+   ],
+   "expect": {
+    "code": "PATH_OWNED_BY_OTHER_TRACK",
+    "owner": "T06"
+   }
+  },
+  {
+   "paths": [
+    "scanners/language/ruby-php"
+   ],
+   "owner": "T07",
+   "t12": "read only, pinned by BASELINE.json",
+   "probes": [
+    "scanners/language/ruby-php/dsl-facts.mjs"
+   ],
+   "expect": {
+    "code": "PATH_OWNED_BY_OTHER_TRACK",
+    "owner": "T07"
+   }
+  },
+  {
+   "paths": [
+    "scanners/language/js-ts"
+   ],
+   "owner": "T04",
+   "t12": "none, no import",
+   "probes": [
+    "scanners/language/js-ts/index.mjs"
+   ],
+   "expect": {
+    "code": "PATH_OWNED_BY_OTHER_TRACK",
+    "owner": "T04"
+   }
+  },
+  {
+   "paths": [
+    "adapters/http-legacy-next"
+   ],
+   "owner": "T11",
+   "t12": "read only, pinned by BASELINE.json",
+   "probes": [
+    "adapters/http-legacy-next/baselines.mjs"
+   ],
+   "expect": {
+    "code": "PATH_OWNED_BY_OTHER_TRACK",
+    "owner": "T11"
+   }
+  },
+  {
+   "paths": [
+    "adapters/http-wave-bc"
+   ],
+   "owner": "T13",
+   "t12": "read only, pinned by BASELINE.json",
+   "probes": [
+    "adapters/http-wave-bc/catalog.mjs"
+   ],
+   "expect": {
+    "code": "PATH_OWNED_BY_OTHER_TRACK",
+    "owner": "T13"
+   }
+  },
+  {
+   "paths": [
+    "scanners/registry.mjs",
+    "scanners/text-util.mjs",
+    "scanners/adapters",
+    "schemas/adapter.schema.json"
+   ],
+   "owner": "stable scanner surface",
+   "t12": "read only, pinned by BASELINE.json",
+   "probes": [
+    "scanners/registry.mjs",
+    "scanners/text-util.mjs",
+    "scanners/adapters/python-fastapi.mjs",
+    "schemas/adapter.schema.json"
+   ],
+   "expect": {
+    "code": "PATH_UNOWNED",
+    "owner": null
+   }
+  },
+  {
+   "paths": [
+    "contracts/next",
+    "schemas/next"
+   ],
+   "owner": "T01",
+   "t12": "none, no import",
+   "probes": [
+    "contracts/next/identity.mjs",
+    "schemas/next/README.md"
+   ],
+   "expect": {
+    "code": "PATH_OWNED_BY_OTHER_TRACK",
+    "owner": "T01"
+   }
+  },
+  {
+   "paths": [
+    "scanners/capability-next"
+   ],
+   "owner": "T03",
+   "t12": "none, no import",
+   "probes": [
+    "scanners/capability-next/index.mjs"
+   ],
+   "expect": {
+    "code": "PATH_OWNED_BY_OTHER_TRACK",
+    "owner": "T03"
+   }
+  },
+  {
+   "paths": [
+    "scripts/run-next-nested-tests.mjs",
+    "package.json",
+    "package-lock.json"
+   ],
+   "owner": "T00 coordinator",
+   "t12": "read only, pinned by BASELINE.json",
+   "probes": [
+    "scripts/run-next-nested-tests.mjs",
+    "package.json",
+    "package-lock.json"
+   ],
+   "expect": {
+    "code": "PATH_RESERVED_HOT",
+    "owner": null
+   }
+  },
+  {
+   "paths": [
+    ".github/workflows",
+    "CATALOG.md",
+    "DECISIONS.md"
+   ],
+   "owner": "T00 coordinator",
+   "t12": "never edit",
+   "probes": [
+    ".github/workflows/ci.yml",
+    "CATALOG.md",
+    "DECISIONS.md"
+   ],
+   "expect": {
+    "code": "PATH_RESERVED_HOT",
+    "owner": null
+   }
+  }
+ ],
+ "key_rules": [
+  {
+   "key": "contract",
+   "rule": "always `bskel.internal.http-wave-a-leaf/0`"
+  },
+  {
+   "key": "profileId",
+   "rule": "the `id` of the profile"
+  },
+  {
+   "key": "registration",
+   "rule": "always `unregistered`"
+  },
+  {
+   "key": "productionDefault",
+   "rule": "always `false`"
+  },
+  {
+   "key": "status",
+   "rule": "`candidate`, or `blocked` when the profile state is `blocked-upstream-fact-gap`"
+  },
+  {
+   "key": "sourceContracts",
+   "rule": "a copy of the upstream contracts that were read"
+  },
+  {
+   "key": "routes",
+   "rule": "sorted by `path`, `method`, `handler`, none for a blocked leaf"
+  },
+  {
+   "key": "unknowns",
+   "rule": "sorted by their key-sorted JSON text, each with a `code`"
+  },
+  {
+   "key": "observations",
+   "rule": "facts that are not routes, sorted like `unknowns`"
+  },
+  {
+   "key": "evidence",
+   "rule": "passed through by reference"
+  }
+ ],
+ "shared_functions": [
+  {
+   "function": "routeOrUnknown",
+   "input": "`{method, path, handler, source, provenance}` and a context object",
+   "unusable": "unknown for the ANY method, a method outside the seven or a path that is not absolute; TypeError for a bad handler or provenance of a route that is otherwise valid",
+   "codes": [
+    "ROUTE_METHOD_WILDCARD_UNRESOLVED",
+    "ROUTE_METHOD_UNSUPPORTED",
+    "ROUTE_PATH_UNKNOWN"
+   ]
+  },
+  {
+   "function": "makeRoute",
+   "input": "`{method, path, handler, source, provenance}`",
+   "unusable": "TypeError for a method outside the seven, a path that is not absolute, a handler that is neither null nor a non-empty string, a missing provenance",
+   "codes": []
+  },
+  {
+   "function": "defineProfile",
+   "input": "a profile object with `id` and `state`",
+   "unusable": "TypeError for a non-object, a missing `id`, a `state` outside the two profile states",
+   "codes": []
+  },
+  {
+   "function": "projection",
+   "input": "a profile and `{sourceContracts, routes, unknowns, observations, evidence}`",
+   "unusable": "TypeError for a route that owns `operationId`; nothing else is checked",
+   "codes": []
+  },
+  {
+   "function": "blockedProjection",
+   "input": "a profile, a code, a reason and evidence",
+   "unusable": "nothing is checked",
+   "codes": []
+  }
+ ],
+ "owned_files": [
+  "BASELINE.json",
+  "INTERFACE_RFC.md",
+  "_shared.mjs",
+  "aspnet-core.mjs",
+  "django-drf.mjs",
+  "fastify.mjs",
+  "flask.mjs",
+  "gin.mjs",
+  "laravel.mjs",
+  "leaf-contract.schema.json",
+  "nestjs.mjs",
+  "python-django",
+  "python-flask",
+  "python-scope",
+  "scope"
+ ]
+}
