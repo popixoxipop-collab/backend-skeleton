@@ -457,6 +457,9 @@ const VERDICTS = ['OK', 'PATH_OWNED_BY_OTHER_TRACK', 'PATH_RESERVED_HOT', 'PATH_
 // Text that may reach GitHub: no issue or pull request numbers in any form (the baseline lib forbids the same forms in the record).
 const FORBIDDEN = /#\d|\bPR\s*\d|\/pull\/\d|\/issues\/\d|GH-\d|refs\/pull/;
 const LINE_CAP = 440;
+// Names whose claims belong to the compared tables and rules: a sentence between the tables may not name one, because no test
+// compares such a sentence with the code (the finding on the hash function: "any value" stood in a sentence between the tables).
+const TABLE_ONLY_NAMES = ['t16HashJson'];
 
 // Names through which a module could read the clock, a random source or the process, print, or wait for something.
 const HOST_ACCESS = /\b(?:process|Date|performance|globalThis|setTimeout|setInterval|setImmediate|queueMicrotask|console|await|async|Promise|randomUUID|randomBytes|randomInt|getRandomValues)\b|Math\.random/g;
@@ -620,6 +623,10 @@ function rfcProblems(rfc, vocab, record) {
   if (!same(headings, vocab.narrative.headings)) problems.push(`headings differ from the vocabulary: ${shorten(headings.filter((line) => !vocab.narrative.headings.includes(line)))} / missing ${shorten(vocab.narrative.headings.filter((line) => !headings.includes(line)))}`);
   const found = FORBIDDEN.exec(rfc);
   if (found) problems.push(`forbidden text ${shorten(found[0])}`);
+  for (const name of TABLE_ONLY_NAMES) {
+    const line = rfc.split('\n').find((text) => !text.startsWith('|') && text.includes(name));
+    if (line !== undefined) problems.push(`${name} is named between the tables, where no test compares a sentence with the code: ${shorten(line)}`);
+  }
   if (/\t/.test(rfc)) problems.push('a tab character');
   if (/\r/.test(rfc)) problems.push('a carriage return');
   if (/[ ]+$/m.test(rfc)) problems.push('trailing spaces');
@@ -801,6 +808,58 @@ const RULE_TESTS = {
     const runtime = M.evidence.inspectRuntimeBehaviorProjection({ expected: evidence.expected, ...evidence.runtimeBehavior });
     assert.equal(runtime.bindingHash, M.evidence.t16HashJson(evidence.documents.binding));
   },
+  'hash-input-domain': async () => {
+    const { M } = await validInputs();
+    const hash = (value) => M.evidence.t16HashJson(value);
+    const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
+    const errorName = (call) => {
+      try {
+        call();
+      } catch (error) {
+        return error?.name;
+      }
+      return 'no error';
+    };
+    const loop = { a: 1 };
+    loop.self = loop;
+    const ring = [1];
+    ring.push(ring);
+    const back = {};
+    back.next = { back };
+    class Holder {
+      constructor(owner) {
+        this.owner = owner;
+      }
+    }
+    const owner = {};
+    owner.held = new Holder(owner);
+    const own = new Holder(null);
+    own.owner = own;
+    const bare = Object.create(null);
+    bare.me = bare;
+    let deep = 1;
+    for (let level = 0; level < 100000; level += 1) deep = [deep];
+    const thrown = [
+      ['a BigInt as the value', 10n, 'TypeError'],
+      ['a BigInt in an array', [1n], 'TypeError'],
+      ['a BigInt as a property', { a: 1n }, 'TypeError'],
+      ['a BigInt nested in objects and arrays', { z: 1, a: { b: { c: [{ d: 2n }] } } }, 'TypeError'],
+      ['an object that holds itself', loop, 'RangeError'],
+      ['an array that holds itself', ring, 'RangeError'],
+      ['a cycle through two plain objects', back, 'RangeError'],
+      ['nesting of 100000 arrays', deep, 'RangeError'],
+      ['a cycle from a plain object through a class instance', owner, 'TypeError'],
+      ['a class instance that holds itself', own, 'TypeError'],
+      ['a cycle through an object without prototype', bare, 'TypeError']
+    ];
+    for (const [label, value, name] of thrown) assert.equal(errorName(() => hash(value)), name, label);
+    const undefinedHash = sha('undefined\n');
+    const nullHash = sha('null\n');
+    assert.notEqual(undefinedHash, nullHash);
+    for (const [label, call] of [['undefined', () => hash(undefined)], ['a call without an argument', () => hash()], ['a function', () => hash(() => 1)], ['a symbol', () => hash(Symbol('s'))]]) assert.equal(call(), undefinedHash, label);
+    for (const [label, value] of [['null', null], ['NaN', NaN], ['Infinity', Infinity]]) assert.equal(hash(value), nullHash, label);
+    for (const value of [undefined, null, 0, 'x', [], {}, { a: [1, 'x', null, true] }]) assert.match(hash(value), /^[0-9a-f]{64}$/);
+  },
   'reference-equality': async () => {
     const { M, evidence } = await validInputs();
     const handoff = evidence.persistenceHandoff;
@@ -949,7 +1008,9 @@ test('negative: a document whose tables, headings, names or rule statements drif
     ['trailing spaces', rfc.replace('\n', ' \n'), /trailing spaces/],
     ['no final newline', rfc.trimEnd(), /exactly one newline/],
     ['two final newlines', `${rfc}\n`, /exactly one newline/],
-    ['too many lines', `${rfc}${'filler\n'.repeat(LINE_CAP)}`, /more than/]
+    ['too many lines', `${rfc}${'filler\n'.repeat(LINE_CAP)}`, /more than/],
+    ['the hash function named in a sentence between the tables (a sentence added)', `${rfc}\nThe function \`t16HashJson\` returns a hash for every value.\n`, /t16HashJson is named between the tables/],
+    ['the hash function named in a sentence between the tables (a sentence rewritten)', rfc.replace('the hash function of the evidence module', '`t16HashJson`'), /t16HashJson is named between the tables/]
   ];
   for (const [label, text, pattern] of cases) assert.ok(mentions(rfcProblems(text, vocab, record), pattern), label);
   const withProse = damage(vocab, (v) => { v.narrative.prose.push({ token: 'neverUsedToken', reason: 'x' }); });
