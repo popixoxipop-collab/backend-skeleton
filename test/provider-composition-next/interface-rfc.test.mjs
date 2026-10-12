@@ -413,7 +413,7 @@ function blocksOf(vocab, record) {
   const resultRows = shapeKeys.flatMap((key) => d.results.shapes[key].map((keys) => {
     const label = key.startsWith('previewGeneration.') ? `${q('previewGeneration')} (${text(own(n.shapeLabels, key))})` : q(key);
     const status = own(d.results.shapeStatuses, `${key}|${keys}`) ?? [];
-    return [label, own(d.results.schemas, key) ? qs(d.results.schemas[key]) : '-', status.length ? qs(status) : '-', keys === 'array' ? 'an `array` of strings, the evidence kinds (a function in the third place for `constructor`, `toString` and `hasOwnProperty` at `build-tested` and `behavior-tested`: rule `inherited-names`)' : q(keys.split(',').join(', '))];
+    return [label, own(d.results.schemas, key) ? qs(d.results.schemas[key]) : '-', status.length ? qs(status) : '-', keys === 'array' ? 'an `array` of strings, the evidence kinds (for the twelve inherited names of rule `inherited-names` a function in the third place at `build-tested` and `behavior-tested`, an object for `__proto__`)' : q(keys.split(',').join(', '))];
   }));
   const wordRows = n.words.map((word) => [q(word.word), qs(word.where), word.meaning]);
   const thrownRows = Object.entries(d.text.thrown).flatMap(([file, items]) => items.map((item) => [q(file), q(item), d.coverage.thrownNotReached.includes(item) ? 'no' : 'yes']));
@@ -608,7 +608,27 @@ function vocabProblems(vocab, derived, record, sourceOf) {
   return problems;
 }
 
-const RESULT_SENTENCE = 'or for `requiredEvidenceFor` an array of strings, with one exception: when the provider id is `constructor`, `toString` or `hasOwnProperty` (the inherited names of rule `inherited-names`), the array holds a function in its third place at the levels `build-tested` and `behavior-tested`.';
+const RESULT_SENTENCE = 'or for `requiredEvidenceFor` an array of strings, with one exception: when the provider id is one of the twelve inherited names of rule `inherited-names`, the third place of the array holds a function at the levels `build-tested` and `behavior-tested` (the object Object.prototype for `__proto__`), and every place holds a string at the level `preview-tested`.';
+const RESULT_CELL_NOTE = ' (for the twelve inherited names of rule `inherited-names` a function in the third place at `build-tested` and `behavior-tested`, an object for `__proto__`)';
+const BINDING_HASH_NULL = 'null when the binding reference or bytes cannot be read, when the bytes are not JSON and when they parse to a falsy value (0, false, "" or null)';
+const SHORT_SHAPE_CLAUSE = 'or its bytes are not JSON or parse to a falsy value (0, false, "" or null), and the long one for every other outcome';
+const HASH_RULE_NULL = 'which is null when the bytes of the binding are neither text nor a byte array or its reference does not have exactly the six fields of an artifact reference, when the bytes are not JSON and when they parse to a falsy value (0, false, "" or null); the evidence validator treats a document that parses to a falsy value like bytes that are not JSON and answers in its short shape with the code evidence-json-invalid.';
+
+// The names that Object.prototype defines, as rule inherited-names lists them: the spans between "defines these <count> names:" and the first full stop.
+const COUNT_WORDS = { 12: 'twelve' };
+const listedNames = (text) => {
+  const found = /Object\.prototype defines these (\w+) names: ([^.]*)\./.exec(text);
+  return found ? { count: found[1], names: spansOf(found[2]) } : null;
+};
+const inheritedNameProblems = (statement, names) => {
+  const listed = listedNames(statement);
+  if (!listed) return ['the rule does not list the names that Object.prototype defines'];
+  return [
+    ...sameSet('the names listed by rule inherited-names', listed.names, names),
+    ...duplicates(listed.names).map((name) => `the rule lists ${name} twice`),
+    ...(listed.count === COUNT_WORDS[names.length] ? [] : [`the rule says ${listed.count} names, Object.prototype defines ${names.length}`])
+  ];
+};
 
 // The document against the vocabulary: tables verbatim, headings, names both ways, text rules.
 function rfcProblems(rfc, vocab, record) {
@@ -643,6 +663,17 @@ function rfcProblems(rfc, vocab, record) {
   for (const item of vocab.narrative.rules) if (!rfc.includes(item.statement)) problems.push(`rule ${item.id} is not stated in the document`);
   // The sentence on the result of requiredEvidenceFor is in no table; it must carry its exception whole.
   if (!rfc.includes(RESULT_SENTENCE)) problems.push('the sentence on the result of requiredEvidenceFor does not carry its exception for the inherited names');
+  if (!rfc.includes(SHORT_SHAPE_CLAUSE)) problems.push('the sentence on the short shape of validateBoundCertificationEvidence does not carry the documents that parse to a falsy value');
+  const bindingField = vocab.narrative.fields.find((field) => field.name === 'bindingHash');
+  if (!bindingField?.meaning?.includes(BINDING_HASH_NULL) || !rfc.includes(BINDING_HASH_NULL)) problems.push('the meaning of bindingHash does not carry its cases of null');
+  const hashRuleItem = vocab.narrative.rules.find((item) => item.id === 'hash-rule');
+  if (!hashRuleItem?.statement.includes(HASH_RULE_NULL) || !rfc.includes(HASH_RULE_NULL)) problems.push('the statement of rule hash-rule does not carry the cases in which bindingHash is null');
+  // The names that Object.prototype defines are listed once, in rule inherited-names; a second list would drift from it (__proto__ is named in the exception of the result sentence and of its cell).
+  const listing = vocab.narrative.rules.find((item) => item.id === 'inherited-names');
+  for (const line of rfc.split('\n').filter((text) => !(listing && text.includes(listing.statement)))) {
+    const stray = spansOf(line).filter((name) => name !== '__proto__' && Object.getOwnPropertyNames(Object.prototype).includes(name));
+    if (stray.length) problems.push(`names of rule inherited-names are listed outside the rule: ${stray.join(', ')}`);
+  }
   return problems;
 }
 
@@ -805,12 +836,39 @@ const RULE_TESTS = {
     for (const status of ['bound', 'pending', undefined, null]) assert.deepEqual([inspect(status).status, codesOf(inspect(status))], ['blocked', ['handoff-not-approved']], String(status));
   },
   'hash-rule': async () => {
-    const { M, evidence } = await validInputs();
+    const { M, combination, evidence } = await validInputs();
     const value = { b: 1, a: [2, { d: 3, c: 4 }] };
     const text = '{\n  "a": [\n    2,\n    {\n      "c": 4,\n      "d": 3\n    }\n  ],\n  "b": 1\n}\n';
     assert.equal(M.evidence.t16HashJson(value), crypto.createHash('sha256').update(text).digest('hex'));
     const runtime = M.evidence.inspectRuntimeBehaviorProjection({ expected: evidence.expected, ...evidence.runtimeBehavior });
     assert.equal(runtime.bindingHash, M.evidence.t16HashJson(evidence.documents.binding));
+    // bindingHash: the hash of the parsed binding document; null when the binding cannot be read, is not JSON or parses to a falsy value.
+    const FALSY = ['0', '-0', '0.0', '0e5', 'false', '""', 'null'];
+    const NOT_JSON = ['{', '', ' \n', 'NaN'];
+    const TRUTHY = ['1', 'true', '"x"', '{}', '[]'];
+    const bytesOf = (text) => Buffer.from(text, 'utf8');
+    const bindingHashOf = (over) => M.evidence.inspectRuntimeBehaviorProjection({ expected: evidence.expected, ...evidence.runtimeBehavior, ...over }).bindingHash;
+    const asBinding = (text) => ({ bindingBytes: bytesOf(text), bindingRef: refOf(bytesOf(text), 'beval-runtime-binding', '1') });
+    for (const text of [...FALSY, ...NOT_JSON]) assert.equal(bindingHashOf(asBinding(text)), null, `binding bytes ${JSON.stringify(text)}`);
+    for (const text of TRUTHY) assert.equal(bindingHashOf(asBinding(text)), M.evidence.t16HashJson(JSON.parse(text)), `binding bytes ${text}`);
+    const { byte_sha256: wholeHash, ...withoutHash } = evidence.runtimeBehavior.bindingRef;
+    assert.match(wholeHash, /^[0-9a-f]{64}$/);
+    const unreadable = [['bytes that are a number', { bindingBytes: 7 }], ['missing bytes', { bindingBytes: undefined }], ['a null reference', { bindingRef: null }], ['a reference without byte_sha256', { bindingRef: withoutHash }], ['a reference with a seventh field', { bindingRef: { ...evidence.runtimeBehavior.bindingRef, extra: 1 } }]];
+    for (const [label, over] of unreadable) assert.equal(bindingHashOf(over), null, label);
+    assert.equal(bindingHashOf({ bindingRef: { ...evidence.runtimeBehavior.bindingRef, byte_sha256: 'f'.repeat(64) } }), M.evidence.t16HashJson(evidence.documents.binding), 'a reference that does not match the bytes leaves the hash as it is');
+    // The evidence validator answers in its short shape for what cannot be read, is not JSON or parses to a falsy value, and in its long shape for every other document.
+    const validate = (over) => M.evidence.validateBoundCertificationEvidence({ expectedKind: 'package-install', revision: REV, providerId: combination.providerId, combinationId: combination.id, profileId: PROFILE, ...over });
+    const asEvidence = (text) => ({ evidence: { bytes: bytesOf(text), artifactRef: refOf(bytesOf(text), 'bskel-handles-composition-evidence', '0') } });
+    for (const text of [...FALSY, ...NOT_JSON]) {
+      const result = validate(asEvidence(text));
+      assert.deepEqual([Object.keys(result), result.ok, codesOf(result)], [['ok', 'blockers'], false, ['evidence-json-invalid']], `evidence bytes ${JSON.stringify(text)}`);
+    }
+    for (const text of TRUTHY) {
+      const result = validate(asEvidence(text));
+      assert.deepEqual(Object.keys(result), ['ok', 'blockers', 'accepted'], `evidence bytes ${text}`);
+      assert.ok(!codesOf(result).includes('evidence-json-invalid'), text);
+    }
+    for (const [label, over] of [['evidence missing', {}], ['bytes that are a number', { evidence: { bytes: 7, artifactRef: 'not a reference' } }], ['a reference that cannot be read', { evidence: { bytes: bytesOf('1'), artifactRef: 'not a reference' } }]]) assert.deepEqual(Object.keys(validate(over)), ['ok', 'blockers'], label);
     const hash = (input) => M.evidence.t16HashJson(input);
     assert.equal(hash({ a: 1, b: { y: [{ n: 1, m: 2 }], x: 3 } }), hash({ b: { x: 3, y: [{ m: 2, n: 1 }] }, a: 1 }));
     const writtenOrder = ['0', '2', '10', '4294967294', '-1', '01', '4294967295', 'B', 'b', String.fromCharCode(0xe9), String.fromCodePoint(0x10000), String.fromCharCode(0xffff)];
@@ -950,15 +1008,69 @@ const RULE_TESTS = {
     }
   },
   'inherited-names': async () => {
-    const { M } = await validInputs();
-    const handlesPlan = { resources: [{ type: 'User', willGenerateResolver: true, idFieldIsUuid: true }] };
-    for (const providerId of ['constructor', 'toString', 'hasOwnProperty']) {
-      const [decision] = M.safety.describeResourceGeneration({ providerId, handlesPlan }).decisions;
-      assert.deepEqual([decision.generated, decision.fetch, decision.authorization, decision.patch, decision.recover], [true, undefined, undefined, undefined, undefined], `${providerId}: a profile was found where none exists`);
-      for (const level of ['build-tested', 'behavior-tested']) assert.equal(typeof M.cert.requiredEvidenceFor({ providerId, level })[2], 'function', `${providerId} at ${level}: a function is listed where an evidence kind belongs`);
-      assert.ok(M.cert.requiredEvidenceFor({ providerId, level: 'preview-tested' }).every((kind) => typeof kind === 'string'), `${providerId} at preview-tested: only strings`);
+    const { M, combination, evidence } = await validInputs();
+    const { vocab, rfc } = onDisk();
+    const names = Object.getOwnPropertyNames(Object.prototype);
+    // The document lists exactly the names that Object.prototype defines on this engine, in the rule and nowhere else.
+    const rule = vocab.narrative.rules.find((item) => item.id === 'inherited-names');
+    assert.deepEqual(inheritedNameProblems(rule.statement, names), []);
+    assert.ok(rfc.includes(rule.statement));
+    const handlesPlan = { resources: [{ type: 'User', willGenerateResolver: true, idFieldIsUuid: true }, { type: 'Account', willGenerateResolver: true, idFieldIsUuid: false }, { type: 'Note', willGenerateResolver: true }, { type: 'Legacy', willGenerateResolver: false, idFieldIsUuid: true }] };
+    const unknownId = 'future-provider';
+    assert.throws(() => M.safety.describeResourceGeneration({ providerId: unknownId, handlesPlan }), /no conservative generation profile/);
+    assert.throws(() => M.cert.requiredEvidenceFor({ providerId: unknownId, level: 'build-tested' }), /no build evidence profile/);
+    const preview = M.cert.requiredEvidenceFor({ providerId: unknownId, level: 'preview-tested' });
+    for (const providerId of PROVIDERS) assert.deepEqual(M.cert.requiredEvidenceFor({ providerId, level: 'preview-tested' }), preview, `${providerId} at preview-tested`);
+    const certify = (providerId, level) => M.cert.evaluateCompositionCertification({
+      providerId, persistenceId: combination.persistenceId, keyType: combination.keyType, revision: REV, profileId: PROFILE, level,
+      providerBaselineAudit: { ok: true, revision: REV }, generationPreview: { status: 'ready', revision: REV, applyAllowed: false, providerId, combination: { id: combination.id } },
+      evidence: [], persistenceHandoff: evidence.persistenceHandoff, runtimeBehavior: evidence.runtimeBehavior
+    });
+    const docs = documents(combination);
+    const answers = (providerId) => {
+      const doc = seal({ ...docs.evidence, provider_id: providerId }, 'bskel-handles-composition-evidence', '0');
+      const handoff = seal({ ...docs.handoff, providerId }, 'bskel-persistence-generation-handoff', '1');
+      const provenance = { status: 'accepted', producerRevision: 'b'.repeat(40), candidateRevision: REV, providerId, combinationId: combination.id, profileId: PROFILE, executionRef: 't10-live-read:fixture-001', artifactRef: handoff.ref };
+      const emitted = [];
+      const provider = stubProvider(providerId, { emit: (args) => { emitted.push(args); return { written: [], forced: [], actions: [], notes: [], postEmitNotes: [] }; } });
+      const validated = M.evidence.validateBoundCertificationEvidence({ expectedKind: 'package-install', revision: REV, providerId, combinationId: combination.id, profileId: PROFILE, evidence: { bytes: doc.bytes, artifactRef: doc.ref } });
+      const inspected = M.evidence.inspectPersistenceHandoff({ expected: { ...combination, providerId, candidateRevision: REV, profileId: PROFILE }, handoffBytes: handoff.bytes, handoffRef: handoff.ref, provenance });
+      return {
+        resolveApprovedCombination: M.catalog.resolveApprovedCombination({ providerId, persistenceId: combination.persistenceId, keyType: combination.keyType }),
+        previewGeneration: { result: M.plan.previewGeneration({ provider, repoRoot: '/repo', featureId: 'feature-1', revision: REV, handlesPlan: { provider: providerId, resources: handlesPlan.resources }, persistenceId: combination.persistenceId, keyType: combination.keyType }), emitCalls: emitted.length },
+        auditLegacyProviders: M.legacy.auditLegacyProviders([...PROVIDERS.map((id) => stubProvider(id)), stubProvider(providerId)], { revision: REV }),
+        validateBoundCertificationEvidence: { keys: Object.keys(validated), ok: validated.ok, codes: codesOf(validated), providerId: validated.accepted?.providerId },
+        inspectPersistenceHandoff: { status: inspected.status, codes: codesOf(inspected) }
+      };
+    };
+    const echo = (value, providerId) => JSON.stringify(value).split(providerId).join('<id>');
+    const control = answers(unknownId);
+    assert.deepEqual([control.resolveApprovedCombination, control.previewGeneration.result.status, codesOf(control.previewGeneration.result), control.previewGeneration.emitCalls, control.auditLegacyProviders.ok, control.validateBoundCertificationEvidence.ok, control.inspectPersistenceHandoff.status], [null, 'blocked', ['unsupported-combination'], 0, true, true, 'eligible'], 'control: an unknown provider id');
+    for (const providerId of names) {
+      const inherited = ({})[providerId];
+      const kindOfThird = providerId === '__proto__' ? 'object' : 'function';
+      // describeResourceGeneration: no throw, four undefined columns for every resource it generates (whatever its id field), no manual completion.
+      const { decisions, manualCompletions } = M.safety.describeResourceGeneration({ providerId, handlesPlan });
+      assert.deepEqual(decisions.map((item) => [item.resourceType, item.generated]), [['User', true], ['Account', true], ['Note', true], ['Legacy', false]], providerId);
+      for (const item of decisions.filter((entry) => entry.generated)) assert.deepEqual([item.fetch, item.authorization, item.patch, item.recover], [undefined, undefined, undefined, undefined], `${providerId}: a profile was found for ${item.resourceType} where none exists`);
+      assert.deepEqual([decisions.at(-1).fetch, manualCompletions], ['not-generated', []], providerId);
+      // requiredEvidenceFor: the inherited value in the third place at the two upper levels, strings only at the lowest.
+      const required = (level) => M.cert.requiredEvidenceFor({ providerId, level });
+      assert.deepEqual(required('preview-tested'), preview, `${providerId} at preview-tested`);
+      const [build, behavior] = [required('build-tested'), required('behavior-tested')];
+      assert.deepEqual([build.length, behavior.length], [3, 5], providerId);
+      assert.deepEqual([build[2] === inherited, behavior[2] === inherited, typeof build[2], typeof behavior[2]], [true, true, kindOfThird, kindOfThird], `${providerId}: the third place holds the inherited value`);
+      assert.ok([...build.slice(0, 2), ...behavior.slice(0, 2), ...behavior.slice(3)].every((kind) => typeof kind === 'string'), providerId);
+      // evaluateCompositionCertification: blocked as for an unknown combination; at the two upper levels the inherited value is the kind of a missing-evidence blocker.
+      for (const level of ['preview-tested', 'build-tested', 'behavior-tested']) {
+        const result = certify(providerId, level);
+        assert.deepEqual([result.status, result.combination, codesOf(result).includes('unsupported-combination')], ['blocked', null, true], `${providerId} at ${level}`);
+        const asKind = result.blockers.filter((item) => item.kind === inherited && item.code === 'missing-evidence');
+        assert.equal(asKind.length, level === 'preview-tested' ? 0 : 1, `${providerId} at ${level}: the inherited value as the kind of a blocker`);
+      }
+      // The other functions answer as for an unknown provider id.
+      for (const [name, answer] of Object.entries(answers(providerId))) assert.equal(echo(answer, providerId), echo(control[name], unknownId), `${name} for ${providerId}`);
     }
-    assert.throws(() => M.safety.describeResourceGeneration({ providerId: 'future-provider', handlesPlan }), /no conservative generation profile/);
   }
 };
 for (const [id, body] of Object.entries(RULE_TESTS)) test(`rule ${id}`, body);
@@ -1046,16 +1158,40 @@ test('negative: a document whose tables, headings, names or rule statements drif
     ['the hash function named in a sentence between the tables (a sentence added)', `${rfc}\nThe function \`t16HashJson\` returns a hash for every value.\n`, /t16HashJson is named between the tables/],
     ['the hash function named in a sentence between the tables (a sentence rewritten)', rfc.replace('the hash function of the evidence module', '`t16HashJson`'), /t16HashJson is named between the tables/],
     ['the exception of requiredEvidenceFor cut from the sentence', rfc.replace(RESULT_SENTENCE, 'or for `requiredEvidenceFor` an array of strings.'), /result of requiredEvidenceFor/],
-    ['a name of the exception of requiredEvidenceFor dropped', rfc.replace(RESULT_SENTENCE, RESULT_SENTENCE.replace('`toString` or ', '')), /result of requiredEvidenceFor/],
+    ['the former list of three names back in the sentence', rfc.replace(RESULT_SENTENCE, 'or for `requiredEvidenceFor` an array of strings, with one exception: when the provider id is `constructor`, `toString` or `hasOwnProperty` (the inherited names of rule `inherited-names`), the array holds a function in its third place at the levels `build-tested` and `behavior-tested`.'), /result of requiredEvidenceFor/],
+    ['the object for __proto__ dropped from the exception', rfc.replace(RESULT_SENTENCE, RESULT_SENTENCE.replace(' (the object Object.prototype for `__proto__`)', '')), /result of requiredEvidenceFor/],
+    ['the strings at preview-tested dropped from the exception', rfc.replace(RESULT_SENTENCE, RESULT_SENTENCE.replace(', and every place holds a string at the level `preview-tested`', '')), /result of requiredEvidenceFor/],
     ['the claim of the exception of requiredEvidenceFor changed', rfc.replace(RESULT_SENTENCE, RESULT_SENTENCE.replace('a function', 'a number')), /result of requiredEvidenceFor/],
     ['the rule named in the exception of requiredEvidenceFor changed', rfc.replace(RESULT_SENTENCE, RESULT_SENTENCE.replace('rule `inherited-names`', 'rule `hash-rule`')), /result of requiredEvidenceFor/],
-    ['the exception of requiredEvidenceFor cut from its table cell', rfc.replace(' (a function in the third place for `constructor`, `toString` and `hasOwnProperty` at `build-tested` and `behavior-tested`: rule `inherited-names`)', ''), /table results stands 0 times/]
+    ['the exception of requiredEvidenceFor cut from its table cell', rfc.replace(RESULT_CELL_NOTE, ''), /table results stands 0 times/],
+    ['a second list of the inherited names outside the rule', `${rfc}\nThe names \`constructor\`, \`toString\` and \`hasOwnProperty\` pass.\n`, /listed outside the rule/],
+    ['the former meaning of bindingHash back in the document', rfc.replace(BINDING_HASH_NULL, 'null when the binding is not JSON'), /does not carry its cases of null/],
+    ['the former sentence on the short shape back in the document', rfc.replace(SHORT_SHAPE_CLAUSE, 'or the bytes are not one JSON document, and the long one for every other outcome'), /short shape of validateBoundCertificationEvidence/],
+    ['a falsy value dropped from the sentence on the short shape', rfc.replace(SHORT_SHAPE_CLAUSE, SHORT_SHAPE_CLAUSE.replace('0, false, "" or null', '0, false or ""')), /short shape of validateBoundCertificationEvidence/]
   ];
   for (const [label, text, pattern] of cases) assert.ok(mentions(rfcProblems(text, vocab, record), pattern), label);
   const withProse = damage(vocab, (v) => { v.narrative.prose.push({ token: 'neverUsedToken', reason: 'x' }); });
   assert.ok(mentions(rfcProblems(rfc, withProse, record), /prose token neverUsedToken is not used/));
   const withRule = damage(vocab, (v) => { v.narrative.rules.push({ id: 'extra', statement: 'A sentence that the document does not contain.' }); });
   assert.ok(mentions(rfcProblems(rfc, withRule, record), /rule extra is not stated/));
+  const former = 'null when the binding is not JSON';
+  const withFormerMeaning = damage(vocab, (v) => { const field = v.narrative.fields.find((item) => item.name === 'bindingHash'); field.meaning = field.meaning.replace(BINDING_HASH_NULL, former); });
+  assert.ok(mentions(rfcProblems(rfc.replace(BINDING_HASH_NULL, former), withFormerMeaning, record), /does not carry its cases of null/), 'the former meaning of bindingHash in the vocabulary and in the document');
+  const listing = vocab.narrative.rules.find((item) => item.id === 'inherited-names').statement;
+  const prototypeNames = Object.getOwnPropertyNames(Object.prototype);
+  assert.deepEqual(inheritedNameProblems(listing, prototypeNames), [], 'control: the rule lists the names that Object.prototype defines');
+  const listCases = [
+    ['a name dropped from the list', listing.replace(' and `valueOf`', ''), prototypeNames],
+    ['the first name dropped from the list', listing.replace('`__defineGetter__`, ', ''), prototypeNames],
+    ['a name twice in the list', listing.replace('`__proto__`, ', '`__proto__`, `__proto__`, '), prototypeNames],
+    ['a name that the engine adds', listing, [...prototypeNames, 'addedByTheEngine']],
+    ['the count word changed', listing.replace('these twelve names', 'these eleven names'), prototypeNames],
+    ['no list', 'Observed defect, not fixed.', prototypeNames]
+  ];
+  for (const [label, text, names] of listCases) assert.notDeepEqual(inheritedNameProblems(text, names), [], label);
+  const droppedFalsy = '(0, false, "" or null); the evidence validator';
+  const withShortRule = damage(vocab, (v) => { const item = v.narrative.rules.find((rule) => rule.id === 'hash-rule'); item.statement = item.statement.replace(droppedFalsy, '(0, false or ""); the evidence validator'); });
+  assert.ok(mentions(rfcProblems(rfc.replace(droppedFalsy, '(0, false or ""); the evidence validator'), withShortRule, record), /statement of rule hash-rule does not carry/), 'a falsy value dropped from the statement of hash-rule in the vocabulary and in the document');
 });
 
 test('negative: a changed or added file is reported against the pinned vocabulary', async () => {
@@ -1112,7 +1248,7 @@ test('negative: a wrong ownership table is reported', () => {
 
 test('keys that every object inherits never resolve as names', () => {
   const { vocab } = onDisk();
-  for (const key of ['__proto__', 'constructor', 'toString', 'hasOwnProperty', 'valueOf']) {
+  for (const key of Object.getOwnPropertyNames(Object.prototype)) {
     assert.equal(own({}, key), undefined, key);
     assert.deepEqual(stringsAt(vocab.derived, key), [], key);
     assert.deepEqual(stringsAt(vocab.derived, `results/${key}/x`), [], key);

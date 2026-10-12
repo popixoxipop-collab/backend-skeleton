@@ -1651,7 +1651,7 @@
       {
         "name": "bindingHash",
         "module": "evidence-boundary.mjs",
-        "meaning": "result key of the runtime inspector: t16HashJson of the parsed binding document (its canonical text, not the bytes passed in), null when the binding is not JSON"
+        "meaning": "result key of the runtime inspector: t16HashJson of the parsed binding document (its canonical text, not the bytes passed in), null when the binding reference or bytes cannot be read, when the bytes are not JSON and when they parse to a falsy value (0, false, \"\" or null)"
       },
       {
         "name": "runtime_binding_hash",
@@ -1763,7 +1763,7 @@
       },
       {
         "id": "hash-rule",
-        "statement": "For JSON data, which is arrays and plain objects (objects whose prototype is Object.prototype) that hold strings, finite numbers, booleans, null and more arrays and plain objects, the hash of t16HashJson is the sha256 of the value written with two-space indentation and one final newline and with the keys of every object, at every depth, sorted by UTF-16 code unit, except that keys that are array indexes (the text of a whole number from 0 to 4294967294 without a leading zero, such as 2 and 10) come first, in numeric order; the runtime inspector reports that hash of the binding document as bindingHash."
+        "statement": "For JSON data, which is arrays and plain objects (objects whose prototype is Object.prototype) that hold strings, finite numbers, booleans, null and more arrays and plain objects, the hash of t16HashJson is the sha256 of the value written with two-space indentation and one final newline and with the keys of every object, at every depth, sorted by UTF-16 code unit, except that keys that are array indexes (the text of a whole number from 0 to 4294967294 without a leading zero, such as 2 and 10) come first, in numeric order; the runtime inspector reports that hash of the binding document as bindingHash, which is null when the bytes of the binding are neither text nor a byte array or its reference does not have exactly the six fields of an artifact reference, when the bytes are not JSON and when they parse to a falsy value (0, false, \"\" or null); the evidence validator treats a document that parses to a falsy value like bytes that are not JSON and answers in its short shape with the code evidence-json-invalid."
       },
       {
         "id": "hash-input-domain",
@@ -1787,7 +1787,7 @@
       },
       {
         "id": "inherited-names",
-        "statement": "Observed defect, not fixed: provider ids are looked up in plain objects, so the inherited names constructor, toString and hasOwnProperty pass; describeResourceGeneration then returns a generated decision whose fetch, authorization, patch and recover are undefined, and requiredEvidenceFor lists a function where an evidence kind belongs."
+        "statement": "Observed defect, not fixed: describeResourceGeneration and requiredEvidenceFor read the provider id as a property of a plain object, so every name that Object.prototype defines passes as a provider id there, and Object.prototype defines these twelve names: `__defineGetter__`, `__defineSetter__`, `__lookupGetter__`, `__lookupSetter__`, `__proto__`, `constructor`, `hasOwnProperty`, `isPrototypeOf`, `propertyIsEnumerable`, `toLocaleString`, `toString` and `valueOf`. For each of them describeResourceGeneration does not throw and, for every resource it generates, returns a decision whose fetch, authorization, patch and recover are undefined and lists no manual completion; requiredEvidenceFor returns an array of three at build-tested and of five at behavior-tested whose third place holds a function where an evidence kind belongs (the object Object.prototype for `__proto__`), and at preview-tested the same two strings as for the three providers of the catalog and for an unknown provider id; evaluateCompositionCertification ends blocked with unsupported-combination and, at build-tested and behavior-tested, lists that function or object as the kind of an evidence blocker. resolveApprovedCombination, previewGeneration, auditLegacyProviders, validateBoundCertificationEvidence and inspectPersistenceHandoff answer for each of the twelve names as for an unknown provider id."
       }
     ],
     "prose": [
@@ -1820,16 +1820,52 @@
         "reason": "suite scope of T14 in next/t00/ownership-map.json"
       },
       {
-        "token": "constructor",
-        "reason": "inherited name used by the limit inherited-names-pass-as-provider-ids"
+        "token": "__defineGetter__",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
       },
       {
-        "token": "toString",
-        "reason": "inherited name used by the rule inherited-names"
+        "token": "__defineSetter__",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "__lookupGetter__",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "__lookupSetter__",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "__proto__",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "constructor",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
       },
       {
         "token": "hasOwnProperty",
-        "reason": "inherited name used by the rule inherited-names"
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "isPrototypeOf",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "propertyIsEnumerable",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "toLocaleString",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "toString",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "valueOf",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
       },
       {
         "token": "accepted",
