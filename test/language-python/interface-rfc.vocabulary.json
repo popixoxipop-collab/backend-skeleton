@@ -1,0 +1,898 @@
+{
+	"rfc": {"maxLines":850},
+	"files": [
+		["ast-helper.py","Static AST helper, run in a child interpreter. Reads one request on stdin and writes one JSON response on stdout. It parses the target source to a syntax tree and does not import or execute it (claim `helper-source-has-no-execution-primitives`, checked on the helper source text)."],
+		["analyzer.mjs","Entry points analyzePythonFile and analyzePythonFiles, interpreter discovery, request and response envelopes."],
+		["resolver.mjs","Project facts from helper results: module identity, import resolution, symbol resolution."],
+		["type-shape.mjs","Annotation normalization into type facts for model fields."],
+		["model-shape.mjs","Pydantic, SQLModel and settings model facts from class facts."],
+		["fastapi-shadow.mjs","Shadow FastAPI endpoints, mounts, entities and DTOs, and the parity report against a legacy scan."],
+		["flask-shadow.mjs","Shadow Flask route registrations and declarations."],
+		["django-shadow.mjs","Shadow Django URL registrations and includes composed from urlpatterns."],
+		["BASELINE.json","Recorded baseline of this layer (T06-01), pinned by baseline-record.test.mjs. Its artifact_digest seals the record and detects accidental edits only; this document does not repeat the digest. Not edited by T06-02."],
+		["INTERFACE_RFC.md","This document (T06-02)."],
+		["README.md","Pointer to this document and to BASELINE.json."]
+	],
+	"exports": [
+		["findPythonRuntime","analyzer.mjs","{ pythonCommand = null, denyRoots = [] } = {}","an options object","a runtime handle, or null when no approved interpreter is found"],
+		["analyzePythonFile","analyzer.mjs","{ repoRoot, file, pythonCommand = null, timeoutMs = DEFAULT_TIMEOUT_MS, maxBuffer = DEFAULT_MAX_BUFFER, maxSourceBytes = DEFAULT_MAX_SOURCE_BYTES } = {}","an options object","one file result (ok or failure); throws on bad arguments and on a file-system error raised while the source is resolved or read"],
+		["analyzePythonFiles","analyzer.mjs","{ repoRoot, files, pythonCommand = null, timeoutMs = DEFAULT_TIMEOUT_MS, maxBuffer = DEFAULT_MAX_BUFFER, maxSourceBytes = DEFAULT_MAX_SOURCE_BYTES, maxFiles = DEFAULT_MAX_FILES } = {}","an options object","a batch result with one file result per input, sorted by source path; throws on bad arguments and on a file-system error, like analyzePythonFile"],
+		["buildPythonProjectFacts","resolver.mjs","entries","file results (entries that are not ok are dropped)","a project"],
+		["resolvePythonSymbol","resolver.mjs","project, moduleId, symbol","a project, a module id and a dotted symbol","a resolution (resolved or unknown)"],
+		["resolveValueSymbol","resolver.mjs","project, moduleId, value","a project, a module id and a value fact","a resolution (unknown value when the fact is not a symbol)"],
+		["normalizePythonType","type-shape.mjs","project, moduleId, annotation","a project, a module id and an annotation value fact","a type fact"],
+		["annotatePythonModelTypes","type-shape.mjs","project, models","a project and the models of projectPythonModels","the models with a typeFact on every field"],
+		["projectPythonModels","model-shape.mjs","project","a project","a list of models (classes of a known family only)"],
+		["buildFastApiShadow","fastapi-shadow.mjs","project","a project","a FastAPI shadow"],
+		["summarizeLegacyFastApi","fastapi-shadow.mjs","legacyScan","a scan result of the legacy FastAPI scanner (hand-fed shape in this test)","the comparable legacy summary"],
+		["diffFastApiShadow","fastapi-shadow.mjs","legacyScan, shadow","a legacy scan result and a FastAPI shadow","a parity report"],
+		["buildFlaskRouteShadow","flask-shadow.mjs","project","a project","a Flask shadow"],
+		["buildDjangoUrlShadow","django-shadow.mjs","project","a project","a Django shadow"]
+	],
+	"protocols": [
+		["PYTHON_AST_REQUEST_PROTOCOL","bskel.python-ast.request/1","request envelope sent to the helper on stdin; the helper constant REQ must equal it"],
+		["PYTHON_AST_RESPONSE_PROTOCOL","bskel.python-ast.response/1","single-file response envelope; the helper constant RESP must equal it"],
+		["PYTHON_AST_BATCH_RESPONSE_PROTOCOL","bskel.python-ast.batch-response/1","batch response envelope returned by analyzePythonFiles"]
+	],
+	"defaults": [
+		["DEFAULT_TIMEOUT_MS","3000",3000,"helper wall-clock limit per file in milliseconds"],
+		["DEFAULT_MAX_BUFFER","4 * 1024 * 1024",4194304,"largest accepted helper stdout in bytes"],
+		["DEFAULT_MAX_SOURCE_BYTES","2 * 1024 * 1024",2097152,"largest source file that is sent to the helper, in bytes"],
+		["DEFAULT_MAX_FILES","4096",4096,"largest file list accepted by one batch call"]
+	],
+	"options": [
+		["repoRoot","analyzePythonFile, analyzePythonFiles","none","a directory path; its realpath is the project root","analyzePythonFile requires repoRoot and file"],
+		["file","analyzePythonFile","none","a path inside repoRoot","analyzePythonFile requires repoRoot and file"],
+		["files","analyzePythonFiles","none","an array of non-empty paths inside repoRoot","analyzePythonFiles requires repoRoot and files[]"],
+		["pythonCommand","findPythonRuntime, analyzePythonFile, analyzePythonFiles","null","an absolute path, or a bare name of letters, digits and . _ + - searched in the absolute entries of PATH","none: an unusable value yields no runtime, not an error; an empty string or another false value counts as not given"],
+		["denyRoots","findPythonRuntime","[]","directories; an interpreter whose realpath is inside one is refused (the analyzers pass the project root)","none: a refused interpreter yields no runtime"],
+		["timeoutMs","analyzePythonFile, analyzePythonFiles","DEFAULT_TIMEOUT_MS","an integer from 1 to 30000","timeoutMs must be an integer between 1 and 30000"],
+		["maxBuffer","analyzePythonFile, analyzePythonFiles","DEFAULT_MAX_BUFFER","an integer from 65536 to 16777216","maxBuffer must be between 65536 and 16777216"],
+		["maxSourceBytes","analyzePythonFile, analyzePythonFiles","DEFAULT_MAX_SOURCE_BYTES","an integer from 1024 to 16777216","maxSourceBytes must be between 1024 and 16777216"],
+		["maxFiles","analyzePythonFiles","DEFAULT_MAX_FILES","an integer from 1 to 100000","maxFiles must be an integer between 1 and 100000"]
+	],
+	"errors": [
+		["analyzePythonFile without repoRoot or file","analyzePythonFile requires repoRoot and file"],
+		["analyzePythonFiles without repoRoot or with files that is not an array","analyzePythonFiles requires repoRoot and files[]"],
+		["more files than maxFiles (example: maxFiles 1, two files)","Python file list exceeds configured 1-file analysis limit"],
+		["a files entry that is empty or not a string","analyzePythonFiles files[] must contain non-empty strings"],
+		["two entries that resolve to the same real file (example: a symlink and its target)","Duplicate Python source after realpath resolution: real.py"],
+		["a real path outside the project root, or the root itself (example: ../outside.py)","Python source escapes project root: ../outside.py"],
+		["a path that is not a regular file (example: a directory named dir)","Python source is not a regular file: dir"]
+	],
+	"sections": [
+		["results","Analyzer results"],
+		["facts","Helper facts"],
+		["resolver","Project and resolver outputs"],
+		["types","Type facts"],
+		["models","Model facts"],
+		["fastapi","FastAPI shadow"],
+		["flask","Flask shadow"],
+		["django","Django shadow"]
+	],
+	"shapes": {
+		"batch result": {
+			"section": "results",
+			"what": "Return value of analyzePythonFiles: ok is true only when every result is ok; runtime is null when no interpreter was needed or found.",
+			"keys": ["ok","protocol","results","runtime"]
+		},
+		"file result ok": {
+			"section": "results",
+			"what": "Successful result for one file: the facts, the interpreter identity and the source encoding.",
+			"keys": ["facts","ok","protocol","runtime","source","sourceEncoding"]
+		},
+		"file result failure": {
+			"section": "results",
+			"what": "Failed result for one file: ok false with an error and the source reference. An analysis failure is returned in this shape and not thrown; a file-system error raised while the source is resolved or read is thrown as it is.",
+			"keys": ["error","ok","protocol","source"]
+		},
+		"error": {
+			"section": "results",
+			"what": "An error without position: a code from the code table and a message.",
+			"keys": ["code","message"]
+		},
+		"error with position": {
+			"section": "results",
+			"what": "A syntax error: code, message and the span reported by the interpreter parser.",
+			"keys": ["code","column","end_column","end_line","line","message"]
+		},
+		"source reference": {
+			"section": "results",
+			"what": "The bytes a result describes. sha256 is absent for oversize files and encoding is present only on success.",
+			"keys": ["encoding?","path","sha256?","sizeBytes"]
+		},
+		"helper runtime": {
+			"section": "results",
+			"what": "Interpreter identity inside a successful file result: implementation and version as a list of integers.",
+			"keys": ["implementation","version"]
+		},
+		"runtime handle": {
+			"section": "results",
+			"what": "Interpreter found by discovery: realpath of the executable and version as text; also the runtime of a batch.",
+			"keys": ["executable","version"]
+		},
+		"facts": {
+			"section": "facts",
+			"what": "The seven fact lists the helper extracts from top-level statements.",
+			"keys": ["assignments","augmentedAssignments","calls","classes","controlFlowMutations","functions","imports"]
+		},
+		"import fact": {
+			"section": "facts",
+			"what": "One import statement at the top level.",
+			"keys": ["column","end_column","end_line","kind","level","line","module","names"]
+		},
+		"imported name": {
+			"section": "facts",
+			"what": "One imported name of an import fact, with its alias.",
+			"keys": ["alias","name"]
+		},
+		"assignment fact": {
+			"section": "facts",
+			"what": "A top-level or class-body assignment: targets, optional annotation, value.",
+			"keys": ["annotation","column","end_column","end_line","line","targets","value"]
+		},
+		"augmented assignment fact": {
+			"section": "facts",
+			"what": "A top-level augmented assignment; operator is the Python operator class name and is not a closed set.",
+			"keys": ["column","end_column","end_line","line","operator","target","value"]
+		},
+		"call statement fact": {
+			"section": "facts",
+			"what": "A top-level or class-body expression statement that is a call.",
+			"keys": ["column","end_column","end_line","line","value"]
+		},
+		"control-flow mutation assignment": {
+			"section": "facts",
+			"what": "An assignment nested in control flow, recorded only as a mutation fact.",
+			"keys": ["annotation","column","end_column","end_line","kind","line","targets","value"]
+		},
+		"control-flow mutation augmented-assignment": {
+			"section": "facts",
+			"what": "An augmented assignment nested in control flow, recorded only as a mutation fact.",
+			"keys": ["column","end_column","end_line","kind","line","operator","target","value"]
+		},
+		"control-flow mutation call": {
+			"section": "facts",
+			"what": "A call statement nested in control flow, recorded only as a mutation fact.",
+			"keys": ["column","end_column","end_line","kind","line","value"]
+		},
+		"function fact": {
+			"section": "facts",
+			"what": "A top-level function or a method.",
+			"keys": ["arguments","async","column","decorators","end_column","end_line","line","name","returns"]
+		},
+		"argument fact": {
+			"section": "facts",
+			"what": "One parameter of a function.",
+			"keys": ["annotation","column","default","end_column","end_line","kind","line","name"]
+		},
+		"class fact": {
+			"section": "facts",
+			"what": "A top-level class with its bases, keywords, decorators, fields, methods and call statements.",
+			"keys": ["bases","calls","column","decorators","end_column","end_line","fields","keywords","line","methods","name"]
+		},
+		"class keyword": {
+			"section": "facts",
+			"what": "One keyword in a class header, for example metaclass or table.",
+			"keys": ["name","value"]
+		},
+		"call keyword": {"section":"facts","what":"One keyword argument of a call value.","keys":["name","value"]},
+		"mapping entry": {"section":"facts","what":"One key and value of a mapping value.","keys":["key","value"]},
+		"value constant": {
+			"section": "facts",
+			"what": "A string, boolean, None or finite float, or an integer inside the JavaScript safe range.",
+			"keys": ["kind","value"]
+		},
+		"value integer": {
+			"section": "facts",
+			"what": "An integer outside the JavaScript safe range, kept as decimal text with a reason.",
+			"keys": ["decimal","kind","reason"]
+		},
+		"value float-special": {
+			"section": "facts",
+			"what": "A non-finite float kept as text with a reason.",
+			"keys": ["kind","reason","value"]
+		},
+		"value unknown": {
+			"section": "facts",
+			"what": "An expression or constant the helper does not evaluate; node is the Python AST class name, or bytes, complex or ellipsis for a constant of that type.",
+			"keys": ["kind","node","reason?"]
+		},
+		"value missing": {
+			"section": "facts",
+			"what": "No expression was present (for example an absent annotation or default).",
+			"keys": ["kind"]
+		},
+		"value symbol": {"section":"facts","what":"A name or dotted attribute chain.","keys":["kind","name"]},
+		"value sequence": {
+			"section": "facts",
+			"what": "A list, tuple or set display with its items.",
+			"keys": ["container","items","kind"]
+		},
+		"value mapping": {"section":"facts","what":"A dict display with its entries.","keys":["entries","kind"]},
+		"value call": {
+			"section": "facts",
+			"what": "A call with callee, arguments and keywords.",
+			"keys": ["args","callee","column","end_column","end_line","keywords","kind","line"]
+		},
+		"value subscript": {"section":"facts","what":"A subscript with base and slice.","keys":["base","kind","slice"]},
+		"value binary": {
+			"section": "facts",
+			"what": "A binary operation; only the BitOr operator is recorded, any other operator is an unknown value.",
+			"keys": ["kind","left","operator","right"]
+		},
+		"project": {
+			"section": "resolver",
+			"what": "Return value of buildPythonProjectFacts: the analyzed modules, the collisions and the lookups used by the other modules.",
+			"keys": ["collisions","get","list","moduleLocality","modules"]
+		},
+		"module entry": {
+			"section": "resolver",
+			"what": "One analyzed module: identity, source, facts and the resolution of each of its imports.",
+			"keys": ["aliases","facts","importResolutions","isPackage","moduleId","packageId","source"]
+		},
+		"collision": {
+			"section": "resolver",
+			"what": "Several sources that map to one module id. Every source of a collision is excluded from the project.",
+			"keys": ["moduleId","sources"]
+		},
+		"import resolution module": {
+			"section": "resolver",
+			"what": "Resolution of a plain import of a module, or of a from-import that selects a submodule.",
+			"keys": ["alias","importedLocality?","importedModule?","kind","locality","module","source"]
+		},
+		"import resolution star": {
+			"section": "resolver",
+			"what": "Resolution of a star import.",
+			"keys": ["alias","kind","locality","module","source"]
+		},
+		"import resolution symbol": {
+			"section": "resolver",
+			"what": "Resolution of a from-import of one name.",
+			"keys": ["alias","kind","locality","module","name","source"]
+		},
+		"import resolution ambiguous-import": {
+			"section": "resolver",
+			"what": "A from-import of a name that the package declares and that is also a submodule of it.",
+			"keys": ["alias","alternateModule","kind","locality","module","name","source"]
+		},
+		"resolution resolved": {
+			"section": "resolver",
+			"what": "A symbol resolved to a module and an optional name. The name is not checked for existence.",
+			"keys": ["locality","module","name","status"]
+		},
+		"resolution unknown with locality": {
+			"section": "resolver",
+			"what": "No resolution, but the locality of the module is known.",
+			"keys": ["locality","module","name","status","symbol"]
+		},
+		"resolution unknown bare": {"section":"resolver","what":"No resolution and nothing else is known.","keys":["status","symbol"]},
+		"resolution unknown value": {
+			"section": "resolver",
+			"what": "resolveValueSymbol was given a value that is not a symbol.",
+			"keys": ["status","value"]
+		},
+		"resolution cyclic-symbol-alias": {
+			"section": "resolver",
+			"what": "Following re-exports returned to a symbol already visited.",
+			"keys": ["module","reason","status","symbol"]
+		},
+		"resolution ambiguous-module": {
+			"section": "resolver",
+			"what": "The symbol leads into a module id that is a collision.",
+			"keys": ["module","reason","status","symbol"]
+		},
+		"resolution ambiguous-import-target": {
+			"section": "resolver",
+			"what": "A name could be a submodule or a symbol of a package; both exist, so nothing is chosen.",
+			"keys": ["alternateModule","module","name","reason","status","symbol"]
+		},
+		"type unknown": {
+			"section": "types",
+			"what": "The annotation could not be normalized; reason says why and raw keeps the fact when there is one.",
+			"keys": ["kind","raw?","reason"]
+		},
+		"type none": {"section":"types","what":"The None annotation.","keys":["kind"]},
+		"type forward-reference": {
+			"section": "types",
+			"what": "A string annotation, kept as text and not parsed.",
+			"keys": ["kind","text"]
+		},
+		"type builtin": {"section":"types","what":"A builtin type name.","keys":["kind","name"]},
+		"type reference": {
+			"section": "types",
+			"what": "A name that resolved to a module and an optional name.",
+			"keys": ["kind","locality","module","name","raw"]
+		},
+		"type unresolved-reference": {
+			"section": "types",
+			"what": "A name that did not resolve; reason carries the resolver reason or unresolved.",
+			"keys": ["kind","raw","reason"]
+		},
+		"type union": {
+			"section": "types",
+			"what": "A union written as pep604, typing.Optional or typing.Union (syntax says which).",
+			"keys": ["kind","options","syntax"]
+		},
+		"type annotated": {
+			"section": "types",
+			"what": "typing.Annotated: the base type and the metadata value facts.",
+			"keys": ["base","kind","metadata","note"]
+		},
+		"type literal": {"section":"types","what":"typing.Literal: the value facts.","keys":["kind","note","values"]},
+		"type generic": {"section":"types","what":"A subscripted type: base and arguments.","keys":["args","base","kind"]},
+		"model": {
+			"section": "models",
+			"what": "A class with a pydantic, SQLModel or settings ancestor. Classes of an unknown family are omitted.",
+			"keys": ["bases","className","family","fields","inheritanceCycle","kind","limitations","module","primaryKeyFields","ref","table","tableStatus"]
+		},
+		"model bases": {
+			"section": "models",
+			"what": "Bases of a model split into local classes (as refs, whether or not they are models) and external dotted names.",
+			"keys": ["external","local"]
+		},
+		"model field": {
+			"section": "models",
+			"what": "A field of a model, from the class body of the model or inherited from a local base class (any local class in any module, a model or not). Inherited fields come first, in the order of the bases; a field whose name repeats an earlier one replaces it and keeps its place in the list. declaredIn is the ref of the class whose body declares the field and line is the line of that declaration. With inheritanceCycle true a model has only the fields of its own class body.",
+			"keys": ["annotation","declaredIn","default","line","metadata","name"]
+		},
+		"field metadata": {
+			"section": "models",
+			"what": "Keyword facts read from a pydantic or sqlmodel Field call.",
+			"keys": ["alias","fieldCall","hasDefaultFactory","nullable","primaryKey"]
+		},
+		"annotated model field": {
+			"section": "models",
+			"what": "A model field after annotatePythonModelTypes, with its typeFact.",
+			"keys": ["annotation","declaredIn","default","line","metadata","name","typeFact"]
+		},
+		"fastapi shadow": {
+			"section": "fastapi",
+			"what": "Return value of buildFastApiShadow.",
+			"keys": ["dtos","endpoints","entities","mounts","unknowns"]
+		},
+		"fastapi endpoint": {
+			"section": "fastapi",
+			"what": "A route declared with a literal path on a locally declared APIRouter.",
+			"keys": ["line","method","module","path","routerVar","source","verb"]
+		},
+		"fastapi mount": {
+			"section": "fastapi",
+			"what": "A top-level include_router call on a locally declared app or router. Mounts are recorded, not composed.",
+			"keys": ["child","line","module","prefix","prefixStatus","receiver","receiverKind","source"]
+		},
+		"mount child resolved": {
+			"section": "fastapi",
+			"what": "The router argument of a mount resolved to a module and a name.",
+			"keys": ["locality","module","name","raw"]
+		},
+		"mount child unknown": {
+			"section": "fastapi",
+			"what": "The router argument of a mount could not be resolved.",
+			"keys": ["raw","reason","status"]
+		},
+		"fastapi entity": {
+			"section": "fastapi",
+			"what": "A SQLModel class with table=True and its primary key fields.",
+			"keys": ["className","module","primaryKeyFields"]
+		},
+		"fastapi dto": {"section":"fastapi","what":"A Pydantic class, or a SQLModel class without table=True. A SQLModel class whose table keyword is not a literal boolean is left out.","keys":["className","module"]},
+		"parity report": {
+			"section": "fastapi",
+			"what": "Return value of diffFastApiShadow.",
+			"keys": ["counts","differenceCount","differences","parity","unknowns"]
+		},
+		"parity counts": {
+			"section": "fastapi",
+			"what": "Counts of the legacy summary and of the shadow.",
+			"keys": ["legacy","shadow"]
+		},
+		"parity side counts": {
+			"section": "fastapi",
+			"what": "Endpoint, entity and DTO counts of one side.",
+			"keys": ["dtos","endpoints","entities"]
+		},
+		"parity difference": {
+			"section": "fastapi",
+			"what": "Keys present on one side only, for endpoints, entities or DTOs.",
+			"keys": ["additionalInShadow","missingInShadow"]
+		},
+		"flask shadow": {
+			"section": "flask",
+			"what": "Return value of buildFlaskRouteShadow.",
+			"keys": ["declarations","registrations","unknowns"]
+		},
+		"flask registration": {
+			"section": "flask",
+			"what": "A route decorator with a literal rule on a locally declared app or blueprint.",
+			"keys": ["function","limitations","line","localPath","methods","methodsStatus","module","path","prefix","receiver","receiverKind","source"]
+		},
+		"flask declaration": {
+			"section": "flask",
+			"what": "A locally declared Flask app or Blueprint with its prefix status.",
+			"keys": ["kind","line","module","prefix","prefixStatus","variable"]
+		},
+		"django shadow": {
+			"section": "django",
+			"what": "Return value of buildDjangoUrlShadow.",
+			"keys": ["includes","registrations","unknowns"]
+		},
+		"django registration": {
+			"section": "django",
+			"what": "A path or re_path entry composed with the include prefixes above it.",
+			"keys": ["kind","line","methodSemantics","module","name","nameStatus","patternSegments","source","target"]
+		},
+		"django include": {
+			"section": "django",
+			"what": "An include edge from one url module to a child module (childModule is null when the target is not a literal module).",
+			"keys": ["childModule","from","line","prefix"]
+		},
+		"pattern segment": {
+			"section": "django",
+			"what": "One pattern text with its kind (path or regex).",
+			"keys": ["kind","value"]
+		},
+		"view target symbol": {
+			"section": "django",
+			"what": "A view given as a name that resolved to a symbol.",
+			"keys": ["kind","locality","module","name","raw"]
+		},
+		"view target class-view": {
+			"section": "django",
+			"what": "A view given as Name.as_view(); the factory is recorded.",
+			"keys": ["factory","kind","locality","module","name","raw"]
+		}
+	},
+	"words": {
+		"code": {
+			"title": "error.code",
+			"items": {
+				"INVALID_REQUEST": "Helper only: the request envelope could not be read. The analyzer always sends a valid one, so this code is unreachable through the entry points.",
+				"PYTHON_ANALYZER_FAILED": "The helper did not complete: a spawn error other than a timeout (for example ENOBUFS when stdout passes maxBuffer), a non-zero exit (the message carries the first 800 characters of stderr) or an uncaught helper exception.",
+				"PYTHON_ANALYZER_PROTOCOL_ERROR": "The helper exited 0 but stdout was not JSON, or the JSON lacked the response protocol or a boolean ok.",
+				"PYTHON_ANALYZER_TIMEOUT": "The helper was killed after timeoutMs milliseconds.",
+				"PYTHON_RUNTIME_UNAVAILABLE": "No approved interpreter was found. The result keeps path, sha256 and sizeBytes and has no facts.",
+				"PYTHON_SOURCE_ENCODING_UNSUPPORTED": "The source declares an encoding the interpreter does not know, or its bytes do not decode.",
+				"PYTHON_SOURCE_TOO_LARGE": "The file is larger than maxSourceBytes. Reported before any interpreter lookup; only path and sizeBytes are known.",
+				"PYTHON_SYNTAX_ERROR": "The interpreter parser rejected the source. The error carries line, column, end_line and end_column."
+			}
+		},
+		"container": {
+			"title": "container of a sequence value",
+			"items": {"list":"A list display.","set":"A set display.","tuple":"A tuple display."}
+		},
+		"family": {
+			"title": "family of a model",
+			"items": {
+				"pydantic": "A base resolves to pydantic.BaseModel, or to a local class of this family, when no other family was found before it and no base resolves to pydantic_settings.BaseSettings or sqlmodel.SQLModel.",
+				"settings": "A base resolves to pydantic_settings.BaseSettings, or to a local class of this family when no other family was found before it.",
+				"sqlmodel": "A base resolves to sqlmodel.SQLModel, or to a local class of this family when no other family was found before it.",
+				"unknown": "Internal: the class has no known family. Such classes are omitted from the output, so this word never appears in a result."
+			}
+		},
+		"kind": {
+			"title": "kind of a fact, resolution, type, model, registration or diagnostic",
+			"items": {
+				"ambiguous-import": "A from-import of a name that the package declares and that is also a submodule of it.",
+				"annotated": "Type fact for typing.Annotated.",
+				"app": "A locally declared Flask app.",
+				"assignment": "Control-flow mutation: a nested assignment.",
+				"augmented-assignment": "Control-flow mutation: a nested augmented assignment.",
+				"binary": "Value fact: a BitOr operation.",
+				"blueprint": "A locally declared Flask Blueprint.",
+				"builtin": "Type fact: a builtin type name.",
+				"call": "Value fact of a call, or control-flow mutation of a nested call statement.",
+				"class-view": "View target written as Name.as_view().",
+				"config": "Model kind for the settings family.",
+				"constant": "Value fact: a string, boolean, None or finite float, or an integer inside the JavaScript safe range.",
+				"django-urlconf": "Diagnostic about a whole url module.",
+				"django-urlpattern": "Diagnostic about one urlpatterns entry.",
+				"dto": "Model kind for a SQLModel class with table=False or without a table keyword, or a pydantic class.",
+				"entity": "Model kind for a SQLModel class with table=True.",
+				"fastapi-endpoint": "Diagnostic about one FastAPI route decorator.",
+				"fastapi-mount": "Diagnostic about one include_router call.",
+				"flask-route": "Diagnostic about one Flask route decorator.",
+				"float-special": "Value fact: a non-finite float.",
+				"forward-reference": "Type fact: a string annotation.",
+				"from": "Import fact written as from-import.",
+				"generic": "Type fact: a subscripted type.",
+				"import": "Import fact written as plain import.",
+				"integer": "Value fact: an integer outside the JavaScript safe range.",
+				"keyword-only": "Parameter after the star marker.",
+				"kwarg": "Parameter that collects keyword arguments.",
+				"literal": "Type fact for typing.Literal.",
+				"mapping": "Value fact: a dict display.",
+				"missing": "Value fact: no expression present.",
+				"module": "Import resolution of a plain import or of a from-import that selects a submodule.",
+				"none": "Type fact: the None annotation.",
+				"path": "Pattern segment written with path().",
+				"positional": "Ordinary parameter.",
+				"positional-only": "Parameter before the slash marker.",
+				"reference": "Type fact: a name that resolved.",
+				"regex": "Pattern segment written with re_path().",
+				"sequence": "Value fact: a list, tuple or set display.",
+				"star": "Import resolution of a star import.",
+				"subscript": "Value fact: a subscript.",
+				"symbol": "Value fact for a name, import resolution of a from-import, or a view target that resolved.",
+				"union": "Type fact: a union.",
+				"unknown": "Value fact, type fact or model kind that is not decided; see the reason where one is given.",
+				"unresolved-reference": "Type fact: a name that did not resolve.",
+				"vararg": "Parameter that collects positional arguments."
+			}
+		},
+		"locality": {
+			"title": "locality of a module",
+			"items": {
+				"ambiguous": "The module id is a collision, or an imported name is both declared by its package and a submodule of it; nothing is chosen.",
+				"external": "The module id is not a module of the project (this includes modules whose analysis failed).",
+				"external-or-unresolved": "A relative import that left the project tree, or a module that may be external; not decided.",
+				"local": "The module id is a module of the project.",
+				"unresolved-local": "A relative import that cannot be mapped to a module id, or whose module is not in the project."
+			}
+		},
+		"methodSemantics": {
+			"title": "meaning of the methods of a Django registration",
+			"items": {
+				"not-declared-by-urlconf": "A Django url pattern does not declare HTTP methods; the view decides. No method list is derived."
+			}
+		},
+		"methodsStatus": {
+			"title": "how the HTTP methods of a Flask registration were found",
+			"items": {
+				"explicit-decorator": "The method comes from the decorator name (get, post, put, patch or delete).",
+				"explicit-methods-list": "The methods came from a literal methods list, tuple or set.",
+				"framework-default-unresolved": "No methods were given; the framework default (GET) is not asserted."
+			}
+		},
+		"nameStatus": {
+			"title": "status of the name of a Django registration",
+			"items": {
+				"unknown": "The name keyword or the fourth positional argument is not a literal string or None; the name is recorded as null.",
+				"verified": "The name is a literal string, None or absent; None and an absent name are recorded as null."
+			}
+		},
+		"prefixStatus": {
+			"title": "status of the prefix of a Flask declaration or of a FastAPI mount",
+			"items": {
+				"unknown": "The prefix argument is not a literal string; the prefix is recorded as null and is not composed, and a mount with such a prefix is still listed.",
+				"verified": "The prefix is a literal string, or the argument is absent; an absent prefix is recorded as an empty string."
+			}
+		},
+		"reason": {
+			"title": "reason a value, type, resolution or diagnostic is unknown or partial",
+			"items": {
+				"ambiguous-import-target": "A name could be a submodule or a symbol of a package and both exist.",
+				"ambiguous-module": "The symbol leads into a module id that is a collision.",
+				"blueprint-prefix-not-literal": "The blueprint url_prefix is not a literal string.",
+				"cyclic-symbol-alias": "Following re-exports returned to a symbol already visited.",
+				"depth-limit": "A value nested deeper than 12 levels is replaced by an unknown value.",
+				"include-cycle": "A url module includes itself through its children; the stack is reported.",
+				"include-router-mount-not-composed": "Every mount is reported: prefixes of mounted routers are not composed into endpoint paths.",
+				"include-target-not-literal-module": "include() was given something other than a literal module path.",
+				"included-module-not-in-project": "include() names a module that is not in the project.",
+				"methods-not-literal-sequence": "The methods keyword is not a literal list, tuple or set of strings.",
+				"missing-annotation": "The field has no annotation.",
+				"non-finite-json-number": "The float is infinite and has no JSON number.",
+				"non-type-constant": "The annotation is a constant that is not a string or None.",
+				"outside-js-safe-integer": "The integer is outside plus or minus 2 to the power 53 minus 1.",
+				"pattern-entry-not-static-call": "A urlpatterns entry is not a call, or is a call whose callee is not a name or dotted name.",
+				"regex-include-prefix-not-composed": "A re_path prefix of an include is not composed into child patterns.",
+				"route-path-not-literal": "The route path is not a literal string.",
+				"route-pattern-not-literal": "The pattern of a path or re_path call is not a literal string.",
+				"route-receiver-not-locally-declared": "The decorated receiver is not an app or blueprint declared in the same module.",
+				"router-argument-not-static-symbol": "The router argument of include_router is not a name or dotted name, or the name does not resolve and no other reason applies.",
+				"router-prefix-not-literal": "The router prefix is not a literal string; the endpoint is not emitted.",
+				"router-variable-not-locally-declared": "The decorated variable is not an APIRouter declared in the same module.",
+				"unresolved": "A name did not resolve and the resolver gave no reason.",
+				"unresolved-generic-base": "The base of a subscripted annotation is unknown.",
+				"unsupported-annotation-expression": "The annotation is an expression the normalizer does not read.",
+				"unsupported-url-registration-callee": "A call in urlpatterns is not path or re_path; include is read only as the view of one of them.",
+				"urlpatterns-ambiguous": "urlpatterns is assigned more than once.",
+				"urlpatterns-dynamic": "urlpatterns is not a literal list or tuple.",
+				"urlpatterns-mutated": "urlpatterns is changed by an augmented assignment or by a call of append, extend, insert, remove, pop, clear, sort or reverse on it, or by an assignment, augmented assignment or such a call inside control flow, before or after its assignment.",
+				"view-call-not-statically-classifiable": "The view is a call other than Name.as_view(), or a Name.as_view() whose name does not resolve.",
+				"view-expression-not-static": "The view is an expression that is neither a name nor a call of a name.",
+				"view-missing": "The path call has no view argument.",
+				"view-symbol-unresolved": "The view name did not resolve to a symbol (the resolver reason is used when it gave one)."
+			}
+		},
+		"receiverKind": {
+			"title": "kind of the receiver of a Flask route registration or of a FastAPI mount",
+			"items": {
+				"app": "The receiver is a locally declared Flask app (route registration) or FastAPI app (include_router).",
+				"blueprint": "The receiver of a Flask route registration is a locally declared Blueprint.",
+				"router": "The receiver of include_router is a locally declared APIRouter."
+			}
+		},
+		"status": {
+			"title": "status of a resolution, mount child or view target",
+			"items": {
+				"resolved": "The symbol, router or view was resolved to a module and name.",
+				"unknown": "Not resolved. Nothing is claimed about the target."
+			}
+		},
+		"syntax": {
+			"title": "spelling of a union type",
+			"items": {
+				"pep604": "A union written with the vertical bar.",
+				"typing.Optional": "A union written as Optional.",
+				"typing.Union": "A union written as Union."
+			}
+		},
+		"tableStatus": {
+			"title": "status of the SQLModel table keyword",
+			"items": {
+				"unknown": "The table keyword is not a literal boolean.",
+				"verified": "The table keyword is a literal boolean or absent."
+			}
+		}
+	},
+	"unreachable": [
+		["code","INVALID_REQUEST","ast-helper.py","INVALID_REQUEST"],
+		["family","unknown","model-shape.mjs","let family = 'unknown'"]
+	],
+	"diagnostics": {
+		"fastapi-endpoint router-variable-not-locally-declared": {
+			"what": "A route decorator on a variable that is not a locally declared APIRouter (this includes decorators on the FastAPI app itself).",
+			"keys": ["kind","line","method","module","reason","routerVar"]
+		},
+		"fastapi-endpoint route-path-not-literal": {
+			"what": "A route decorator whose path is not a literal string.",
+			"keys": ["kind","line","method","module","reason","routerVar"]
+		},
+		"fastapi-endpoint router-prefix-not-literal": {
+			"what": "A route on a router whose prefix is not a literal string; no endpoint is emitted for it.",
+			"keys": ["kind","line","localPath","method","module","reason","routerVar"]
+		},
+		"fastapi-mount include-router-mount-not-composed": {
+			"what": "A top-level include_router call on a locally declared app or router; the mount is listed in mounts and its prefix is not composed into endpoint paths.",
+			"keys": ["child","kind","line","module","prefix","prefixStatus","reason","receiver"]
+		},
+		"flask-route methods-not-literal-sequence": {
+			"what": "A route whose methods keyword is not a literal sequence of strings.",
+			"keys": ["function","kind","line","localPath","module","reason","receiver"]
+		},
+		"flask-route blueprint-prefix-not-literal": {
+			"what": "A blueprint route whose blueprint url_prefix is not a literal string.",
+			"keys": ["function","kind","line","localPath","module","reason","receiver"]
+		},
+		"flask-route route-receiver-not-locally-declared": {
+			"what": "A route decorator on a name that is not a locally declared app or blueprint.",
+			"keys": ["function","kind","line","module","reason","receiver"]
+		},
+		"flask-route route-path-not-literal": {
+			"what": "A route decorator whose rule is not a literal string.",
+			"keys": ["function","kind","line","module","reason","receiver"]
+		},
+		"django-urlconf include-cycle": {
+			"what": "A url module is reached again through its own includes.",
+			"keys": ["kind","module","reason","stack"]
+		},
+		"django-urlconf urlpatterns-ambiguous": {"what":"urlpatterns is assigned more than once in a module.","keys":["kind","module","reason"]},
+		"django-urlconf urlpatterns-dynamic": {"what":"urlpatterns is not a literal list or tuple.","keys":["kind","module","reason"]},
+		"django-urlconf urlpatterns-mutated": {"what":"urlpatterns is mutated by an augmented assignment or by a call of append, extend, insert, remove, pop, clear, sort or reverse on it, or by an assignment, augmented assignment or such a call inside control flow, before or after its assignment.","keys":["kind","module","reason"]},
+		"django-urlconf included-module-not-in-project": {"what":"include() names a module that is not in the project.","keys":["kind","module","reason"]},
+		"django-urlconf include-target-not-literal-module": {
+			"what": "include() argument is not a literal module path.",
+			"keys": ["kind","module","pattern","reason"]
+		},
+		"django-urlconf regex-include-prefix-not-composed": {
+			"what": "include() under a re_path prefix; the prefix is not composed.",
+			"keys": ["childModule","kind","module","pattern","reason"]
+		},
+		"django-urlpattern pattern-entry-not-static-call": {"what":"A urlpatterns entry that is not a call, or is a call whose callee is not a name or dotted name.","keys":["kind","module","reason"]},
+		"django-urlpattern route-pattern-not-literal": {
+			"what": "The pattern of path or re_path is not a literal string.",
+			"keys": ["callee","kind","module","reason"]
+		},
+		"django-urlpattern unsupported-url-registration-callee": {
+			"what": "A call in urlpatterns other than path or re_path; include is read only as the view of one of them.",
+			"keys": ["callee","kind","module","reason"]
+		},
+		"django-urlpattern view-call-not-statically-classifiable": {
+			"what": "A view given as a call other than as_view, or as_view on a name that does not resolve.",
+			"keys": ["kind","module","pattern","rawTarget","reason"]
+		},
+		"django-urlpattern view-expression-not-static": {
+			"what": "A view given as an expression that is neither a name nor a call of a name.",
+			"keys": ["kind","module","pattern","rawTarget","reason"]
+		},
+		"django-urlpattern view-missing": {"what":"A path call without a view.","keys":["kind","module","pattern","reason"]},
+		"django-urlpattern view-symbol-unresolved": {"what":"A view name that did not resolve.","keys":["kind","module","pattern","rawTarget","reason"]}
+	},
+	"expressions": [
+		["A = 1","{\"kind\":\"constant\",\"value\":1}"],
+		["B = -1","{\"kind\":\"constant\",\"value\":-1}"],
+		["B2 = +2","{\"kind\":\"constant\",\"value\":2}"],
+		["C = 1.5","{\"kind\":\"constant\",\"value\":1.5}"],
+		["D = True","{\"kind\":\"constant\",\"value\":true}"],
+		["E = None","{\"kind\":\"constant\",\"value\":null}"],
+		["F = \"s\" \"t\"","{\"kind\":\"constant\",\"value\":\"st\"}"],
+		["G = 12345678901234567890","{\"decimal\":\"12345678901234567890\",\"kind\":\"integer\",\"reason\":\"outside-js-safe-integer\"}"],
+		["G2 = 9007199254740993","{\"decimal\":\"9007199254740993\",\"kind\":\"integer\",\"reason\":\"outside-js-safe-integer\"}"],
+		["G3 = -9007199254740992","{\"decimal\":\"-9007199254740992\",\"kind\":\"integer\",\"reason\":\"outside-js-safe-integer\"}"],
+		["H = 1e999","{\"kind\":\"float-special\",\"reason\":\"non-finite-json-number\",\"value\":\"Infinity\"}"],
+		["H2 = -1e999","{\"kind\":\"float-special\",\"reason\":\"non-finite-json-number\",\"value\":\"-Infinity\"}"],
+		["K = 1j","{\"kind\":\"unknown\",\"node\":\"complex\"}"],
+		["L = b\"x\"","{\"kind\":\"unknown\",\"node\":\"bytes\"}"],
+		["M = ...","{\"kind\":\"unknown\",\"node\":\"ellipsis\"}"],
+		["S = int | str","{\"kind\":\"binary\",\"left\":{\"kind\":\"symbol\",\"name\":\"int\"},\"operator\":\"BitOr\",\"right\":{\"kind\":\"symbol\",\"name\":\"str\"}}"],
+		["NA = ~1","{\"kind\":\"unknown\",\"node\":\"UnaryOp\"}"],
+		["NB = not x","{\"kind\":\"unknown\",\"node\":\"UnaryOp\"}"],
+		["NC = 1 + 2","{\"kind\":\"unknown\",\"node\":\"BinOp\"}"],
+		["ND = -x","{\"kind\":\"unknown\",\"node\":\"UnaryOp\"}"],
+		["NE = -True","{\"kind\":\"unknown\",\"node\":\"UnaryOp\"}"],
+		["T = a if b else c","{\"kind\":\"unknown\",\"node\":\"IfExp\"}"],
+		["U = lambda: 0","{\"kind\":\"unknown\",\"node\":\"Lambda\"}"],
+		["V = [x for x in y]","{\"kind\":\"unknown\",\"node\":\"ListComp\"}"],
+		["W = f\"{x}\"","{\"kind\":\"unknown\",\"node\":\"JoinedStr\"}"],
+		["X = x.y().z","{\"kind\":\"unknown\",\"node\":\"Attribute\"}"]
+	],
+	"moduleIds": [
+		["my-dir/x.py","my-dir.x","my-dir",false],
+		["p.q.py","p.q","",false],
+		["pkg/__init__.py","pkg","pkg",true],
+		["pkg/mod.py","pkg.mod","pkg",false],
+		["src/app/main.py","src.app.main","src.app",false],
+		["top.py","top","",false]
+	],
+	"collisions": [["a.b","a/b.py, a/b/__init__.py"],["stub","stub.py, stub.pyi"]],
+	"localities": [["a.b","ambiguous"],["stub","ambiguous"],["nothere","external"]],
+	"resolutions": [
+		["resolvePythonSymbol","pkg.other","thing","{\"status\":\"resolved\",\"locality\":\"local\",\"module\":\"pkg.thing\",\"name\":null}"],
+		["resolvePythonSymbol","pkg.other","thing.Inner","{\"status\":\"resolved\",\"locality\":\"local\",\"module\":\"pkg.thing\",\"name\":\"Inner\"}"],
+		["resolvePythonSymbol","pkg.other","Inner","{\"status\":\"resolved\",\"locality\":\"local\",\"module\":\"pkg.thing\",\"name\":\"Inner\"}"],
+		["resolvePythonSymbol","pkg.other","Thing","{\"status\":\"resolved\",\"locality\":\"local\",\"module\":\"pkg\",\"name\":\"Thing\"}"],
+		["resolvePythonSymbol","pkg.other","t2","{\"status\":\"resolved\",\"locality\":\"local\",\"module\":\"pkg.thing\",\"name\":null}"],
+		["resolvePythonSymbol","pkg.other","up","{\"status\":\"unknown\",\"locality\":\"unresolved-local\",\"module\":\"\",\"name\":\"up\",\"symbol\":\"up\"}"],
+		["resolvePythonSymbol","pkg.other","nowhere","{\"status\":\"unknown\",\"locality\":\"unresolved-local\",\"module\":null,\"name\":\"nowhere\",\"symbol\":\"nowhere\"}"],
+		["resolvePythonSymbol","pkg.other","p","{\"status\":\"resolved\",\"locality\":\"external\",\"module\":\"os\",\"name\":\"path\"}"],
+		["resolvePythonSymbol","pkg.other","os","{\"status\":\"resolved\",\"locality\":\"external\",\"module\":\"os\",\"name\":null}"],
+		["resolvePythonSymbol","pkg.other","osp","{\"status\":\"resolved\",\"locality\":\"external\",\"module\":\"os.path\",\"name\":null}"],
+		["resolvePythonSymbol","pkg.other","pkg.thing.Inner","{\"status\":\"resolved\",\"locality\":\"local\",\"module\":\"pkg.thing\",\"name\":\"Inner\"}"],
+		["resolvePythonSymbol","pkg.other","pkg","{\"status\":\"resolved\",\"locality\":\"local\",\"module\":\"pkg\",\"name\":null}"],
+		["resolvePythonSymbol","pkg.other","loads","{\"status\":\"resolved\",\"locality\":\"external\",\"module\":\"json\",\"name\":\"loads\"}"],
+		["resolvePythonSymbol","pkg.other","dumps","{\"status\":\"resolved\",\"locality\":\"external\",\"module\":\"json\",\"name\":\"dumps\"}"],
+		["resolvePythonSymbol","pkg.other","cx","{\"status\":\"unknown\",\"locality\":\"ambiguous\",\"module\":\"collisions\",\"name\":\"cx\",\"symbol\":\"cx\"}"],
+		["resolvePythonSymbol","pkg.other","collisions.cx","{\"status\":\"unknown\",\"reason\":\"ambiguous-module\",\"module\":\"collisions\",\"symbol\":\"collisions.cx\"}"],
+		["resolvePythonSymbol","pkg.other","undefinedname","{\"status\":\"unknown\",\"symbol\":\"undefinedname\"}"],
+		["resolvePythonSymbol","pkg.other","(empty string)","{\"status\":\"unknown\",\"symbol\":\"\"}"],
+		["resolvePythonSymbol","pkg.other","x.y.z","{\"status\":\"unknown\",\"symbol\":\"x.y.z\"}"],
+		["resolvePythonSymbol","pkg.other","Thing.attr","{\"status\":\"resolved\",\"locality\":\"local\",\"module\":\"pkg\",\"name\":\"Thing.attr\"}"],
+		["resolvePythonSymbol","cyc_a","q","{\"status\":\"unknown\",\"reason\":\"cyclic-symbol-alias\",\"module\":\"cyc_a\",\"symbol\":\"q\"}"],
+		["resolvePythonSymbol","user","name","{\"status\":\"unknown\",\"reason\":\"ambiguous-import-target\",\"module\":\"amb\",\"name\":\"name\",\"alternateModule\":\"amb.name\",\"symbol\":\"name\"}"],
+		["resolvePythonSymbol","no.such","x","{\"status\":\"unknown\",\"symbol\":\"x\"}"],
+		["resolvePythonSymbol","pkg.other","(the number 5)","{\"status\":\"unknown\",\"symbol\":5}"],
+		["resolveValueSymbol","pkg.other","(a constant value)","{\"status\":\"unknown\",\"value\":{\"kind\":\"constant\",\"value\":1}}"],
+		["resolveValueSymbol","pkg.other","(null)","{\"status\":\"unknown\",\"value\":null}"]
+	],
+	"identity": [
+		["source.path","derived: realpath of the file made relative to the realpath of repoRoot, with / separators","one repoRoot and one file tree","renames; a symlink reports the path of its target","join key between results; use it, never the index in a batch","source-path-is-the-realpath-relative-to-the-root"],
+		["source.sha256","digest of the raw source bytes (a regression key, not an identity)","the exact bytes","any edit, line-ending change or encoding change","equal digests mean equal bytes and nothing else","no-interpreter-keeps-the-source-reference"],
+		["moduleId","derived from the source path: extension removed, / replaced by a dot, a trailing __init__ removed","one project snapshot","renames; source roots are ignored, so src.app.main is not app.main","a collision excludes every source of the id","module-ids-come-from-paths"],
+		["packageId","derived from the source path: the directory of the file with / replaced by a dot (a package __init__ file gives its own directory), empty at the top level","one project snapshot","renames","p.q.py and p/q.py get the same module id p.q (a collision) but different package ids","module-ids-come-from-paths"],
+		["model ref","derived: moduleId, a hash sign and the class name","one project snapshot","renames; a class defined twice in one module keeps the later definition","not unique when a module defines two classes of one name","duplicate-names-last-definition-wins"],
+		["import alias","the local binding name inside one module","one module","a second import of the same alias replaces the first","only a second import replaces an import; an assignment, a function or a class of the same name does not (not modeled)","duplicate-names-last-definition-wins"],
+		["symbol resolution","derived: the module id and optional name reached by following import records","one project snapshot","any change to the modules it passes through","a resolved name is not checked for existence","resolved-names-are-not-checked"],
+		["diagnostic","none: a diagnostic has no id and is identified by its kind, module, line and the other fields it carries","one source revision","line numbers move with edits","compare whole objects, not positions","derived-outputs-carry-no-version-or-id"],
+		["parity key","derived strings: VERB path#method for endpoints, className#key1,key2 for entities (the legacy side has one id field), className for DTOs","one pair of scans","renames, and the legacy scanner may spell paths differently","a regression key for the diff, not an identity of the route","fastapi-parity-rule-and-keys"],
+		["batch order","sorted with localeCompare on source.path","one host locale","a different locale can order the same paths differently","never use the position as a key","batch-results-are-sorted-by-source-path"],
+		["protocol string","constant, versioned by a trailing /1","until the constant changes","a new protocol version","the only versioned identifiers in this layer","helper-and-analyzer-agree-on-protocols"]
+	],
+	"claims": [
+		["limits-are-validated-before-any-file-is-read","none","An out-of-range timeoutMs, maxBuffer, maxSourceBytes or maxFiles throws the message in the options table even when the file does not exist."],
+		["argument-errors-are-thrown-not-returned","posix","Bad arguments, an over-long list, an empty entry, a duplicate after realpath, a path outside the root and a non-regular file throw the messages in the errors table; a missing file throws the raw ENOENT error and a file that cannot be read throws the raw EACCES error. This claim tries the missing file; the EACCES case is tried by a separate test that runs for an ordinary user and is reported as skipped, with a reason, where the process can read a file of mode 000 (root, for example)."],
+		["oversize-is-reported-before-interpreter-discovery","posix","A file larger than maxSourceBytes yields PYTHON_SOURCE_TOO_LARGE with only path and sizeBytes, and no interpreter is looked up."],
+		["no-interpreter-keeps-the-source-reference","none","Without an approved interpreter a file yields PYTHON_RUNTIME_UNAVAILABLE with path, sha256 (the digest of the file bytes) and sizeBytes and no facts."],
+		["empty-and-oversize-batches-need-no-interpreter","posix","An empty file list returns ok true and a null runtime; a batch of only oversize files returns ok false and a null runtime; neither looks for an interpreter."],
+		["explicit-command-has-no-fallback","posix","A non-empty pythonCommand that cannot be used yields no runtime; python3 and python are not tried."],
+		["batch-results-are-sorted-by-source-path","none","Batch results are ordered by localeCompare of source.path, whatever the input order."],
+		["source-path-is-the-realpath-relative-to-the-root","posix","A symlink inside the root reports the path of its target; a symlink to a file outside the root throws."],
+		["interpreter-discovery-rules","posix","Without a non-empty pythonCommand, BSKEL_PYTHON is tried first; a bare name is searched only in absolute PATH entries; versions below 3.8 and unparsable probe output are refused; an interpreter inside the project root is refused."],
+		["helper-failures-are-results-not-throws","posix","A timeout, a non-zero exit, output that is not JSON, a wrong envelope and an output flood are returned as ok false results with their codes."],
+		["stderr-is-cut-at-800-characters","posix","The stderr text in a non-zero exit message is cut at 800 characters without a marker."],
+		["helper-is-started-isolated","posix","The helper gets -I -S -B -X utf8 and its own path as arguments, the request on stdin (protocol, filename, source_base64) and an environment without the variables of the parent process, except SystemRoot and WINDIR when the parent has them."],
+		["helper-source-has-no-execution-primitives","static","The helper source imports only ast, base64, io, json, math, sys and tokenize and contains no call of exec, eval, compile, open, __import__, and no use of os, subprocess, importlib or socket; among the JavaScript modules only analyzer.mjs imports node:child_process and node:fs, and it uses only statSync, realpathSync and readFileSync of the file system module."],
+		["helper-and-analyzer-agree-on-protocols","static","The request and response constants of the helper equal the analyzer constants, and all three protocol strings end with /1."],
+		["stable-scanners-do-not-import-the-layer","static","No .mjs, .js, .cjs or .ts file under scanners/ outside this directory contains the text language/python; folders named node_modules are skipped."],
+		["numeric-and-depth-rules","python","An integer beyond plus or minus 2 to the power 53 minus 1 keeps its decimal text, an infinite float is float-special, a value is read down to its 13th nesting level and a node on the 14th level is unknown with reason depth-limit, and an operator other than BitOr is an unknown BinOp."],
+		["nested-statements-are-dropped","python","Functions, classes and imports inside control flow, nested functions, inner classes and assignments inside an if in a class body produce no fact; only assignments, augmented assignments and calls inside control flow are kept, as mutation facts."],
+		["syntax-errors-carry-a-position","python","A syntax error is a failed file with line, column, end_line and end_column; the two end fields are null when the interpreter reports no end position (before Python 3.10). An unknown or undecodable encoding is PYTHON_SOURCE_ENCODING_UNSUPPORTED."],
+		["deeply-nested-parentheses-fail-the-file","python","Source with 300 nested parentheses is a failed file, not facts."],
+		["deep-attribute-chains-fail-the-helper","python","A chain of 20000 attributes makes the helper exit with a traceback, which is returned as PYTHON_ANALYZER_FAILED."],
+		["syntax-support-follows-the-interpreter","python","A match statement is read when the interpreter is Python 3.10 or newer and is a PYTHON_SYNTAX_ERROR on older interpreters."],
+		["module-ids-come-from-paths","python","The module id table equals the resolver output: extension removed, dots for separators, hyphens kept, a trailing __init__ removed, no source roots; the package id is the directory of the file written with dots."],
+		["colliding-modules-are-excluded","python","A module and a package of the same id, or a module and its stub, produce a collision, no module entry, and locality ambiguous."],
+		["failed-files-vanish-and-read-as-external","python","A result that is not ok is not in the project; its module id reads as external, and a name imported from it by an absolute from-import resolves as a name of an external module, not as unknown."],
+		["resolved-names-are-not-checked","python","A dotted name under a resolved module or class is reported as resolved without checking that it exists."],
+		["duplicate-names-last-definition-wins","python","Two classes of one name in a module give one model, the later one; two imports of one alias resolve to the later import. An assignment, a function or a class whose name is also an import alias does not replace the import, in either order: the alias is looked up before the names the module declares (not modeled)."],
+		["unresolved-model-bases-are-omitted","python","A class is left out of the models, without a diagnostic, when none of its bases establishes a recognized family. A base that does not resolve is ignored: next to a base that establishes a family the class stays a model."],
+		["framework-names-are-matched-after-resolution","python","An aliased import of APIRouter is recognized; a local class named APIRouter is not."],
+		["fastapi-silent-cases","python","The decorators options and api_route, and include_router on a receiver that is not a locally declared app or router, produce neither a fact nor a diagnostic."],
+		["fastapi-parity-rule-and-keys","python","The parity flag is true only when the difference count is zero and the shadow has no unknowns; differences are named by the keys of the identity table."],
+		["mounts-are-recorded-not-composed","python","A top-level include_router call on a locally declared app or router is listed in mounts and in unknowns with the reason include-router-mount-not-composed; its prefix is not added to the endpoint paths, which carry only the prefix of their own router."],
+		["flask-register-blueprint-is-not-recorded","python","A register_blueprint call with a url_prefix leaves the result of the Flask shadow unchanged: no mount is recorded, a blueprint route keeps the prefix of its own blueprint, and its limitations list says that mount overrides are not composed."],
+		["flask-silent-cases","python","add_url_rule, a bare route decorator and the options decorator produce neither a registration nor a diagnostic."],
+		["django-include-without-urlpatterns-is-silent","python","An include of a project module that has no urlpatterns, written under path with a literal prefix, is recorded as an include edge and produces no registration and no diagnostic."],
+		["dynamic-values-are-reported-as-unknown","python","A route path, the prefix of a router or blueprint declaration, the method list of a Flask route decorator or a Django URL pattern that is not a literal yields a diagnostic with a reason and no registration for the routes it affects, and the literal registrations beside it are still reported (FastAPI, Flask and Django)."],
+		["derived-outputs-carry-no-version-or-id","python","Project, model, type and shadow outputs carry no schema, protocol, version or id key."]
+	],
+	"limits": [
+		["module-ids-ignore-source-roots","UNSUPPORTED","Module ids are the repository path with dots; a source root such as src is part of the id.","module-ids-come-from-paths"],
+		["failed-files-vanish-from-the-project","UNKNOWN","A file that fails to analyze disappears from the project and reads as an external module; a name imported from it by an absolute from-import resolves as external instead of unknown, while a relative from-import of it stays unknown.","failed-files-vanish-and-read-as-external"],
+		["resolved-names-are-not-checked","UNKNOWN","A name under a resolved module is not checked for existence.","resolved-names-are-not-checked"],
+		["nested-statements-are-dropped","UNSUPPORTED","Imports below the top level and definitions inside control flow are not facts, and neither are nested functions and inner classes; methods and fields declared directly in a class body are kept.","nested-statements-are-dropped"],
+		["shadow-silent-cases","UNSUPPORTED","Some registrations are dropped without a diagnostic (listed in the FastAPI, Flask and Django claims).","fastapi-silent-cases"],
+		["unresolved-model-bases-are-omitted","UNKNOWN","A class none of whose bases establishes a recognized family is absent from the models; an unresolved base next to a recognized one is ignored and the class stays a model.","unresolved-model-bases-are-omitted"],
+		["duplicate-names-last-definition-wins","UNKNOWN","Two classes of one name and two imports of one alias keep only the last one. An assignment, a function or a class of an import alias name does not replace the import, in either order (not modeled).","duplicate-names-last-definition-wins"],
+		["deep-attribute-chains-fail-the-helper","UNKNOWN","A very long attribute chain fails the helper; where exactly depends on the interpreter, the claim uses 20000.","deep-attribute-chains-fail-the-helper"],
+		["mounts-are-not-composed","UNSUPPORTED","A reported FastAPI endpoint path is not the served URL: include_router prefixes are listed in mounts and are not added to endpoint paths.","mounts-are-recorded-not-composed"],
+		["flask-blueprint-mounts-are-not-recorded","UNSUPPORTED","A Flask register_blueprint call is not recorded and its url_prefix is ignored: a reported blueprint route path is the path under the prefix of its own blueprint, not necessarily the served URL.","flask-register-blueprint-is-not-recorded"],
+		["syntax-support-follows-the-interpreter","UNKNOWN","The syntax accepted is the syntax of the interpreter that runs the helper, so a file can be readable on one host and a syntax error on another.","syntax-support-follows-the-interpreter"],
+		["batch-order-is-locale-dependent","UNKNOWN","The batch order uses localeCompare, so it can differ between host locales.","batch-results-are-sorted-by-source-path"],
+		["no-os-sandbox","UNSUPPORTED","The helper runs with the privileges of the caller; isolation is the -I -S -B flags, a near-empty environment and the absence of execution primitives, not a sandbox.","helper-source-has-no-execution-primitives"],
+		["no-memory-bound","UNSUPPORTED","The memory used by the interpreter is not bounded by the layer.","stated"],
+		["examples-are-small-fixtures","NOT_RECORDED","The tables that the test recomputes come from small fixtures written in the test, not from real projects. Real projects are read by the corpus test of test/language-python/baseline-record.test.mjs, which fetches the pinned commits when BASELINE_CORPUS_FETCH is 1 and is skipped otherwise.","stated"],
+		["legacy-scan-shape-is-hand-fed","NOT_RECORDED","The samples hand-feed the legacy scan shape; the real legacy scanner is compared in test/language-python/python-fastapi-shadow.test.mjs.","stated"],
+		["samples-run-on-the-available-interpreter","NOT_RECORDED","The samples are recomputed on the interpreter that the test finds. The tables were checked to be identical on four local interpreters (versions 3.9, 3.11, 3.12 and 3.14); other versions and the CI interpreters are not recorded here.","stated"],
+		["consumer-list-is-not-exhaustive","NOT_RECORDED","Only the listed consumers are checked; an unlisted importer in another track is not detected.","stated"],
+		["fake-interpreter-checks-are-posix-only","NOT_RECORDED","Child-process checks use shell-script stand-ins and are not evaluated on win32.","stated"],
+		["windows-branches-are-not-run","NOT_RECORDED","The Windows branches of the interpreter search (executable extensions from PATHEXT, SystemRoot and WINDIR in the child environment) are read from the source and have not been run.","stated"],
+		["computed-words-are-sampled-only","NOT_RECORDED","A word that the code builds by concatenation, such as the urlpatterns reasons, is checked through the samples and not through the source text, so a new variant of it is found only when a sample reaches it.","stated"],
+		["markdown-only-changes-skip-ci","UNSUPPORTED","The workflow file .github/workflows/ci.yml, as it stood when this was written, starts no run for a push or pull request whose changed files are all Markdown files, so an edit of this document or of the README alone is not held to the code by CI. A change that also touches another file starts the run, and so does a scheduled or a manual run, which would then find the drift.","stated"]
+	],
+	"baselineLimits": [
+		["runtime-registered-routes-are-not-seen","UNSUPPORTED","shadow-silent-cases"],
+		["mounts-are-not-composed-across-modules","UNSUPPORTED","mounts-are-not-composed"],
+		["dynamic-values-stay-unknown","UNKNOWN","dynamic-values-are-reported-as-unknown"],
+		["model-facts-gaps","UNSUPPORTED","not repeated"],
+		["match-statement-depends-on-the-interpreter","UNKNOWN","syntax-support-follows-the-interpreter"],
+		["helper-diagnostics-vary-with-the-interpreter","UNKNOWN","syntax-errors-carry-a-position"],
+		["reserved-holdouts-not-run","BLOCKED","not repeated"],
+		["no-corpus-beyond-the-pinned-files","NOT_RECORDED","examples-are-small-fixtures"],
+		["boundary-test-needs-the-npm-registry","NOT_RECORDED","not repeated"],
+		["ci-not-observed-at-base","NOT_RECORDED","not repeated"],
+		["hashes-generated-on-one-platform","NOT_RECORDED","samples-run-on-the-available-interpreter"]
+	],
+	"obligations": [
+		["T06-03","T06","OPEN","Minimal next or shadow implementation that preserves the stable path.","Any wiring of this layer into the stable scanner path."],
+		["T06-04","T06","OPEN","Negative, mutation, permission and cross-version tests.","A claim that unknown or partial results are covered beyond the samples of this document."],
+		["T06-05","T06","OPEN","Consumers, runner, provider and packed-artifact integration.","Moving the consumers listed below onto a changed interface."],
+		["T06-06","T06","OPEN","Promotion and rollback evidence.","Promotion of the new layer to the stable path."]
+	],
+	"ownership": [
+		["scanners/language/python/**","scanners/language/python/analyzer.mjs","T06","The layer: every file of the directory."],
+		["test/language-python/**","test/language-python/interface-rfc.test.mjs","T06","Tests of the layer, including this document test."],
+		["next/t06/**","next/t06/plan.md","T06","Plan scope for new T06 work."],
+		["adapters/http-wave-a/python-scope/static-runner.mjs","adapters/http-wave-a/python-scope/static-runner.mjs","T12","Consumer: imports the analyzer, the resolver and the three shadows."],
+		["adapters/http-wave-a/python-flask/SCOPE.json","adapters/http-wave-a/python-flask/SCOPE.json","T12","Consumer record: names flask-shadow.mjs as a source."],
+		["adapters/http-wave-a/python-django/SCOPE.json","adapters/http-wave-a/python-django/SCOPE.json","T12","Consumer record: names django-shadow.mjs as a source."],
+		["test/http-wave-a/python-scope-records.test.mjs","test/http-wave-a/python-scope-records.test.mjs","T12","Consumer test: imports findPythonRuntime."],
+		["adapters/http-legacy-next/python-fastapi/SCOPE.json","adapters/http-legacy-next/python-fastapi/SCOPE.json","T11","Consumer record: names fastapi-shadow.mjs as a source."],
+		["scanners/project-graph/INTERFACE_RFC.md","scanners/project-graph/INTERFACE_RFC.md","T02","Neighbour document that mentions the layer; checked for existence and ownership only."],
+		["next/t00/ownership-map.json","next/t00/ownership-map.json","T00","Records the scopes above."],
+		["scanners/adapters/python-fastapi.mjs","scanners/adapters/python-fastapi.mjs","UNOWNED","Stable path: the legacy FastAPI scanner whose output the parity report reads."],
+		["scanners/index.mjs","scanners/index.mjs","UNOWNED","Stable path: scanner entry."],
+		["scanners/registry.mjs","scanners/registry.mjs","UNOWNED","Stable path: scanner registry."],
+		["scripts/run-next-nested-tests.mjs","scripts/run-next-nested-tests.mjs","RESERVED","Reserved file: names the T06 source and test directories."],
+		[".github/workflows/ci.yml",".github/workflows/ci.yml","RESERVED","Reserved file: CI job definitions."],
+		["package.json","package.json","RESERVED","Reserved file: packs scanners/ into the npm artifact."]
+	],
+	"consumers": [
+		["adapters/http-wave-a/python-scope/static-runner.mjs","import",["analyzer.mjs","resolver.mjs","flask-shadow.mjs","fastapi-shadow.mjs","django-shadow.mjs"]],
+		["test/http-wave-a/python-scope-records.test.mjs","import",["analyzer.mjs"]],
+		["adapters/http-wave-a/python-flask/SCOPE.json","text",["flask-shadow.mjs"]],
+		["adapters/http-wave-a/python-django/SCOPE.json","text",["django-shadow.mjs"]],
+		["adapters/http-legacy-next/python-fastapi/SCOPE.json","text",["fastapi-shadow.mjs"]]
+	],
+	"recognised": [
+		["model-shape.mjs","pydantic_settings.BaseSettings","family settings"],
+		["model-shape.mjs","sqlmodel.SQLModel","family sqlmodel"],
+		["model-shape.mjs","pydantic.BaseModel","family pydantic (only when no other family was found)"],
+		["model-shape.mjs","pydantic.Field, sqlmodel.Field","field metadata"],
+		["fastapi-shadow.mjs","fastapi.APIRouter, fastapi.FastAPI","router and app declarations"],
+		["flask-shadow.mjs","flask.Flask, flask.Blueprint","app and blueprint declarations"],
+		["django-shadow.mjs","django.urls.path, django.urls.re_path, django.urls.include","url registrations and includes"]
+	],
+	"terms": ["source_base64","end_line","end_column","include_router","url_prefix","as_view","add_url_rule","api_route","re_path","pydantic_settings","primary_key","default_factory","localeCompare","BSKEL_PYTHON","sourceEncoding"]
+}
