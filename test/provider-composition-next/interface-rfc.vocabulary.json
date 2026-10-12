@@ -1,0 +1,1911 @@
+{
+  "schema": "bskel.t14-interface-vocabulary/1",
+  "derived": {
+    "directory": {
+      "files": [
+        "BASELINE.json",
+        "INTERFACE_RFC.md",
+        "catalog.mjs",
+        "certification.mjs",
+        "evidence-boundary.mjs",
+        "legacy-baseline.mjs",
+        "plan.mjs",
+        "safety-profile.mjs"
+      ],
+      "tests": [
+        "baseline-record-lib.mjs",
+        "baseline-record.test.mjs",
+        "evidence-boundary.test.mjs",
+        "interface-rfc.test.mjs",
+        "interface-rfc.vocabulary.json",
+        "legacy-provider-composition.test.mjs"
+      ]
+    },
+    "modules": {
+      "catalog.mjs": {
+        "exports": [
+          {
+            "name": "APPROVED_COMBINATIONS",
+            "kind": "constant"
+          },
+          {
+            "name": "listApprovedCombinations",
+            "kind": "function",
+            "parameters": ""
+          },
+          {
+            "name": "resolveApprovedCombination",
+            "kind": "function",
+            "parameters": "{ providerId, persistenceId, keyType }"
+          }
+        ],
+        "imports": [],
+        "opaque_imports": 0,
+        "contracts": []
+      },
+      "safety-profile.mjs": {
+        "exports": [
+          {
+            "name": "describeResourceGeneration",
+            "kind": "function",
+            "parameters": "{ providerId, handlesPlan, resourceFilter = null }"
+          }
+        ],
+        "imports": [],
+        "opaque_imports": 0,
+        "contracts": []
+      },
+      "legacy-baseline.mjs": {
+        "exports": [
+          {
+            "name": "LEGACY_PROVIDER_IDS",
+            "kind": "constant"
+          },
+          {
+            "name": "auditLegacyProviders",
+            "kind": "function",
+            "parameters": "providers, { revision = null } = {}"
+          }
+        ],
+        "imports": [],
+        "opaque_imports": 0,
+        "contracts": [
+          "sbf.handles-provider-baseline-audit/0",
+          "sbf.handles-provider/1"
+        ]
+      },
+      "plan.mjs": {
+        "exports": [
+          {
+            "name": "previewGeneration",
+            "kind": "function",
+            "parameters": "{ provider, repoRoot, featureId, revision = null, handlesPlan, persistenceId, keyType, resourceFilter = null, enforceRegistry = false }"
+          }
+        ],
+        "imports": [
+          "./catalog.mjs",
+          "./safety-profile.mjs"
+        ],
+        "opaque_imports": 0,
+        "contracts": [
+          "sbf.handles-composition-plan/0"
+        ]
+      },
+      "certification.mjs": {
+        "exports": [
+          {
+            "name": "evaluateCompositionCertification",
+            "kind": "function",
+            "parameters": "{ providerId, persistenceId, keyType, revision, profileId = null, level, providerBaselineAudit, generationPreview, evidence = [], persistenceHandoff = null, runtimeBehavior = null }"
+          },
+          {
+            "name": "requiredEvidenceFor",
+            "kind": "function",
+            "parameters": "{ providerId, level }"
+          }
+        ],
+        "imports": [
+          "./catalog.mjs",
+          "./evidence-boundary.mjs"
+        ],
+        "opaque_imports": 0,
+        "contracts": [
+          "sbf.handles-composition-certification/0"
+        ]
+      },
+      "evidence-boundary.mjs": {
+        "exports": [
+          {
+            "name": "inspectPersistenceHandoff",
+            "kind": "function",
+            "parameters": "{ expected, handoffBytes, handoffRef, provenance }"
+          },
+          {
+            "name": "inspectRuntimeBehaviorProjection",
+            "kind": "function",
+            "parameters": "{ expected, bindingBytes, bindingRef, pairBytes, pairRef, oracleEvidenceBytes, oracleEvidenceRef, candidateEvidenceBytes, candidateEvidenceRef, projection }"
+          },
+          {
+            "name": "t16HashJson",
+            "kind": "function",
+            "parameters": "value"
+          },
+          {
+            "name": "validateBoundCertificationEvidence",
+            "kind": "function",
+            "parameters": "{ expectedKind, revision, providerId, combinationId, profileId, evidence }"
+          }
+        ],
+        "imports": [
+          "node:crypto"
+        ],
+        "opaque_imports": 0,
+        "contracts": [
+          "beval.execution-evidence/1",
+          "beval.runtime-binding/1",
+          "beval.runtime-evidence-pair/1",
+          "bskel.internal.handles-composition-evidence/0",
+          "sbf.artifact-ref/1",
+          "sbf.persistence-generation-handoff/1"
+        ]
+      }
+    },
+    "catalog": {
+      "entries": [
+        {
+          "id": "java-spring+jpa-hibernate+uuid",
+          "providerId": "java-spring",
+          "language": "java",
+          "framework": "spring",
+          "persistenceId": "jpa-hibernate",
+          "keyType": "uuid",
+          "status": "legacy-provider"
+        },
+        {
+          "id": "python-fastapi+sqlalchemy-sqlmodel+uuid",
+          "providerId": "python-fastapi",
+          "language": "python",
+          "framework": "fastapi",
+          "persistenceId": "sqlalchemy-sqlmodel",
+          "keyType": "uuid",
+          "status": "legacy-provider"
+        },
+        {
+          "id": "typescript-express+typeorm+uuid",
+          "providerId": "typescript-express",
+          "language": "typescript",
+          "framework": "express",
+          "persistenceId": "typeorm",
+          "keyType": "uuid",
+          "status": "legacy-provider"
+        }
+      ],
+      "entryKeys": [
+        "id,providerId,language,framework,persistenceId,keyType,status"
+      ]
+    },
+    "legacy": {
+      "ids": [
+        "java-spring",
+        "python-fastapi",
+        "typescript-express"
+      ],
+      "clean": {
+        "schema": "sbf.handles-provider-baseline-audit/0",
+        "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "ok": true,
+        "expectedProviderIds": [
+          "java-spring",
+          "python-fastapi",
+          "typescript-express"
+        ],
+        "observed": [
+          {
+            "id": "java-spring",
+            "contract": "sbf.handles-provider/1",
+            "requiresCapabilities": [
+              "resource.fetch"
+            ],
+            "outputsSpec": [
+              "handles/migration.sql"
+            ]
+          },
+          {
+            "id": "python-fastapi",
+            "contract": "sbf.handles-provider/1",
+            "requiresCapabilities": [
+              "resource.fetch"
+            ],
+            "outputsSpec": [
+              "handles/migration.sql"
+            ]
+          },
+          {
+            "id": "typescript-express",
+            "contract": "sbf.handles-provider/1",
+            "requiresCapabilities": [
+              "resource.fetch"
+            ],
+            "outputsSpec": [
+              "handles/migration.sql"
+            ]
+          }
+        ],
+        "errors": []
+      },
+      "templates": [
+        "${id}: contract changed from ${expected.contract} to ${String(provider.contract)}",
+        "${id}: outputs.spec changed from [${expected.outputsSpec.join(', ')}] to [${Array.isArray(provider.outputs?.spec) ? provider.outputs.spec.join(', ') : String(provider.outputs?.spec)}]",
+        "${id}: provider missing",
+        "${id}: provider.emit is not a function",
+        "${id}: provider.plan is not a function",
+        "${id}: requiresCapabilities changed from [${expected.requiresCapabilities.join(', ')}] to [${Array.isArray(provider.requiresCapabilities) ? provider.requiresCapabilities.join(', ') : String(provider.requiresCapabilities)}]"
+      ],
+      "templatesReached": [
+        "${id}: contract changed from ${expected.contract} to ${String(provider.contract)}",
+        "${id}: outputs.spec changed from [${expected.outputsSpec.join(', ')}] to [${Array.isArray(provider.outputs?.spec) ? provider.outputs.spec.join(', ') : String(provider.outputs?.spec)}]",
+        "${id}: provider missing",
+        "${id}: provider.emit is not a function",
+        "${id}: provider.plan is not a function",
+        "${id}: requiresCapabilities changed from [${expected.requiresCapabilities.join(', ')}] to [${Array.isArray(provider.requiresCapabilities) ? provider.requiresCapabilities.join(', ') : String(provider.requiresCapabilities)}]"
+      ],
+      "reachedWithoutTemplate": []
+    },
+    "safety": {
+      "profiles": {
+        "java-spring": {
+          "fetch": "provider-backed-read",
+          "authorization": "provider-policy",
+          "patch": "provider-policy",
+          "recover": "provider-policy"
+        },
+        "python-fastapi": {
+          "fetch": "provider-backed-read",
+          "authorization": "fail-closed-stub",
+          "patch": "fail-closed-stub",
+          "recover": "gated-by-access-stub"
+        },
+        "typescript-express": {
+          "fetch": "provider-backed-read",
+          "authorization": "fail-closed-stub",
+          "patch": "fail-closed-stub",
+          "recover": "gated-by-access-stub"
+        }
+      },
+      "resultKeys": [
+        "decisions,generatedResourceTypes,skippedResourceTypes,requestedMissing,manualCompletions"
+      ],
+      "decisionKeys": [
+        "resourceType,generated,fetch,authorization,patch,recover,reasons"
+      ],
+      "manualKeys": [
+        "resourceType,area,required,reason"
+      ],
+      "reasons": [
+        "provider plan did not mark this resource as safe for resolver generation",
+        "resource primary key is explicitly non-UUID"
+      ],
+      "areas": [
+        "authorization",
+        "patch"
+      ],
+      "columns": [
+        "fail-closed-stub",
+        "gated-by-access-stub",
+        "not-generated",
+        "provider-backed-read",
+        "provider-policy"
+      ],
+      "manualReasons": [
+        "generated access check intentionally denies until the target application wires its own authorization semantics",
+        "generated patch path intentionally returns/throws not-implemented until the target application wires its own update semantics"
+      ]
+    },
+    "plan": {
+      "emitInput": "repoRoot,featureId,plan,resourceFilter,force,reason,dryRun,computeDiff,enforceRegistry",
+      "emitInputShapes": [
+        "repoRoot,featureId,plan,resourceFilter,force,reason,dryRun,computeDiff,enforceRegistry"
+      ]
+    },
+    "certification": {
+      "required": {
+        "preview-tested": {
+          "java-spring": [
+            "composition-unit",
+            "package-install"
+          ],
+          "python-fastapi": [
+            "composition-unit",
+            "package-install"
+          ],
+          "typescript-express": [
+            "composition-unit",
+            "package-install"
+          ]
+        },
+        "build-tested": {
+          "java-spring": [
+            "composition-unit",
+            "package-install",
+            "java-integration"
+          ],
+          "python-fastapi": [
+            "composition-unit",
+            "package-install",
+            "python-integration"
+          ],
+          "typescript-express": [
+            "composition-unit",
+            "package-install",
+            "typescript-compile"
+          ]
+        },
+        "behavior-tested": {
+          "java-spring": [
+            "composition-unit",
+            "package-install",
+            "java-integration",
+            "persistence-conformance",
+            "runtime-behavior"
+          ],
+          "python-fastapi": [
+            "composition-unit",
+            "package-install",
+            "python-integration",
+            "persistence-conformance",
+            "runtime-behavior"
+          ],
+          "typescript-express": [
+            "composition-unit",
+            "package-install",
+            "typescript-compile",
+            "persistence-conformance",
+            "runtime-behavior"
+          ]
+        }
+      },
+      "samples": {
+        "preview-tested": {
+          "status": "certified",
+          "certifiedLevel": "preview-tested",
+          "acceptedKeys": "kind,revision,source,runId,artifactRef",
+          "crossTrack": null,
+          "blockers": []
+        },
+        "build-tested": {
+          "status": "certified",
+          "certifiedLevel": "build-tested",
+          "acceptedKeys": "kind,revision,source,runId,artifactRef",
+          "crossTrack": null,
+          "blockers": []
+        },
+        "behavior-tested": {
+          "status": "blocked",
+          "certifiedLevel": null,
+          "acceptedKeys": "kind,revision,source,runId,artifactRef",
+          "crossTrack": "persistence,runtime",
+          "blockers": [
+            "behavior-handoff-not-integrated"
+          ]
+        }
+      }
+    },
+    "results": {
+      "schemas": {
+        "auditLegacyProviders": [
+          "sbf.handles-provider-baseline-audit/0"
+        ],
+        "evaluateCompositionCertification": [
+          "sbf.handles-composition-certification/0"
+        ],
+        "previewGeneration": [
+          "sbf.handles-composition-plan/0"
+        ],
+        "previewGeneration.full": [
+          "sbf.handles-composition-plan/0"
+        ],
+        "previewGeneration.preflight": [
+          "sbf.handles-composition-plan/0"
+        ],
+        "previewGeneration.short": [
+          "sbf.handles-composition-plan/0"
+        ]
+      },
+      "statuses": {
+        "auditLegacyProviders.ok": [
+          "false",
+          "true"
+        ],
+        "evaluateCompositionCertification": [
+          "blocked",
+          "certified"
+        ],
+        "inspectPersistenceHandoff": [
+          "blocked",
+          "eligible"
+        ],
+        "inspectRuntimeBehaviorProjection": [
+          "blocked",
+          "eligible"
+        ],
+        "previewGeneration": [
+          "blocked",
+          "ready"
+        ],
+        "previewGeneration.full": [
+          "blocked",
+          "ready"
+        ],
+        "previewGeneration.preflight": [
+          "blocked"
+        ],
+        "previewGeneration.short": [
+          "blocked"
+        ],
+        "validateBoundCertificationEvidence.ok": [
+          "false",
+          "true"
+        ]
+      },
+      "shapeStatuses": {
+        "auditLegacyProviders|schema,revision,ok,expectedProviderIds,observed,errors": [
+          "ok=false",
+          "ok=true"
+        ],
+        "evaluateCompositionCertification|schema,status,requestedLevel,certifiedLevel,revision,profileId,combination,applyAllowed,acceptedEvidence,crossTrackEvidence,blockers": [
+          "blocked",
+          "certified"
+        ],
+        "inspectPersistenceHandoff|status,blockers": [
+          "blocked",
+          "eligible"
+        ],
+        "inspectRuntimeBehaviorProjection|status,blockers,bindingHash": [
+          "blocked",
+          "eligible"
+        ],
+        "previewGeneration.full|schema,status,applyAllowed,providerId,featureId,revision,combination,resourceDecisions,manualCompletions,plannedWrites,forcedWrites,actions,blockers,notes": [
+          "blocked",
+          "ready"
+        ],
+        "previewGeneration.preflight|schema,status,applyAllowed,providerId,featureId,revision,combination,plannedWrites,actions,resourceDecisions,manualCompletions,blockers,notes": [
+          "blocked"
+        ],
+        "previewGeneration.short|schema,status,applyAllowed,providerId,featureId,revision,combination,plannedWrites,actions,blockers,notes": [
+          "blocked"
+        ],
+        "previewGeneration|schema,status,applyAllowed,providerId,featureId,revision,combination,plannedWrites,actions,blockers,notes": [
+          "blocked"
+        ],
+        "previewGeneration|schema,status,applyAllowed,providerId,featureId,revision,combination,plannedWrites,actions,resourceDecisions,manualCompletions,blockers,notes": [
+          "blocked"
+        ],
+        "previewGeneration|schema,status,applyAllowed,providerId,featureId,revision,combination,resourceDecisions,manualCompletions,plannedWrites,forcedWrites,actions,blockers,notes": [
+          "blocked",
+          "ready"
+        ],
+        "validateBoundCertificationEvidence|ok,blockers": [
+          "ok=false"
+        ],
+        "validateBoundCertificationEvidence|ok,blockers,accepted": [
+          "ok=false",
+          "ok=true"
+        ]
+      },
+      "flags": {
+        "evaluateCompositionCertification.applyAllowed": [
+          "false"
+        ],
+        "previewGeneration.applyAllowed": [
+          "false"
+        ],
+        "previewGeneration.full.applyAllowed": [
+          "false"
+        ],
+        "previewGeneration.preflight.applyAllowed": [
+          "false"
+        ],
+        "previewGeneration.short.applyAllowed": [
+          "false"
+        ]
+      },
+      "shapes": {
+        "auditLegacyProviders": [
+          "schema,revision,ok,expectedProviderIds,observed,errors"
+        ],
+        "describeResourceGeneration": [
+          "decisions,generatedResourceTypes,skippedResourceTypes,requestedMissing,manualCompletions"
+        ],
+        "evaluateCompositionCertification": [
+          "schema,status,requestedLevel,certifiedLevel,revision,profileId,combination,applyAllowed,acceptedEvidence,crossTrackEvidence,blockers"
+        ],
+        "inspectPersistenceHandoff": [
+          "status,blockers"
+        ],
+        "inspectRuntimeBehaviorProjection": [
+          "status,blockers,bindingHash"
+        ],
+        "previewGeneration": [
+          "schema,status,applyAllowed,providerId,featureId,revision,combination,plannedWrites,actions,blockers,notes",
+          "schema,status,applyAllowed,providerId,featureId,revision,combination,plannedWrites,actions,resourceDecisions,manualCompletions,blockers,notes",
+          "schema,status,applyAllowed,providerId,featureId,revision,combination,resourceDecisions,manualCompletions,plannedWrites,forcedWrites,actions,blockers,notes"
+        ],
+        "previewGeneration.full": [
+          "schema,status,applyAllowed,providerId,featureId,revision,combination,resourceDecisions,manualCompletions,plannedWrites,forcedWrites,actions,blockers,notes"
+        ],
+        "previewGeneration.preflight": [
+          "schema,status,applyAllowed,providerId,featureId,revision,combination,plannedWrites,actions,resourceDecisions,manualCompletions,blockers,notes"
+        ],
+        "previewGeneration.short": [
+          "schema,status,applyAllowed,providerId,featureId,revision,combination,plannedWrites,actions,blockers,notes"
+        ],
+        "requiredEvidenceFor": [
+          "array"
+        ],
+        "validateBoundCertificationEvidence": [
+          "ok,blockers",
+          "ok,blockers,accepted"
+        ]
+      },
+      "codes": {
+        "evaluateCompositionCertification": [
+          "behavior-handoff-not-integrated",
+          "generation-preview-not-ready",
+          "generation-preview-revision-mismatch",
+          "invalid-evidence",
+          "invalid-revision",
+          "missing-evidence",
+          "persistence-handoff-invalid",
+          "preview-combination-mismatch",
+          "preview-provider-mismatch",
+          "profile-missing",
+          "provider-baseline-drift",
+          "provider-baseline-revision-mismatch",
+          "runtime-handoff-invalid",
+          "unsafe-preview-contract",
+          "unsupported-certification-level",
+          "unsupported-combination"
+        ],
+        "evaluateCompositionCertification.reasons": [
+          "assertion-count-invalid",
+          "assertion-summary-invalid",
+          "assertion-summary-mismatch",
+          "assertions-incomplete",
+          "assertions-missing",
+          "assertions-not-all-passed",
+          "attempt-mismatch",
+          "binding-artifact-bytes-invalid",
+          "binding-artifact-bytes-mismatch",
+          "binding-artifact-family-invalid",
+          "binding-artifact-hash-invalid",
+          "binding-artifact-media-type-invalid",
+          "binding-artifact-ref-contract-invalid",
+          "binding-artifact-ref-invalid",
+          "binding-artifact-size-invalid",
+          "binding-artifact-version-invalid",
+          "binding-contract-invalid",
+          "binding-shape-invalid",
+          "candidate-artifact-mismatch",
+          "candidate-artifact-unbound",
+          "candidate-evidence-artifact-bytes-invalid",
+          "candidate-evidence-artifact-bytes-mismatch",
+          "candidate-evidence-artifact-family-invalid",
+          "candidate-evidence-artifact-hash-invalid",
+          "candidate-evidence-artifact-media-type-invalid",
+          "candidate-evidence-artifact-ref-contract-invalid",
+          "candidate-evidence-artifact-ref-invalid",
+          "candidate-evidence-artifact-size-invalid",
+          "candidate-evidence-artifact-version-invalid",
+          "candidate-evidence-contract-mismatch",
+          "candidate-evidence-json-invalid",
+          "candidate-revision-mismatch",
+          "execution-ref-missing",
+          "handoff-artifact-bytes-invalid",
+          "handoff-artifact-bytes-mismatch",
+          "handoff-artifact-family-invalid",
+          "handoff-artifact-hash-invalid",
+          "handoff-artifact-media-type-invalid",
+          "handoff-artifact-ref-contract-invalid",
+          "handoff-artifact-ref-invalid",
+          "handoff-artifact-size-invalid",
+          "handoff-artifact-version-invalid",
+          "handoff-blockers-invalid",
+          "handoff-combination-mismatch",
+          "handoff-contract-invalid",
+          "handoff-json-invalid",
+          "handoff-not-approved",
+          "handoff-not-ready",
+          "handoff-resource-binding-missing",
+          "oracle-evidence-artifact-bytes-invalid",
+          "oracle-evidence-artifact-bytes-mismatch",
+          "oracle-evidence-artifact-family-invalid",
+          "oracle-evidence-artifact-hash-invalid",
+          "oracle-evidence-artifact-media-type-invalid",
+          "oracle-evidence-artifact-ref-contract-invalid",
+          "oracle-evidence-artifact-ref-invalid",
+          "oracle-evidence-artifact-size-invalid",
+          "oracle-evidence-artifact-version-invalid",
+          "oracle-evidence-contract-mismatch",
+          "oracle-evidence-json-invalid",
+          "pair-artifact-bytes-invalid",
+          "pair-artifact-bytes-mismatch",
+          "pair-artifact-family-invalid",
+          "pair-artifact-hash-invalid",
+          "pair-artifact-media-type-invalid",
+          "pair-artifact-ref-contract-invalid",
+          "pair-artifact-ref-invalid",
+          "pair-artifact-size-invalid",
+          "pair-artifact-version-invalid",
+          "pair-binding-mismatch",
+          "pair-contract-invalid",
+          "pair-shape-invalid",
+          "persistence-handoff-missing",
+          "producer-revision-invalid",
+          "profile-mismatch",
+          "projection-attempt-mismatch",
+          "projection-binding-artifact-mismatch",
+          "projection-binding-mismatch",
+          "projection-candidate-evidence-mismatch",
+          "projection-oracle-evidence-mismatch",
+          "projection-pair-mismatch",
+          "provenance-artifact-mismatch",
+          "provenance-combination-mismatch",
+          "run-id-mismatch",
+          "runtime-combination-mismatch",
+          "runtime-failed",
+          "runtime-handoff-missing",
+          "runtime-handoff-not-approved"
+        ],
+        "inspectPersistenceHandoff": [
+          "candidate-revision-mismatch",
+          "execution-ref-missing",
+          "handoff-artifact-bytes-invalid",
+          "handoff-artifact-bytes-mismatch",
+          "handoff-artifact-family-invalid",
+          "handoff-artifact-hash-invalid",
+          "handoff-artifact-media-type-invalid",
+          "handoff-artifact-ref-contract-invalid",
+          "handoff-artifact-ref-invalid",
+          "handoff-artifact-size-invalid",
+          "handoff-artifact-version-invalid",
+          "handoff-blockers-invalid",
+          "handoff-combination-mismatch",
+          "handoff-contract-invalid",
+          "handoff-has-blockers",
+          "handoff-json-invalid",
+          "handoff-not-approved",
+          "handoff-not-ready",
+          "handoff-resource-binding-missing",
+          "producer-revision-invalid",
+          "profile-mismatch",
+          "provenance-artifact-mismatch",
+          "provenance-combination-mismatch"
+        ],
+        "inspectRuntimeBehaviorProjection": [
+          "assertion-count-invalid",
+          "assertion-list-invalid",
+          "assertion-summary-invalid",
+          "assertion-summary-mismatch",
+          "assertions-incomplete",
+          "assertions-missing",
+          "assertions-not-all-passed",
+          "attempt-mismatch",
+          "binding-artifact-bytes-invalid",
+          "binding-artifact-bytes-mismatch",
+          "binding-artifact-family-invalid",
+          "binding-artifact-hash-invalid",
+          "binding-artifact-media-type-invalid",
+          "binding-artifact-ref-contract-invalid",
+          "binding-artifact-ref-invalid",
+          "binding-artifact-size-invalid",
+          "binding-artifact-version-invalid",
+          "binding-contract-invalid",
+          "binding-shape-invalid",
+          "candidate-artifact-mismatch",
+          "candidate-artifact-unbound",
+          "candidate-evidence-artifact-bytes-invalid",
+          "candidate-evidence-artifact-bytes-mismatch",
+          "candidate-evidence-artifact-family-invalid",
+          "candidate-evidence-artifact-hash-invalid",
+          "candidate-evidence-artifact-media-type-invalid",
+          "candidate-evidence-artifact-ref-contract-invalid",
+          "candidate-evidence-artifact-ref-invalid",
+          "candidate-evidence-artifact-size-invalid",
+          "candidate-evidence-artifact-version-invalid",
+          "candidate-evidence-contract-invalid",
+          "candidate-evidence-contract-mismatch",
+          "candidate-evidence-exchanges-missing",
+          "candidate-evidence-flow-runs-missing",
+          "candidate-evidence-hash-mismatch",
+          "candidate-evidence-json-invalid",
+          "candidate-evidence-operations-missing",
+          "candidate-evidence-shape-invalid",
+          "candidate-evidence-target-mismatch",
+          "candidate-exchange-invalid",
+          "candidate-revision-mismatch",
+          "execution-ref-missing",
+          "oracle-evidence-artifact-bytes-invalid",
+          "oracle-evidence-artifact-bytes-mismatch",
+          "oracle-evidence-artifact-family-invalid",
+          "oracle-evidence-artifact-hash-invalid",
+          "oracle-evidence-artifact-media-type-invalid",
+          "oracle-evidence-artifact-ref-contract-invalid",
+          "oracle-evidence-artifact-ref-invalid",
+          "oracle-evidence-artifact-size-invalid",
+          "oracle-evidence-artifact-version-invalid",
+          "oracle-evidence-contract-invalid",
+          "oracle-evidence-contract-mismatch",
+          "oracle-evidence-exchanges-missing",
+          "oracle-evidence-flow-runs-missing",
+          "oracle-evidence-hash-mismatch",
+          "oracle-evidence-json-invalid",
+          "oracle-evidence-operations-missing",
+          "oracle-evidence-shape-invalid",
+          "oracle-evidence-target-mismatch",
+          "pair-artifact-bytes-invalid",
+          "pair-artifact-bytes-mismatch",
+          "pair-artifact-family-invalid",
+          "pair-artifact-hash-invalid",
+          "pair-artifact-media-type-invalid",
+          "pair-artifact-ref-contract-invalid",
+          "pair-artifact-ref-invalid",
+          "pair-artifact-size-invalid",
+          "pair-artifact-version-invalid",
+          "pair-binding-mismatch",
+          "pair-contract-invalid",
+          "pair-shape-invalid",
+          "profile-mismatch",
+          "projection-attempt-mismatch",
+          "projection-binding-artifact-mismatch",
+          "projection-binding-mismatch",
+          "projection-candidate-evidence-mismatch",
+          "projection-oracle-evidence-mismatch",
+          "projection-pair-mismatch",
+          "run-id-mismatch",
+          "runtime-combination-mismatch",
+          "runtime-failed",
+          "runtime-handoff-missing",
+          "runtime-handoff-not-approved"
+        ],
+        "previewGeneration": [
+          "generated-file-conflict",
+          "generated-file-orphan",
+          "no-generatable-resources",
+          "registry-bootstrap-gap",
+          "requested-resource-missing",
+          "requested-resource-not-generatable",
+          "unsupported-combination"
+        ],
+        "previewGeneration.full": [
+          "generated-file-conflict",
+          "generated-file-orphan",
+          "registry-bootstrap-gap"
+        ],
+        "previewGeneration.preflight": [
+          "no-generatable-resources",
+          "requested-resource-missing",
+          "requested-resource-not-generatable"
+        ],
+        "previewGeneration.short": [
+          "unsupported-combination"
+        ],
+        "validateBoundCertificationEvidence": [
+          "artifact-bytes-invalid",
+          "artifact-bytes-mismatch",
+          "artifact-family-invalid",
+          "artifact-hash-invalid",
+          "artifact-media-type-invalid",
+          "artifact-ref-contract-invalid",
+          "artifact-ref-invalid",
+          "artifact-size-invalid",
+          "artifact-version-invalid",
+          "assertion-count-invalid",
+          "assertion-summary-invalid",
+          "evidence-bytes-noncanonical",
+          "evidence-combination-mismatch",
+          "evidence-contract-invalid",
+          "evidence-envelope-missing",
+          "evidence-execution-ref-missing",
+          "evidence-json-invalid",
+          "evidence-kind-mismatch",
+          "evidence-profile-mismatch",
+          "evidence-provider-mismatch",
+          "evidence-revision-mismatch",
+          "evidence-shape-invalid",
+          "evidence-status-failed"
+        ]
+      },
+      "extras": {
+        "assertion-count-invalid": [
+          "field"
+        ],
+        "generated-file-conflict": [
+          "path"
+        ],
+        "generated-file-orphan": [
+          "path"
+        ],
+        "invalid-evidence": [
+          "kind"
+        ],
+        "missing-evidence": [
+          "kind"
+        ],
+        "persistence-handoff-invalid": [
+          "reasons"
+        ],
+        "registry-bootstrap-gap": [
+          "path",
+          "resourceType"
+        ],
+        "runtime-handoff-invalid": [
+          "reasons"
+        ]
+      },
+      "thrown": {
+        "describeResourceGeneration": [
+          "Error: no conservative generation profile for provider future-provider",
+          "Error: no conservative generation profile for provider undefined"
+        ],
+        "previewGeneration": [
+          "Error: provider mismatch: handles plan belongs to other, got java-spring",
+          "Error: provider mismatch: handles plan belongs to other, got python-fastapi",
+          "Error: provider mismatch: handles plan belongs to other, got typescript-express",
+          "TypeError: featureId is required",
+          "TypeError: handlesPlan is required",
+          "TypeError: provider is required",
+          "TypeError: provider java-spring: emit must be a function",
+          "TypeError: provider python-fastapi: emit must be a function",
+          "TypeError: provider typescript-express: emit must be a function",
+          "TypeError: provider.id is required",
+          "TypeError: repoRoot is required"
+        ],
+        "requiredEvidenceFor": [
+          "Error: no build evidence profile for provider future-provider",
+          "Error: unknown certification level \"ship-it\""
+        ]
+      },
+      "crashes": {
+        "describeResourceGeneration": [
+          "TypeError"
+        ],
+        "evaluateCompositionCertification": [
+          "TypeError"
+        ],
+        "inspectPersistenceHandoff": [
+          "TypeError"
+        ],
+        "inspectRuntimeBehaviorProjection": [
+          "TypeError"
+        ],
+        "previewGeneration": [
+          "TypeError"
+        ],
+        "requiredEvidenceFor": [
+          "TypeError"
+        ],
+        "resolveApprovedCombination": [
+          "TypeError"
+        ],
+        "validateBoundCertificationEvidence": [
+          "TypeError"
+        ]
+      }
+    },
+    "text": {
+      "codes": {
+        "catalog.mjs": [],
+        "safety-profile.mjs": [],
+        "legacy-baseline.mjs": [],
+        "plan.mjs": [
+          "generated-file-conflict",
+          "generated-file-orphan",
+          "no-generatable-resources",
+          "registry-bootstrap-gap",
+          "requested-resource-missing",
+          "requested-resource-not-generatable",
+          "unsupported-combination"
+        ],
+        "certification.mjs": [
+          "behavior-handoff-not-integrated",
+          "generation-preview-not-ready",
+          "generation-preview-revision-mismatch",
+          "invalid-evidence",
+          "invalid-revision",
+          "missing-evidence",
+          "persistence-handoff-invalid",
+          "persistence-handoff-missing",
+          "preview-combination-mismatch",
+          "preview-provider-mismatch",
+          "profile-missing",
+          "provider-baseline-drift",
+          "provider-baseline-revision-mismatch",
+          "runtime-handoff-invalid",
+          "runtime-handoff-missing",
+          "unsafe-preview-contract",
+          "unsupported-certification-level",
+          "unsupported-combination"
+        ],
+        "evidence-boundary.mjs": [
+          "${prefix}-evidence-${item.code}",
+          "${prefix}-evidence-contract-invalid",
+          "${prefix}-evidence-contract-mismatch",
+          "${prefix}-evidence-exchanges-missing",
+          "${prefix}-evidence-flow-runs-missing",
+          "${prefix}-evidence-hash-mismatch",
+          "${prefix}-evidence-json-invalid",
+          "${prefix}-evidence-operations-missing",
+          "${prefix}-evidence-shape-invalid",
+          "${prefix}-evidence-target-mismatch",
+          "artifact-bytes-invalid",
+          "artifact-bytes-mismatch",
+          "artifact-family-invalid",
+          "artifact-hash-invalid",
+          "artifact-media-type-invalid",
+          "artifact-ref-contract-invalid",
+          "artifact-ref-invalid",
+          "artifact-size-invalid",
+          "artifact-version-invalid",
+          "assertion-count-invalid",
+          "assertion-list-invalid",
+          "assertion-summary-invalid",
+          "assertion-summary-mismatch",
+          "assertions-incomplete",
+          "assertions-missing",
+          "assertions-not-all-passed",
+          "attempt-mismatch",
+          "binding-${item.code}",
+          "binding-contract-invalid",
+          "binding-shape-invalid",
+          "candidate-artifact-mismatch",
+          "candidate-artifact-unbound",
+          "candidate-exchange-invalid",
+          "candidate-revision-mismatch",
+          "evidence-bytes-noncanonical",
+          "evidence-combination-mismatch",
+          "evidence-contract-invalid",
+          "evidence-envelope-missing",
+          "evidence-execution-ref-missing",
+          "evidence-json-invalid",
+          "evidence-kind-mismatch",
+          "evidence-profile-mismatch",
+          "evidence-provider-mismatch",
+          "evidence-revision-mismatch",
+          "evidence-shape-invalid",
+          "evidence-status-failed",
+          "execution-ref-missing",
+          "handoff-${item.code}",
+          "handoff-blockers-invalid",
+          "handoff-combination-mismatch",
+          "handoff-contract-invalid",
+          "handoff-has-blockers",
+          "handoff-json-invalid",
+          "handoff-not-approved",
+          "handoff-not-ready",
+          "handoff-resource-binding-missing",
+          "pair-${item.code}",
+          "pair-binding-mismatch",
+          "pair-contract-invalid",
+          "pair-shape-invalid",
+          "producer-revision-invalid",
+          "profile-mismatch",
+          "projection-attempt-mismatch",
+          "projection-binding-artifact-mismatch",
+          "projection-binding-mismatch",
+          "projection-candidate-evidence-mismatch",
+          "projection-oracle-evidence-mismatch",
+          "projection-pair-mismatch",
+          "provenance-artifact-mismatch",
+          "provenance-combination-mismatch",
+          "run-id-mismatch",
+          "runtime-combination-mismatch",
+          "runtime-failed",
+          "runtime-handoff-missing",
+          "runtime-handoff-not-approved"
+        ]
+      },
+      "thrown": {
+        "catalog.mjs": [],
+        "safety-profile.mjs": [
+          "Error: no conservative generation profile for provider ${providerId}"
+        ],
+        "legacy-baseline.mjs": [],
+        "plan.mjs": [
+          "Error: provider mismatch: handles plan belongs to ${handlesPlan.provider}, got ${provider.id}",
+          "TypeError: featureId is required",
+          "TypeError: handlesPlan is required",
+          "TypeError: provider ${provider.id}: emit must be a function",
+          "TypeError: provider is required",
+          "TypeError: provider.id is required",
+          "TypeError: repoRoot is required"
+        ],
+        "certification.mjs": [
+          "Error: no build evidence profile for provider ${providerId}",
+          "Error: unknown certification level \"${String(level)}\""
+        ],
+        "evidence-boundary.mjs": []
+      },
+      "keyLists": [
+        "artifact_ref, family, version, media_type, byte_sha256, size_bytes",
+        "evidence, kind, revision, status, provider_id, combination_id, profile_id, execution_ref, assertions",
+        "execution_evidence, target, contract_hash, operations, exchanges, flow_runs",
+        "execution_evidence, target, contract_hash, operations, exchanges, flow_runs, state_hash",
+        "expected, executed, passed, failed, unresolved",
+        "invalid, error",
+        "runtime_binding, run_id, case_revision_hash, oracle_profile_approval_hash, contract_hash, flow_hash, config_hash, candidate_hash, original_hash, runner_implementation_hash, runtime_execution_policy_hash, artifacts, attempt_nonce",
+        "runtime_evidence_pair, family, runtime_binding_hash, attempt_nonce, oracle_evidence_hash, candidate_evidence_hash"
+      ]
+    },
+    "coverage": {
+      "codesNotReached": [],
+      "codesWithoutText": [],
+      "thrownNotReached": []
+    }
+  },
+  "narrative": {
+    "files": {
+      "BASELINE.json": {
+        "role": "baseline record of this layer: file hashes, replayable fixtures, observed limits, commands and results"
+      },
+      "INTERFACE_RFC.md": {
+        "role": "this document"
+      },
+      "catalog.mjs": {
+        "role": "the closed list of approved provider, persistence layer and key type combinations"
+      },
+      "certification.mjs": {
+        "role": "the certification gate: evidence required per level, blockers, never allows apply"
+      },
+      "evidence-boundary.mjs": {
+        "role": "byte-level checks of evidence artifacts and of the persistence and runtime hand-offs of other tracks"
+      },
+      "legacy-baseline.mjs": {
+        "role": "audit of the declared contract, capabilities and outputs of the three legacy providers"
+      },
+      "plan.mjs": {
+        "role": "dry-run preview of a generation: calls the provider emit with dryRun true and reports writes, actions and blockers"
+      },
+      "safety-profile.mjs": {
+        "role": "conservative per-provider generation profile and the per-resource decisions taken from it"
+      }
+    },
+    "recordedTests": {
+      "evidence-boundary.test.mjs": {
+        "covers": "artifact-bound evidence, the persistence hand-off, the runtime projection and the refusals at behavior level"
+      },
+      "legacy-provider-composition.test.mjs": {
+        "covers": "catalog, legacy audit, preview with stub providers, safety labels against the real resolver templates, certification levels and refusals"
+      }
+    },
+    "testFiles": {
+      "baseline-record-lib.mjs": {
+        "role": "helpers of the baseline record test: hashing, fixture replay, record checks, figures stated in this document"
+      },
+      "baseline-record.test.mjs": {
+        "role": "checks BASELINE.json: file hashes, replay of the fixtures, commands, counts, limits and the figures of this document"
+      },
+      "interface-rfc.test.mjs": {
+        "role": "checks this document: derives the vocabulary from the code, compares it with the vocabulary file and with the tables, headings, names and rule statements of the text"
+      },
+      "interface-rfc.vocabulary.json": {
+        "role": "the pinned vocabulary: what the code emits (derived) and what it means (narrative)"
+      }
+    },
+    "shapeLabels": {
+      "previewGeneration.short": "combination not in the catalog: no safety check, emit not called",
+      "previewGeneration.preflight": "resource checks failed before emit: emit not called",
+      "previewGeneration.full": "emit was called with dryRun true"
+    },
+    "contracts": [
+      {
+        "id": "sbf.handles-provider/1",
+        "role": "contract string that each of the three legacy providers must declare; the audit compares it by equality"
+      },
+      {
+        "id": "sbf.handles-provider-baseline-audit/0",
+        "role": "schema id of the result of auditLegacyProviders"
+      },
+      {
+        "id": "sbf.handles-composition-plan/0",
+        "role": "schema id of the result of previewGeneration, in all three shapes"
+      },
+      {
+        "id": "sbf.handles-composition-certification/0",
+        "role": "schema id of the result of evaluateCompositionCertification"
+      },
+      {
+        "id": "bskel.internal.handles-composition-evidence/0",
+        "role": "value of the evidence field of the bound evidence document that validateBoundCertificationEvidence reads; an internal id, no file outside the layer contains it"
+      },
+      {
+        "id": "sbf.artifact-ref/1",
+        "role": "artifact reference: the six-field record that ties a byte string to its sha256 and its size"
+      },
+      {
+        "id": "sbf.persistence-generation-handoff/1",
+        "role": "contract field of the persistence hand-off document that inspectPersistenceHandoff expects from the persistence track"
+      },
+      {
+        "id": "beval.runtime-binding/1",
+        "role": "runtime binding document: run id, hashes of case, profile approval, contract, flow, config and candidate, and the attempt nonce"
+      },
+      {
+        "id": "beval.runtime-evidence-pair/1",
+        "role": "runtime evidence pair: ties the oracle and the candidate execution evidence to one binding and one attempt"
+      },
+      {
+        "id": "beval.execution-evidence/1",
+        "role": "execution evidence of the oracle and of the candidate: operations, exchanges and flow runs"
+      }
+    ],
+    "families": [
+      {
+        "function": "validateBoundCertificationEvidence",
+        "family": "the artifact reference and its bytes",
+        "pattern": "^artifact-"
+      },
+      {
+        "function": "validateBoundCertificationEvidence",
+        "family": "the evidence document and what it is bound to",
+        "pattern": "^evidence-"
+      },
+      {
+        "function": "validateBoundCertificationEvidence",
+        "family": "the assertion summary of the document",
+        "pattern": "^assertion-"
+      },
+      {
+        "function": "inspectPersistenceHandoff",
+        "family": "the hand-off artifact reference and bytes (the artifact codes with the prefix handoff-)",
+        "pattern": "^handoff-artifact-"
+      },
+      {
+        "function": "inspectPersistenceHandoff",
+        "family": "the content of the hand-off document",
+        "pattern": "^handoff-(json-invalid|contract-invalid|not-ready|blockers-invalid|has-blockers|resource-binding-missing|combination-mismatch)$"
+      },
+      {
+        "function": "inspectPersistenceHandoff",
+        "family": "the provenance record that must accept the hand-off",
+        "pattern": "^(handoff-not-approved|producer-revision-invalid|candidate-revision-mismatch|provenance-combination-mismatch|profile-mismatch|execution-ref-missing|provenance-artifact-mismatch)$"
+      },
+      {
+        "function": "inspectRuntimeBehaviorProjection",
+        "family": "artifact references and bytes of the binding, the pair and the two evidence documents (the artifact codes with a prefix)",
+        "pattern": "^(binding|pair|oracle-evidence|candidate-evidence)-artifact-"
+      },
+      {
+        "function": "inspectRuntimeBehaviorProjection",
+        "family": "shape and contract of the binding and the pair, and the links between them",
+        "pattern": "^(binding-(shape|contract)-invalid|pair-(shape|contract)-invalid|pair-binding-mismatch|attempt-mismatch)$"
+      },
+      {
+        "function": "inspectRuntimeBehaviorProjection",
+        "family": "the oracle and the candidate execution evidence documents",
+        "pattern": "^(oracle|candidate)-evidence-(?!artifact-)"
+      },
+      {
+        "function": "inspectRuntimeBehaviorProjection",
+        "family": "assertions and exchanges found in the candidate evidence",
+        "pattern": "^(assertions-missing|assertion-list-invalid|assertions-not-all-passed|candidate-exchange-invalid|assertion-count-invalid|assertion-summary-invalid)$"
+      },
+      {
+        "function": "inspectRuntimeBehaviorProjection",
+        "family": "the projection compared with the bound artifacts, run and attempt",
+        "pattern": "^(projection-[a-z-]+|candidate-artifact-(unbound|mismatch)|run-id-mismatch)$"
+      },
+      {
+        "function": "inspectRuntimeBehaviorProjection",
+        "family": "the projection compared with the expected revision, combination and profile",
+        "pattern": "^(candidate-revision-mismatch|runtime-combination-mismatch|profile-mismatch|execution-ref-missing)$"
+      },
+      {
+        "function": "inspectRuntimeBehaviorProjection",
+        "family": "the verdict and approval of the projection",
+        "pattern": "^(runtime-handoff-missing|runtime-handoff-not-approved|runtime-failed|assertions-incomplete|assertion-summary-mismatch)$"
+      },
+      {
+        "function": "previewGeneration.short",
+        "family": "the combination is not in the catalog",
+        "pattern": "^unsupported-combination$"
+      },
+      {
+        "function": "previewGeneration.preflight",
+        "family": "the requested resources, checked before emit",
+        "pattern": "^(requested-resource-missing|requested-resource-not-generatable|no-generatable-resources)$"
+      },
+      {
+        "function": "previewGeneration.full",
+        "family": "what the provider emit reported",
+        "pattern": "^(generated-file-conflict|generated-file-orphan|registry-bootstrap-gap)$"
+      },
+      {
+        "function": "evaluateCompositionCertification",
+        "family": "the request itself",
+        "pattern": "^(unsupported-combination|invalid-revision)$"
+      },
+      {
+        "function": "evaluateCompositionCertification",
+        "family": "the legacy provider audit that was passed in",
+        "pattern": "^provider-baseline-(drift|revision-mismatch)$"
+      },
+      {
+        "function": "evaluateCompositionCertification",
+        "family": "the plan preview that was passed in",
+        "pattern": "^(generation-preview-(not-ready|revision-mismatch)|unsafe-preview-contract|preview-(combination|provider)-mismatch)$"
+      },
+      {
+        "function": "evaluateCompositionCertification",
+        "family": "the level and the evidence it requires",
+        "pattern": "^(unsupported-certification-level|missing-evidence|invalid-evidence|profile-missing)$"
+      },
+      {
+        "function": "evaluateCompositionCertification",
+        "family": "the hand-offs of other tracks, behavior level only",
+        "pattern": "^(persistence-handoff-invalid|runtime-handoff-invalid|behavior-handoff-not-integrated)$"
+      }
+    ],
+    "crashes": [
+      {
+        "function": "describeResourceGeneration",
+        "cause": "no argument or null: the parameter list destructures its single object argument"
+      },
+      {
+        "function": "evaluateCompositionCertification",
+        "cause": "no argument or null, and an evidence value that is not an array (null, a number, a string, an object, a boolean) at a level with required evidence kinds"
+      },
+      {
+        "function": "inspectPersistenceHandoff",
+        "cause": "no argument or null: the parameter list destructures its single object argument"
+      },
+      {
+        "function": "inspectRuntimeBehaviorProjection",
+        "cause": "no argument or null, and a candidate evidence document whose exchanges value is neither missing, null nor an array"
+      },
+      {
+        "function": "previewGeneration",
+        "cause": "no argument or null: the parameter list destructures its single object argument"
+      },
+      {
+        "function": "requiredEvidenceFor",
+        "cause": "no argument or null: the parameter list destructures its single object argument"
+      },
+      {
+        "function": "resolveApprovedCombination",
+        "cause": "no argument or null: the parameter list destructures its single object argument"
+      },
+      {
+        "function": "validateBoundCertificationEvidence",
+        "cause": "no argument or null: the parameter list destructures its single object argument"
+      }
+    ],
+    "words": [
+      {
+        "word": "unsupported-combination",
+        "where": [
+          "results/codes/previewGeneration.short",
+          "results/codes/evaluateCompositionCertification"
+        ],
+        "meaning": "provider, persistence layer and key type are not one catalog entry, or one of the three is missing; the plan returns its short blocked shape and never calls emit, the certification adds the blocker and goes on"
+      },
+      {
+        "word": "requested-resource-missing",
+        "where": [
+          "results/codes/previewGeneration.preflight"
+        ],
+        "meaning": "a type named in resourceFilter does not occur in the handles plan"
+      },
+      {
+        "word": "requested-resource-not-generatable",
+        "where": [
+          "results/codes/previewGeneration.preflight"
+        ],
+        "meaning": "a resourceFilter is set and a selected resource was not approved by the provider plan"
+      },
+      {
+        "word": "no-generatable-resources",
+        "where": [
+          "results/codes/previewGeneration.preflight"
+        ],
+        "meaning": "after the filter no resource is approved for resolver generation; also the answer when the handles plan lists no resources"
+      },
+      {
+        "word": "not-generated",
+        "where": [
+          "safety/columns"
+        ],
+        "meaning": "fetch, authorization, patch and recover of a resource the provider plan did not approve"
+      },
+      {
+        "word": "provider-backed-read",
+        "where": [
+          "safety/columns"
+        ],
+        "meaning": "fetch of a generated resource: the read path of the provider itself (all three providers)"
+      },
+      {
+        "word": "provider-policy",
+        "where": [
+          "safety/columns"
+        ],
+        "meaning": "java-spring: authorization, patch and recover follow the policy of the provider; no manual completion is listed"
+      },
+      {
+        "word": "fail-closed-stub",
+        "where": [
+          "safety/columns"
+        ],
+        "meaning": "python-fastapi and typescript-express authorization and patch: generated code that denies or throws until the target application wires its own semantics; one manual completion per generated resource and area"
+      },
+      {
+        "word": "gated-by-access-stub",
+        "where": [
+          "safety/columns"
+        ],
+        "meaning": "python-fastapi and typescript-express recover: gated by the access stub; no manual completion of its own"
+      },
+      {
+        "word": "blocked",
+        "where": [
+          "results/statuses/previewGeneration",
+          "results/statuses/evaluateCompositionCertification",
+          "results/statuses/inspectPersistenceHandoff",
+          "results/statuses/inspectRuntimeBehaviorProjection"
+        ],
+        "meaning": "at least one blocker; the result cannot be used for the next step. This is the only way the layer says that it cannot decide: there is no status unknown and no status partial"
+      },
+      {
+        "word": "ready",
+        "where": [
+          "results/statuses/previewGeneration"
+        ],
+        "meaning": "a plan without blockers; it may still skip resources the provider plan did not approve, which then show as not generated in resourceDecisions (a partial generation is a ready plan)"
+      },
+      {
+        "word": "certified",
+        "where": [
+          "results/statuses/evaluateCompositionCertification"
+        ],
+        "meaning": "no blocker at the requested level: certifiedLevel equals requestedLevel and applyAllowed is still false"
+      },
+      {
+        "word": "eligible",
+        "where": [
+          "results/statuses/inspectPersistenceHandoff",
+          "results/statuses/inspectRuntimeBehaviorProjection"
+        ],
+        "meaning": "the inspector found no blocker; eligible is not certified, and at behavior level the certification stays blocked anyway"
+      },
+      {
+        "word": "legacy-provider",
+        "where": [
+          "catalog/entries/status"
+        ],
+        "meaning": "the only catalog status: the combination is served by an existing provider module"
+      },
+      {
+        "word": "unsupported-certification-level",
+        "where": [
+          "results/codes/evaluateCompositionCertification"
+        ],
+        "meaning": "requiredEvidenceFor threw: the level is not one of the three, or the provider has no build evidence profile; the message of the error is copied into the blocker"
+      },
+      {
+        "word": "missing-evidence",
+        "where": [
+          "results/codes/evaluateCompositionCertification"
+        ],
+        "meaning": "no evidence entry of a required kind was passed in (extra field kind)"
+      },
+      {
+        "word": "invalid-evidence",
+        "where": [
+          "results/codes/evaluateCompositionCertification"
+        ],
+        "meaning": "entries of a required kind exist but none has the exact revision, the status success, the provider id and the combination id (extra field kind)"
+      },
+      {
+        "word": "profile-missing",
+        "where": [
+          "results/codes/evaluateCompositionCertification"
+        ],
+        "meaning": "behavior-tested was requested without a non-empty profile id"
+      },
+      {
+        "word": "behavior-handoff-not-integrated",
+        "where": [
+          "results/codes/evaluateCompositionCertification"
+        ],
+        "meaning": "appended at every behavior-tested request, whatever the hand-offs contain: the level never certifies"
+      },
+      {
+        "word": "persistence-handoff-missing",
+        "where": [
+          "results/codes/evaluateCompositionCertification.reasons"
+        ],
+        "meaning": "no persistence hand-off input was passed at behavior level (only inside the reasons of persistence-handoff-invalid)"
+      },
+      {
+        "word": "runtime-handoff-missing",
+        "where": [
+          "results/codes/evaluateCompositionCertification.reasons",
+          "results/codes/inspectRuntimeBehaviorProjection"
+        ],
+        "meaning": "no runtime input was passed at behavior level, or the projection given to the inspector is not a plain object"
+      },
+      {
+        "word": "handoff-not-approved",
+        "where": [
+          "results/codes/inspectPersistenceHandoff"
+        ],
+        "meaning": "the provenance record is missing or its status is not accepted (a status bound is refused)"
+      },
+      {
+        "word": "runtime-handoff-not-approved",
+        "where": [
+          "results/codes/inspectRuntimeBehaviorProjection"
+        ],
+        "meaning": "producerApproval of the projection is not accepted"
+      }
+    ],
+    "keySets": [
+      {
+        "name": "artifact reference",
+        "keys": "artifact_ref, family, version, media_type, byte_sha256, size_bytes",
+        "usedBy": "exact key set of every `sbf.artifact-ref/1`; two references are equal only when all six fields are equal"
+      },
+      {
+        "name": "bound evidence document",
+        "keys": "evidence, kind, revision, status, provider_id, combination_id, profile_id, execution_ref, assertions",
+        "usedBy": "exact key set of the document that `validateBoundCertificationEvidence` reads"
+      },
+      {
+        "name": "execution evidence, required keys",
+        "keys": "execution_evidence, target, contract_hash, operations, exchanges, flow_runs",
+        "usedBy": "keys that the oracle and the candidate document of `beval.execution-evidence/1` must have"
+      },
+      {
+        "name": "execution evidence, allowed keys",
+        "keys": "execution_evidence, target, contract_hash, operations, exchanges, flow_runs, state_hash",
+        "usedBy": "the same document may add state_hash and nothing else"
+      },
+      {
+        "name": "assertion summary",
+        "keys": "expected, executed, passed, failed, unresolved",
+        "usedBy": "exact key set of the assertion counts in bound evidence and in the runtime projection; every count is a non-negative safe integer"
+      },
+      {
+        "name": "blocking exchange verdicts",
+        "keys": "invalid, error",
+        "usedBy": "schema_verdict values of a candidate exchange that raise candidate-exchange-invalid"
+      },
+      {
+        "name": "runtime binding",
+        "keys": "runtime_binding, run_id, case_revision_hash, oracle_profile_approval_hash, contract_hash, flow_hash, config_hash, candidate_hash, original_hash, runner_implementation_hash, runtime_execution_policy_hash, artifacts, attempt_nonce",
+        "usedBy": "exact key set of `beval.runtime-binding/1`"
+      },
+      {
+        "name": "runtime evidence pair",
+        "keys": "runtime_evidence_pair, family, runtime_binding_hash, attempt_nonce, oracle_evidence_hash, candidate_evidence_hash",
+        "usedBy": "exact key set of `beval.runtime-evidence-pair/1`; the family must be http"
+      }
+    ],
+    "ownership": [
+      {
+        "path": "handles/composition-next/plan.mjs",
+        "verdict": "OK",
+        "relation": "a source file of the layer; every file in the two T14 directories is owned by T14"
+      },
+      {
+        "path": "test/provider-composition-next/interface-rfc.test.mjs",
+        "verdict": "OK",
+        "relation": "a test of the layer; the same holds for every file of the test directory"
+      },
+      {
+        "path": "next/t14/PLAN.md",
+        "verdict": "OK",
+        "relation": "the plan scope of T14; the checker judges a path by its name, the file need not exist"
+      },
+      {
+        "path": "handles/providers/java-spring.mjs",
+        "verdict": "PATH_UNOWNED",
+        "relation": "a legacy provider: the audit pins its contract, the preview calls its emit; the layer imports none of the three provider files, the existing tests do"
+      },
+      {
+        "path": "handles/registry.mjs",
+        "verdict": "PATH_UNOWNED",
+        "relation": "the provider registry; it does not import the layer"
+      },
+      {
+        "path": "test/package-install.test.mjs",
+        "verdict": "PATH_UNOWNED",
+        "relation": "packs and installs the npm package, whose files include handles/ and therefore the layer; it does not run the layer"
+      },
+      {
+        "path": "scanners/persistence-next/generation-handoff.mjs",
+        "verdict": "PATH_OWNED_BY_OTHER_TRACK",
+        "owner": "T10",
+        "relation": "defines the hand-off contract `sbf.persistence-generation-handoff/1` that inspectPersistenceHandoff expects, and a provenance record whose status is bound, not accepted"
+      },
+      {
+        "path": "adapters/protocol-next/docs/T18_TO_T16_PROTOCOL_EVIDENCE_BINDING.md",
+        "verdict": "PATH_OWNED_BY_OTHER_TRACK",
+        "owner": "T18",
+        "relation": "the only file outside the layer that contains the word execution-evidence (in its title); the repository holds no producer of the document"
+      },
+      {
+        "path": "contracts/reconciliation-next/t16-runtime-evidence.mjs",
+        "verdict": "PATH_OWNED_BY_OTHER_TRACK",
+        "owner": "T09",
+        "relation": "defines the other function named t16HashJson; the two copies of the hash rule are not compared by any test"
+      },
+      {
+        "path": "scanners/project-graph/INTERFACE_RFC.md",
+        "verdict": "PATH_OWNED_BY_OTHER_TRACK",
+        "owner": "T02",
+        "relation": "lists handles/composition-next as owned by T14"
+      },
+      {
+        "path": "next/t00/ownership-map.json",
+        "verdict": "PATH_OWNED_BY_OTHER_TRACK",
+        "owner": "T00",
+        "relation": "defines the scopes of T14"
+      },
+      {
+        "path": "scripts/run-next-nested-tests.mjs",
+        "verdict": "PATH_RESERVED_HOT",
+        "relation": "the nested runner that runs the suite of this layer; reserved for the coordinator"
+      },
+      {
+        "path": ".github/workflows/ci.yml",
+        "verdict": "PATH_RESERVED_HOT",
+        "relation": "the CI job that runs the nested runner; reserved for the coordinator"
+      },
+      {
+        "path": "package.json",
+        "verdict": "PATH_RESERVED_HOT",
+        "relation": "its test script does not run the suite of this layer; reserved for the coordinator"
+      }
+    ],
+    "fields": [
+      {
+        "name": "providerId",
+        "module": "catalog.mjs",
+        "meaning": "first part of the identity of a combination: the id of a legacy provider, compared by string equality; the plan takes it from provider.id"
+      },
+      {
+        "name": "persistenceId",
+        "module": "catalog.mjs",
+        "meaning": "second part: the id of the persistence layer, compared by string equality"
+      },
+      {
+        "name": "keyType",
+        "module": "catalog.mjs",
+        "meaning": "third part: the key type; uuid in every catalog entry"
+      },
+      {
+        "name": "combination",
+        "module": "plan.mjs",
+        "meaning": "in a plan and in a certification result: a copy of the catalog entry, or null when the three parts are not one entry; the id of an entry joins the three parts with plus signs"
+      },
+      {
+        "name": "featureId",
+        "module": "plan.mjs",
+        "meaning": "a non-empty string, echoed in the plan and passed to emit; nothing else is checked"
+      },
+      {
+        "name": "willGenerateResolver",
+        "module": "safety-profile.mjs",
+        "meaning": "field of a resource in the provider plan: only the value true makes the decision generated; any other value, or a missing field, gives not-generated and a reason"
+      },
+      {
+        "name": "idFieldIsUuid",
+        "module": "safety-profile.mjs",
+        "meaning": "field of a resource in the provider plan: the value false adds a reason to the decision and does not stop generation; any other value adds nothing"
+      },
+      {
+        "name": "revision",
+        "module": "plan.mjs",
+        "meaning": "echoed in the plan (null when not given) and not checked there; the certification compares it with strict equality"
+      },
+      {
+        "name": "revision",
+        "module": "certification.mjs",
+        "meaning": "exactly 40 lowercase hexadecimal characters; the provider audit, the plan and every evidence entry must carry the identical string"
+      },
+      {
+        "name": "profileId",
+        "module": "certification.mjs",
+        "meaning": "a non-empty string at behavior level (else profile-missing), handed to both inspectors as the expected profile; at the other levels it is only echoed"
+      },
+      {
+        "name": "scope",
+        "module": "certification.mjs",
+        "meaning": "field of an evidence entry: its providerId and combinationId must equal the request, else the entry is not valid evidence"
+      },
+      {
+        "name": "acceptedEvidence",
+        "module": "certification.mjs",
+        "meaning": "derived, not passed through: for each required kind the first matching entry (revision, status success, provider id, combination id) is reduced to kind, revision, source, runId and artifactRef"
+      },
+      {
+        "name": "byte_sha256",
+        "module": "evidence-boundary.mjs",
+        "meaning": "field of an artifact reference: sha256 of the exact bytes, 64 lowercase hexadecimal characters; compared with the hash of the bytes passed in (artifact-bytes-mismatch)"
+      },
+      {
+        "name": "size_bytes",
+        "module": "evidence-boundary.mjs",
+        "meaning": "field of an artifact reference: the byte length of the artifact, a non-negative safe integer; compared with the length of the bytes passed in"
+      },
+      {
+        "name": "combinationId",
+        "module": "evidence-boundary.mjs",
+        "meaning": "the id of a catalog entry as a hand-off names it; the expectation takes expected.combinationId, else expected.id"
+      },
+      {
+        "name": "provenance",
+        "module": "evidence-boundary.mjs",
+        "meaning": "record handed in next to the persistence hand-off: status accepted, producerRevision of 40 hexadecimal characters, candidateRevision equal to the expected revision, combinationId, profileId, executionRef and an artifactRef equal to the reference of the hand-off field by field"
+      },
+      {
+        "name": "bindingHash",
+        "module": "evidence-boundary.mjs",
+        "meaning": "result key of the runtime inspector: t16HashJson of the parsed binding document (its canonical text, not the bytes passed in), null when the binding reference or bytes cannot be read, when the bytes are not JSON and when they parse to a falsy value (0, false, \"\" or null)"
+      },
+      {
+        "name": "runtime_binding_hash",
+        "module": "evidence-boundary.mjs",
+        "meaning": "field of the evidence pair: must equal bindingHash, else pair-binding-mismatch"
+      },
+      {
+        "name": "oracle_evidence_hash",
+        "module": "evidence-boundary.mjs",
+        "meaning": "field of the evidence pair: t16HashJson of the parsed oracle evidence document; compared only when truthy (see runtime-values-are-compared-not-validated)"
+      },
+      {
+        "name": "candidate_evidence_hash",
+        "module": "evidence-boundary.mjs",
+        "meaning": "field of the evidence pair: t16HashJson of the parsed candidate evidence document; compared only when truthy"
+      },
+      {
+        "name": "candidate_hash",
+        "module": "evidence-boundary.mjs",
+        "meaning": "field of the runtime binding: 64 lowercase hexadecimal characters (else candidate-artifact-unbound); candidateArtifactSha256 of the projection must equal it"
+      },
+      {
+        "name": "oracle_profile_approval_hash",
+        "module": "evidence-boundary.mjs",
+        "meaning": "field of the runtime binding: profileApprovalHash of the projection must equal it, together with the profile id"
+      },
+      {
+        "name": "contract_hash",
+        "module": "evidence-boundary.mjs",
+        "meaning": "field of the runtime binding: both execution evidence documents must repeat it"
+      },
+      {
+        "name": "run_id",
+        "module": "evidence-boundary.mjs",
+        "meaning": "field of the runtime binding: runId of the projection must equal it (run-id-mismatch)"
+      },
+      {
+        "name": "attempt_nonce",
+        "module": "evidence-boundary.mjs",
+        "meaning": "field of the binding and of the pair, and attemptNonce of the projection: the three must be equal, but the pair value is not compared when the binding value is empty (limit `runtime-values-are-compared-not-validated`)"
+      },
+      {
+        "name": "runtimeBindingArtifactSha256",
+        "module": "evidence-boundary.mjs",
+        "meaning": "field of the projection: must equal byte_sha256 of the binding reference that was passed in"
+      },
+      {
+        "name": "evidencePairArtifactSha256",
+        "module": "evidence-boundary.mjs",
+        "meaning": "field of the projection: must equal byte_sha256 of the pair reference that was passed in"
+      },
+      {
+        "name": "oracleEvidenceArtifactSha256",
+        "module": "evidence-boundary.mjs",
+        "meaning": "field of the projection: must equal byte_sha256 of the oracle evidence reference that was passed in"
+      },
+      {
+        "name": "candidateEvidenceArtifactSha256",
+        "module": "evidence-boundary.mjs",
+        "meaning": "field of the projection: must equal byte_sha256 of the candidate evidence reference that was passed in"
+      },
+      {
+        "name": "executionRef",
+        "module": "evidence-boundary.mjs",
+        "meaning": "a non-empty string in the projection and in the provenance (execution_ref in the bound evidence document); only its presence is checked"
+      },
+      {
+        "name": "producerApproval",
+        "module": "evidence-boundary.mjs",
+        "meaning": "field of the projection: accepted is the only value that passes (runtime-handoff-not-approved); no file outside the layer writes it (see accepted-handoffs-have-no-producer)"
+      }
+    ],
+    "rules": [
+      {
+        "id": "shadow-only",
+        "statement": "The layer is shadow only: applyAllowed is false in every plan shape and in every certification result, blocked or certified."
+      },
+      {
+        "id": "isolated-modules",
+        "statement": "Each of the six modules imports only sibling modules of the layer and node:crypto; none of them has a computed import, a require call or a createRequire call, and none reads a clock, a random source or the process, prints or is asynchronous."
+      },
+      {
+        "id": "closed-catalog",
+        "statement": "A combination is approved only when provider id, persistence id and key type together equal one of the three catalog entries; a changed, empty or missing part gives null, and parts taken from two entries are not approved."
+      },
+      {
+        "id": "catalog-copies",
+        "statement": "The catalog hands out copies: changing an entry that listApprovedCombinations or resolveApprovedCombination returned changes nothing, and APPROVED_COMBINATIONS itself is frozen."
+      },
+      {
+        "id": "preview-is-a-dry-run",
+        "statement": "previewGeneration calls the emit function of the provider once, with force false, an empty reason, dryRun true and computeDiff false; for a combination outside the catalog and for a failed resource check it does not call emit at all."
+      },
+      {
+        "id": "behavior-never-certifies",
+        "statement": "The levels preview-tested and build-tested can end certified, but behavior-tested always ends blocked with behavior-handoff-not-integrated and certifiedLevel null, even when both hand-off inspections say eligible."
+      },
+      {
+        "id": "exact-revision",
+        "statement": "A revision is exactly 40 lowercase hexadecimal characters: a branch name, an upper-case sha, a shorter or longer string, an empty string, null or a missing value gives invalid-revision, and an evidence entry of another revision gives invalid-evidence."
+      },
+      {
+        "id": "plain-evidence",
+        "statement": "At preview and build level the certification reads plain evidence entries (kind, revision, status success and a scope with provider id and combination id) and copies what an entry names as its artifact without checking it; it does not call validateBoundCertificationEvidence, which refuses the same entries."
+      },
+      {
+        "id": "bound-is-not-accepted",
+        "statement": "The persistence hand-off passes only with a provenance status accepted; bound, pending, null and a missing status all give handoff-not-approved."
+      },
+      {
+        "id": "hash-rule",
+        "statement": "For JSON data, which is arrays and plain objects (objects whose prototype is Object.prototype) that hold strings, finite numbers, booleans, null and more arrays and plain objects, the hash of t16HashJson is the sha256 of the value written with two-space indentation and one final newline and with the keys of every object, at every depth, sorted by UTF-16 code unit, except that keys that are array indexes (the text of a whole number from 0 to 4294967294 without a leading zero, such as 2 and 10) come first, in numeric order; the runtime inspector reports that hash of the binding document as bindingHash, which is null when the bytes of the binding are neither text nor a byte array or its reference does not have exactly the six fields of an artifact reference, when the bytes are not JSON and when they parse to a falsy value (0, false, \"\" or null); the evidence validator treats a document that parses to a falsy value like bytes that are not JSON and answers in its short shape with the code evidence-json-invalid."
+      },
+      {
+        "id": "hash-input-domain",
+        "statement": "t16HashJson does not hash every value. A BigInt (as the value, as an array element or as an enumerable string-keyed property, also when nested in other values) throws a TypeError. A cycle through plain objects and arrays, or a nesting deep enough to exhaust the stack, throws a RangeError, and a cycle through a class instance or an object without prototype throws a TypeError. Undefined, a function, a symbol and a call without an argument throw nothing and share one hash, that of the text undefined with a final newline; NaN, Infinity and null share one hash as well. A class instance and an object without prototype are not sorted: their keys, and the keys of everything inside them, come out in the order in which the engine lists them (array indexes first, in numeric order, then the other keys in the order in which they were added), so the same keys added in another order can give another hash. Whenever it returns, the result is a string of 64 lowercase hexadecimal characters."
+      },
+      {
+        "id": "reference-equality",
+        "statement": "An artifact reference has exactly six fields and is compared field by field: a changed field, a changed size or a seventh field blocks the hand-off."
+      },
+      {
+        "id": "values-are-compared",
+        "statement": "The runtime inspector compares the values of the binding, the pair, the evidence documents and the projection with each other and checks the format of candidate_hash only: an empty run id, an empty attempt nonce or a null contract hash stays eligible when every document repeats it, and a pair hash that is empty, null or 0 skips the comparison with the evidence document."
+      },
+      {
+        "id": "no-unknown-status",
+        "statement": "The status words are blocked, ready, certified and eligible and nothing else: no function of the layer answers unknown or partial."
+      },
+      {
+        "id": "fail-closed-profiles",
+        "statement": "For python-fastapi and typescript-express, authorization and patch of a generated resource are fail-closed stubs with one manual completion per resource and area, and recover is gated by the access stub; java-spring follows its provider policy and lists no manual completion."
+      },
+      {
+        "id": "inherited-names",
+        "statement": "Observed defect, not fixed: describeResourceGeneration and requiredEvidenceFor read the provider id as a property of a plain object, so every name that Object.prototype defines passes as a provider id there, and Object.prototype defines these twelve names: `__defineGetter__`, `__defineSetter__`, `__lookupGetter__`, `__lookupSetter__`, `__proto__`, `constructor`, `hasOwnProperty`, `isPrototypeOf`, `propertyIsEnumerable`, `toLocaleString`, `toString` and `valueOf`. For each of them describeResourceGeneration does not throw and, for every resource it generates, returns a decision whose fetch, authorization, patch and recover are undefined and lists no manual completion; requiredEvidenceFor returns an array of three at build-tested and of five at behavior-tested whose third place holds a function where an evidence kind belongs (the object Object.prototype for `__proto__`), and at preview-tested the same two strings as for the three providers of the catalog and for an unknown provider id; evaluateCompositionCertification ends blocked with unsupported-combination and, at build-tested and behavior-tested, lists that function or object as the kind of an evidence blocker. resolveApprovedCombination, previewGeneration, auditLegacyProviders, validateBoundCertificationEvidence and inspectPersistenceHandoff answer for each of the twelve names as for an unknown provider id."
+      }
+    ],
+    "prose": [
+      {
+        "token": "node --test",
+        "reason": "the direct command form of the commands table"
+      },
+      {
+        "token": "npm test",
+        "reason": "the root script named by the limit root-npm-test-does-not-run-the-suite"
+      },
+      {
+        "token": "handles/",
+        "reason": "the package file list entry named by the limit root-npm-test-does-not-run-the-suite"
+      },
+      {
+        "token": "node next/t00/check-ownership.mjs paths --track T14",
+        "reason": "the call that the ownership test makes to the checker"
+      },
+      {
+        "token": "next/t14/**",
+        "reason": "plan scope of T14 in next/t00/ownership-map.json"
+      },
+      {
+        "token": "handles/composition-next/**",
+        "reason": "suite scope of T14 in next/t00/ownership-map.json"
+      },
+      {
+        "token": "test/provider-composition-next/**",
+        "reason": "suite scope of T14 in next/t00/ownership-map.json"
+      },
+      {
+        "token": "__defineGetter__",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "__defineSetter__",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "__lookupGetter__",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "__lookupSetter__",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "__proto__",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "constructor",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "hasOwnProperty",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "isPrototypeOf",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "propertyIsEnumerable",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "toLocaleString",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "toString",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "valueOf",
+        "reason": "name that Object.prototype defines, listed by the rule inherited-names"
+      },
+      {
+        "token": "accepted",
+        "reason": "provenance status word that the persistence inspector requires (rule bound-is-not-accepted)"
+      },
+      {
+        "token": "bound",
+        "reason": "provenance status word that the persistence track writes (rule bound-is-not-accepted)"
+      },
+      {
+        "token": "code",
+        "reason": "key of every blocker"
+      },
+      {
+        "token": "message",
+        "reason": "key of every blocker"
+      },
+      {
+        "token": "derived",
+        "reason": "key of the vocabulary file: what the code emits"
+      },
+      {
+        "token": "narrative",
+        "reason": "key of the vocabulary file: what the words mean"
+      }
+    ],
+    "headings": [
+      "# T14 provider composition layer: interface RFC",
+      "## 1. Purpose and non-goals",
+      "## 2. Scope and files",
+      "## 3. Inputs and outputs",
+      "## 4. Identity",
+      "### 4.1 Provider and combination",
+      "### 4.2 Plan",
+      "### 4.3 Certification",
+      "### 4.4 Evidence boundary",
+      "## 5. Unknown, partial and unsupported",
+      "## 6. Promotion gates",
+      "## 7. File ownership and neighbours",
+      "## 8. Observed limits and how this document is checked"
+    ]
+  }
+}
