@@ -413,7 +413,7 @@ function blocksOf(vocab, record) {
   const resultRows = shapeKeys.flatMap((key) => d.results.shapes[key].map((keys) => {
     const label = key.startsWith('previewGeneration.') ? `${q('previewGeneration')} (${text(own(n.shapeLabels, key))})` : q(key);
     const status = own(d.results.shapeStatuses, `${key}|${keys}`) ?? [];
-    return [label, own(d.results.schemas, key) ? qs(d.results.schemas[key]) : '-', status.length ? qs(status) : '-', keys === 'array' ? 'an `array` of strings, the evidence kinds' : q(keys.split(',').join(', '))];
+    return [label, own(d.results.schemas, key) ? qs(d.results.schemas[key]) : '-', status.length ? qs(status) : '-', keys === 'array' ? 'an `array` of strings, the evidence kinds (a function in the third place for `constructor`, `toString` and `hasOwnProperty` at `build-tested` and `behavior-tested`: rule `inherited-names`)' : q(keys.split(',').join(', '))];
   }));
   const wordRows = n.words.map((word) => [q(word.word), qs(word.where), word.meaning]);
   const thrownRows = Object.entries(d.text.thrown).flatMap(([file, items]) => items.map((item) => [q(file), q(item), d.coverage.thrownNotReached.includes(item) ? 'no' : 'yes']));
@@ -608,6 +608,8 @@ function vocabProblems(vocab, derived, record, sourceOf) {
   return problems;
 }
 
+const RESULT_SENTENCE = 'or for `requiredEvidenceFor` an array of strings, with one exception: when the provider id is `constructor`, `toString` or `hasOwnProperty` (the inherited names of rule `inherited-names`), the array holds a function in its third place at the levels `build-tested` and `behavior-tested`.';
+
 // The document against the vocabulary: tables verbatim, headings, names both ways, text rules.
 function rfcProblems(rfc, vocab, record) {
   const problems = [];
@@ -639,6 +641,8 @@ function rfcProblems(rfc, vocab, record) {
   for (const name of namesOf(vocab, record)) if (!spans.has(name) && !words.has(name)) problems.push(`the document does not spell ${name}`);
   for (const item of vocab.narrative.prose) if (!spans.has(item.token) && !words.has(item.token)) problems.push(`prose token ${item.token} is not used`);
   for (const item of vocab.narrative.rules) if (!rfc.includes(item.statement)) problems.push(`rule ${item.id} is not stated in the document`);
+  // The sentence on the result of requiredEvidenceFor is in no table; it must carry its exception whole.
+  if (!rfc.includes(RESULT_SENTENCE)) problems.push('the sentence on the result of requiredEvidenceFor does not carry its exception for the inherited names');
   return problems;
 }
 
@@ -951,7 +955,8 @@ const RULE_TESTS = {
     for (const providerId of ['constructor', 'toString', 'hasOwnProperty']) {
       const [decision] = M.safety.describeResourceGeneration({ providerId, handlesPlan }).decisions;
       assert.deepEqual([decision.generated, decision.fetch, decision.authorization, decision.patch, decision.recover], [true, undefined, undefined, undefined, undefined], `${providerId}: a profile was found where none exists`);
-      assert.equal(typeof M.cert.requiredEvidenceFor({ providerId, level: 'build-tested' })[2], 'function', `${providerId}: a function is listed where an evidence kind belongs`);
+      for (const level of ['build-tested', 'behavior-tested']) assert.equal(typeof M.cert.requiredEvidenceFor({ providerId, level })[2], 'function', `${providerId} at ${level}: a function is listed where an evidence kind belongs`);
+      assert.ok(M.cert.requiredEvidenceFor({ providerId, level: 'preview-tested' }).every((kind) => typeof kind === 'string'), `${providerId} at preview-tested: only strings`);
     }
     assert.throws(() => M.safety.describeResourceGeneration({ providerId: 'future-provider', handlesPlan }), /no conservative generation profile/);
   }
@@ -1039,7 +1044,12 @@ test('negative: a document whose tables, headings, names or rule statements drif
     ['two final newlines', `${rfc}\n`, /exactly one newline/],
     ['too many lines', `${rfc}${'filler\n'.repeat(LINE_CAP)}`, /more than/],
     ['the hash function named in a sentence between the tables (a sentence added)', `${rfc}\nThe function \`t16HashJson\` returns a hash for every value.\n`, /t16HashJson is named between the tables/],
-    ['the hash function named in a sentence between the tables (a sentence rewritten)', rfc.replace('the hash function of the evidence module', '`t16HashJson`'), /t16HashJson is named between the tables/]
+    ['the hash function named in a sentence between the tables (a sentence rewritten)', rfc.replace('the hash function of the evidence module', '`t16HashJson`'), /t16HashJson is named between the tables/],
+    ['the exception of requiredEvidenceFor cut from the sentence', rfc.replace(RESULT_SENTENCE, 'or for `requiredEvidenceFor` an array of strings.'), /result of requiredEvidenceFor/],
+    ['a name of the exception of requiredEvidenceFor dropped', rfc.replace(RESULT_SENTENCE, RESULT_SENTENCE.replace('`toString` or ', '')), /result of requiredEvidenceFor/],
+    ['the claim of the exception of requiredEvidenceFor changed', rfc.replace(RESULT_SENTENCE, RESULT_SENTENCE.replace('a function', 'a number')), /result of requiredEvidenceFor/],
+    ['the rule named in the exception of requiredEvidenceFor changed', rfc.replace(RESULT_SENTENCE, RESULT_SENTENCE.replace('rule `inherited-names`', 'rule `hash-rule`')), /result of requiredEvidenceFor/],
+    ['the exception of requiredEvidenceFor cut from its table cell', rfc.replace(' (a function in the third place for `constructor`, `toString` and `hasOwnProperty` at `build-tested` and `behavior-tested`: rule `inherited-names`)', ''), /table results stands 0 times/]
   ];
   for (const [label, text, pattern] of cases) assert.ok(mentions(rfcProblems(text, vocab, record), pattern), label);
   const withProse = damage(vocab, (v) => { v.narrative.prose.push({ token: 'neverUsedToken', reason: 'x' }); });
