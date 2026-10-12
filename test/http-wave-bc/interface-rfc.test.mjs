@@ -33,6 +33,12 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const spans = (text) => [...text.matchAll(/`([^`\n]+)`/g)].map((m) => m[1]);
 const withoutSpans = (text) => text.replace(/`[^`\n]*`/g, '');
 const claimIds = (vocab) => Object.values(vocab.claims).flatMap((group) => group.map((c) => c.id));
+// The recursive option of readdirSync needs Node 18.17, and the engines field allows 18.0.
+const filesUnder = (dir, prefix = '') => fs.readdirSync(dir).flatMap((name) => {
+	const entry = path.join(dir, name);
+	if (fs.lstatSync(entry).isDirectory()) return filesUnder(entry, `${prefix}${name}/`);
+	return fs.statSync(entry).isFile() ? [`${prefix}${name}`] : [];
+});
 
 function parseTables(text) {
 	const tables = [];
@@ -95,7 +101,10 @@ const TREES = {
 	'next-three': ['typescript-nextjs', { 'app/a/route.ts': exporting('GET', 'POST'), 'app/b/route.ts': exporting('GET'), 'app/[id]/route.ts': exporting('GET') }],
 	'next-both': ['typescript-nextjs', { 'app/a/route.ts': exporting('GET'), 'src/app/a/route.ts': exporting('GET') }],
 	'next-dup': ['typescript-nextjs', { 'app/api/route.ts': exporting('GET', 'POST'), 'app/api/route.js': exporting('GET') }],
+	'next-disjoint': ['typescript-nextjs', { 'app/api/route.js': exporting('GET'), 'app/api/route.ts': exporting('POST') }],
 	'next-no-method': ['typescript-nextjs', { 'app/a/route.ts': 'export const dynamic = 1;\n' }],
+	'next-slot-no-method': ['typescript-nextjs', { 'app/ok/route.ts': exporting('GET'), 'app/@slot/route.ts': 'export const dynamic = 1;\n' }],
+	'next-base-path': ['typescript-nextjs', { 'app/api/route.ts': exporting('GET'), 'next.config.js': 'module.exports = { basePath: process.env.BASE_PATH };\n' }],
 	'next-reasons': ['typescript-nextjs', { 'app/ok/route.ts': exporting('GET'), 'app/@slot/route.ts': exporting('GET'), 'app/_private/route.ts': exporting('GET'), 'app/[...all]/route.ts': exporting('GET'), 'app/(.)photo/route.ts': exporting('GET'), 'app/a[b]c/route.ts': exporting('GET') }],
 	'next-page-only': ['typescript-nextjs', { 'app/page.tsx': 'export default function Page() { return null; }\n' }]
 };
@@ -186,7 +195,7 @@ async function load(root = REPO_ROOT) {
 	const own = await attempt('next/t00/ownership.mjs', () => importFrom('next/t00/ownership.mjs'));
 	const map = await attempt('next/t00/ownership-map.json', () => JSON.parse(readText('next/t00/ownership-map.json')));
 	x.classify = own && map ? (p) => own.classifyPath(map, 'bskel', p) : undefined;
-	x.tree = await attempt('file list', () => fs.readdirSync(path.join(root, BC), { recursive: true }).map(posix).filter((rel) => fs.statSync(path.join(root, BC, rel)).isFile()).sort());
+	x.tree = await attempt('file list', () => filesUnder(path.join(root, BC)).sort());
 	if (errors.length === 0) {
 		x.samples = await attempt('samples', () => buildSamples(x.leaf, root));
 		x.reports = {};
@@ -752,7 +761,11 @@ const CHECKS = {
 		const same_path = controllersOf(run).filter((c) => c.basePath === '/api');
 		if (same_path.length !== 2) p.push(`next-dup: ${same_path.length} controllers for /api, expected 2`);
 		const files = same_path.map((c) => rel(run.detection.projectRoot, c.file));
-		if (new Set(files).size !== 2 || !files.every((f) => run.scan.scanNotes.some((note) => note.includes(f)))) p.push('next-dup: no scan note names both files');
+		if (new Set(files).size !== 2 || !run.scan.scanNotes.some((note) => files.every((f) => note.includes(f)))) p.push('next-dup: no scan note names both files');
+		const apart = runOf(x, 'next-disjoint');
+		const pair = controllersOf(apart).filter((c) => c.basePath === '/api');
+		if (pair.length !== 2) p.push(`next-disjoint: ${pair.length} controllers for /api, expected 2`);
+		if (apart.scan.scanNotes.some((note) => pair.some((c) => note.includes(rel(apart.detection.projectRoot, c.file))))) p.push('next-disjoint: a scan note names one of the files');
 		return p;
 	},
 	'id-line': (x) => {
@@ -792,6 +805,28 @@ const CHECKS = {
 		for (const r of x.samples.runs.filter((q) => q.detection)) {
 			for (const c of controllersOf(r)) if (!path.isAbsolute(c.file) || !fs.existsSync(c.file)) p.push(`${r.id}: file ${c.file} is not an existing absolute path`);
 			for (const f of r.scan.filesRead) if (path.isAbsolute(f) || !fs.existsSync(path.join(r.root, f))) p.push(`${r.id}: filesRead entry ${f} is not an existing path below the scan root`);
+		}
+		for (const id of ['hono-dup', 'koa-dup', 'next-one']) {
+			const r = runOf(x, id);
+			const adapter = x.leaf[r.leaf].adapter;
+			const given = path.relative(process.cwd(), r.root);
+			if (given === '' || path.isAbsolute(given)) {
+				p.push(`${id}: the scan root has no relative form from ${process.cwd()}`);
+				continue;
+			}
+			const detection = adapter.detect(given);
+			const scan = detection ? adapter.scan(given, detection) : null;
+			const found = scan ? scan.modules.flatMap((m) => m.controllers) : [];
+			const want = controllersOf(r);
+			if (found.length === 0 || found.length !== want.length) {
+				p.push(`${id}: a relative scan root gives ${found.length} controllers, expected ${want.length}`);
+				continue;
+			}
+			found.forEach((c, i) => {
+				if (path.isAbsolute(c.file) || path.resolve(c.file) !== want[i].file) p.push(`${id}: with a relative scan root file is ${c.file}, expected a relative path to ${want[i].file}`);
+				if (c.className !== want[i].className) p.push(`${id}: className depends on the form of the scan root`);
+			});
+			if (!same(scan.filesRead, r.scan.filesRead)) p.push(`${id}: filesRead depends on the form of the scan root`);
 		}
 		const run = runOf(x, 'hono-nested');
 		if (!run?.detection) return [...p, 'hono-nested was not detected'];
@@ -864,6 +899,15 @@ const CHECKS = {
 		for (const m of found) if (!fs.existsSync(path.join(run.detection.projectRoot, m[1]))) p.push(`a note names ${m[1]}, which is no file of the tree`);
 		const eps = endpointsOf(run);
 		if (eps.length !== 1 || eps[0].path !== '/ok') p.push('next-reasons: a file without a built path emitted an endpoint');
+		const named = (note) => x.vocab.reason_codes.some((c) => note.includes(c));
+		const quiet = runOf(x, 'next-slot-no-method');
+		const quietEps = endpointsOf(quiet);
+		if (quietEps.length !== 1 || quietEps[0].path !== '/ok') p.push('next-slot-no-method: the sample does not give one endpoint, for /ok');
+		if (quiet.scan.scanNotes.some(named)) p.push('next-slot-no-method: a note names a reason code for a file without a supported method');
+		const held = runOf(x, 'next-base-path');
+		if (!held.detection || controllersOf(held).length !== 0) p.push('next-base-path: the tree is not detected or gives a controller');
+		if (!held.scan.scanNotes.some((n) => n.includes('app/api/route.ts'))) p.push('next-base-path: no note names the withheld file');
+		if (held.scan.scanNotes.some(named)) p.push('next-base-path: a note names a reason code');
 		for (const r of x.samples.runs.filter((q) => q.leaf !== 'typescript-nextjs')) {
 			if (r.scan.scanNotes.some((n) => x.vocab.reason_codes.some((c) => n.includes(c)))) p.push(`${r.id}: a note names a reason code`);
 		}
@@ -979,12 +1023,18 @@ const NEG = [
 	{ id: 'id-duplicate', when: 'same-line registrations differ in line', make: (x) => patchRuns(x, (r) => { endpointsOf(r['koa-same-line'])[1].line += 1; }), expect: /koa-same-line: the two endpoints differ in more than method/ },
 	{ id: 'id-duplicate', when: 'same-line registrations share a method', make: (x) => patchRuns(x, (r) => { const [a, b] = endpointsOf(r['hono-same-line']); b.method = a.method; }), expect: /hono-same-line: method does not differ/ },
 	{ id: 'id-duplicate', when: 'no note names the duplicate files', make: (x) => patchRuns(x, (r) => { const s = r['next-dup'].scan; s.scanNotes = s.scanNotes.filter((n) => !n.includes('duplicate')); }), expect: /next-dup: no scan note names both files/ },
+	{ id: 'id-duplicate', when: 'a note names the files of disjoint methods', make: (x) => patchRuns(x, (r) => { r['next-disjoint'].scan.scanNotes.push('Next.js duplicate Route Handler identity GET /api is produced by: app/api/route.js, app/api/route.ts; this conflict is preserved instead of choosing a winner.'); }), expect: /next-disjoint: a scan note names one of the files/ },
+	{ id: 'id-duplicate', when: 'the files of disjoint methods give one controller', make: (x) => patchRuns(x, (r) => { const m = r['next-disjoint'].scan.modules[0]; m.controllers = m.controllers.slice(0, 1); }), expect: /next-disjoint: 1 controllers for \/api, expected 2/ },
 	{ id: 'id-line', when: 'a line is off by one', make: (x) => patchRuns(x, (r) => { firstEp(r['hono-dup']).line += 1; }), expect: /hono-dup: line of .* is \d+, the source has it at \d+/ },
 	{ id: 'id-line', when: 'the shifted scan keeps its line', make: (x) => patchRuns(x, (r) => { firstEp(r['koa-dup-shift']).line = firstEp(r['koa-dup']).line; }), expect: /koa-dup and koa-dup-shift: line moved by 0, expected 1/ },
 	{ id: 'id-line', when: 'className changes with the shift', make: (x) => patchRuns(x, (r) => { first(r['next-one-shift']).className = 'NextRoute(x)'; }), expect: /next-one and next-one-shift: className changed/ },
 	{ id: 'id-location', when: 'file is relative', make: (x) => patchRuns(x, (r) => { first(r['hono-nested']).file = 'src/index.ts'; }), expect: /is not an existing absolute path/ },
 	{ id: 'id-location', when: 'a filesRead entry is absolute', make: (x) => patchRuns(x, (r) => { const s = r['hono-nested'].scan; s.filesRead[0] = path.join(r['hono-nested'].root, s.filesRead[0]); }), expect: /filesRead entry .* is not an existing path below the scan root/ },
 	{ id: 'id-location', when: 'className is relative to the scan root', make: (x) => patchRuns(x, (r) => { first(r['hono-nested']).className = 'Hono(apps/api/src/index.ts:app)'; }), expect: /is not relative to the project root/ },
+	{ id: 'id-location', when: 'file is absolute for a relative scan root', make: (x) => patchAdapter(x, 'node-koa', { scan: (root, d) => { const s = x.leaf['node-koa'].adapter.scan(root, d); for (const m of s.modules) for (const c of m.controllers) c.file = path.resolve(c.file); return s; } }), expect: /koa-dup: with a relative scan root file is .*, expected a relative path/ },
+	{ id: 'id-location', when: 'className changes with a relative scan root', make: (x) => patchAdapter(x, 'node-hono', { scan: (root, d) => { const s = x.leaf['node-hono'].adapter.scan(root, d); if (!path.isAbsolute(root)) for (const m of s.modules) for (const c of m.controllers) c.className = `Hono(${root}:app)`; return s; } }), expect: /hono-dup: className depends on the form of the scan root/ },
+	{ id: 'id-location', when: 'filesRead changes with a relative scan root', make: (x) => patchAdapter(x, 'typescript-nextjs', { scan: (root, d) => { const s = x.leaf['typescript-nextjs'].adapter.scan(root, d); if (!path.isAbsolute(root)) s.filesRead = s.filesRead.map((f) => path.join(root, f)); return s; } }), expect: /next-one: filesRead depends on the form of the scan root/ },
+	{ id: 'id-location', when: 'a relative scan root is not detected', make: (x) => patchAdapter(x, 'node-hono', { detect: (root) => (path.isAbsolute(root) ? x.leaf['node-hono'].adapter.detect(root) : null) }), expect: /hono-dup: a relative scan root gives 0 controllers, expected 1/ },
 	{ id: 'id-no-digest', when: 'an endpoint gets a digest key', make: (x) => patchRuns(x, (r) => { firstEp(r['hono-dup']).routeDigest = 'abc'; }), expect: /the key routeDigest has hash, digest or sha as a word/ },
 	{ id: 'id-no-digest', when: 'same-line values differ', make: (x) => patchRuns(x, (r) => { endpointsOf(r['koa-same-line'])[1].line += 1; }), expect: /koa-same-line: the two registrations on one line do not carry equal values/ },
 	{ id: 'id-no-digest', when: 'the values do not move with an inserted line', make: (x) => patchRuns(x, (r) => { endpointsOf(r['hono-dup-shift']).forEach((e, i) => { e.line = endpointsOf(r['hono-dup'])[i].line; }); }), expect: /hono-dup and hono-dup-shift: the values do not change when a line is inserted/ },
@@ -1003,6 +1053,11 @@ const NEG = [
 	{ id: 'un-reason-codes', when: 'a Hono note names a reason code', make: (x) => patchRuns(x, (r) => { r['hono-dup'].scan.scanNotes.push('uses parallel-route-segment'); }), expect: /hono-dup: a note names a reason code/ },
 	{ id: 'un-reason-codes', when: 'an endpoint carries a status', make: (x) => patchRuns(x, (r) => { firstEp(r['koa-dup']).status = 'withheld'; }), expect: /an endpoint has the key status/ },
 	{ id: 'un-reason-codes', when: 'a second endpoint is emitted', make: (x) => patchRuns(x, (r) => { const c = first(r['next-reasons']); c.endpoints.push({ ...c.endpoints[0], path: '/extra' }); }), expect: /next-reasons: a file without a built path emitted an endpoint/ },
+	{ id: 'un-reason-codes', when: 'a file without a supported method gets a reason note', make: (x) => patchRuns(x, (r) => { r['next-slot-no-method'].scan.scanNotes.push('Next.js Route Handler at app/@slot/route.ts uses parallel-route-segment; no endpoint path was emitted.'); }), expect: /next-slot-no-method: a note names a reason code for a file without a supported method/ },
+	{ id: 'un-reason-codes', when: 'a file without a supported method emits an endpoint', make: (x) => patchRuns(x, (r) => { const c = first(r['next-slot-no-method']); c.endpoints.push({ ...c.endpoints[0], path: '/slot' }); }), expect: /next-slot-no-method: the sample does not give one endpoint, for \/ok/ },
+	{ id: 'un-reason-codes', when: 'the base-path note gets a reason code', make: (x) => patchRuns(x, (r) => { const s = r['next-base-path'].scan; s.scanNotes = s.scanNotes.map((n) => (n.includes('app/api/route.ts') ? `${n} (parallel-route-segment)` : n)); }), expect: /next-base-path: a note names a reason code/ },
+	{ id: 'un-reason-codes', when: 'the base-path note does not name the file', make: (x) => patchRuns(x, (r) => { const s = r['next-base-path'].scan; s.scanNotes = s.scanNotes.map((n) => n.replaceAll('app/api/route.ts', 'a file')); }), expect: /next-base-path: no note names the withheld file/ },
+	{ id: 'un-reason-codes', when: 'the base-path tree gives a controller', make: (x) => patchRuns(x, (r) => { r['next-base-path'].scan.modules = [{ module: 'm', controllers: [{ className: 'x', endpoints: [] }] }]; }), expect: /next-base-path: the tree is not detected or gives a controller/ },
 	{ id: 'un-show-routes', when: 'the parser drops the unknown lines', make: (x) => patchModule(x, PARSER, { parseHonoShowRoutes: (text) => ({ ...x.mod[PARSER].parseHonoShowRoutes(text), unknownLines: [] }) }), expect: /the sample listing does not give the snapshot of the oracle/ },
 	{ id: 'un-show-routes', when: 'the parser names another schema', make: (x) => patchModule(x, PARSER, { parseHonoShowRoutes: (text) => ({ ...x.mod[PARSER].parseHonoShowRoutes(text), schema: 'bskel.hono-show-routes-snapshot/2' }) }), expect: /an empty string does not give empty lists/ },
 	{ id: 'un-show-routes', when: 'null input gives a route', make: (x) => patchModule(x, PARSER, { parseHonoShowRoutes: (text) => (text === null ? { schema: x.vocab.schemas.show_routes_snapshot, routes: [{ method: 'GET', path: '/', line: 1, handlers: [] }], unknownLines: [] } : x.mod[PARSER].parseHonoShowRoutes(text)) }), expect: /null does not give empty lists/ },

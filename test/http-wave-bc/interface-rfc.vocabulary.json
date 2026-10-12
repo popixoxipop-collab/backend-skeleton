@@ -162,7 +162,7 @@
    },
    {
     "id": "id-duplicate",
-    "text": "Registrations are not merged or renumbered. Two Hono or Koa calls with one verb and path stay two endpoints; written on one source line they share verb, path and `line` and differ only in `method`. Two Next route files for one path stay two controllers, and a scan note names both files."
+    "text": "Registrations are not merged or renumbered. Two Hono or Koa calls with one verb and path stay two endpoints; written on one source line they share verb, path and `line` and differ only in `method`. In the sampled Next scans, two route files for one path that export a method in common stay two controllers and one scan note names both files, while two files for one path that export different methods give no such note."
    },
    {
     "id": "id-line",
@@ -170,7 +170,7 @@
    },
    {
     "id": "id-location",
-    "text": "`file` of a controller is an absolute path, `filesRead` entries are relative to the scan root and the file named in `className` is relative to the project root for Hono and Next but only a basename for Koa (`id-class-name`); for a project below the scan root these bases differ, which the sampled Hono project shows."
+    "text": "In the sampled scans `file` of a controller is the scan root as passed, joined with the path of the file below it: absolute for an absolute scan root and relative to the working directory for a relative one. `filesRead` entries are relative to the scan root in both cases. The file named in `className` is relative to the project root for Hono and Next but only a basename for Koa (`id-class-name`), and does not depend on the form of the scan root; for a project below the scan root these bases differ, which the sampled Hono project shows."
    },
    {
     "id": "id-no-digest",
@@ -188,7 +188,7 @@
    },
    {
     "id": "un-reason-codes",
-    "text": "A Next route file whose path cannot be built emits no endpoint and one note naming the file and one of the five reason codes above; in the sampled Hono and Koa scans no note names such a code. A withheld form is reported as note text only, and no endpoint key carries a status or reason."
+    "text": "In the sampled Next scans a route file that exports a supported method and whose path cannot be built because of a segment emits no endpoint and one note naming the file and one of the five reason codes above; the same kind of file without a supported method gets no note, and a file withheld because the base path is unresolved gets a note that names the file and no reason code. In the sampled Hono and Koa scans no note names a reason code. A withheld form is reported as note text only, and no endpoint key carries a status or reason."
    },
    {
     "id": "un-show-routes",
