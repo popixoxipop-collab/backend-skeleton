@@ -13,7 +13,7 @@ export const TRACK = {
 	recordFile: 'scanners/language/python/BASELINE.json',
 	sourceDir: 'scanners/language/python',
 	testDir: 'test/language-python',
-	ownFiles: ['test/language-python/baseline-record.test.mjs', 'test/language-python/baseline-record-lib.mjs']
+	ownFiles: ['test/language-python/baseline-record.test.mjs', 'test/language-python/baseline-record-lib.mjs', 'test/language-python/interface-rfc.test.mjs', 'test/language-python/interface-rfc.vocabulary.json']
 };
 //@@TRACK-END
 
