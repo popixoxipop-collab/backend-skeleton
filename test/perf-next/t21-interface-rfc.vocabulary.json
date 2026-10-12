@@ -1,0 +1,627 @@
+{
+ "schema": "bskel.t21-interface-vocabulary/1",
+ "record_schema": "bskel.track-baseline-record/2",
+ "runner_line": "NESTED_SUITE T21 RUN 11 files",
+ "roles": {
+  "store": "Content-addressed blob store: put, has and read by sha256 reference; atomic write and read-back verification",
+  "cache-index": "Cache index file inside a repository: cache key to artifact reference plus dependency paths, written under a lock",
+  "gc": "Garbage collection of unreferenced blobs: dry run by default, unexpected entries are reported and never deleted",
+  "cache-key": "Canonical JSON, sha256 digests and the scan cache key",
+  "cache-runtime": "Runs a computation through the cache: a hit returns the stored artifact, a miss computes, stores and indexes it",
+  "file-index": "Digest index of the files below a root, with count and byte budgets and portable path findings",
+  "invalidation": "Added, deleted, modified and dependency-invalidated paths between two file indexes",
+  "legacy-cache": "Shadow cache around the single-project scanner runScan, which it does not change",
+  "performance-policy": "Pass, fail or blocked verdict comparing a candidate measurement with a baseline measurement",
+  "project-cache-plan": "Per-project cache namespaces from the draft project graph, and the projects invalidated by a change",
+  "project-cache-runner": "Shadow run of the legacy cache for every planned project through the scheduler",
+  "resource-budget": "Memory admission derived from total memory, a reserve fraction and a minimum reserve",
+  "scheduler": "Dependency-aware task graph runner with a concurrency limit and a byte budget"
+ },
+ "modules": {
+  "cache-index": {
+   "dir": "lib/artifact-store-next",
+   "exports": ["createCacheIndex"],
+   "imports": {
+    "lib/fsutil.mjs": ["writeFileAtomic"],
+    "lib/lock.mjs": ["withLockSync"],
+    "lib/scan-scheduler-next/cache-key.mjs": ["stableJson"],
+    "node:fs": [],
+    "node:path": []
+   }
+  },
+  "gc": {
+   "dir": "lib/artifact-store-next",
+   "exports": ["collectArtifactGarbage"],
+   "imports": { "node:fs": [], "node:path": [] }
+  },
+  "store": {
+   "dir": "lib/artifact-store-next",
+   "exports": ["createArtifactStore"],
+   "imports": { "node:crypto": ["createHash"], "node:fs": [], "node:path": [] }
+  },
+  "cache-key": {
+   "dir": "lib/scan-scheduler-next",
+   "exports": ["buildScanCacheKey", "digestJson", "sha256Bytes", "stableJson"],
+   "imports": { "node:crypto": ["createHash"] }
+  },
+  "cache-runtime": {
+   "dir": "lib/scan-scheduler-next",
+   "exports": ["runCachedTask"],
+   "imports": { "lib/scan-scheduler-next/cache-key.mjs": ["stableJson"] }
+  },
+  "file-index": {
+   "dir": "lib/scan-scheduler-next",
+   "exports": ["DEFAULT_EXCLUDED_DIRS", "buildFileIndex", "indexEntryMap", "portablePathIssuesForPaths"],
+   "imports": {
+    "lib/scan-scheduler-next/cache-key.mjs": ["digestJson"],
+    "node:crypto": ["createHash"],
+    "node:fs": [],
+    "node:path": []
+   }
+  },
+  "invalidation": {
+   "dir": "lib/scan-scheduler-next",
+   "exports": ["computeInvalidation"],
+   "imports": { "lib/scan-scheduler-next/file-index.mjs": ["indexEntryMap"] }
+  },
+  "legacy-cache": {
+   "dir": "lib/scan-scheduler-next",
+   "exports": ["runLegacyScanCached"],
+   "imports": {
+    "lib/artifact-store-next/cache-index.mjs": ["createCacheIndex"],
+    "lib/artifact-store-next/store.mjs": ["createArtifactStore"],
+    "lib/scan-scheduler-next/cache-key.mjs": ["buildScanCacheKey", "digestJson"],
+    "lib/scan-scheduler-next/cache-runtime.mjs": ["runCachedTask"],
+    "lib/scan-scheduler-next/file-index.mjs": ["buildFileIndex"],
+    "node:path": [],
+    "scanners/index.mjs": ["runScan"]
+   }
+  },
+  "performance-policy": {
+   "dir": "lib/scan-scheduler-next",
+   "exports": ["evaluatePerformanceGate"],
+   "imports": {}
+  },
+  "project-cache-plan": {
+   "dir": "lib/scan-scheduler-next",
+   "exports": ["T21_PROJECT_CACHE_PLAN_DRAFT", "T21_PROJECT_GRAPH_DRAFT", "buildProjectCachePlan", "propagateProjectInvalidation"],
+   "imports": { "lib/scan-scheduler-next/cache-key.mjs": ["digestJson"] }
+  },
+  "project-cache-runner": {
+   "dir": "lib/scan-scheduler-next",
+   "exports": ["runProjectGraphCached"],
+   "imports": {
+    "lib/scan-scheduler-next/file-index.mjs": ["buildFileIndex"],
+    "lib/scan-scheduler-next/legacy-cache.mjs": ["runLegacyScanCached"],
+    "lib/scan-scheduler-next/project-cache-plan.mjs": ["T21_PROJECT_GRAPH_DRAFT", "buildProjectCachePlan"],
+    "lib/scan-scheduler-next/scheduler.mjs": ["runTaskGraph"],
+    "node:crypto": ["createHash"],
+    "node:fs": [],
+    "node:path": []
+   }
+  },
+  "resource-budget": {
+   "dir": "lib/scan-scheduler-next",
+   "exports": ["deriveMemoryAdmission"],
+   "imports": {}
+  },
+  "scheduler": {
+   "dir": "lib/scan-scheduler-next",
+   "exports": ["runTaskGraph"],
+   "imports": {}
+  }
+ },
+ "functions": {
+  "createCacheIndex": {
+   "module": "cache-index",
+   "async": false,
+   "positional": ["repoRoot"],
+   "options": ["relativePath", "lockName"],
+   "defaults": { "relativePath": "'.sbf/cache-next/index.json'", "lockName": "'t21-cache-index'" }
+  },
+  "collectArtifactGarbage": {
+   "module": "gc",
+   "async": false,
+   "positional": ["storeRoot"],
+   "options": ["reachable", "dryRun", "minAgeMs", "nowMs", "maxDeleteCount", "maxDeleteBytes"],
+   "defaults": {
+    "reachable": "[]",
+    "dryRun": "true",
+    "minAgeMs": "0",
+    "nowMs": "Date.now()",
+    "maxDeleteCount": "10_000",
+    "maxDeleteBytes": "1024 * 1024 * 1024"
+   }
+  },
+  "createArtifactStore": {
+   "module": "store",
+   "async": false,
+   "positional": ["storeRoot"],
+   "options": ["maxArtifactBytes"],
+   "defaults": { "maxArtifactBytes": "512 * 1024 * 1024" }
+  },
+  "buildScanCacheKey": {
+   "module": "cache-key",
+   "async": false,
+   "positional": [],
+   "options": ["namespace", "sourceDigest", "resolverDigest", "configDigest", "parserDigest", "adapterDigest", "schemaDigest", "policyDigest", "runtimeFingerprint"],
+   "defaults": { "namespace": "'bskel.scan-cache/1'" }
+  },
+  "digestJson": {
+   "module": "cache-key",
+   "async": false,
+   "positional": ["value"],
+   "options": [],
+   "defaults": {}
+  },
+  "sha256Bytes": {
+   "module": "cache-key",
+   "async": false,
+   "positional": ["value"],
+   "options": [],
+   "defaults": {}
+  },
+  "stableJson": {
+   "module": "cache-key",
+   "async": false,
+   "positional": ["value"],
+   "options": [],
+   "defaults": {}
+  },
+  "runCachedTask": {
+   "module": "cache-runtime",
+   "async": true,
+   "positional": [],
+   "options": ["cacheKey", "cacheIndex", "artifactStore", "compute", "dependencies", "metadata", "serialize", "deserialize", "validate"],
+   "defaults": {
+    "dependencies": "[]",
+    "metadata": "null",
+    "serialize": "defaultSerialize",
+    "deserialize": "defaultDeserialize",
+    "validate": "null"
+   }
+  },
+  "buildFileIndex": {
+   "module": "file-index",
+   "async": false,
+   "positional": ["repoRoot"],
+   "options": ["excludedDirs", "include", "maxFiles", "maxBytes"],
+   "defaults": {
+    "excludedDirs": "DEFAULT_EXCLUDED_DIRS",
+    "include": "null",
+    "maxFiles": "200_000",
+    "maxBytes": "2 * 1024 * 1024 * 1024"
+   }
+  },
+  "indexEntryMap": {
+   "module": "file-index",
+   "async": false,
+   "positional": ["index"],
+   "options": [],
+   "defaults": {}
+  },
+  "portablePathIssuesForPaths": {
+   "module": "file-index",
+   "async": false,
+   "positional": ["paths"],
+   "options": [],
+   "defaults": {}
+  },
+  "computeInvalidation": {
+   "module": "invalidation",
+   "async": false,
+   "positional": [],
+   "options": ["previousIndex", "nextIndex", "dependencyEdges", "globalInputsChanged"],
+   "defaults": { "dependencyEdges": "[]", "globalInputsChanged": "false" }
+  },
+  "runLegacyScanCached": {
+   "module": "legacy-cache",
+   "async": true,
+   "positional": [],
+   "options": ["repoRoot", "cacheRoot", "adapter", "terms", "rgAvailable", "implementationDigest", "cacheNamespace", "policyFingerprint", "runtimeFingerprint", "useCache", "indexOptions"],
+   "defaults": {
+    "cacheRoot": "repoRoot",
+    "terms": "[]",
+    "rgAvailable": "true",
+    "cacheNamespace": "null",
+    "policyFingerprint": "null",
+    "runtimeFingerprint": "defaultRuntimeFingerprint()",
+    "useCache": "true",
+    "indexOptions": "{}"
+   }
+  },
+  "evaluatePerformanceGate": {
+   "module": "performance-policy",
+   "async": false,
+   "positional": [],
+   "options": ["baseline", "candidate", "policy"],
+   "defaults": { "policy": "{}" }
+  },
+  "buildProjectCachePlan": {
+   "module": "project-cache-plan",
+   "async": false,
+   "positional": ["graph"],
+   "options": ["includeFallback"],
+   "defaults": { "includeFallback": "false" }
+  },
+  "propagateProjectInvalidation": {
+   "module": "project-cache-plan",
+   "async": false,
+   "positional": ["graph", "changedProjectIds"],
+   "options": [],
+   "defaults": {}
+  },
+  "runProjectGraphCached": {
+   "module": "project-cache-runner",
+   "async": true,
+   "positional": [],
+   "options": ["repoRoot", "cacheRoot", "graph", "adapters", "implementationDigests", "terms", "rgAvailable", "includeFallback", "useCache", "policyFingerprint", "maxConcurrency", "maxEstimatedBytesInFlight", "reservationBaseBytes", "reservationSourceMultiplier"],
+   "defaults": {
+    "cacheRoot": "repoRoot",
+    "terms": "[]",
+    "rgAvailable": "true",
+    "includeFallback": "false",
+    "useCache": "true",
+    "policyFingerprint": "null",
+    "maxConcurrency": "4",
+    "maxEstimatedBytesInFlight": "512 * 1024 * 1024",
+    "reservationBaseBytes": "8 * 1024 * 1024",
+    "reservationSourceMultiplier": "4"
+   }
+  },
+  "deriveMemoryAdmission": {
+   "module": "resource-budget",
+   "async": false,
+   "positional": [],
+   "options": ["totalBytes", "reserveFraction", "minReserveBytes", "maxAdmissionBytes"],
+   "defaults": { "reserveFraction": "0.25", "minReserveBytes": "8 * 1024 * 1024 * 1024", "maxAdmissionBytes": "null" }
+  },
+  "runTaskGraph": {
+   "module": "scheduler",
+   "async": true,
+   "positional": ["tasks", "worker"],
+   "options": ["maxConcurrency", "maxEstimatedBytesInFlight"],
+   "defaults": { "maxConcurrency": "4", "maxEstimatedBytesInFlight": "512 * 1024 * 1024" }
+  }
+ },
+ "constants": {
+  "DEFAULT_EXCLUDED_DIRS": {
+   "module": "file-index",
+   "value": [".git", ".sbf", "node_modules", ".venv", "venv", "__pycache__", "coverage", "dist", "build"]
+  },
+  "T21_PROJECT_CACHE_PLAN_DRAFT": { "module": "project-cache-plan", "value": "sbf.project-cache-plan/draft-1" },
+  "T21_PROJECT_GRAPH_DRAFT": { "module": "project-cache-plan", "value": "sbf.project-graph/draft-1" }
+ },
+ "handles": {
+  "artifact_store": {
+   "fields": ["root"],
+   "methods": {
+    "put": {
+     "async": false,
+     "positional": ["content"],
+     "options": [],
+     "defaults": {}
+    },
+    "has": {
+     "async": false,
+     "positional": ["ref"],
+     "options": [],
+     "defaults": {}
+    },
+    "read": {
+     "async": false,
+     "positional": ["ref"],
+     "options": [],
+     "defaults": {}
+    },
+    "pathForDigest": {
+     "async": false,
+     "positional": ["digest"],
+     "options": [],
+     "defaults": {}
+    }
+   }
+  },
+  "cache_index": {
+   "fields": ["schema", "path"],
+   "methods": {
+    "get": {
+     "async": false,
+     "positional": ["cacheKey"],
+     "options": [],
+     "defaults": {}
+    },
+    "set": {
+     "async": false,
+     "positional": ["cacheKey", "artifactRef"],
+     "options": ["dependencies", "metadata"],
+     "defaults": { "dependencies": "[]", "metadata": "null" }
+    },
+    "remove": {
+     "async": false,
+     "positional": ["cacheKey"],
+     "options": [],
+     "defaults": {}
+    },
+    "list": {
+     "async": false,
+     "positional": [],
+     "options": [],
+     "defaults": {}
+    },
+    "invalidateDependencies": {
+     "async": false,
+     "positional": ["paths"],
+     "options": [],
+     "defaults": {}
+    },
+    "reachableArtifactRefs": {
+     "async": false,
+     "positional": [],
+     "options": [],
+     "defaults": {}
+    }
+   }
+  }
+ },
+ "output_keys": {
+  "store_ref": ["algorithm", "digest", "size"],
+  "cache_key": ["algorithm", "digest", "material"],
+  "cache_key_material": ["namespace", "source_digest", "resolver_digest", "config_digest", "parser_digest", "adapter_digest", "schema_digest", "policy_digest", "runtime_fingerprint"],
+  "cache_index_entry": ["artifact", "dependencies"],
+  "cache_index_listing_item": ["cache_key", "artifact", "dependencies"],
+  "file_index": ["schema", "source_digest", "entries", "stats", "skipped_symlinks", "portable_path_issues"],
+  "file_index_entry": ["path", "size", "mode", "sha256"],
+  "file_index_stats": ["files", "bytes", "directories_visited", "skipped_symlinks"],
+  "portable_path_issue": ["kind", "paths"],
+  "invalidation": ["schema", "added", "deleted", "modified", "changed", "invalidated", "global_inputs_changed"],
+  "memory_admission": ["schema", "status", "total_bytes", "reserve_fraction", "fractional_reserve_bytes", "min_reserve_bytes", "required_reserve_bytes", "admission_bytes", "max_admission_bytes"],
+  "scheduler_result": ["schema", "results", "metrics"],
+  "scheduler_metrics": ["tasks", "started", "passed", "failed", "blocked", "peak_concurrency", "peak_estimated_bytes_in_flight", "max_ready_queue", "byte_admission_deferrals", "concurrency_admission_deferrals", "resource_budget_blocked", "dependency_blocked"],
+  "task_passed": ["id", "status", "value"],
+  "task_failed": ["id", "status", "error"],
+  "task_blocked_dependency": ["id", "status", "reason", "dependency"],
+  "task_blocked_budget": ["id", "status", "reason", "estimated_bytes", "budget_bytes"],
+  "gc_result": ["schema", "dry_run", "reachable", "total_blobs", "candidates", "candidate_bytes", "deleted", "unexpected"],
+  "gc_item": ["digest", "size", "relative_path"],
+  "performance_gate": ["schema", "status", "environment", "policy", "checks"],
+  "performance_policy": ["minSamples", "maxColdRegressionPct", "maxPeakRssRegressionPct", "maxCacheHitFractionOfCold"],
+  "performance_check": ["status", "code", "workload", "actual", "limit", "detail"],
+  "performance_gate_early": ["schema", "status", "checks"],
+  "cached_task_result": ["cache_hit", "value", "artifact"],
+  "project_plan": ["schema", "graph_schema", "projects"],
+  "project_plan_item": ["project_id", "project_root", "adapter_id", "mode", "dependency_project_ids", "cache_namespace", "markers"],
+  "project_marker": ["path", "kind", "digest"],
+  "legacy_result": ["schema", "cache_used", "cache_hit", "cache_key", "source_digest", "report", "artifact"],
+  "legacy_index_metadata": ["adapter_id", "cache_contract", "source_digest"],
+  "project_run": ["schema", "graph_schema", "plan_schema", "results", "metrics"],
+  "project_run_value": ["project_id", "project_root", "adapter_id", "cache_namespace", "cache_hit", "cache_key", "source_digest", "report", "artifact"]
+ },
+ "conditional_keys": { "cache_index_entry": ["metadata"], "cache_index_listing_item": ["metadata"], "memory_admission": ["reason"] },
+ "schemas": {
+  "cache_key_namespace": "bskel.scan-cache/1",
+  "cache_index": "sbf.scan-cache-index/1",
+  "file_index": "sbf.scan-file-index/1",
+  "invalidation": "sbf.scan-invalidation/1",
+  "memory_admission": "sbf.scan-memory-admission/1",
+  "scheduler_result": "sbf.scan-scheduler-result/1",
+  "performance_gate": "sbf.scan-performance-gate/1",
+  "gc_result": "sbf.artifact-gc-result/1",
+  "legacy_result": "sbf.legacy-scan-cache-result/1",
+  "project_run": "sbf.project-scan-cache-shadow/draft-1",
+  "project_plan": "sbf.project-cache-plan/draft-1"
+ },
+ "input_schemas": { "scan_report": "sbf.scan-report/2", "project_graph": "sbf.project-graph/draft-1" },
+ "contract_tags": { "legacy_shadow": "t21-legacy-scan-shadow/1" },
+ "policy_defaults": { "minSamples": 5, "maxColdRegressionPct": 15, "maxPeakRssRegressionPct": 15, "maxCacheHitFractionOfCold": 0.5 },
+ "foreign_schemas": ["sbf.artifact-ref/1", "sbf.contract-ref/1", "sbf.identity-envelope/1", "sbf.action-ref/1", "sbf.field-ref/1"],
+ "foreign_keys": ["artifact_ref", "byte_sha256", "size_bytes", "media_type", "contract_hash"],
+ "codes": {
+  "errors": {
+   "ARTIFACT_BUDGET_EXCEEDED": {
+    "module": "store",
+    "properties": ["code"],
+    "meaning": "put refuses content larger than maxArtifactBytes and writes nothing"
+   },
+   "ARTIFACT_CORRUPT": {
+    "module": "store",
+    "properties": ["code"],
+    "meaning": "stored bytes differ from the reference in size or digest, on read or on the read-back after a write; nothing is repaired"
+   },
+   "ARTIFACT_NOT_FOUND": { "module": "store", "properties": ["code"], "meaning": "read of a reference whose blob is absent" },
+   "INDEX_BUDGET_EXCEEDED": {
+    "module": "file-index",
+    "properties": ["actual", "code", "kind", "limit"],
+    "meaning": "file count or byte count above maxFiles or maxBytes; no partial index is returned"
+   },
+   "PROJECT_ADAPTER_UNAVAILABLE": {
+    "module": "project-cache-runner",
+    "properties": ["code"],
+    "meaning": "the plan names an adapter that is not among the given adapters"
+   },
+   "PROJECT_GRAPH_ROOT_MISMATCH": {
+    "module": "project-cache-runner",
+    "properties": ["code"],
+    "meaning": "the graph root is neither a dot nor the absolute execution root"
+   },
+   "PROJECT_GRAPH_STALE": {
+    "module": "project-cache-runner",
+    "properties": ["actual_digest", "code", "expected_digest"],
+    "meaning": "a marker file changed after graph discovery; a marker that is missing or unreadable carries only code"
+   }
+  },
+  "reasons": {
+   "DEPENDENCY_NOT_PASSED": {
+    "module": "scheduler",
+    "meaning": "a task named in dependsOn failed or was blocked, so this task never ran; the result names that dependency"
+   },
+   "RESOURCE_BUDGET_EXCEEDED": {
+    "module": "scheduler",
+    "meaning": "estimatedBytes of the task alone exceed maxEstimatedBytesInFlight; the result carries estimated_bytes and budget_bytes"
+   },
+   "INSUFFICIENT_MEMORY_AFTER_RESERVE": {
+    "module": "resource-budget",
+    "meaning": "nothing is left to admit after the reserve; status is blocked and admission_bytes is zero"
+   }
+  },
+  "checks": {
+   "MISSING_ENVIRONMENT_IDENTITY": {
+    "status": "blocked",
+    "meaning": "baseline or candidate environment lacks profile_id, platform, arch or node_major; the result holds this check alone"
+   },
+   "ENVIRONMENT_MISMATCH": {
+    "status": "blocked",
+    "meaning": "baseline and candidate environments differ; the result holds this check alone"
+   },
+   "WORKLOAD_SET_MISMATCH": { "status": "blocked", "meaning": "a workload id exists on one side only" },
+   "INSUFFICIENT_SAMPLES": { "status": "blocked", "meaning": "fewer samples than minSamples on either side" },
+   "SEMANTIC_MISMATCH": { "status": "fail", "meaning": "semantic_equivalence is false" },
+   "SEMANTIC_EQUIVALENCE_UNPROVEN": { "status": "blocked", "meaning": "semantic_equivalence is neither true nor false" },
+   "MISSING_OR_INVALID_METRIC": { "status": "blocked", "meaning": "a required metric is not a finite positive number" },
+   "COLD_REGRESSION_PCT": {
+    "status": "pass or fail",
+    "meaning": "candidate cold_p95_ms against baseline cold_p95_ms, limit maxColdRegressionPct"
+   },
+   "PEAK_RSS_REGRESSION_PCT": {
+    "status": "pass or fail",
+    "meaning": "candidate peak_rss_bytes against baseline peak_rss_bytes, limit maxPeakRssRegressionPct"
+   },
+   "CACHE_HIT_FRACTION_OF_COLD": {
+    "status": "pass or fail",
+    "meaning": "candidate cache_hit_p95_ms divided by candidate cold_p95_ms, limit maxCacheHitFractionOfCold"
+   }
+  }
+ },
+ "statuses": {
+  "scheduler_task_status": {
+   "of": "each task result of the scheduler",
+   "field": "status",
+   "values": ["passed", "failed", "blocked"],
+   "module": "scheduler"
+  },
+  "memory_admission_status": { "of": "each memory admission", "field": "status", "values": ["ready", "blocked"], "module": "resource-budget" },
+  "performance_gate_status": { "of": "the gate result", "field": "status", "values": ["pass", "fail", "blocked"], "module": "performance-policy" },
+  "performance_check_status": { "of": "each gate check", "field": "status", "values": ["pass", "fail", "blocked"], "module": "performance-policy" },
+  "project_plan_mode": {
+   "of": "each planned project",
+   "field": "mode",
+   "values": ["first-class", "fallback"],
+   "module": "project-cache-plan"
+  },
+  "portable_issue_kind": {
+   "of": "each portable path finding",
+   "field": "kind",
+   "values": ["case-fold-collision", "unicode-nfc-collision"],
+   "module": "file-index"
+  },
+  "index_budget_kind": {
+   "of": "the kind property of INDEX_BUDGET_EXCEEDED",
+   "field": "kind",
+   "values": ["file-count", "byte-count"],
+   "module": "file-index"
+  }
+ },
+ "identity": {
+  "legacy": {
+   "sourceDigest": "the source_digest of the file index of repoRoot",
+   "resolverDigest": "digest of the mode legacy-single-project, cacheNamespace, the adapter id, rgAvailable and the constants include_db false and runtime_routes false",
+   "configDigest": "digest of the terms array",
+   "parserDigest": "implementationDigest as given by the caller",
+   "adapterDigest": "digest of implementationDigest and the adapter snapshot: contract, id, title, specificity, confidence, verification_basis and capabilities",
+   "schemaDigest": "digest of the scan report schema string sbf.scan-report/2",
+   "policyDigest": "digest of the contract tag t21-legacy-scan-shadow/1, policyFingerprint and the constants db disabled, runtime_routes disabled, cache_corruption fail-closed",
+   "runtimeFingerprint": "as given; the default is node=VERSION;platform=PLATFORM;arch=ARCH of the running process"
+  },
+  "project": ["graph_schema, the schema string of the project graph", "project_id and project_root", "adapter_id, and mode: first-class from the selected adapter, fallback only when includeFallback is set", "markers: path, kind and digest of each marker, sorted by path and kind", "dependency_project_ids: only local-package-dependency edges, from the consumer to the dependency"],
+  "index": {
+   "included": ["path of the file", "size in bytes", "mode, permission bits only", "sha256 of the content"],
+   "excluded": ["modification time", "symlinks, which are listed in skipped_symlinks and never followed", "empty directories", "the absolute path of the root", "portable path findings", "the contents of a directory named in excludedDirs, at any depth"]
+  }
+ },
+ "gates": {
+  "reachability": {
+   "limits": ["stable-scan-does-not-use-the-layer", "layer-mentioned-outside-its-directories"],
+   "lifted": "a reviewed consumer calls the layer behind a switch that is off by default, every reference outside the two directories is listed and classified, and the stable scan result is byte-identical with the switch off"
+  },
+  "suite-in-ci": {
+   "limits": ["root-npm-test-does-not-run-the-suite"],
+   "lifted": "the T21 suite runs in a required check or in the root test script, with the job names pinned to the commit under test"
+  },
+  "packed-import": {
+   "limits": ["layer-ships-in-the-npm-package-without-a-packed-import-test"],
+   "lifted": "a test packs the package, installs it in a scratch directory and imports every exported name of both directories, and the packed file list is recorded"
+  },
+  "timing": {
+   "limits": ["old-container-baseline-is-advisory-not-an-exact-commit-measurement", "warm-is-a-same-process-rehash-not-a-cache-hit", "benchmark-covers-one-adapter-once-in-a-pinned-test", "performance-gate-has-no-approved-input-and-no-slo"],
+   "lifted": "a measurement protocol is approved, measurements are taken at the exact commit for every adapter on the target hosts, the warm path is a real cache hit, and an approved service level objective is the input of the gate; until then the gate stays blocked"
+  },
+  "containment": {
+   "limits": ["cache-index-containment-is-lexical", "project-root-containment-is-lexical", "legacy-cache-reports-embed-the-creating-trees-paths", "file-index-skips-directories-the-stable-scan-reads"],
+   "lifted": "containment is checked on resolved real paths, a copied tree cannot serve a report that embeds another tree, and the file index reads the directories the stable scan reads or the difference is the stated cache scope"
+  },
+  "retention": {
+   "limits": ["superseded-cache-entries-are-never-retired", "gc-takes-no-lock-and-its-clock-is-an-argument", "scheduler-has-no-timeout-or-cancellation"],
+   "lifted": "a stated policy retires superseded entries, collection and writers exclude each other under one lock with a clock the caller cannot choose, and the scheduler has a timeout and a cancellation path that a test exercises"
+  },
+  "project-graph-input": {
+   "limits": ["project-graph-input-is-a-draft-schema"],
+   "lifted": "the owner of the project graph freezes its schema and this layer reads the frozen reference, with cache namespaces compared before and after"
+  },
+  "platform-coverage": {
+   "limits": ["hashes-generated-on-one-platform"],
+   "lifted": "the record is regenerated and compared on every platform the pipeline uses, and each difference is listed"
+  },
+  "promotion": {
+   "limits": ["no-consumer-runner-or-provider-integration", "no-promotion-rollback-or-supported-scope-evidence"],
+   "lifted": "an integration is reviewed and merged by its owner, and a rollback plan, a supported-scope record and approvable evidence exist (items T21-05 and T21-06 of the track plan)"
+  }
+ },
+ "non_gate_limits": {
+  "fixtures-are-synthetic-inputs": "the replayed inputs are small constructed trees and copies of pinned fixtures; the record never claims they represent real repositories, so nothing is promoted on them",
+  "installed-package-files-are-not-hashed": "package-lock.json and the installed versions are recorded; hashing installed files would pin the machine, so the statement stays a limit",
+  "scenario-module-is-not-hashed": "baseline-scenarios.mjs builds the replayed calls; the outputs it must reproduce are pinned, so a change to it matters only when an output changes"
+ },
+ "limit_statuses": ["UNSUPPORTED", "UNKNOWN", "BLOCKED", "NOT_RECORDED"],
+ "pinned_tests": {
+  "t21-artifact-gc.test.mjs": "dry run by default and reachable blobs never selected, apply deletes only unreachable age-qualified blobs, malformed entries reported and not deleted, deletion budgets",
+  "t21-artifact-store.test.mjs": "deduplication by exact bytes with verified reads, corruption detection, byte budget before write",
+  "t21-benchmark-smoke.test.mjs": "legacy-cache benchmark emits machine-readable semantic-equivalence evidence",
+  "t21-cache-index.test.mjs": "exact artifact refs and sorted listing, fail closed on corrupted state, path containment, two OS processes keep both entries, dependency invalidation",
+  "t21-cache-key.test.mjs": "determinism across key order, every dimension invalidates, malformed digests and ambiguous JSON refused",
+  "t21-cache-runtime.test.mjs": "miss computes once and a hit returns the same value, changed key recomputes, corrupt artifact fails closed, validation on misses and hits",
+  "t21-file-index-invalidation.test.mjs": "deterministic content-addressed index with excluded directories, transitive invalidation, global input drift, budgets fail closed, portability collisions",
+  "t21-legacy-cache-equivalence.test.mjs": "key changes with terms and implementation revision, missing implementation identity refused, project namespace changes the key and not the report, cached reports equal uncached ones per adapter fixture",
+  "t21-performance-policy.test.mjs": "memory admission reserve and cap, gate decisions for pass, fail and blocked inputs",
+  "t21-project-cache.test.mjs": "plan order and fallback exclusion, invalidation propagation, cache off, miss and hit, portable graph in another checkout, marker drift, policy fingerprint, corrupted cache, namespace change",
+  "t21-scheduler.test.mjs": "dependency order, concurrency and byte reservations, oversized task blocking, failure containment, graph refusals before work, metrics"
+ },
+ "owned_files": {
+  "lib/artifact-store-next": ["README.md", "cache-index.mjs", "gc.mjs", "store.mjs"],
+  "lib/scan-scheduler-next": ["BASELINE.json", "INTERFACE_RFC.md", "cache-key.mjs", "cache-runtime.mjs", "file-index.mjs", "invalidation.mjs", "legacy-cache.mjs", "performance-policy.mjs", "project-cache-plan.mjs", "project-cache-runner.mjs", "resource-budget.mjs", "scheduler.mjs"],
+  "test/perf-next": ["baseline-record-lib.mjs", "baseline-record.test.mjs", "baseline-scenarios.mjs", "baselines/2026-09-25-container.json", "benchmark.mjs", "legacy-cache-benchmark.mjs", "t21-artifact-gc.test.mjs", "t21-artifact-store.test.mjs", "t21-benchmark-smoke.test.mjs", "t21-cache-index.test.mjs", "t21-cache-key.test.mjs", "t21-cache-runtime.test.mjs", "t21-file-index-invalidation.test.mjs", "t21-interface-rfc.test.mjs", "t21-interface-rfc.vocabulary.json", "t21-legacy-cache-equivalence.test.mjs", "t21-performance-policy.test.mjs", "t21-project-cache.test.mjs", "t21-scheduler.test.mjs"]
+ },
+ "ownership": [
+  { "paths": ["lib/artifact-store-next", "lib/scan-scheduler-next", "test/perf-next"], "owner": "T21", "t21": "edit" },
+  {
+   "paths": ["lib/fsutil.mjs", "lib/lock.mjs", "scanners/index.mjs", "scanners/registry.mjs", "scanners/text-util.mjs", "scanners/adapters", "schemas/adapter.schema.json", "test/fixtures"],
+   "owner": "none",
+   "t21": "read-only, pinned by BASELINE.json"
+  },
+  {
+   "paths": ["scripts/run-next-nested-tests.mjs", "package-lock.json"],
+   "owner": "reserved",
+   "t21": "read-only, pinned by BASELINE.json"
+  },
+  {
+   "paths": [".github/workflows", "package.json", "CATALOG.md", "DECISIONS.md", "README.md"],
+   "owner": "reserved",
+   "t21": "read-only"
+  },
+  { "paths": ["next/t00"], "owner": "T00", "t21": "read-only" },
+  { "paths": ["contracts/next", "schemas/next"], "owner": "T01", "t21": "none" },
+  { "paths": ["scanners/project-graph"], "owner": "T02", "t21": "read-only" },
+  { "paths": ["scanners/capability-next"], "owner": "T03", "t21": "none" },
+  { "paths": ["test/conformance-next", "evidence/next"], "owner": "T19", "t21": "read-only" },
+  { "paths": ["release/next"], "owner": "T23", "t21": "none" }
+ ]
+}
