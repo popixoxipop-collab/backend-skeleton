@@ -70,7 +70,7 @@ const BULLETS = {
 	ids: (v) => `- Leaf: ${q('profileId')} is the ${q('id')} of its profile: ${qs(v.leaves.map((l) => l.id))}.`,
 	routeIdentity: (v) => `- Route: no identity is created; a route is addressed by ${q('path')}, ${q('method')} and ${q('handler')}, also its sort order, and equal routes are kept. ${q('projection')} throws TypeError for a route that owns ${qs(v.forbidden_route_keys)}, and ${q('makeRoute')} never sets it.`,
 	contract: (v) => `- Contract: ${q(v.schemas.leaf)} is internal and unfrozen (suffix 0). Inputs carry ${qs([v.schemas.native_language, v.schemas.dsl_route_candidates, v.schemas.js_ts_source_facts, v.schemas.js_ts_structure])}; the T06 shadows are named by ${qs(v.upstream_functions)}.`,
-	foreign: (v) => `- Foreign: the layer emits none of ${qs(v.foreign_schemas)}, no key ${qs(v.foreign_keys)} and no key named ${qs(v.forbidden_keys)}; T01 owns identity and T03 the capability vocabulary.`,
+	foreign: (v) => `- Foreign: the replayed outputs hold none of ${qs(v.foreign_schemas)}, no key ${qs(v.foreign_keys)} and no key named ${qs(v.forbidden_keys)}, but ${q('projection')} passes the contents of ${qs(['unknowns', 'observations', 'evidence'])} on unchecked, so a live output can hold any of them there; the schema accepts all of them there except the names ${qs(v.forbidden_keys)} (${q('support-keys')}); T01 owns identity and T03 the capability vocabulary.`,
 	files: (v) => `${q('adapters/http-wave-a')} holds exactly ${qs(v.owned_files)}; a new file there needs this RFC and the vocabulary updated first.`
 };
 
@@ -185,6 +185,10 @@ const walkMjs = (dir, rel = '') => fs.readdirSync(path.join(dir, rel), { withFil
 	.sort((a, b) => (a.name < b.name ? -1 : 1))
 	.flatMap((e) => (e.isDirectory() ? (e.name === 'fixtures' ? [] : walkMjs(dir, path.posix.join(rel, e.name))) : e.name.endsWith('.mjs') ? [path.posix.join(rel, e.name)] : []));
 const noComments = (s) => s.split('\n').filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l)).join('\n');
+// The gate bridges_built closes when a module of the layer names one of these paths in one piece, in any form (import with or without bindings, import(), export from, a path string).
+const BRIDGE_PATHS = ['contracts/next', 'schemas/next', 'scanners/capability-next'];
+const BRIDGE_NAME = new RegExp(`(?<![\\w-])(?:${BRIDGE_PATHS.map((p) => p.replace(/[/-]/g, '\\$&')).join('|')})(?![\\w-])`);
+const bridgeGate = (sources) => (Object.values(sources).some((s) => BRIDGE_NAME.test(s)) ? 'closed' : 'open');
 
 // Fields computed from f.outputs; mutation tests call derive on a shallow copy with edited outputs.
 function derive(f) {
@@ -192,11 +196,28 @@ function derive(f) {
 		const codes = sorted(new Set(codesIn(o)));
 		return [id, { module: f.fixtureModules[id], codes, reasons: Object.fromEntries(codes.map((c) => [c, reasonsFor(o, c)])) }];
 	}));
-	const clean = Object.entries(f.outputs).filter(([id]) => !GAP_FIXTURES.includes(id)).map(([, o]) => o);
-	f.allKeys = sorted(deepKeys(clean));
-	f.routeKeySets = sorted(new Set(routeObjects(clean).map((r) => Object.keys(r).join(','))));
-	f.outputsText = JSON.stringify(clean);
+	const all = Object.values(f.outputs);
+	f.allKeys = sorted(deepKeys(all));
+	f.routeKeySets = sorted(new Set(routeObjects(all).map((r) => Object.keys(r).join(','))));
+	f.outputsText = JSON.stringify(all);
 	return f;
+}
+
+// The state of each gate of section 6, computed from the profiles, the contract id, the sources of the layer and the record. Gates over the profiles: one profile closes the first three, the last two need every profile.
+function gateStates(f) {
+	const P = Object.values(f.profiles);
+	const consumer = record.limits.find((l) => l.id === 'leaf-contract-has-no-consumer-outside-the-layer');
+	const state = (open) => (open ? 'open' : 'closed');
+	return {
+		leaves_registered: state(!P.some((p) => ADAPTERS.some((a) => a.id === p.id))),
+		runtime_tested: state(!P.some((p) => p.runtimeTested === true)),
+		review_accepted: state(P.every((p) => p.t19Review === 'NOT_REVIEWED')),
+		blocked_leaves_unblocked: state(P.some((p) => p.state === 'blocked-upstream-fact-gap')),
+		real_repo_evidence_structured: state(P.some((p) => typeof p.realRepoComparison === 'string')),
+		bridges_built: bridgeGate(f.sources),
+		schema_frozen: state(/\/0$/.test(f.contract)),
+		consumer_exists: state(Array.isArray(consumer?.references?.paths) && consumer.references.paths.length === 0)
+	};
 }
 
 async function collectFacts() {
@@ -205,6 +226,7 @@ async function collectFacts() {
 	const sources = Object.fromEntries(names.map((n) => [n, noComments(fs.readFileSync(path.join(dir, `${n}.mjs`), 'utf8'))]));
 	const mods = Object.fromEntries(await Promise.all(names.map(async (n) => [n, await import(pathToFileURL(path.join(dir, `${n}.mjs`)).href)])));
 	const f = { exports: {}, functions: {}, profiles: {}, usesRouteOrUnknown: {}, literals: {}, prefixes: {}, leafCodes: {} };
+	f.sources = sources;
 	f.sourceText = Object.values(sources).join('\n');
 	f.params = {};
 	for (const n of names) for (const m of sources[n].matchAll(/export\s+(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)/g)) f.params[m[1]] = m[2];
@@ -234,13 +256,16 @@ async function collectFacts() {
 		for (const m of sources[n].matchAll(/(['"`])((?:bskel|sbf)\.[a-z0-9.-]+\/\d+)\1/g)) schemaIds.add(m[2]);
 	}
 	f.schemaLiterals = sorted(schemaIds);
-	f.importsBridge = names.some((n) => /(?:from|import\()\s*['"][^'"]*(?:contracts\/next|capability-next)/.test(sources[n]));
 	const ctx = L.fixtureContext(ROOT);
 	f.outputs = {};
 	f.fixtureModules = {};
+	f.fixtureFns = {};
+	f.fixtureClasses = {};
 	for (const x of record.fixtures.filter((y) => !y.call.module.includes('python-scope'))) {
 		f.outputs[x.id] = await L.runFixture(x, ctx);
 		f.fixtureModules[x.id] = x.call.module;
+		f.fixtureFns[x.id] = x.call.fn;
+		f.fixtureClasses[x.id] = x.class;
 	}
 	derive(f);
 	const probes = [...new Set(vocab.ownership.flatMap((o) => o.probes))];
@@ -249,19 +274,7 @@ async function collectFacts() {
 	f.ownership = Object.fromEntries(probes.map((p) => [p, { code: 'OK', owner: 'T12' }]));
 	for (const m of (run.stdout ?? '').matchAll(/^FAIL (\S+) (\S+) (.*)$/gm)) f.ownership[m[2]] = { code: m[1], owner: m[3].match(/owned by (\w+)/)?.[1] ?? null };
 	f.limitIds = record.limits.map((l) => l.id);
-	const consumer = record.limits.find((l) => l.id === 'leaf-contract-has-no-consumer-outside-the-layer');
-	const P = Object.values(f.profiles);
-	const state = (open) => (open ? 'open' : 'closed');
-	f.gateStates = {
-		leaves_registered: state(!P.some((p) => ADAPTERS.some((a) => a.id === p.id))),
-		runtime_tested: state(P.every((p) => p.runtimeTested === false)),
-		review_accepted: state(P.every((p) => p.t19Review === 'NOT_REVIEWED')),
-		blocked_leaves_unblocked: state(P.some((p) => p.state === 'blocked-upstream-fact-gap')),
-		real_repo_evidence_structured: state(P.some((p) => typeof p.realRepoComparison === 'string')),
-		bridges_built: state(!f.importsBridge),
-		schema_frozen: state(/\/0$/.test(f.contract)),
-		consumer_exists: state(Array.isArray(consumer?.references?.paths) && consumer.references.paths.length === 0)
-	};
+	f.gateStates = gateStates(f);
 	return f;
 }
 
@@ -380,6 +393,9 @@ function behaviourProblems(ns, mods, v) {
 	if (!isDeepStrictEqual(o.unknowns, [{ code: 'A' }, { code: 'Z' }]) || !isDeepStrictEqual(o.observations, [{ k: 1 }, { k: 2 }])) bad('projection: unknowns or observations are not sorted');
 	if (o.evidence !== given.evidence) bad('projection: evidence is not passed by reference');
 	if (o.sourceContracts === given.sourceContracts || !isDeepStrictEqual(o.sourceContracts, ['c1'])) bad('projection: sourceContracts is not a copy');
+	const handed = { ...Object.fromEntries([...v.foreign_keys, ...v.forbidden_keys].map((k) => [k, 1])), zz_ids: v.foreign_schemas };
+	const carried = ns.projection(cand, { unknowns: [{ code: 'X', ...handed }], observations: [handed], evidence: handed });
+	if (!isDeepStrictEqual(carried.unknowns, [{ code: 'X', ...handed }]) || !isDeepStrictEqual(carried.observations, [handed]) || !isDeepStrictEqual(carried.evidence, handed)) bad('projection: the foreign and support keys and the foreign schema ids in an upstream unknown, observation or evidence are not carried as they are');
 	const blocked = ns.projection(blk, input());
 	if (blocked.status !== 'blocked' || blocked.routes.length !== 4) bad('projection: a blocked profile does not give status blocked, or routes are checked');
 	for (const k of v.forbidden_route_keys) {
@@ -406,7 +422,7 @@ function behaviourProblems(ns, mods, v) {
 	return out;
 }
 
-// Invariants of the RFC for outputs; entries are {id, output, leaf}. Used for real outputs and for the looser schema proofs.
+// Invariants of the RFC for outputs; entries are {id, output, leaf} where leaf is the id of the leaf whose profileId the output has to carry, or null. Used for real outputs and for the looser schema proofs.
 function outputProblems(entries, v) {
 	const out = [];
 	const leafById = Object.fromEntries(v.leaves.map((l) => [l.id, l]));
@@ -414,13 +430,16 @@ function outputProblems(entries, v) {
 	const routeCodes = new Set(v.codes.filter((c) => c.group === 'route').map((c) => c.code));
 	for (const { id, output: o, leaf } of entries) {
 		const bad = (m) => out.push(`${id}: ${m}`);
+		if (!isObj(o)) { bad('the output is no object'); continue; }
+		if (THROWN(o)) { bad(`the fixture throws ${o.threw.name}; a normal fixture never throws and a refusal is a TypeError of a negative fixture`); continue; }
 		if (!isDeepStrictEqual(Object.keys(o), v.leaf_keys)) bad('keys differ from the leaf keys');
 		if (o.contract !== v.contract) bad('contract differs');
 		if (o.registration !== v.forced.registration || o.productionDefault !== v.forced.productionDefault) bad('registration or productionDefault differs');
 		if (!v.statuses.includes(o.status)) bad('status is not one of the statuses');
-		if (leaf) {
-			const l = leafById[o.profileId];
-			if (!l) bad(`profileId ${o.profileId} is no leaf id`);
+		if (leaf !== null) {
+			const l = leafById[leaf];
+			if (!l) bad(`${leaf} is no leaf id`);
+			else if (o.profileId !== leaf) bad(`profileId ${o.profileId} is not ${leaf}`);
 			else if (o.status !== (l.state === 'blocked-upstream-fact-gap' ? 'blocked' : 'candidate')) bad('status does not follow the profile state');
 		}
 		if (!Array.isArray(o.routes) || !isSorted(o.routes, routeOrder)) bad('routes are not sorted by path, method, handler');
@@ -455,9 +474,18 @@ const pointerEdit = (doc, pointer, value) => {
 	if (value === undefined) { if (Array.isArray(at)) at.splice(Number(last), 1); else delete at[last]; } else if (last === '-' && Array.isArray(at)) at.push(value); else at[last] = value;
 	return d;
 };
-const leafEntries = (f, v) => Object.entries(f.outputs)
-	.filter(([id, o]) => !GAP_FIXTURES.includes(id) && isObj(o) && o.contract === f.contract)
-	.map(([id, output]) => ({ id, output, leaf: v.leaves.some((l) => l.id === output.profileId) }));
+// The outputs to check are chosen by what the fixture calls, never by what the output says: a leaf fixture calls the function of a leaf of the vocabulary and its output has to carry the id of that leaf (leaf); an output of projection or blockedProjection is checked for its shape only (leaf null).
+const THROWN = (o) => isObj(o) && Object.keys(o).length === 1 && 'threw' in o;
+// Only the refusal of the contract has no output to check (a negative fixture that throws a TypeError, the rule of the record test); every other throw stays an entry and outputProblems reports it.
+const REFUSAL = (f, id, output) => THROWN(output) && f.fixtureClasses[id] === 'negative' && output.threw.name === 'TypeError';
+const leafEntries = (f, v) => Object.entries(f.outputs).flatMap(([id, output]) => {
+	if (GAP_FIXTURES.includes(id) || REFUSAL(f, id, output)) return [];
+	const module = path.posix.basename(f.fixtureModules[id] ?? '', '.mjs');
+	const l = v.leaves.find((x) => x.module === module && x.function === f.fixtureFns[id]);
+	if (l) return [{ id, output, leaf: l.id }];
+	return module === '_shared' && ['projection', 'blockedProjection'].includes(f.fixtureFns[id]) ? [{ id, output, leaf: null }] : [];
+});
+const coveredLeaves = (entries) => sorted(new Set(entries.map((e) => e.leaf).filter(Boolean)));
 
 // Each difference is proved by inputs that the code accepts (stricter) or outputs that the schema accepts (looser), one fault at a time.
 function gapProblems(validate, v, f) {
@@ -486,12 +514,13 @@ function gapProblems(validate, v, f) {
 		proved[id] = bad.length ? 'unproved' : 'stricter';
 		for (const [l, x] of bad) out.push(`${id}: ${l} gives ${x}, rejection by the schema expected`);
 	}
-	const open = { zz_open_key: { deep: [1, 'a', null, { z: true }] } };
+	const open = { zz_open_key: { deep: [1, 'a', null, { z: true }] }, ...Object.fromEntries(v.foreign_keys.map((k) => [k, 1])), zz_ids: v.foreign_schemas };
+	const blockedCode = v.codes.find((c) => c.group === 'blocked')?.code;
 	const LOOSER = {
 		'order-and-ties': [
-			['routes out of order', { ...plain, routes: [route({ path: '/b' }), route({ path: '/a' })] }, () => !isDeepStrictEqual(build(cand, { routes: [route({ path: '/b' }), route({ path: '/a' })] }).routes, [route({ path: '/b' }), route({ path: '/a' })])],
-			['unknowns out of order', { ...plain, unknowns: [{ code: 'Z' }, { code: 'A' }] }, () => !isDeepStrictEqual(build(cand, { unknowns: [{ code: 'Z' }, { code: 'A' }] }).unknowns, [{ code: 'Z' }, { code: 'A' }])],
-			['status not tied to the profile', { ...plain, status: 'blocked', routes: [] }, () => build(cand, {}).status === 'candidate']
+			['routes out of order', { ...plain, routes: [route({ path: '/b' }), route({ path: '/a' })] }, () => !isDeepStrictEqual(build(cand, { routes: [route({ path: '/b' }), route({ path: '/a' })] }).routes, [route({ path: '/b' }), route({ path: '/a' })]), 'routes are not sorted'],
+			['unknowns out of order', { ...plain, unknowns: [{ code: 'Z' }, { code: 'A' }] }, () => !isDeepStrictEqual(build(cand, { unknowns: [{ code: 'Z' }, { code: 'A' }] }).unknowns, [{ code: 'Z' }, { code: 'A' }]), 'unknowns are not sorted'],
+			['status not tied to the profile', { ...plain, status: 'blocked', routes: [], unknowns: [{ code: blockedCode }] }, () => build(cand, {}).status === 'candidate', 'status does not follow the profile state']
 		],
 		'open-contents': [
 			['an unknown with only a code', { ...plain, unknowns: [{ code: 'ROUTE_PATH_UNKNOWN' }] }, () => [{ method: 'ANY' }, { method: 'TRACE' }, { path: 'a' }].every((o) => isDeepStrictEqual(Object.keys(ns.routeOrUnknown(route(o)).unknown ?? {}), v.unknown_keys))]
@@ -499,20 +528,20 @@ function gapProblems(validate, v, f) {
 	};
 	for (const [id, samples] of Object.entries(LOOSER)) {
 		let ok = true;
-		for (const [l, sample, codeSide] of samples) {
+		for (const [l, sample, codeSide, diagnostic] of samples) {
 			const accepted = validate(sample) === true;
-			const flagged = outputProblems([{ id: l, output: sample, leaf: true }], v).length > 0;
+			const problems = outputProblems([{ id: l, output: sample, leaf: cand.id }], v);
 			if (!accepted) { ok = false; out.push(`${id}: ${l} is rejected by the schema`); }
 			if (!codeSide()) { ok = false; out.push(`${id}: ${l} is something the code can produce`); }
-			if (id === 'order-and-ties' && !flagged) { ok = false; out.push(`${id}: ${l} is not caught by the output invariants either`); }
+			if (id === 'order-and-ties' && !(problems.length === 1 && problems[0].includes(diagnostic))) { ok = false; out.push(`${id}: ${l} is not caught by the output invariant "${diagnostic}" alone: ${JSON.stringify(problems)}`); }
 		}
 		proved[id] = ok ? 'looser' : 'unproved';
 	}
-	// Not a difference, checked with the producer: projection passes open observations and evidence through and the schema accepts that output.
+	// Not a difference, checked with the producer: projection passes open unknowns, observations and evidence through, with the foreign keys and schema ids in them, and the schema accepts that output.
 	// The four support key names are refused by the schema only (support-keys above); a forbidden route key is refused by projection and by the schema.
-	const same = build(cand, { observations: [open], evidence: open });
-	if (same.threw || !validate(same)) out.push('open contents: the schema rejects the output of projection for open observations and evidence');
-	else if (!isDeepStrictEqual(same.observations, [open]) || same.evidence !== open) out.push('open contents: projection does not pass open observations and evidence through');
+	const same = build(cand, { unknowns: [{ code: 'X', ...open }], observations: [open], evidence: open });
+	if (same.threw || !validate(same)) out.push('open contents: the schema rejects the output of projection for open unknowns, observations and evidence');
+	else if (!isDeepStrictEqual(same.unknowns, [{ code: 'X', ...open }]) || !isDeepStrictEqual(same.observations, [open]) || same.evidence !== open) out.push('open contents: projection does not pass open unknowns, observations and evidence through');
 	for (const k of v.forbidden_route_keys) {
 		const owner = route({ [k]: 'x' });
 		if (build(cand, { routes: [owner] }).threw !== 'TypeError' || validate({ ...plain, routes: [owner] })) out.push(`forbidden route key ${k}: projection and the schema do not both refuse it`);
@@ -541,7 +570,7 @@ function schemaProblems(doc, v, f) {
 	eq('route methods', v.methods, route$.properties?.method?.enum);
 	eq('support key names', v.forbidden_keys, doc.$defs?.plainObject?.propertyNames?.not?.enum);
 	const entries = leafEntries(f, v);
-	if (new Set(entries.filter((e) => e.leaf).map((e) => e.output.profileId)).size < v.leaves.length) out.push('replayed outputs do not cover every leaf');
+	if (coveredLeaves(entries).length < v.leaves.length) out.push('replayed outputs do not cover every leaf');
 	for (const e of entries) if (!validate(e.output)) out.push(`${e.id}: rejected by the schema, ${ajvText(validate.errors)}`);
 	if (entries.length) {
 		const o = entries[0].output;
@@ -581,6 +610,8 @@ test('RFC text equals the tables and bullet lines built from the vocabulary, sta
 
 test('vocabulary values that are compared equal the code, the replayed fixtures, BASELINE.json and the ownership answers of T00', () => {
 	assert.deepEqual(codeProblems(vocab, facts), []);
+	const closesWhen = vocab.gates.find((g) => g.gate === 'bridges_built').closes_when;
+	assert.deepEqual(sorted([...closesWhen.matchAll(/`([^`]+)`/g)].map((m) => m[1])), sorted(BRIDGE_PATHS), 'the paths in the text of the gate bridges_built are the paths that this test looks for');
 	assert.equal(facts.ownershipStatus, 2, 'the checker refuses the probes of other tracks');
 });
 
@@ -590,7 +621,7 @@ test('shared functions behave as the test encodes them and each of the seven lea
 
 test('replayed leaf outputs satisfy the invariants of sections 3, 4 and 5', () => {
 	const entries = leafEntries(facts, vocab);
-	assert.deepEqual(sorted(new Set(entries.filter((e) => e.leaf).map((e) => e.output.profileId))), sorted(vocab.leaves.map((l) => l.id)));
+	assert.deepEqual(coveredLeaves(entries), sorted(vocab.leaves.map((l) => l.id)));
 	assert.deepEqual(outputProblems(entries, vocab), []);
 });
 
@@ -821,8 +852,9 @@ test('vocabulary edits: each edit drifts the text or fires a check, and only the
 // ---- Negatives: facts read from the code, doctored namespaces and schema edits. ----
 const deepMap = (x, fn) => (Array.isArray(x) ? x.map((y) => deepMap(y, fn)) : isObj(x) ? fn(Object.fromEntries(Object.entries(x).map(([k, y]) => [k, deepMap(y, fn)]))) : x);
 const withOutput = (f, id, fn) => derive({ ...f, outputs: { ...f.outputs, [id]: fn(clone(f.outputs[id])) } });
-const leafFixture = (profileId) => leafEntries(facts, vocab).find((e) => e.output.profileId === profileId).id;
+const leafFixture = (leaf) => leafEntries(facts, vocab).find((e) => e.leaf === leaf).id;
 const swapProfile = (f, m, over) => ({ ...f, profiles: { ...f.profiles, [m]: { ...f.profiles[m], ...over } } });
+const withModule = (f, source) => ({ ...f, gateStates: { ...f.gateStates, bridges_built: bridgeGate({ ...f.sources, extra: noComments(source) }) } });
 const FACT_CHECKERS = [
 	['code', (f) => codeProblems(vocab, f)],
 	['outputs', (f) => outputProblems(leafEntries(f, vocab), vocab)],
@@ -841,6 +873,11 @@ const FACT_EDITS = [
 	['new prefix', (f) => ({ ...f, prefixes: { ...f.prefixes, T09_: ['gin'] } })],
 	['schema literal added', (f) => ({ ...f, schemaLiterals: [...f.schemaLiterals, 'bskel.zzz/1'] })],
 	['gate state flipped', (f) => ({ ...f, gateStates: { ...f.gateStates, bridges_built: 'closed' } })],
+	['module imports schemas/next', (f) => withModule(f, "import { x } from '../../schemas/next/x.mjs';")],
+	['module imports contracts/next for effect', (f) => withModule(f, "import '../../contracts/next/x.mjs';")],
+	['module calls import() on capability-next', (f) => withModule(f, "const m = await import('../../scanners/capability-next/index.mjs');")],
+	['module re-exports contracts/next', (f) => withModule(f, "export * from '../../contracts/next/x.mjs';")],
+	['module holds a schemas/next path string', (f) => withModule(f, "const u = new URL('../../schemas/next/README.md', import.meta.url);")],
 	['limit of a gate vanishes', (f) => ({ ...f, limitIds: f.limitIds.filter((id) => id !== 'leaves-are-unregistered-candidates') })],
 	['ownership answer replaced', (f) => ({ ...f, ownership: { ...f.ownership, [vocab.ownership[1].probes[0]]: { code: 'OK', owner: 'T12' } } })],
 	['upstream function unused', (f) => ({ ...f, sourceText: '' })],
@@ -855,16 +892,32 @@ const FACT_EDITS = [
 	['output registration replaced', (f) => withOutput(f, leafFixture('go-gin'), (o) => ({ ...o, registration: 'registered' }))],
 	['output routes unsorted', (f) => withOutput(f, leafFixture('go-gin'), (o) => ({ ...o, routes: [...o.routes].reverse() }))],
 	['output status replaced', (f) => withOutput(f, leafFixture('go-gin'), (o) => ({ ...o, status: 'blocked' }))],
-	['leaf output vanishes', (f) => { const g = leafFixture('go-gin'); const outputs = Object.fromEntries(Object.entries(f.outputs).filter(([id, o]) => !(isObj(o) && o.profileId === 'go-gin' && o.contract === f.contract) || id === GAP_FIXTURES[0])); return derive({ ...f, outputs }); }]
+	['blocked status on a candidate leaf, nothing else wrong', (f) => withOutput(f, leafFixture('go-gin'), (o) => ({ ...o, status: 'blocked', routes: [], unknowns: [{ code: vocab.codes.find((c) => c.group === 'blocked').code }] }))],
+	['leaf output has another profileId', (f) => withOutput(f, leafFixture('go-gin'), (o) => ({ ...o, profileId: 'python-flask' }))],
+	['leaf output has another contract', (f) => withOutput(f, leafFixture('go-gin'), (o) => ({ ...o, contract: 'x/0' }))],
+	['leaf output is no object', (f) => withOutput(f, leafFixture('go-gin'), () => 'x')],
+	['normal fixture throws an Error', (f) => withOutput(f, 'gin-router-upstream', () => ({ threw: { name: 'Error', message: 'unexpected failure' } }))],
+	['normal fixture throws a TypeError', (f) => withOutput(f, 'gin-router-upstream', () => ({ threw: { name: 'TypeError', message: 'x' } }))],
+	['refusal throws another error', (f) => withOutput(f, 'aspnet-any-method-hand-fed-throws', () => ({ threw: { name: 'RangeError', message: 'x' } }))],
+	['leaf output vanishes', (f) => { const gone = leafEntries(f, vocab).filter((e) => e.leaf === 'go-gin').map((e) => e.id); return derive({ ...f, outputs: Object.fromEntries(Object.entries(f.outputs).filter(([id]) => !gone.includes(id))) }); }]
 ];
 const FACT_EXPECT = {
-	code: ['module export added', 'top-level entry added', 'profile state replaced', 'profile claims registration', 'profile key added', 'profile not frozen', 'routeOrUnknown use flipped', 'new code literal', 'code literal vanishes', 'new prefix', 'schema literal added', 'gate state flipped', 'limit of a gate vanishes', 'ownership answer replaced', 'ownership owner replaced', 'upstream function unused', 'parameter name vanishes', 'witness reason replaced', 'witness fixture module replaced', 'foreign schema in evidence'],
-	outputs: ['output keys reordered', 'output routes unsorted'],
-	'outputs+schema': ['output registration replaced', 'output status replaced'],
+	code: ['module export added', 'top-level entry added', 'profile state replaced', 'profile claims registration', 'profile key added', 'profile not frozen', 'routeOrUnknown use flipped', 'new code literal', 'code literal vanishes', 'new prefix', 'schema literal added', 'gate state flipped', 'module imports schemas/next', 'module imports contracts/next for effect', 'module calls import() on capability-next', 'module re-exports contracts/next', 'module holds a schemas/next path string', 'limit of a gate vanishes', 'ownership answer replaced', 'ownership owner replaced', 'upstream function unused', 'parameter name vanishes', 'witness reason replaced', 'witness fixture module replaced', 'foreign schema in evidence'],
+	outputs: ['output keys reordered', 'output routes unsorted', 'leaf output has another profileId', 'blocked status on a candidate leaf, nothing else wrong'],
+	'outputs+schema': ['output registration replaced', 'output status replaced', 'leaf output has another contract', 'leaf output is no object', 'normal fixture throws an Error', 'normal fixture throws a TypeError', 'refusal throws another error'],
 	'code+schema': ['leaf output vanishes'],
 	'code+outputs+schema': ['forbidden key in evidence', 'route owns operationId']
 };
-test('facts edits: each listed change in the code, the outputs or the ownership answers is reported by a named check', () => {
+const NOT_BRIDGE_NAMES = [
+	['a comment line', "// import '../../contracts/next/x.mjs';"],
+	['a block comment line', ' * see schemas/next/README.md'],
+	['a longer directory name', "import x from '../../contracts/nextgen/x.mjs';"],
+	['a longer capability directory name', "import x from '../../scanners/capability-next-v2/x.mjs';"],
+	['a longer parent name', "import x from '../../xcontracts/next/x.mjs';"],
+	['a hyphenated parent name', "import x from '../../my-schemas/next/x.mjs';"],
+	['another scanner directory', "import x from '../../scanners/language/js-ts/index.mjs';"]
+];
+test('facts edits: each listed change in the code, the outputs or the ownership answers is reported by a named check, and a name that only looks like a bridge path closes no gate', () => {
 	const actual = {};
 	for (const [label, mutate] of FACT_EDITS) {
 		const g = mutate(facts);
@@ -872,6 +925,29 @@ test('facts edits: each listed change in the code, the outputs or the ownership 
 		actual[label] = FACT_CHECKERS.filter(([, run]) => fires(run, g)).map(([n]) => n).join('+') || 'nothing fires';
 	}
 	assert.deepEqual(actual, Object.fromEntries(Object.entries(FACT_EXPECT).flatMap(([verdict, labels]) => labels.map((l) => [l, verdict]))), `ACTUAL=${JSON.stringify(actual)}`);
+	for (const [label, source] of NOT_BRIDGE_NAMES) assert.equal(withModule(facts, source).gateStates.bridges_built, 'open', `${label} closes the gate bridges_built`);
+});
+
+// Gates over the profiles. The layer has one real state only (every gate open), which cannot tell "one profile closes the gate" from "every profile has to lose the property". Each case builds profiles that differ: none, one and every profile has the property that the gate text names. A gate that one profile closes is open, closed, closed; a gate that closes when no profile has the property is closed, open, open.
+const ONE_CLOSES = ['open', 'closed', 'closed'];
+const NONE_HAS = ['closed', 'open', 'open'];
+const GATE_CASES = [
+	['leaves_registered', (p) => ({ ...p, id: 'zz-not-in-the-registry' }), (p) => ({ ...p, id: ADAPTERS[0].id }), ONE_CLOSES],
+	['runtime_tested', (p) => ({ ...p, runtimeTested: false }), (p) => ({ ...p, runtimeTested: true }), ONE_CLOSES],
+	['review_accepted', (p) => ({ ...p, t19Review: 'NOT_REVIEWED' }), (p) => ({ ...p, t19Review: 'ACCEPTED' }), ONE_CLOSES],
+	['blocked_leaves_unblocked', (p) => ({ ...p, state: 'candidate' }), (p) => ({ ...p, state: 'blocked-upstream-fact-gap' }), NONE_HAS],
+	['real_repo_evidence_structured', (p) => ({ ...p, realRepoComparison: null }), (p) => ({ ...p, realRepoComparison: 'x' }), NONE_HAS]
+];
+const gateCaseProblems = (cases, f) => cases.flatMap(([gate, without, having, want]) => {
+	const names = Object.keys(f.profiles);
+	const have = [0, 1, names.length].map((n) => gateStates({ ...f, profiles: Object.fromEntries(names.map((m, i) => [m, (i < n ? having : without)(f.profiles[m])])) })[gate]);
+	return isDeepStrictEqual(have, want) ? [] : [`${gate}: ${have.join(', ')} for none, one and every profile with the property, ${want.join(', ')} expected`];
+});
+test('gates over the profiles: with profiles that differ, the state follows whether one, none or every profile has the property', () => {
+	assert.deepEqual(gateCaseProblems(GATE_CASES, facts), []);
+	assert.deepEqual(GATE_CASES.map(([g]) => g), vocab.gates.map((g) => g.gate).filter((g) => !['bridges_built', 'schema_frozen', 'consumer_exists'].includes(g)), 'every gate over the profiles has its case');
+	const other = GATE_CASES.map(([g, without, having, want]) => [g, without, having, want === ONE_CLOSES ? NONE_HAS : ONE_CLOSES]);
+	assert.deepEqual(gateCaseProblems(other, facts).map((p) => p.split(':')[0]), GATE_CASES.map(([g]) => g), 'the other quantifier is reported for each gate');
 });
 
 const NS_EDITS = [

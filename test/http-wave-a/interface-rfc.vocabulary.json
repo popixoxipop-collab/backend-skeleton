@@ -516,7 +516,7 @@
   {
    "gate": "real_repo_evidence_structured",
    "blocker": "real-repo-evidence-not-structured",
-   "closes_when": "a `realRepoComparison` is no longer a plain string",
+   "closes_when": "no profile has a plain string as its `realRepoComparison`",
    "state": "open",
    "limits": [
     "real-repo-comparison-is-a-plain-string",
@@ -568,7 +568,7 @@
   {
    "id": "support-keys",
    "kind": "stricter",
-   "text": "no key named `supported`, `support`, `capability` or `capabilities` at any depth, while the layer copies `evidence` and `observations` as given"
+   "text": "no key named `supported`, `support`, `capability` or `capabilities` at any depth, while `projection` passes the contents of `unknowns`, `observations` and `evidence` on unchecked"
   },
   {
    "id": "plain-contents",
