@@ -80,7 +80,7 @@ Framework names are recognised after resolution, by what they resolve to and not
 | `repoRoot` | analyzePythonFile, analyzePythonFiles | none | a directory path; its realpath is the project root | analyzePythonFile requires repoRoot and file |
 | `file` | analyzePythonFile | none | a path inside repoRoot | analyzePythonFile requires repoRoot and file |
 | `files` | analyzePythonFiles | none | an array of non-empty paths inside repoRoot | analyzePythonFiles requires repoRoot and files[] |
-| `pythonCommand` | findPythonRuntime, analyzePythonFile, analyzePythonFiles | `null` | an absolute path, or a bare name of letters, digits and . _ + - searched in the absolute entries of PATH | none: an unusable value yields no runtime, not an error |
+| `pythonCommand` | findPythonRuntime, analyzePythonFile, analyzePythonFiles | `null` | an absolute path, or a bare name of letters, digits and . _ + - searched in the absolute entries of PATH | none: an unusable value yields no runtime, not an error; an empty string or another false value counts as not given |
 | `denyRoots` | findPythonRuntime | `[]` | directories; an interpreter whose realpath is inside one is refused (the analyzers pass the project root) | none: a refused interpreter yields no runtime |
 | `timeoutMs` | analyzePythonFile, analyzePythonFiles | `DEFAULT_TIMEOUT_MS` | an integer from 1 to 30000 | timeoutMs must be an integer between 1 and 30000 |
 | `maxBuffer` | analyzePythonFile, analyzePythonFiles | `DEFAULT_MAX_BUFFER` | an integer from 65536 to 16777216 | maxBuffer must be between 65536 and 16777216 |
@@ -121,7 +121,7 @@ A batch returns its results sorted by source path (claim `batch-results-are-sort
 
 `findPythonRuntime` returns the interpreter handle (executable and version text) or null (claim `interpreter-discovery-rules`). A null result is the only report: it does not say which candidate failed or why.
 
-- With `pythonCommand`, that command is the only candidate and there is no fallback when it fails (claim `explicit-command-has-no-fallback`). Without it the candidates are, in order, the value of `BSKEL_PYTHON` when it is set, then `python3`, then `python`.
+- With a non-empty `pythonCommand`, that command is the only candidate and there is no fallback when it fails (claim `explicit-command-has-no-fallback`). Without it the candidates are, in order, the value of `BSKEL_PYTHON` when it is set, then `python3`, then `python`.
 - An absolute command is used as written. A bare name of letters, digits and the characters dot, underscore, plus and minus is searched in the absolute entries of `PATH` only. Anything else (a relative path, a name with a separator, a space or a semicolon) is not used.
 - The real path of the executable must not lie inside a directory of `denyRoots`. The analyzers pass the project root, so a project cannot supply the interpreter that analyzes it.
 - A candidate is accepted when a one-line version probe exits with status 0 and prints three numbers separated by dots, and the major number is above 3 or the major number is 3 and the minor number is at least 8. The first accepted candidate wins; an executable that was already tried is not tried again.
@@ -180,7 +180,7 @@ The tables below list the keys of every kind of object that the samples return, 
 | mapping entry | `key`, `value` | One key and value of a mapping value. |
 | value binary | `kind`, `left`, `operator`, `right` | A binary operation; only the BitOr operator is recorded, any other operator is an unknown value. |
 | value call | `args`, `callee`, `column`, `end_column`, `end_line`, `keywords`, `kind`, `line` | A call with callee, arguments and keywords. |
-| value constant | `kind`, `value` | A string, boolean, None or a number inside the JavaScript safe range. |
+| value constant | `kind`, `value` | A string, boolean, None or finite float, or an integer inside the JavaScript safe range. |
 | value float-special | `kind`, `reason`, `value` | A non-finite float kept as text with a reason. |
 | value integer | `decimal`, `kind`, `reason` | An integer outside the JavaScript safe range, kept as decimal text with a reason. |
 | value mapping | `entries`, `kind` | A dict display with its entries. |
@@ -188,15 +188,15 @@ The tables below list the keys of every kind of object that the samples return, 
 | value sequence | `container`, `items`, `kind` | A list, tuple or set display with its items. |
 | value subscript | `base`, `kind`, `slice` | A subscript with base and slice. |
 | value symbol | `kind`, `name` | A name or dotted attribute chain. |
-| value unknown | `kind`, `node`, `reason?` | An expression the helper does not evaluate; node is the Python AST class name. |
+| value unknown | `kind`, `node`, `reason?` | An expression or constant the helper does not evaluate; node is the Python AST class name, or bytes, complex or ellipsis for a constant of that type. |
 
 #### Project and resolver outputs
 
 | Object | Keys | What |
 | --- | --- | --- |
 | collision | `moduleId`, `sources` | Several sources that map to one module id. Every source of a collision is excluded from the project. |
-| import resolution ambiguous-import | `alias`, `alternateModule`, `kind`, `locality`, `module`, `name`, `source` | An import whose target module id is a collision. |
-| import resolution module | `alias`, `importedLocality?`, `importedModule?`, `kind`, `locality`, `module`, `source` | Resolution of a plain import of a module. |
+| import resolution ambiguous-import | `alias`, `alternateModule`, `kind`, `locality`, `module`, `name`, `source` | A from-import of a name that the package declares and that is also a submodule of it. |
+| import resolution module | `alias`, `importedLocality?`, `importedModule?`, `kind`, `locality`, `module`, `source` | Resolution of a plain import of a module, or of a from-import that selects a submodule. |
 | import resolution star | `alias`, `kind`, `locality`, `module`, `source` | Resolution of a star import. |
 | import resolution symbol | `alias`, `kind`, `locality`, `module`, `name`, `source` | Resolution of a from-import of one name. |
 | module entry | `aliases`, `facts`, `importResolutions`, `isPackage`, `moduleId`, `packageId`, `source` | One analyzed module: identity, source, facts and the resolution of each of its imports. |
@@ -231,17 +231,17 @@ The tables below list the keys of every kind of object that the samples return, 
 | annotated model field | `annotation`, `declaredIn`, `default`, `line`, `metadata`, `name`, `typeFact` | A model field after annotatePythonModelTypes, with its typeFact. |
 | field metadata | `alias`, `fieldCall`, `hasDefaultFactory`, `nullable`, `primaryKey` | Keyword facts read from a pydantic or sqlmodel Field call. |
 | model | `bases`, `className`, `family`, `fields`, `inheritanceCycle`, `kind`, `limitations`, `module`, `primaryKeyFields`, `ref`, `table`, `tableStatus` | A class with a pydantic, SQLModel or settings ancestor. Classes of an unknown family are omitted. |
-| model bases | `external`, `local` | Bases of a model split into local models (as refs) and external dotted names. |
-| model field | `annotation`, `declaredIn`, `default`, `line`, `metadata`, `name` | A field of a model, declared in the class body. |
+| model bases | `external`, `local` | Bases of a model split into local classes (as refs, whether or not they are models) and external dotted names. |
+| model field | `annotation`, `declaredIn`, `default`, `line`, `metadata`, `name` | A field of a model, from the class body of the model or inherited from a local base class (any local class in any module, a model or not). Inherited fields come first, in the order of the bases; a field whose name repeats an earlier one replaces it and keeps its place in the list. declaredIn is the ref of the class whose body declares the field and line is the line of that declaration. With inheritanceCycle true a model has only the fields of its own class body. |
 
 #### FastAPI shadow
 
 | Object | Keys | What |
 | --- | --- | --- |
-| fastapi dto | `className`, `module` | A SQLModel class without table=True. |
+| fastapi dto | `className`, `module` | A Pydantic class, or a SQLModel class without table=True. A SQLModel class whose table keyword is not a literal boolean is left out. |
 | fastapi endpoint | `line`, `method`, `module`, `path`, `routerVar`, `source`, `verb` | A route declared with a literal path on a locally declared APIRouter. |
 | fastapi entity | `className`, `module`, `primaryKeyFields` | A SQLModel class with table=True and its primary key fields. |
-| fastapi mount | `child`, `line`, `module`, `prefix`, `prefixStatus`, `receiver`, `receiverKind`, `source` | An include_router call on a locally declared app or router. Mounts are recorded, not composed. |
+| fastapi mount | `child`, `line`, `module`, `prefix`, `prefixStatus`, `receiver`, `receiverKind`, `source` | A top-level include_router call on a locally declared app or router. Mounts are recorded, not composed. |
 | fastapi shadow | `dtos`, `endpoints`, `entities`, `mounts`, `unknowns` | Return value of buildFastApiShadow. |
 | mount child resolved | `locality`, `module`, `name`, `raw` | The router argument of a mount resolved to a module and a name. |
 | mount child unknown | `raw`, `reason`, `status` | The router argument of a mount could not be resolved. |
@@ -353,7 +353,7 @@ The locality of a module id says how far the layer can see. A module that failed
 Unknown is not absent, and unknown is not supported. When the layer cannot decide, it says so with a word and, where it can, a reason, and it does not guess a value. It does not report every case it cannot read: the cases it drops without any report are named below and in the limits table, and an item that is absent from a result must not be read as not present. The words that results use are of four kinds.
 
 - Status words in results: `status` is resolved or unknown on a symbol, and the name, prefix and table statuses are verified or unknown.
-- Fact kinds: a value the helper cannot read as a literal is a fact of kind unknown that names the syntax node it came from, or the reason it stopped (the expressions table below).
+- Fact kinds: a value the helper does not support is a fact of kind unknown that names the syntax node it came from, or the reason it stopped; a name, an attribute chain, a call, a subscript or a BitOr operation keeps its own fact kind (the expressions table below).
 - Diagnostics: a shadow reports a registration it cannot read as an object with a kind and a reason instead of an endpoint.
 - Failed files: a file that cannot be analyzed is a result with `ok` false and a code, and it is not in the project.
 
@@ -384,18 +384,18 @@ The words are listed per property below. Each row is a word that the code can wr
 
 | Word | Meaning |
 | --- | --- |
-| `pydantic` | A base resolves to pydantic.BaseModel and no other family was found. |
-| `settings` | A base resolves to pydantic_settings.BaseSettings. |
-| `sqlmodel` | A base resolves to sqlmodel.SQLModel. |
+| `pydantic` | A base resolves to pydantic.BaseModel, or to a local class of this family, when no other family was found before it and no base resolves to pydantic_settings.BaseSettings or sqlmodel.SQLModel. |
+| `settings` | A base resolves to pydantic_settings.BaseSettings, or to a local class of this family when no other family was found before it. |
+| `sqlmodel` | A base resolves to sqlmodel.SQLModel, or to a local class of this family when no other family was found before it. |
 | `unknown` | Internal: the class has no known family. Such classes are omitted from the output, so this word never appears in a result. |
 
 #### `kind`: kind of a fact, resolution, type, model, registration or diagnostic
 
 | Word | Meaning |
 | --- | --- |
-| `ambiguous-import` | An import whose target module id is a collision. |
+| `ambiguous-import` | A from-import of a name that the package declares and that is also a submodule of it. |
 | `annotated` | Type fact for typing.Annotated. |
-| `app` | A locally declared Flask app, or the receiver of a mount that is a FastAPI app. |
+| `app` | A locally declared Flask app. |
 | `assignment` | Control-flow mutation: a nested assignment. |
 | `augmented-assignment` | Control-flow mutation: a nested augmented assignment. |
 | `binary` | Value fact: a BitOr operation. |
@@ -404,10 +404,10 @@ The words are listed per property below. Each row is a word that the code can wr
 | `call` | Value fact of a call, or control-flow mutation of a nested call statement. |
 | `class-view` | View target written as Name.as_view(). |
 | `config` | Model kind for the settings family. |
-| `constant` | Value fact: a literal inside the JavaScript safe range. |
+| `constant` | Value fact: a string, boolean, None or finite float, or an integer inside the JavaScript safe range. |
 | `django-urlconf` | Diagnostic about a whole url module. |
 | `django-urlpattern` | Diagnostic about one urlpatterns entry. |
-| `dto` | Model kind for a SQLModel class without table=True or a pydantic class. |
+| `dto` | Model kind for a SQLModel class with table=False or without a table keyword, or a pydantic class. |
 | `entity` | Model kind for a SQLModel class with table=True. |
 | `fastapi-endpoint` | Diagnostic about one FastAPI route decorator. |
 | `fastapi-mount` | Diagnostic about one include_router call. |
@@ -423,7 +423,7 @@ The words are listed per property below. Each row is a word that the code can wr
 | `literal` | Type fact for typing.Literal. |
 | `mapping` | Value fact: a dict display. |
 | `missing` | Value fact: no expression present. |
-| `module` | Import resolution of a plain import. |
+| `module` | Import resolution of a plain import or of a from-import that selects a submodule. |
 | `none` | Type fact: the None annotation. |
 | `path` | Pattern segment written with path(). |
 | `positional` | Ordinary parameter. |
@@ -443,11 +443,11 @@ The words are listed per property below. Each row is a word that the code can wr
 
 | Word | Meaning |
 | --- | --- |
-| `ambiguous` | The module id is a collision; nothing is chosen. |
+| `ambiguous` | The module id is a collision, or an imported name is both declared by its package and a submodule of it; nothing is chosen. |
 | `external` | The module id is not a module of the project (this includes modules whose analysis failed). |
 | `external-or-unresolved` | A relative import that left the project tree, or a module that may be external; not decided. |
 | `local` | The module id is a module of the project. |
-| `unresolved-local` | A relative import that cannot be mapped to a module id. |
+| `unresolved-local` | A relative import that cannot be mapped to a module id, or whose module is not in the project. |
 
 #### `methodSemantics`: meaning of the methods of a Django registration
 
@@ -460,22 +460,22 @@ The words are listed per property below. Each row is a word that the code can wr
 | Word | Meaning |
 | --- | --- |
 | `explicit-decorator` | The method comes from the decorator name (get, post, put, patch or delete). |
-| `explicit-methods-list` | The methods came from a literal methods list or tuple. |
+| `explicit-methods-list` | The methods came from a literal methods list, tuple or set. |
 | `framework-default-unresolved` | No methods were given; the framework default (GET) is not asserted. |
 
 #### `nameStatus`: status of the name of a Django registration
 
 | Word | Meaning |
 | --- | --- |
-| `unknown` | The name keyword was absent or not a literal string. |
-| `verified` | The name keyword is a literal string. |
+| `unknown` | The name keyword or the fourth positional argument is not a literal string or None; the name is recorded as null. |
+| `verified` | The name is a literal string, None or absent; None and an absent name are recorded as null. |
 
-#### `prefixStatus`: status of a router or blueprint prefix
+#### `prefixStatus`: status of the prefix of a Flask declaration or of a FastAPI mount
 
 | Word | Meaning |
 | --- | --- |
-| `unknown` | The prefix is not a literal string; it is recorded as empty and not composed. |
-| `verified` | The prefix is a literal string, or absent. |
+| `unknown` | The prefix argument is not a literal string; the prefix is recorded as null and is not composed, and a mount with such a prefix is still listed. |
+| `verified` | The prefix is a literal string, or the argument is absent; an absent prefix is recorded as an empty string. |
 
 #### `reason`: reason a value, type, resolution or diagnostic is unknown or partial
 
@@ -495,32 +495,32 @@ The words are listed per property below. Each row is a word that the code can wr
 | `non-finite-json-number` | The float is infinite and has no JSON number. |
 | `non-type-constant` | The annotation is a constant that is not a string or None. |
 | `outside-js-safe-integer` | The integer is outside plus or minus 2 to the power 53 minus 1. |
-| `pattern-entry-not-static-call` | A urlpatterns entry is not a call. |
+| `pattern-entry-not-static-call` | A urlpatterns entry is not a call, or is a call whose callee is not a name or dotted name. |
 | `regex-include-prefix-not-composed` | A re_path prefix of an include is not composed into child patterns. |
 | `route-path-not-literal` | The route path is not a literal string. |
 | `route-pattern-not-literal` | The pattern of a path or re_path call is not a literal string. |
 | `route-receiver-not-locally-declared` | The decorated receiver is not an app or blueprint declared in the same module. |
-| `router-argument-not-static-symbol` | The router argument of include_router is not a plain name. |
+| `router-argument-not-static-symbol` | The router argument of include_router is not a name or dotted name, or the name does not resolve and no other reason applies. |
 | `router-prefix-not-literal` | The router prefix is not a literal string; the endpoint is not emitted. |
 | `router-variable-not-locally-declared` | The decorated variable is not an APIRouter declared in the same module. |
 | `unresolved` | A name did not resolve and the resolver gave no reason. |
 | `unresolved-generic-base` | The base of a subscripted annotation is unknown. |
 | `unsupported-annotation-expression` | The annotation is an expression the normalizer does not read. |
-| `unsupported-url-registration-callee` | A call in urlpatterns is not path, re_path or include. |
+| `unsupported-url-registration-callee` | A call in urlpatterns is not path or re_path; include is read only as the view of one of them. |
 | `urlpatterns-ambiguous` | urlpatterns is assigned more than once. |
 | `urlpatterns-dynamic` | urlpatterns is not a literal list or tuple. |
-| `urlpatterns-mutated` | urlpatterns is changed after its assignment. |
-| `view-call-not-statically-classifiable` | The view is a call other than Name.as_view(). |
-| `view-expression-not-static` | The view is an expression that is not a name or a call. |
+| `urlpatterns-mutated` | urlpatterns is changed by an augmented assignment or by a call of append, extend, insert, remove, pop, clear, sort or reverse on it, or by an assignment, augmented assignment or such a call inside control flow, before or after its assignment. |
+| `view-call-not-statically-classifiable` | The view is a call other than Name.as_view(), or a Name.as_view() whose name does not resolve. |
+| `view-expression-not-static` | The view is an expression that is neither a name nor a call of a name. |
 | `view-missing` | The path call has no view argument. |
 | `view-symbol-unresolved` | The view name did not resolve to a symbol (the resolver reason is used when it gave one). |
 
-#### `receiverKind`: kind of the receiver of a mount
+#### `receiverKind`: kind of the receiver of a Flask route registration or of a FastAPI mount
 
 | Word | Meaning |
 | --- | --- |
-| `app` | The receiver of include_router is a locally declared FastAPI app. |
-| `blueprint` | Reserved word of the same property in the Flask declaration; see kind. |
+| `app` | The receiver is a locally declared Flask app (route registration) or FastAPI app (include_router). |
+| `blueprint` | The receiver of a Flask route registration is a locally declared Blueprint. |
 | `router` | The receiver of include_router is a locally declared APIRouter. |
 
 #### `status`: status of a resolution, mount child or view target
@@ -558,11 +558,11 @@ A result is partial when it describes less than the source holds. The partial ca
 
 - Depth: a value is read down to its 13th nesting level and a node on the 14th level is unknown with the reason depth-limit (claim `numeric-and-depth-rules`).
 - Numbers: an integer beyond the safe integer range of JSON keeps its decimal text, and an infinite float (1e999 and -1e999 in the sample) is float-special with the reason non-finite-json-number and is not written as a JSON number (claim `numeric-and-depth-rules`).
-- Nesting of statements: definitions and imports below the top level or inside control flow are not facts. Assignments, augmented assignments and calls inside control flow are kept as mutation facts (claim `nested-statements-are-dropped`).
+- Nesting of statements: imports below the top level and definitions inside control flow are not facts, and neither are nested functions and inner classes, while methods and fields declared directly in a class body are kept. Assignments, augmented assignments and calls inside control flow are kept as mutation facts (claim `nested-statements-are-dropped`).
 - Files: a failed file is absent from the project (limit `failed-files-vanish-from-the-project`). A syntax error carries a position, whose end fields are null before Python 3.10, and an unknown or undecodable encoding has its own code (claim `syntax-errors-carry-a-position`). Which syntax is accepted follows the interpreter in use (claim `syntax-support-follows-the-interpreter`). Source with 300 nested parentheses fails as a file (claim `deeply-nested-parentheses-fail-the-file`), and a chain of 20000 attributes fails the helper (claim `deep-attribute-chains-fail-the-helper`).
 - Models: a class is left out of the models, without a diagnostic, when none of its bases establishes a recognized family. A base that does not resolve is ignored, so a class with an unresolved base next to a recognized one stays a model (claim `unresolved-model-bases-are-omitted`).
-- Mounts: a FastAPI `include_router` call is recorded where it is made, and its prefix is not composed into endpoint paths (claim `mounts-are-recorded-not-composed`). A Flask `register_blueprint` call is not recorded at all: the result is the same with and without the call, a blueprint route keeps the prefix of its own blueprint, and its `limitations` list says that mount overrides are not composed (claim `flask-register-blueprint-is-not-recorded`, limit `flask-blueprint-mounts-are-not-recorded`).
-- Dynamic values: a route path, a method list or a prefix that is not a literal is reported as a diagnostic and the route is not emitted (claim `dynamic-values-are-reported-as-unknown`).
+- Mounts: a top-level FastAPI `include_router` call on a locally declared app or router is recorded where it is made, and its prefix is not composed into endpoint paths (claim `mounts-are-recorded-not-composed`). A Flask `register_blueprint` call is not recorded at all: the result is the same with and without the call, a blueprint route keeps the prefix of its own blueprint, and its `limitations` list says that mount overrides are not composed (claim `flask-register-blueprint-is-not-recorded`, limit `flask-blueprint-mounts-are-not-recorded`).
+- Dynamic values: a route path, the prefix of a router or blueprint declaration or the method list of a Flask route decorator that is not a literal is reported as a diagnostic and the route is not emitted (claim `dynamic-values-are-reported-as-unknown`).
 
 ### Facts that are not evaluated
 
@@ -609,18 +609,18 @@ The shadows report what they cannot read as diagnostics. Each diagnostic is iden
 | `django-urlconf regex-include-prefix-not-composed` | `childModule`, `kind`, `module`, `pattern`, `reason` | include() under a re_path prefix; the prefix is not composed. |
 | `django-urlconf urlpatterns-ambiguous` | `kind`, `module`, `reason` | urlpatterns is assigned more than once in a module. |
 | `django-urlconf urlpatterns-dynamic` | `kind`, `module`, `reason` | urlpatterns is not a literal list or tuple. |
-| `django-urlconf urlpatterns-mutated` | `kind`, `module`, `reason` | urlpatterns is mutated after assignment. |
-| `django-urlpattern pattern-entry-not-static-call` | `kind`, `module`, `reason` | A urlpatterns entry that is not a call. |
+| `django-urlconf urlpatterns-mutated` | `kind`, `module`, `reason` | urlpatterns is mutated by an augmented assignment or by a call of append, extend, insert, remove, pop, clear, sort or reverse on it, or by an assignment, augmented assignment or such a call inside control flow, before or after its assignment. |
+| `django-urlpattern pattern-entry-not-static-call` | `kind`, `module`, `reason` | A urlpatterns entry that is not a call, or is a call whose callee is not a name or dotted name. |
 | `django-urlpattern route-pattern-not-literal` | `callee`, `kind`, `module`, `reason` | The pattern of path or re_path is not a literal string. |
-| `django-urlpattern unsupported-url-registration-callee` | `callee`, `kind`, `module`, `reason` | A call in urlpatterns other than path, re_path or include. |
-| `django-urlpattern view-call-not-statically-classifiable` | `kind`, `module`, `pattern`, `rawTarget`, `reason` | A view given as a call other than as_view. |
-| `django-urlpattern view-expression-not-static` | `kind`, `module`, `pattern`, `rawTarget`, `reason` | A view given as an expression that is not a name or a call. |
+| `django-urlpattern unsupported-url-registration-callee` | `callee`, `kind`, `module`, `reason` | A call in urlpatterns other than path or re_path; include is read only as the view of one of them. |
+| `django-urlpattern view-call-not-statically-classifiable` | `kind`, `module`, `pattern`, `rawTarget`, `reason` | A view given as a call other than as_view, or as_view on a name that does not resolve. |
+| `django-urlpattern view-expression-not-static` | `kind`, `module`, `pattern`, `rawTarget`, `reason` | A view given as an expression that is neither a name nor a call of a name. |
 | `django-urlpattern view-missing` | `kind`, `module`, `pattern`, `reason` | A path call without a view. |
 | `django-urlpattern view-symbol-unresolved` | `kind`, `module`, `pattern`, `rawTarget`, `reason` | A view name that did not resolve. |
 | `fastapi-endpoint route-path-not-literal` | `kind`, `line`, `method`, `module`, `reason`, `routerVar` | A route decorator whose path is not a literal string. |
 | `fastapi-endpoint router-prefix-not-literal` | `kind`, `line`, `localPath`, `method`, `module`, `reason`, `routerVar` | A route on a router whose prefix is not a literal string; no endpoint is emitted for it. |
 | `fastapi-endpoint router-variable-not-locally-declared` | `kind`, `line`, `method`, `module`, `reason`, `routerVar` | A route decorator on a variable that is not a locally declared APIRouter (this includes decorators on the FastAPI app itself). |
-| `fastapi-mount include-router-mount-not-composed` | `child`, `kind`, `line`, `module`, `prefix`, `prefixStatus`, `reason`, `receiver` | An include_router call; the mount is listed in mounts and its prefix is not composed into endpoint paths. |
+| `fastapi-mount include-router-mount-not-composed` | `child`, `kind`, `line`, `module`, `prefix`, `prefixStatus`, `reason`, `receiver` | A top-level include_router call on a locally declared app or router; the mount is listed in mounts and its prefix is not composed into endpoint paths. |
 | `flask-route blueprint-prefix-not-literal` | `function`, `kind`, `line`, `localPath`, `module`, `reason`, `receiver` | A blueprint route whose blueprint url_prefix is not a literal string. |
 | `flask-route methods-not-literal-sequence` | `function`, `kind`, `line`, `localPath`, `module`, `reason`, `receiver` | A route whose methods keyword is not a literal sequence of strings. |
 | `flask-route route-path-not-literal` | `function`, `kind`, `line`, `module`, `reason`, `receiver` | A route decorator whose rule is not a literal string. |
@@ -664,13 +664,13 @@ A check that needs an interpreter fails when none is found, unless `BASELINE_ALL
 | `oversize-is-reported-before-interpreter-discovery` | posix | A file larger than maxSourceBytes yields PYTHON_SOURCE_TOO_LARGE with only path and sizeBytes, and no interpreter is looked up. |
 | `no-interpreter-keeps-the-source-reference` | none | Without an approved interpreter a file yields PYTHON_RUNTIME_UNAVAILABLE with path, sha256 (the digest of the file bytes) and sizeBytes and no facts. |
 | `empty-and-oversize-batches-need-no-interpreter` | posix | An empty file list returns ok true and a null runtime; a batch of only oversize files returns ok false and a null runtime; neither looks for an interpreter. |
-| `explicit-command-has-no-fallback` | posix | An explicit pythonCommand that cannot be used yields no runtime; python3 and python are not tried. |
+| `explicit-command-has-no-fallback` | posix | A non-empty pythonCommand that cannot be used yields no runtime; python3 and python are not tried. |
 | `batch-results-are-sorted-by-source-path` | none | Batch results are ordered by localeCompare of source.path, whatever the input order. |
 | `source-path-is-the-realpath-relative-to-the-root` | posix | A symlink inside the root reports the path of its target; a symlink to a file outside the root throws. |
-| `interpreter-discovery-rules` | posix | BSKEL_PYTHON is tried first; a bare name is searched only in absolute PATH entries; versions below 3.8 and unparsable probe output are refused; an interpreter inside the project root is refused. |
+| `interpreter-discovery-rules` | posix | Without a non-empty pythonCommand, BSKEL_PYTHON is tried first; a bare name is searched only in absolute PATH entries; versions below 3.8 and unparsable probe output are refused; an interpreter inside the project root is refused. |
 | `helper-failures-are-results-not-throws` | posix | A timeout, a non-zero exit, output that is not JSON, a wrong envelope and an output flood are returned as ok false results with their codes. |
 | `stderr-is-cut-at-800-characters` | posix | The stderr text in a non-zero exit message is cut at 800 characters without a marker. |
-| `helper-is-started-isolated` | posix | The helper gets -I -S -B -X utf8 and its own path as arguments, the request on stdin (protocol, filename, source_base64) and an environment without the variables of the parent process. |
+| `helper-is-started-isolated` | posix | The helper gets -I -S -B -X utf8 and its own path as arguments, the request on stdin (protocol, filename, source_base64) and an environment without the variables of the parent process, except SystemRoot and WINDIR when the parent has them. |
 | `helper-source-has-no-execution-primitives` | static | The helper source imports only ast, base64, io, json, math, sys and tokenize and contains no call of exec, eval, compile, open, __import__, and no use of os, subprocess, importlib or socket; among the JavaScript modules only analyzer.mjs imports node:child_process and node:fs, and it uses only statSync, realpathSync and readFileSync of the file system module. |
 | `helper-and-analyzer-agree-on-protocols` | static | The request and response constants of the helper equal the analyzer constants, and all three protocol strings end with /1. |
 | `stable-scanners-do-not-import-the-layer` | static | No .mjs, .js, .cjs or .ts file under scanners/ outside this directory contains the text language/python; folders named node_modules are skipped. |
@@ -682,18 +682,18 @@ A check that needs an interpreter fails when none is found, unless `BASELINE_ALL
 | `syntax-support-follows-the-interpreter` | python | A match statement is read when the interpreter is Python 3.10 or newer and is a PYTHON_SYNTAX_ERROR on older interpreters. |
 | `module-ids-come-from-paths` | python | The module id table equals the resolver output: extension removed, dots for separators, hyphens kept, a trailing __init__ removed, no source roots; the package id is the directory of the file written with dots. |
 | `colliding-modules-are-excluded` | python | A module and a package of the same id, or a module and its stub, produce a collision, no module entry, and locality ambiguous. |
-| `failed-files-vanish-and-read-as-external` | python | A result that is not ok is not in the project; its module id reads as external, and a name imported from it resolves as a name of an external module, not as unknown. |
+| `failed-files-vanish-and-read-as-external` | python | A result that is not ok is not in the project; its module id reads as external, and a name imported from it by an absolute from-import resolves as a name of an external module, not as unknown. |
 | `resolved-names-are-not-checked` | python | A dotted name under a resolved module or class is reported as resolved without checking that it exists. |
 | `duplicate-names-last-definition-wins` | python | Two classes of one name in a module give one model, the later one; two imports of one alias resolve to the later import. An assignment, a function or a class whose name is also an import alias does not replace the import, in either order: the alias is looked up before the names the module declares (not modeled). |
 | `unresolved-model-bases-are-omitted` | python | A class is left out of the models, without a diagnostic, when none of its bases establishes a recognized family. A base that does not resolve is ignored: next to a base that establishes a family the class stays a model. |
 | `framework-names-are-matched-after-resolution` | python | An aliased import of APIRouter is recognized; a local class named APIRouter is not. |
 | `fastapi-silent-cases` | python | The decorators options and api_route, and include_router on a receiver that is not a locally declared app or router, produce neither a fact nor a diagnostic. |
 | `fastapi-parity-rule-and-keys` | python | The parity flag is true only when the difference count is zero and the shadow has no unknowns; differences are named by the keys of the identity table. |
-| `mounts-are-recorded-not-composed` | python | An include_router call is listed in mounts and in unknowns with the reason include-router-mount-not-composed; its prefix is not added to the endpoint paths, which carry only the prefix of their own router. |
+| `mounts-are-recorded-not-composed` | python | A top-level include_router call on a locally declared app or router is listed in mounts and in unknowns with the reason include-router-mount-not-composed; its prefix is not added to the endpoint paths, which carry only the prefix of their own router. |
 | `flask-register-blueprint-is-not-recorded` | python | A register_blueprint call with a url_prefix leaves the result of the Flask shadow unchanged: no mount is recorded, a blueprint route keeps the prefix of its own blueprint, and its limitations list says that mount overrides are not composed. |
 | `flask-silent-cases` | python | add_url_rule, a bare route decorator and the options decorator produce neither a registration nor a diagnostic. |
-| `django-include-without-urlpatterns-is-silent` | python | An include of a project module that has no urlpatterns is recorded as an include edge and produces no registration and no diagnostic. |
-| `dynamic-values-are-reported-as-unknown` | python | A path, prefix, method list or URL pattern that is not a literal yields a diagnostic with a reason and no registration for that entry, and the literal registrations beside it are still reported (FastAPI, Flask and Django). |
+| `django-include-without-urlpatterns-is-silent` | python | An include of a project module that has no urlpatterns, written under path with a literal prefix, is recorded as an include edge and produces no registration and no diagnostic. |
+| `dynamic-values-are-reported-as-unknown` | python | A route path, the prefix of a router or blueprint declaration, the method list of a Flask route decorator or a Django URL pattern that is not a literal yields a diagnostic with a reason and no registration for the routes it affects, and the literal registrations beside it are still reported (FastAPI, Flask and Django). |
 | `derived-outputs-carry-no-version-or-id` | python | Project, model, type and shadow outputs carry no schema, protocol, version or id key. |
 
 ## Remaining limits
@@ -703,9 +703,9 @@ Each limit has one of the four limit statuses of the baseline library. UNSUPPORT
 | Id | Status | Statement | Checked by |
 | --- | --- | --- | --- |
 | `module-ids-ignore-source-roots` | `UNSUPPORTED` | Module ids are the repository path with dots; a source root such as src is part of the id. | `module-ids-come-from-paths` |
-| `failed-files-vanish-from-the-project` | `UNKNOWN` | A file that fails to analyze disappears from the project and reads as an external module; a name imported from it resolves as external instead of unknown. | `failed-files-vanish-and-read-as-external` |
+| `failed-files-vanish-from-the-project` | `UNKNOWN` | A file that fails to analyze disappears from the project and reads as an external module; a name imported from it by an absolute from-import resolves as external instead of unknown, while a relative from-import of it stays unknown. | `failed-files-vanish-and-read-as-external` |
 | `resolved-names-are-not-checked` | `UNKNOWN` | A name under a resolved module is not checked for existence. | `resolved-names-are-not-checked` |
-| `nested-statements-are-dropped` | `UNSUPPORTED` | Definitions and imports below the top level or inside control flow are not facts. | `nested-statements-are-dropped` |
+| `nested-statements-are-dropped` | `UNSUPPORTED` | Imports below the top level and definitions inside control flow are not facts, and neither are nested functions and inner classes; methods and fields declared directly in a class body are kept. | `nested-statements-are-dropped` |
 | `shadow-silent-cases` | `UNSUPPORTED` | Some registrations are dropped without a diagnostic (listed in the FastAPI, Flask and Django claims). | `fastapi-silent-cases` |
 | `unresolved-model-bases-are-omitted` | `UNKNOWN` | A class none of whose bases establishes a recognized family is absent from the models; an unresolved base next to a recognized one is ignored and the class stays a model. | `unresolved-model-bases-are-omitted` |
 | `duplicate-names-last-definition-wins` | `UNKNOWN` | Two classes of one name and two imports of one alias keep only the last one. An assignment, a function or a class of an import alias name does not replace the import, in either order (not modeled). | `duplicate-names-last-definition-wins` |
@@ -714,7 +714,7 @@ Each limit has one of the four limit statuses of the baseline library. UNSUPPORT
 | `flask-blueprint-mounts-are-not-recorded` | `UNSUPPORTED` | A Flask register_blueprint call is not recorded and its url_prefix is ignored: a reported blueprint route path is the path under the prefix of its own blueprint, not necessarily the served URL. | `flask-register-blueprint-is-not-recorded` |
 | `syntax-support-follows-the-interpreter` | `UNKNOWN` | The syntax accepted is the syntax of the interpreter that runs the helper, so a file can be readable on one host and a syntax error on another. | `syntax-support-follows-the-interpreter` |
 | `batch-order-is-locale-dependent` | `UNKNOWN` | The batch order uses localeCompare, so it can differ between host locales. | `batch-results-are-sorted-by-source-path` |
-| `no-os-sandbox` | `UNSUPPORTED` | The helper runs with the privileges of the caller; isolation is the -I -S -B flags, an empty environment and the absence of execution primitives, not a sandbox. | `helper-source-has-no-execution-primitives` |
+| `no-os-sandbox` | `UNSUPPORTED` | The helper runs with the privileges of the caller; isolation is the -I -S -B flags, a near-empty environment and the absence of execution primitives, not a sandbox. | `helper-source-has-no-execution-primitives` |
 | `no-memory-bound` | `UNSUPPORTED` | The memory used by the interpreter is not bounded by the layer. | stated, not recomputed |
 | `examples-are-small-fixtures` | `NOT_RECORDED` | The tables that the test recomputes come from small fixtures written in the test, not from real projects. Real projects are read by the corpus test of test/language-python/baseline-record.test.mjs, which fetches the pinned commits when BASELINE_CORPUS_FETCH is 1 and is skipped otherwise. | stated, not recomputed |
 | `legacy-scan-shape-is-hand-fed` | `NOT_RECORDED` | The samples hand-feed the legacy scan shape; the real legacy scanner is compared in test/language-python/python-fastapi-shadow.test.mjs. | stated, not recomputed |
@@ -723,6 +723,7 @@ Each limit has one of the four limit statuses of the baseline library. UNSUPPORT
 | `fake-interpreter-checks-are-posix-only` | `NOT_RECORDED` | Child-process checks use shell-script stand-ins and are not evaluated on win32. | stated, not recomputed |
 | `windows-branches-are-not-run` | `NOT_RECORDED` | The Windows branches of the interpreter search (executable extensions from PATHEXT, SystemRoot and WINDIR in the child environment) are read from the source and have not been run. | stated, not recomputed |
 | `computed-words-are-sampled-only` | `NOT_RECORDED` | A word that the code builds by concatenation, such as the urlpatterns reasons, is checked through the samples and not through the source text, so a new variant of it is found only when a sample reaches it. | stated, not recomputed |
+| `markdown-only-changes-skip-ci` | `UNSUPPORTED` | The workflow file .github/workflows/ci.yml, as it stood when this was written, starts no run for a push or pull request whose changed files are all Markdown files, so an edit of this document or of the README alone is not held to the code by CI. A change that also touches another file starts the run, and so does a scheduled or a manual run, which would then find the drift. | stated, not recomputed |
 
 `BASELINE.json` records limits of its own. This document does not repeat them. The table below only says where this document speaks of each one, and the test requires the ids and statuses to equal those of the file.
 
@@ -792,7 +793,7 @@ The files below import or name files of this layer. They are listed so that an i
 
 ## How this document stays true
 
-The test `test/language-python/interface-rfc.test.mjs` and the vocabulary file `test/language-python/interface-rfc.vocabulary.json` hold this document to the code.
+The test `test/language-python/interface-rfc.test.mjs` and the vocabulary file `test/language-python/interface-rfc.vocabulary.json` hold this document to the code. CI does not run them for a change that edits only Markdown files (limit `markdown-only-changes-skip-ci`), so an edit of this document alone needs the test run by hand.
 
 - Each table block of this document (a block that starts with a table bar or with a level-4 heading) is rendered from the vocabulary file by one function of the test and must equal its rendering, and a line that starts with a table bar must lie inside such a block. A table edited in the document alone fails. The descriptive columns (Role, Takes, Returns, Use, Meaning, What, When, Condition, Note, Strategy, Stable within, Breaks on, Statement and For, and Scope and Blocks of the obligations table) are written by hand in the vocabulary and are not recomputed: an edit that changes the vocabulary and the document together passes.
 - The vocabulary is compared with the code: the directory listing, the export names and signatures, the protocol strings, the defaults and the options (read from the source text), the string literals that the sources write after a word property name, and, on the interpreter the test finds, the key sets of the object shapes, the word tables, the diagnostic keys, the expressions, the module ids, the collisions, the localities and the symbol resolutions.

@@ -1346,6 +1346,12 @@ check('flask-silent-cases', 'python', (c) => {
 	const reported = [...shadow.registrations, ...shadow.unknowns].map((x) => x.line);
 	c.ok('the shadow reports other lines', reported.length > 8);
 	for (const n of silent) c.ok(`line ${n} is not reported`, !reported.includes(n));
+	const base = ['from flask import Flask', 'app = Flask(__name__)', '@app.route("/a")', 'def a(): pass'];
+	const plain = flask.buildFlaskRouteShadow(analyzeProject({ 'g.py': lines(...base) }).project);
+	const called = analyzeProject({ 'g.py': lines(...base, 'app.add_url_rule("/k", view_func=a)') }).project;
+	c.ok('the facts of the module hold the add_url_rule call that the shadow leaves out', called.list().some((m) => (m.facts.calls || []).some((e) => e.line === base.length + 1 && e.value?.callee?.name === 'app.add_url_rule')));
+	c.eq('registrations (function: path) before the call', { a: '/a' }, Object.fromEntries(plain.registrations.map((r) => [r.function, r.path])));
+	c.eq('the call leaves the result unchanged', plain, flask.buildFlaskRouteShadow(called));
 });
 
 check('django-include-without-urlpatterns-is-silent', 'python', (c) => {
