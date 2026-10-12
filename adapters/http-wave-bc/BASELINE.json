@@ -1,0 +1,4014 @@
+{
+ "schema": "bskel.track-baseline-record/2",
+ "schema_status": "provisional",
+ "track": "T13 HTTP wave B and C adapters",
+ "item": "T13-01",
+ "suite_id": "T13",
+ "title": "Exact-revision baseline of the current HTTP wave B and C adapters, their counter-examples and their remaining limits",
+ "base_commit": "15a38e923cb5e079c6f8e2a4c2a9386406c41f52",
+ "base_tree": "1bffe4fecb9801a92a6cd18dd62d6d7e1e7c0cd1",
+ "observed_on": "2026-10-12",
+ "environment": {
+  "generated_with_node": "v24.19.0",
+  "platform": "darwin",
+  "arch": "arm64",
+  "loaded_packages": {
+   "ajv": "8.20.0",
+   "fast-deep-equal": "3.1.3",
+   "fast-uri": "3.1.7",
+   "json-schema-traverse": "1.0.0",
+   "require-from-string": "2.0.2"
+  }
+ },
+ "source_dir": "adapters/http-wave-bc",
+ "test_dir": "test/http-wave-bc",
+ "files": [
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/catalog.mjs",
+   "bytes": 3139,
+   "git_blob_sha1": "04a53990e263141ce0566dd4aea9ccae36bada2b",
+   "sha256": "40f812ad2a4c86ffc7425027b31689422f436d41cefe289564a0d7366c681ba1"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/node-hono/adapter.mjs",
+   "bytes": 4236,
+   "git_blob_sha1": "31abd94aeab9419f2f86937d74dccf13a64bc11d",
+   "sha256": "54518193734847f04e3ba41930f330a462065baa15cf21f0ff228504115f34a0"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/node-hono/route-graph.mjs",
+   "bytes": 17954,
+   "git_blob_sha1": "c8c22de9abf3c0cda955215f2d3f2f54e242cb33",
+   "sha256": "604e6ad4d0fe7f2d95ddd77487c1d5cd8f04d9932ab5d6e6c935ceac839ea488"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/node-hono/show-routes-parser.mjs",
+   "bytes": 1006,
+   "git_blob_sha1": "52d77cc5e5f63980771472ac6d5dbc0d9585c5ef",
+   "sha256": "1bcd651ad81e5516b7ba9353b34a9cfbe0261b0badcf031c9d9bbc9bce175867"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/node-koa/adapter.mjs",
+   "bytes": 16696,
+   "git_blob_sha1": "70bbe1736746df68adfaf61c2c21dbf16f88b5b5",
+   "sha256": "d546ae51e5fbb5893fbf90c901c6a68445ac4dbb299c03c3c507645d1f142129"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/profile-evidence.json",
+   "bytes": 4391,
+   "git_blob_sha1": "aafae875749f279f55e0d683c0a0d8d76d8b959f",
+   "sha256": "4b4a8c2f716ae22157d77466d9f524a7e157b753698f80513703bdad4448e167",
+   "live_after_change": {
+    "bytes": 4164,
+    "git_blob_sha1": "1e2c89856a382f458163fd3517d38c73112c1092",
+    "sha256": "40c76799876203e63e7e917f8315c740e3af13ce48dde69946a228d379a717ae"
+   }
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-litestar/SCOPE.json",
+   "bytes": 16510,
+   "git_blob_sha1": "f75e80dee832332b50d2ffabac49da7232b23221",
+   "sha256": "2fb05e64ba415af5553cd63b1efc8a4be41ddd221d95458e7258f8dc512201dc"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-litestar/fixtures/counterexamples/deployment-prefix/app.py",
+   "bytes": 221,
+   "git_blob_sha1": "0834abe64d69133e38860c62e4adfe5b85b1d59b",
+   "sha256": "2df8888a13ededd5612993ab76fd8cc4adc2e83c0a0540f931d31255a9c788ec"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-litestar/fixtures/counterexamples/dynamic-route-factory/app.py",
+   "bytes": 264,
+   "git_blob_sha1": "e78ce43bd0e3cc51a9e971510228e3244c8ded98",
+   "sha256": "94a9da468b41f083c1bc6a7d8cea6cd433626180af173a8c2412f3850557a19f"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-litestar/fixtures/counterexamples/generated-routes/app.py",
+   "bytes": 249,
+   "git_blob_sha1": "722b12f0a0af9266731c9519192a2873b5f13156",
+   "sha256": "9b2f6b831dcfd29593a92ad44d7f3bdbca6f95711a7c08f3aaac0256ef56e420"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-litestar/fixtures/counterexamples/middleware-auth/app.py",
+   "bytes": 570,
+   "git_blob_sha1": "9acff28b705031369a767de399f16190c63ce791",
+   "sha256": "16cb51f4ae67d3f92c73726983410219048a855094b63d74780f7b99e3c3eec3"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-litestar/fixtures/counterexamples/router-prefix/app.py",
+   "bytes": 258,
+   "git_blob_sha1": "600ff0cabe415722df90e0ed8142ab44ae867c00",
+   "sha256": "42ae2d4e30117384f338256f2b39a70fd725cb65171492061ea9ff32ac91a263"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-litestar/fixtures/normal/app.py",
+   "bytes": 446,
+   "git_blob_sha1": "737e4cf780b3c6e6ae23581b3137213e1f7b166d",
+   "sha256": "5d43c0d77b324fb2e2f41da3fe9b155ab29b174db3f165b373f15be197578da8"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-litestar/results/environment.txt",
+   "bytes": 371,
+   "git_blob_sha1": "d6f920b837b4444fa9b352ee52ce8694d3b04a71",
+   "sha256": "97d16a6cdd3c0ddaf6e6083134d90b901ec2003ecb1c11cabade6ec0cf10cb1d"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-litestar/results/oracle.json",
+   "bytes": 23986,
+   "git_blob_sha1": "293043103874d92b9e189e742850fee0df6aaf21",
+   "sha256": "5e36c083b38c2a15d63d762a770520dcc71fd9e8c4153bb9b3fff3af06b11b9d"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-litestar/results/registry.json",
+   "bytes": 541,
+   "git_blob_sha1": "0542a664c28dd8805973ac6d9d209a04121d320b",
+   "sha256": "01bdf3bbbe8633949dc17ff839044a3cbfb5c404707fc9a89c4e72ee7b4356d2"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-litestar/results/wheel-digest.txt",
+   "bytes": 99,
+   "git_blob_sha1": "b9707ff3f900039ff9b7d767ba2803506b6e7156",
+   "sha256": "ef95cfed738a6ea9c02f12a64e3d84d5e5b62d7283865cfa0c1d4ef1b14f94e9"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-starlette/SCOPE.json",
+   "bytes": 14139,
+   "git_blob_sha1": "7baec7ab616bf10197115fe8a08f54720c58b41e",
+   "sha256": "f54b70a703623f8418aa48e841398fe4251f3c13c256ea26ac7975eff424f1f0"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-starlette/fixtures/counterexamples/deployment-prefix/app.py",
+   "bytes": 331,
+   "git_blob_sha1": "068379d728d30daf73736b18375ccd01020c1748",
+   "sha256": "c0ffb45657fe58c08ef8d56f1e2191435a954dc5081a4a60d90dae4e4dac598d"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-starlette/fixtures/counterexamples/dynamic-route-factory/app.py",
+   "bytes": 363,
+   "git_blob_sha1": "693de952efb3aef6022038f558b2009c6cf2537c",
+   "sha256": "0fccc00cb3e4e769ec5233df971c7c031cacb200427a659cd703d3eeb24888d7"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-starlette/fixtures/counterexamples/generated-routes/app.py",
+   "bytes": 413,
+   "git_blob_sha1": "d9077bbfb2c1be3c42538ca28160bd0c31642768",
+   "sha256": "ef0560e0c4057f3be4f8f2b763a112f4f6b4b6ff3650bc0374cbf039bdd4e2dc"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-starlette/fixtures/counterexamples/middleware-auth/app.py",
+   "bytes": 744,
+   "git_blob_sha1": "db401fc7f9bbc2fc71b6316cc99d0c36b6d01255",
+   "sha256": "55a7accd3b79cb9884710896908e019f3dde1d9cdefa9eecf64a2f6698ba6de5"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-starlette/fixtures/counterexamples/router-prefix/app.py",
+   "bytes": 298,
+   "git_blob_sha1": "10b6730f6ab0fd94085ef9e1640d0f16001a0dbe",
+   "sha256": "c717c4266c82b4247d01b5f6e7a5166b53d934ac2412ef5c8cb8f39653d6f656"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-starlette/fixtures/normal/app.py",
+   "bytes": 491,
+   "git_blob_sha1": "d47fca5e9d4137d093ec5589ef4dbc9d6b11ef55",
+   "sha256": "4b378a736a9f0a0a45e5b636c1f7fbb83d3fa8efb5dfa16d406122f51af69967"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-starlette/results/environment.txt",
+   "bytes": 80,
+   "git_blob_sha1": "6088fef6e46b605a9cb9aca2d5bf4424f0706012",
+   "sha256": "bb32101d7a6edb49acd0c1aa128302819a83503fbce7ec001d5be8eadc1c5e11"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-starlette/results/oracle.json",
+   "bytes": 2600,
+   "git_blob_sha1": "158429f390e15927a3207389a45de7968337b5e9",
+   "sha256": "667892f67a5cb4c4c14e74d81cc5c8695dc665b92f7661f8e10392d59b6e8b3d"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-starlette/results/registry.json",
+   "bytes": 535,
+   "git_blob_sha1": "82442a5979bfe56624d210aacc92bf779436c336",
+   "sha256": "4681faef66bf3463867cbd245ce350ce7419b2dd8d9e5fe6028333ab13dfbd8d"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/python-starlette/results/wheel-digest.txt",
+   "bytes": 99,
+   "git_blob_sha1": "1dcdf1957e8cd1e65bfc44df3e9c1596e8198bf2",
+   "sha256": "70d441823e6bc32b11438f2f1ef591513bcadfb36b086ec9c6f318e20fffa7d2"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/scope/node-hono.SCOPE.json",
+   "bytes": 25604,
+   "git_blob_sha1": "b33e0eb4a582ecb86db31f6b6980416d47f15fc6",
+   "sha256": "61490121a180399a65122dc7f738a2d9dc541a24f7def130ffef65a51eec4f4f"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/scope/node-koa.SCOPE.json",
+   "bytes": 26763,
+   "git_blob_sha1": "c1e6d9df4bede18c5b777cb380a55b2034affd58",
+   "sha256": "b5e54b7f3396bd9d94386541d2e32c2de4625ed04cbc30582e22dd8843fbe78b"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/scope/typescript-nextjs.SCOPE.json",
+   "bytes": 36673,
+   "git_blob_sha1": "66b856ca17eca73cf6f06ff914ab35460b3630b6",
+   "sha256": "7e7fa57f1326f3053c171b47af4ee7acd49e667cdd7f673ccde7634881d5db36"
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/t19-review-request.json",
+   "bytes": 3539,
+   "git_blob_sha1": "18ec786a0e24e3d05dce62bda6fccf906d206770",
+   "sha256": "778ed6ee18c0797bdbaa8a973a42939f03d40a82d2f5342b8de825839d9ac7df",
+   "live_after_change": {
+    "bytes": 3429,
+    "git_blob_sha1": "8e80817f3a09bace23c6b8b17dc33e872637240e",
+    "sha256": "fb4e18219bc6f15a4c2de687648c006febbabde154d34874607263483cbcb5b0"
+   }
+  },
+  {
+   "role": "source",
+   "path": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+   "bytes": 15881,
+   "git_blob_sha1": "ab4df1543b1baf2d3e0494f138ad7757eab7f2ea",
+   "sha256": "d8dd7376b11358f2f0b669977c923f7f3bedf920895f67ffdc4d0a07c76c628e"
+  },
+  {
+   "role": "test",
+   "path": "test/http-wave-bc/catalog.test.mjs",
+   "bytes": 1106,
+   "git_blob_sha1": "67a2d72ada332e6b044187c6548507554c5d7bd2",
+   "sha256": "9577df0bc1175c05978fa4bd765635dd5f85fc404110376160e0c76a04b6735a",
+   "test_count": 9
+  },
+  {
+   "role": "test",
+   "path": "test/http-wave-bc/hono-show-routes.test.mjs",
+   "bytes": 1993,
+   "git_blob_sha1": "8b4d269707d183dd180d179ef8e821169bdb33e9",
+   "sha256": "b9eed421478d7a95cf8eda613f747d6c0c9b1cb6508616c0258814a25912c20a",
+   "test_count": 3
+  },
+  {
+   "role": "test",
+   "path": "test/http-wave-bc/leaf-inventory.test.mjs",
+   "bytes": 2541,
+   "git_blob_sha1": "52b1d975b9416ae46bd0328e571b0239c6513f4f",
+   "sha256": "840d579bae1086780e7ed1a40b267765ac5d02a9c8d7eb3b15fead5c2f7c90bd",
+   "test_count": 3
+  },
+  {
+   "role": "test",
+   "path": "test/http-wave-bc/node-hono.test.mjs",
+   "bytes": 15002,
+   "git_blob_sha1": "fe96ff6f56e5b2afadf61d1c166f78edc7c22f45",
+   "sha256": "bd4808742799c32ff61ceb8e60093ca908f753d1844d8f45b41aceb96251d52b",
+   "test_count": 19
+  },
+  {
+   "role": "test",
+   "path": "test/http-wave-bc/node-koa.test.mjs",
+   "bytes": 10897,
+   "git_blob_sha1": "16ae40df679673fd1341df3a9ee0ddedfe31a20b",
+   "sha256": "273713c0f8bd5d9b00e6bd6d05b9758b6ed18e3c39acffccc5ad6fcb93b9cbea",
+   "test_count": 12
+  },
+  {
+   "role": "test",
+   "path": "test/http-wave-bc/profile-evidence.test.mjs",
+   "bytes": 3790,
+   "git_blob_sha1": "7ce4b515af582a59d5381b5799485a65807f0c76",
+   "sha256": "235be69bd4a6c40542facb92c68743154d2bc884779eaf24a1780f19b681e5f3",
+   "test_count": 4,
+   "live_after_change": {
+    "bytes": 3800,
+    "git_blob_sha1": "51d1eb9234594832c1b026750d189d2bc5a5047e",
+    "sha256": "55903de0b7232869477d7ce03a41a54cb4b524874e3deb6bc1085686ae6998b0"
+   }
+  },
+  {
+   "role": "test",
+   "path": "test/http-wave-bc/typescript-nextjs.test.mjs",
+   "bytes": 11836,
+   "git_blob_sha1": "828f35d6f2e72489ebaf1a54515f265a185ad240",
+   "sha256": "3fb3bf7af91c1b5e9044cc233460b87d2991aa097742824c405c1f338fa2c82a",
+   "test_count": 16
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/hono-official-readme/SOURCE.md",
+   "bytes": 750,
+   "git_blob_sha1": "e8a6c8c08270f645163cbf2cacbf8ad9b9ea4ea7",
+   "sha256": "e32288c343da5f0f281675c497d4b05b064c40a03b8dfa238589ffe354f8bc49"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/hono-official-readme/package.json",
+   "bytes": 136,
+   "git_blob_sha1": "79c4f0fe980c77ddc7436597fec02f5e5b0274a4",
+   "sha256": "3aeec63c4755a056a2c5180eaa62feb484e87d1b58fb91aa730908f7fff73d65"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/hono-official-readme/src/index.ts",
+   "bytes": 109,
+   "git_blob_sha1": "d15b5f38943b4fe58f9674957aae20d64363f634",
+   "sha256": "11a4e28cb35ea87b47fc3e3b2b9358faa03e2928d1bea20621617dcda4d733fc"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/koa-router-official-readme/SOURCE.md",
+   "bytes": 732,
+   "git_blob_sha1": "0254c929e3e2e5d71d6cb9573fed259bf9a3ea85",
+   "sha256": "de5e9d1fb8246c83cc2e816ca0d84468d5754c0edbb4e948d114126ff21b2b60"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/koa-router-official-readme/package.json",
+   "bytes": 169,
+   "git_blob_sha1": "6a21d725455f275d1de5c3c7fa2c0ebde7a626e7",
+   "sha256": "3e0a93bcfba1e3d5f33cea18eabd956afc34c6cc1e62e0a4bd4b9134f6999789"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/koa-router-official-readme/src/app.js",
+   "bytes": 335,
+   "git_blob_sha1": "68859c176cbab20d11c409506b1666b0a9bc083d",
+   "sha256": "549ac7a16bde7aa1639ee8da9f99558f9fe9fd0ff4e80014369aa6816850d2a6"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/nextjs-official-route-handler/SOURCE.md",
+   "bytes": 699,
+   "git_blob_sha1": "2b539d1d2a5084ff9037c3f6fb93e31e9bceaef7",
+   "sha256": "f5b6168690cf2bf090e4d843bfd23418a8886eda2e3b09593757bd632c6b926a"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/nextjs-official-route-handler/app/api/route.ts",
+   "bytes": 83,
+   "git_blob_sha1": "29d5fc37b60d5ec5861a2af319820b92f0ab86d1",
+   "sha256": "288775fde9b9f837fc8deb8c56a1a53a4b87a734dc2eef015f729ec8d91b0f55"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/nextjs-official-route-handler/package.json",
+   "bytes": 185,
+   "git_blob_sha1": "813016d234cb806e3b559a036668ce6796c4d1c3",
+   "sha256": "3ce02030eadb8c6d34c5a5a54878033414e8141b14b62231576b64fc72fa9e7b"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/hono/counterexample/package.json",
+   "bytes": 113,
+   "git_blob_sha1": "71e0568d464b4647b9920e3f95245edb5a004996",
+   "sha256": "1da6cfa43637b40265068bf7454609fd107e744571dd374cb3af920a932d637c"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/hono/counterexample/src/app.js",
+   "bytes": 1230,
+   "git_blob_sha1": "43f5eee3f89eed855e243cb8e882506f4e27c78c",
+   "sha256": "ba6ce60b9892fef6875bfe634e7b9ab16a451920b2f9fed5476e1dc215b7c589"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/hono/counterexample/src/factory.js",
+   "bytes": 223,
+   "git_blob_sha1": "e5409a6054b47027e482de7b72773dabe8593cbf",
+   "sha256": "e449888e7dfc498307334302a8e012bdd06d7b247d7985d69423d47f768a08ba"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/hono/counterexample/src/members.js",
+   "bytes": 107,
+   "git_blob_sha1": "1d3879b1f0b2e4827a7f08bb55ca5d62e4c8f3cc",
+   "sha256": "58f7164cf3f07085cdf92c3cd9bb938460d79b9eebd19a236471c464061fe17c"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/hono/counterexample/src/ping.js",
+   "bytes": 113,
+   "git_blob_sha1": "b602cceb6b296a521b463ea3ab8ed0de79bd7847",
+   "sha256": "fe4e8a5b56e7aa49cc2410033b1b2f69c3eb91d27dc168d4ddbbdb31a93a7fc7"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/hono/normal/package.json",
+   "bytes": 105,
+   "git_blob_sha1": "417f0badd51d440dcca83c020f96b678e66e9404",
+   "sha256": "f8728d664e6a168f38edcae846531e141e1a18ef9bae3421d1ad5acbe496c538"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/hono/normal/src/app.js",
+   "bytes": 242,
+   "git_blob_sha1": "56b777285d44b784d425eebd6a18be023198bd44",
+   "sha256": "96ede64651f9b550e9744d3ba62e5e975de7c4f44f0b00ae26efba24d3b71fab"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/hono/normal/src/users.js",
+   "bytes": 216,
+   "git_blob_sha1": "8de821e70c94c26b7d360c7ab039857a7653a0af",
+   "sha256": "ca0a48b767d3ac9d31a7524afae556656a86fd434b3c7aa1696dbb9303d715b1"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/hono/normal/src/v1.js",
+   "bytes": 184,
+   "git_blob_sha1": "4032be1a0376fe160251e1d750b8c60f58e8405e",
+   "sha256": "82958e9e3a4b58d18c4a53dd8ba796898106e6558b70d6bf925e69b0229654e6"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/hono/oracle-output.json",
+   "bytes": 5978,
+   "git_blob_sha1": "08c85949313232d16b15d2fe95a2c332ccba8d69",
+   "sha256": "189f70e908d9ea9d3cda86fe0d36d2afc97d33994394d731477ac24c67f5bdea"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/hono/oracle.mjs",
+   "bytes": 5484,
+   "git_blob_sha1": "c8cbfa2d7539ac214ca7b4cc8c65cec0aee355c2",
+   "sha256": "50de3958afdaa304346af7ef8df42ade7a9f9be47faf52cdb1c185f76bbcdc56"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/hono/package-lock.json",
+   "bytes": 555,
+   "git_blob_sha1": "d589714be385d957bca0ca1ec69d90088aa0a619",
+   "sha256": "fbf433c4e22faf82b26ea85c37f0cfe90cb46d4b87e8fdc0b97e3440b9fdcd13"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/hono/package.json",
+   "bytes": 273,
+   "git_blob_sha1": "c3a527318023ccd89cc12d9c5ea4f485321e5b89",
+   "sha256": "a7c9b6c2ceeda0ff9a2a14d19b7a39c98e404f4ffa9b5f4f5ec745a519aa4913"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/hono/registry-hono_4.13.9.json",
+   "bytes": 163,
+   "git_blob_sha1": "f341e7ea56c182057b6ce5c7c16a959029ef7f85",
+   "sha256": "ef927037c5f5df5542864dc2f919c6acf3cc04d5ed36b761800ab6eedc2693a1"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/koa/counterexample/package.json",
+   "bytes": 135,
+   "git_blob_sha1": "939c283609385332e79fabb517fec7479010b9eb",
+   "sha256": "6a85767f574cd2e4485c0e88cfc12883ece143deee81cd90e058d4a9f65da2ad"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/koa/counterexample/src/auth.js",
+   "bytes": 132,
+   "git_blob_sha1": "291f730d87a0064fd186d39542aadf8f606e1c91",
+   "sha256": "79d488992c56c583528025ada7d6453d637125881a46e0714a4ef7507370081d"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/koa/counterexample/src/factory.js",
+   "bytes": 305,
+   "git_blob_sha1": "e9071a0d98562e594cca783ceebd286389e5ec49",
+   "sha256": "74ae1304e94990ad48a682ccf781e6a0e9494b56a60f05a9b29ec764ef8be46a"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/koa/counterexample/src/server.js",
+   "bytes": 1706,
+   "git_blob_sha1": "725571ac3da22cfe72de44a5d995de048728c8c2",
+   "sha256": "040df035871108742f337526bd9e58754c0c299a098e757ee40ebd3ede682959"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/koa/normal/package.json",
+   "bytes": 127,
+   "git_blob_sha1": "ced6dbd7d1d1ebdab8df130e42da8d9c43e8c731",
+   "sha256": "a3fbe5eb1b2b928f14d853de378c44886679c19ff774534dbf8c16ca70f09e0d"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/koa/normal/src/server.js",
+   "bytes": 612,
+   "git_blob_sha1": "40e5fe2eeba685e1a9a6a4c9bdb318696c0a7e9b",
+   "sha256": "a4fd24b153ac2c1cd0e85977bcdcce22e41f8187005ad29f24d1a46418cc60bc"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/koa/oracle-output.json",
+   "bytes": 5245,
+   "git_blob_sha1": "535ae3fc4c84e8f3fc0f5af9cb61e6a2cee5b634",
+   "sha256": "f330c2ffdba3cbb9f40181169d4c93cf58d0c94c6f132301d3beebe3f8541711"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/koa/oracle.mjs",
+   "bytes": 5751,
+   "git_blob_sha1": "78af7dffcefcce87628416837c04b2d6c46b270b",
+   "sha256": "62dd94db5bd7a8f524076e2200a5bd6e08f606ca1733278782896956e1b35b18"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/koa/package-lock.json",
+   "bytes": 16399,
+   "git_blob_sha1": "8064ac190e3e37f54f43249feb0b2fb88527b829",
+   "sha256": "0b48b2c7f8c1bed4325da2a000367b361cd13bdccb30544abed40e3aaf2a2125"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/koa/package.json",
+   "bytes": 298,
+   "git_blob_sha1": "0e358b05d45288662224ba3e44dea414650ab991",
+   "sha256": "4ddb264d3cb7c1916243043571e6f9f037f6cbf0efcc0acce207b2a9979ad886"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/koa/registry-_koa_router_15.7.0.json",
+   "bytes": 170,
+   "git_blob_sha1": "63ca87b7176a4310c605b4c15eef80db822ca47a",
+   "sha256": "938d9c59594922b77395926c9fcd25c90abee0b39909e714389bff87c39b953f"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/koa/registry-koa_3.2.1.json",
+   "bytes": 161,
+   "git_blob_sha1": "fc47508531f710b36718514184991fcfad4ef6af",
+   "sha256": "1996d53c75314094338be21b00105da14526ae374d12210a9c466830ae9770c1"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/counterexample/app/api/files/[...path]/route.ts",
+   "bytes": 183,
+   "git_blob_sha1": "a58c74fe42676904ac5785c8d4f671fde2a6c651",
+   "sha256": "4e1ad76014510aed2cb8f6e687c12f71abec35403702fe33a23f8b0a872cb62d"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/counterexample/app/api/items/route.ts",
+   "bytes": 111,
+   "git_blob_sha1": "73bc45a916e55d952c52ef5cb32683eb47c3a7ee",
+   "sha256": "b56cdabde4ffc04ccc8b41ad9eef7fb228289a75f3c06cc7c88ed8fd42af49c8"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/counterexample/app/api/open/route.ts",
+   "bytes": 66,
+   "git_blob_sha1": "ff45e5e0189d94718d95bb150cfc0424a343fca5",
+   "sha256": "6d5cb9a3c7adfcfdd3c5de711dedd584e29536f25a3780fe9273827125e5b6cd"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/counterexample/app/api/secure/data/route.ts",
+   "bytes": 68,
+   "git_blob_sha1": "2ddcf6743e12a4406161cd7c8dd31a4bba2847d0",
+   "sha256": "16f0369b7aa60c5762307d8eae9d6b28f754a944f920a3028a167e43c4884940"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/counterexample/app/sitemap.ts",
+   "bytes": 150,
+   "git_blob_sha1": "3df952d1814dc6964ae7d11ac8d2e038d5c9f70c",
+   "sha256": "ea41b4314a733e7fcfee2165e7eedd0197b5328a01eda06394f778df1e4a607b"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/counterexample/lib/handlers.ts",
+   "bytes": 190,
+   "git_blob_sha1": "a600be39682da889fbd2848ddb0fcc277aa49e92",
+   "sha256": "d61079e7b5a7dd04ce8c0afd17fcd44e387b07dc6e2fc8e146faf487e45814f7"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/counterexample/next.config.mjs",
+   "bytes": 307,
+   "git_blob_sha1": "5ef15ee7523f5cfdffdd45bf23902b7537c41182",
+   "sha256": "155eaf7dd6aff3082d757dfa9d8d5ee6dde6fb2428acc1b75756de37ca691eed"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/counterexample/package.json",
+   "bytes": 163,
+   "git_blob_sha1": "9226aa9dcf428d3d1c50d117c4be48fc75cdcb6f",
+   "sha256": "fcab530fc67235a211d87f56382172d6c360204fa37c4377e813cd4317a60bf6"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/counterexample/pages/api/legacy.ts",
+   "bytes": 207,
+   "git_blob_sha1": "0a386c17210ae3c9dd7a8ce946f1b3b1505af474",
+   "sha256": "ba0fa6592b62938c1a2c3b5842e54d902b4139db72f50cbdfc559a83017f2d2c"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/counterexample/proxy.ts",
+   "bytes": 326,
+   "git_blob_sha1": "a4b1510c5ea6eba0a18522094a03b52205806d5b",
+   "sha256": "e1687b627e518888946b863c536b4e1c54418f146ed378d411c4dafbc91e91d6"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/normal/app/(admin)/admin/stats/route.ts",
+   "bytes": 64,
+   "git_blob_sha1": "fcd40e67af43b1c61b5eda8274e3876134d77b4c",
+   "sha256": "d2915645e08e8131385ca1cc4113e41c7438dbef7f69736248080eb1754f8a57"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/normal/app/api/health/route.ts",
+   "bytes": 64,
+   "git_blob_sha1": "91feac6632fa5aeac16a5f0efffed8740aca8e31",
+   "sha256": "91f2e5b3192844dc77cfef839f6b4507776757443f19ed2697fbbc9874a53be4"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/normal/app/api/ping/route.ts",
+   "bytes": 114,
+   "git_blob_sha1": "16d02bbd219d3dc07148630fc1697ecb6c6d8d6d",
+   "sha256": "6aa845d404a7f6d788eb7390c1415d4bf04670ec8dcd26e6c8c4e362c834bd16"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/normal/app/api/users/[id]/route.ts",
+   "bytes": 314,
+   "git_blob_sha1": "7ad3181fc264b4962715367a7afa3e599f0923b9",
+   "sha256": "28af4aea26e6cf51e34879d290f9d8446b1ed8209b625deec47ca9a794db61cf"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/normal/app/api/users/route.ts",
+   "bytes": 229,
+   "git_blob_sha1": "cef14dbd98da64d65e05e5757069e50aa499819b",
+   "sha256": "eb0eecac0cde426de4af8685babec6b6ea4878fc4ff73b6e009c2f4abf9401cb"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/normal/next.config.mjs",
+   "bytes": 40,
+   "git_blob_sha1": "815fedf0ca94b633a3d518653bb1326a3f4f2687",
+   "sha256": "c5571902dea415d021b6972aa0a25a49154a2a0970ac376dbdff8576f1cda330"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/normal/package.json",
+   "bytes": 155,
+   "git_blob_sha1": "f28d3b439c978984f60ccde54cb61ab231010e3a",
+   "sha256": "251204176192a75f4968b354c72d85962ecd7c3bec7fe264e661c47e7d044ff6"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/oracle-output.json",
+   "bytes": 6364,
+   "git_blob_sha1": "a9c5f76a3fbcbb7e76e959a2007eeaf16c32e919",
+   "sha256": "6696b9dccd711c606914e6e7e8b7730cdf59ad56cdf5a0f79210f9ea7d245052"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/oracle.mjs",
+   "bytes": 9347,
+   "git_blob_sha1": "1802aaebce1b6a33169d4cdee2dcdf2587d81f47",
+   "sha256": "b36aae3d53c26045da591ee9624e5f43e8f945ba43d7f9367d154d159d2c63e1"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/package-lock.json",
+   "bytes": 34517,
+   "git_blob_sha1": "4a0878596ed7704f3d83fdafc767a219ab6aaee3",
+   "sha256": "871beb67936fcd5115b4055fdd393f08c746a4032495cc6e1ebd5e2ac143e7fb"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/package.json",
+   "bytes": 315,
+   "git_blob_sha1": "a39692969ae6274388a5db450591aa11b479e68b",
+   "sha256": "1961867cae46aff6fb81279243572325fe8376a44c66b27807c7832cd270b41f"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-_types_node_22.20.5.json",
+   "bytes": 171,
+   "git_blob_sha1": "9420bdfb243030d9a141c59bbc95f243a1decc91",
+   "sha256": "cdf2bf6d5feb78833074ce2b4911475830bad9e40b5c97336ae850f2a271a881"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-_types_react-dom_19.3.0.json",
+   "bytes": 175,
+   "git_blob_sha1": "61954aeea7b423941eb6da508c3570951dbff52f",
+   "sha256": "aed9f1fa93d250c5681f41afd1e5feb48ea9295f5e0e24b034d1cc22237c5e39"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-_types_react_19.3.0.json",
+   "bytes": 171,
+   "git_blob_sha1": "11760deb28501f53b4febfb1dff45e8ea848c36b",
+   "sha256": "3c91001d17806f9bba36fc490485eb6f7c6492ae16fe8645486b391b28237e37"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-next_16.4.0-canary.45.json",
+   "bytes": 173,
+   "git_blob_sha1": "d7e98e2e15d5efcbb64dbc993a9bb6967557c224",
+   "sha256": "8bbfa2d68b8284418bf2cb0d60b035cbbb42cc8315f1757844b41c030f41a66b"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-react-dom_19.3.0.json",
+   "bytes": 168,
+   "git_blob_sha1": "13f640fde3971e393452e538fd72371f40713d4f",
+   "sha256": "ef306acc8c71485f74115b089d666817c55b70bf0bdacdb8c505f64c1e5715fb"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-react_19.3.0.json",
+   "bytes": 164,
+   "git_blob_sha1": "6ef68d1390eec1065b0fa2d0273a0328682b9038",
+   "sha256": "627a344f9800cac4e84386cd86ca65f3b8d2bbaeff2a3fbf6141e4caff136d8c"
+  },
+  {
+   "role": "test_support",
+   "path": "test/http-wave-bc/fixtures/target-scope/nextjs/registry-typescript_5.9.3.json",
+   "bytes": 168,
+   "git_blob_sha1": "2927793a5fbd09f18039b3079dc0ff9baf457c6c",
+   "sha256": "46cbd7f43f23e3a67f4931608efffb6375741fb8a095c619ff69f75283a19c87"
+  },
+  {
+   "role": "external_dependency",
+   "path": "package-lock.json",
+   "bytes": 8925,
+   "git_blob_sha1": "34da67575f01e97724c4b5ee944b67ae4435e003",
+   "sha256": "f53dc054a10dafadcb217a17f3805253bdafc123b0943026ee453dee20210087"
+  },
+  {
+   "role": "external_dependency",
+   "path": "schemas/adapter.schema.json",
+   "bytes": 1978,
+   "git_blob_sha1": "e46546fc92afbb425244f3924576f7b7d2d9abfe",
+   "sha256": "d790174b3b2bb7c079983794ddc8a96455ca8566a52f5d2cc8d8bb2ed13578ce"
+  },
+  {
+   "role": "external_dependency",
+   "path": "scanners/adapters/_express-shared.mjs",
+   "bytes": 13792,
+   "git_blob_sha1": "bd4616d0030de508911933ac415a239b40d40e61",
+   "sha256": "c580e27aed15fad55b36d4b6dd76fd4c89f9ccc419b54f240f47f24e0fbf5c6f"
+  },
+  {
+   "role": "external_dependency",
+   "path": "scanners/text-util.mjs",
+   "bytes": 3372,
+   "git_blob_sha1": "26df2e47019d3fea20dfd20b83be93a7f33c19ed",
+   "sha256": "293383368952be98c7f868847c8184ebc5df49615a3bdd7861613a372e8d2198"
+  },
+  {
+   "role": "runner",
+   "path": "scripts/run-next-nested-tests.mjs",
+   "bytes": 6886,
+   "git_blob_sha1": "daccc6c9112e1db2f8353d5ac38fd3d44f48e41e",
+   "sha256": "acb8db06506f5bb1d52ff4f82b54b9a4db9fd3d45409a02da4d546c55c0dacac"
+  }
+ ],
+ "commands": [
+  {
+   "id": "direct-tap",
+   "command": "node --test test/http-wave-bc/catalog.test.mjs test/http-wave-bc/hono-show-routes.test.mjs test/http-wave-bc/leaf-inventory.test.mjs test/http-wave-bc/node-hono.test.mjs test/http-wave-bc/node-koa.test.mjs test/http-wave-bc/profile-evidence.test.mjs test/http-wave-bc/typescript-nextjs.test.mjs",
+   "revision": "15a38e923cb5e079c6f8e2a4c2a9386406c41f52",
+   "exit_code": 0,
+   "result": {
+    "tests": 66,
+    "suites": 0,
+    "pass": 66,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+   }
+  },
+  {
+   "id": "nested-runner",
+   "command": "node scripts/run-next-nested-tests.mjs T13",
+   "revision": "15a38e923cb5e079c6f8e2a4c2a9386406c41f52",
+   "exit_code": 0,
+   "runner_files": 7,
+   "first_line": "NESTED_SUITE T13 RUN 7 files",
+   "result": {
+    "tests": 66,
+    "suites": 0,
+    "pass": 66,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+   }
+  }
+ ],
+ "fixtures": [
+  {
+   "id": "hono-upstream-example-scan",
+   "class": "normal",
+   "target": "node-hono",
+   "category": "upstream-example",
+   "origin": "pinned fixture test/http-wave-bc/fixtures/hono-official-readme; its SOURCE.md names honojs/hono at 3ed3a14f6d47f3a000f6f0206912261fc0e4b6cd as upstream and a README.md example as the source (the record does not compare it with upstream)",
+   "call": {
+    "module": "adapters/http-wave-bc/node-hono/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$path": "test/http-wave-bc/fixtures/hono-official-readme"
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     1
+    ],
+    [
+     "/modules/0/controllers/0/className",
+     "Hono(src/index.ts:app)"
+    ],
+    [
+     "/modules/0/controllers/0/endpoints",
+     [
+      {
+       "verb": "GET",
+       "path": "/",
+       "operationId": null,
+       "method": null,
+       "line": 4
+      }
+     ]
+    ],
+    [
+     "/filesRead",
+     [
+      "package.json",
+      "src/index.ts"
+     ]
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Hono route graph: literal per-verb routes and resolvable route() mounts are emitted in registration order; dynamic paths, custom on/all/use/mount semantics and unresolved imports remain unknown."
+     ]
+    ]
+   ],
+   "output_sha256": "4944e2fc33c87611055a813bf3098a7220126a54fbe1a477869fcf372004bd8e"
+  },
+  {
+   "id": "hono-descriptor",
+   "class": "normal",
+   "target": "node-hono",
+   "category": "descriptor",
+   "origin": "exported adapter object of the pinned module adapters/http-wave-bc/node-hono/adapter.mjs",
+   "call": {
+    "module": "adapters/http-wave-bc/node-hono/adapter.mjs",
+    "fn": "adapter"
+   },
+   "expect": [
+    [
+     "/id",
+     "node-hono"
+    ],
+    [
+     "/contract",
+     "sbf.adapter/2"
+    ],
+    [
+     "/confidence",
+     "high"
+    ],
+    [
+     "/specificity",
+     55
+    ],
+    [
+     "/verificationBasis",
+     "synthetic-only"
+    ],
+    [
+     "/capabilities",
+     {
+      "api.operations": false,
+      "api.request-shape": false,
+      "resource.fetch": false,
+      "codegen.handles": false
+     }
+    ]
+   ],
+   "output_sha256": "029f74fbe6808a82d8b04d9945a3340b85cc51f62df439db63b222df9fca6633"
+  },
+  {
+   "id": "hono-not-detected-scan",
+   "class": "negative",
+   "target": "node-hono",
+   "category": "not-detected",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-hono/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{}"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "Hono was not detected."
+     ]
+    ]
+   ],
+   "output_sha256": "d94fd7f2729a021ce29680ba89147a9ebf73e85a1e5bdcb6c03db1a27ad4cbfb"
+  },
+  {
+   "id": "hono-not-detected-diagnostics",
+   "class": "negative",
+   "target": "node-hono",
+   "category": "not-detected",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-hono/adapter.mjs",
+    "fn": "adapter.diagnostics",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{}"
+      }
+     },
+     null
+    ]
+   },
+   "expect": [
+    [
+     "/length",
+     1
+    ],
+    [
+     "/0/level",
+     "info"
+    ],
+    [
+     "/0/code",
+     "hono-not-detected"
+    ],
+    [
+     "/0/message",
+     "no package declaring hono with a live supported Hono import plus new Hono() source signal was found"
+    ]
+   ],
+   "output_sha256": "6ba3e6d6e225dd5570ac5ffc23d157f0cbdf236e8d85fbdab5c0d09ee726c293"
+  },
+  {
+   "id": "hono-variable-route-path",
+   "class": "negative",
+   "target": "node-hono",
+   "category": "generated-routes",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-hono/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"hono\":\"^4.0.0\"}}",
+       "src/index.ts": "import { Hono } from 'hono'\nconst app = new Hono()\nconst p = '/dynamic'\napp.get(p, (c) => c.text('x'))\nexport default app\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Hono route graph: literal per-verb routes and resolvable route() mounts are emitted in registration order; dynamic paths, custom on/all/use/mount semantics and unresolved imports remain unknown.",
+      "Hono get() at index.ts:4 uses a non-literal or chained path form and is not emitted by the T13 first slice."
+     ]
+    ]
+   ],
+   "output_sha256": "6ce9da173863c9bad39b425fd05e3c1b3689ca8037b8f2f834f09a95d4cf160e"
+  },
+  {
+   "id": "hono-routes-in-loop",
+   "class": "negative",
+   "target": "node-hono",
+   "category": "generated-routes",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-hono/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"hono\":\"^4.0.0\"}}",
+       "src/index.ts": "import { Hono } from 'hono'\nconst app = new Hono()\nfor (const p of ['/a', '/b']) {\n  app.get(p, (c) => c.text(p))\n}\nexport default app\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Hono route graph: literal per-verb routes and resolvable route() mounts are emitted in registration order; dynamic paths, custom on/all/use/mount semantics and unresolved imports remain unknown.",
+      "Hono get() at index.ts:4 uses a non-literal or chained path form and is not emitted by the T13 first slice."
+     ]
+    ]
+   ],
+   "output_sha256": "6ce9da173863c9bad39b425fd05e3c1b3689ca8037b8f2f834f09a95d4cf160e"
+  },
+  {
+   "id": "hono-template-literal-path",
+   "class": "negative",
+   "target": "node-hono",
+   "category": "generated-routes",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-hono/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"hono\":\"^4.0.0\"}}",
+       "src/index.ts": "import { Hono } from 'hono'\nconst app = new Hono()\nconst v = 'v1'\napp.get(`/${v}/items`, (c) => c.text('x'))\nexport default app\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Hono route graph: literal per-verb routes and resolvable route() mounts are emitted in registration order; dynamic paths, custom on/all/use/mount semantics and unresolved imports remain unknown.",
+      "Hono interpolated template route at index.ts:4 is not emitted."
+     ]
+    ]
+   ],
+   "output_sha256": "d9186b15163032f3f0fb6d68b550c0700f640a02a3e80099bd96437abeba9d07"
+  },
+  {
+   "id": "hono-computed-method-name",
+   "class": "negative",
+   "target": "node-hono",
+   "category": "generated-routes",
+   "defect": "silent-drop",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-hono/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"hono\":\"^4.0.0\"}}",
+       "src/index.ts": "import { Hono } from 'hono'\nconst app = new Hono()\nconst method = 'get'\napp[method]('/computed', (c) => c.text('x'))\napp['post']('/bracket', (c) => c.text('y'))\nexport default app\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Hono route graph: literal per-verb routes and resolvable route() mounts are emitted in registration order; dynamic paths, custom on/all/use/mount semantics and unresolved imports remain unknown."
+     ]
+    ]
+   ],
+   "output_sha256": "ec2220a0f1723bf38620c91dacf771ef999bdde9c31affe4d7984190ebdbd18a"
+  },
+  {
+   "id": "hono-chained-verbs-after-first",
+   "class": "negative",
+   "target": "node-hono",
+   "category": "generated-routes",
+   "defect": "silent-drop",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-hono/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"hono\":\"^4.0.0\"}}",
+       "src/index.ts": "import { Hono } from 'hono'\nconst app = new Hono()\napp.get('/a', (c) => c.text('a')).post('/b', (c) => c.text('b'))\nexport default app\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     1
+    ],
+    [
+     "/modules/0/controllers/0/className",
+     "Hono(src/index.ts:app)"
+    ],
+    [
+     "/modules/0/controllers/0/endpoints",
+     [
+      {
+       "verb": "GET",
+       "path": "/a",
+       "operationId": null,
+       "method": null,
+       "line": 3
+      }
+     ]
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Hono route graph: literal per-verb routes and resolvable route() mounts are emitted in registration order; dynamic paths, custom on/all/use/mount semantics and unresolved imports remain unknown."
+     ]
+    ]
+   ],
+   "output_sha256": "7b00e234d6dab15aed1a75597ba1f6733610e1f64700be5d742e20514a47f29e"
+  },
+  {
+   "id": "hono-route-mount-from-factory",
+   "class": "negative",
+   "target": "node-hono",
+   "category": "dynamic-route-factory",
+   "defect": "incomplete-path",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-hono/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"hono\":\"^4.0.0\"}}",
+       "src/index.ts": "import { Hono } from 'hono'\nconst makeRoutes = (name: string) => {\n  const r = new Hono()\n  r.get('/list', (c) => c.text(name))\n  return r\n}\nconst app = new Hono()\napp.route('/users', makeRoutes('users'))\nexport default app\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     1
+    ],
+    [
+     "/modules/0/controllers/0/className",
+     "Hono(src/index.ts:r)"
+    ],
+    [
+     "/modules/0/controllers/0/endpoints",
+     [
+      {
+       "verb": "GET",
+       "path": "/list",
+       "operationId": null,
+       "method": null,
+       "line": 4
+      }
+     ]
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Hono route graph: literal per-verb routes and resolvable route() mounts are emitted in registration order; dynamic paths, custom on/all/use/mount semantics and unresolved imports remain unknown.",
+      "Hono route() mount at index.ts:8 (/users, makeRoutes) could not be resolved to a local or relative-imported Hono app."
+     ]
+    ]
+   ],
+   "output_sha256": "c93e1472108090960d87651523a3af8bbdeedc4a9129fe757c7a89214a012540"
+  },
+  {
+   "id": "hono-mount-with-variable-path",
+   "class": "negative",
+   "target": "node-hono",
+   "category": "dynamic-route-factory",
+   "defect": "incomplete-path",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-hono/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"hono\":\"^4.0.0\"}}",
+       "src/index.ts": "import { Hono } from 'hono'\nconst child = new Hono()\nchild.get('/c', (c) => c.text('x'))\nconst prefix = '/p'\nconst app = new Hono()\napp.route(prefix, child)\nexport default app\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     1
+    ],
+    [
+     "/modules/0/controllers/0/className",
+     "Hono(src/index.ts:child)"
+    ],
+    [
+     "/modules/0/controllers/0/endpoints",
+     [
+      {
+       "verb": "GET",
+       "path": "/c",
+       "operationId": null,
+       "method": null,
+       "line": 3
+      }
+     ]
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Hono route graph: literal per-verb routes and resolvable route() mounts are emitted in registration order; dynamic paths, custom on/all/use/mount semantics and unresolved imports remain unknown.",
+      "Hono route() at index.ts:6 has a dynamic path or non-identifier child and is not expanded."
+     ]
+    ]
+   ],
+   "output_sha256": "7adff463e3978071ceb1c1241b088bf792e1bcb3de95176aa5171c625e5e4ff4"
+  },
+  {
+   "id": "hono-variable-base-path",
+   "class": "negative",
+   "target": "node-hono",
+   "category": "dynamic-route-factory",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-hono/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"hono\":\"^4.0.0\"}}",
+       "src/index.ts": "import { Hono } from 'hono'\nconst prefix = '/v1'\nconst app = new Hono().basePath(prefix)\napp.get('/ping', (c) => c.text('x'))\nexport default app\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Hono route graph: literal per-verb routes and resolvable route() mounts are emitted in registration order; dynamic paths, custom on/all/use/mount semantics and unresolved imports remain unknown.",
+      "Hono basePath() for app at index.ts is non-literal; routes on this app are not emitted because their absolute paths are unknown."
+     ]
+    ]
+   ],
+   "output_sha256": "47aa44410ec5e79043d3ecfdbc4318efc5c4b210f5a31654fb2710b7b8af2f75"
+  },
+  {
+   "id": "hono-route-in-uncalled-helper",
+   "class": "negative",
+   "target": "node-hono",
+   "category": "dynamic-route-factory",
+   "defect": "scope-insensitive",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-hono/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"hono\":\"^4.0.0\"}}",
+       "src/index.ts": "import { Hono } from 'hono'\nconst app = new Hono()\nfunction uncalledHelper(app: Hono) {\n  app.get('/helper', (c) => c.text('x'))\n}\nexport default app\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     1
+    ],
+    [
+     "/modules/0/controllers/0/className",
+     "Hono(src/index.ts:app)"
+    ],
+    [
+     "/modules/0/controllers/0/endpoints",
+     [
+      {
+       "verb": "GET",
+       "path": "/helper",
+       "operationId": null,
+       "method": null,
+       "line": 4
+      }
+     ]
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Hono route graph: literal per-verb routes and resolvable route() mounts are emitted in registration order; dynamic paths, custom on/all/use/mount semantics and unresolved imports remain unknown."
+     ]
+    ]
+   ],
+   "output_sha256": "a61a4df3edb75e50aa9f4d947c1d7c247319b8468b58d439a3aea2963bfc6694"
+  },
+  {
+   "id": "hono-all-on-use-mount-forms",
+   "class": "negative",
+   "target": "node-hono",
+   "category": "withheld-form",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-hono/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"hono\":\"^4.0.0\"}}",
+       "src/index.ts": "import { Hono } from 'hono'\nconst app = new Hono()\napp.all('/any', (c) => c.text('x'))\napp.on(['GET', 'POST'], '/multi', (c) => c.text('x'))\napp.use('/mw/*', async (c, next) => next())\napp.mount('/legacy', (req) => new Response('x'))\nexport default app\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Hono route graph: literal per-verb routes and resolvable route() mounts are emitted in registration order; dynamic paths, custom on/all/use/mount semantics and unresolved imports remain unknown.",
+      "Hono all() at index.ts:3 has distinct routing/middleware semantics and is observed but not emitted by the T13 first slice.",
+      "Hono on() at index.ts:4 has distinct routing/middleware semantics and is observed but not emitted by the T13 first slice.",
+      "Hono use() at index.ts:5 has distinct routing/middleware semantics and is observed but not emitted by the T13 first slice.",
+      "Hono mount() at index.ts:6 has distinct routing/middleware semantics and is observed but not emitted by the T13 first slice."
+     ]
+    ]
+   ],
+   "output_sha256": "cee20c216be45cff2418d1ee311481e0c38d4bc1de0c24ffa92b0e0d66478b03"
+  },
+  {
+   "id": "koa-upstream-example-scan",
+   "class": "normal",
+   "target": "node-koa",
+   "category": "upstream-example",
+   "origin": "pinned fixture test/http-wave-bc/fixtures/koa-router-official-readme; its SOURCE.md names koajs/router at dc285194dfbd9887b7ab9937996370dc4fda55d7 as upstream and the README.md Quick Start example as the source (the record does not compare it with upstream)",
+   "call": {
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$path": "test/http-wave-bc/fixtures/koa-router-official-readme"
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     1
+    ],
+    [
+     "/modules/0/controllers/0/className",
+     "KoaRouter(app.js:router)"
+    ],
+    [
+     "/modules/0/controllers/0/endpoints",
+     [
+      {
+       "verb": "GET",
+       "path": "/",
+       "operationId": null,
+       "routeName": null,
+       "method": null,
+       "line": 7
+      },
+      {
+       "verb": "GET",
+       "path": "/users/:id",
+       "operationId": null,
+       "routeName": null,
+       "method": null,
+       "line": 11
+      }
+     ]
+    ],
+    [
+     "/filesRead",
+     [
+      "package.json",
+      "src/app.js"
+     ]
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Koa first slice: only same-file @koa/router instances actually mounted via app.use(router.routes()) are emitted; constructor literal prefix is supported, while prefix() mutation, nested router.use(), all/register/redirect, dynamic/array/RegExp paths and unsupported matching options remain unknown."
+     ]
+    ]
+   ],
+   "output_sha256": "3b4f2f3b6e0a77ae68b5c1d534d9da1df3ce1529a5744c0d277f5cbf8d6e66e1"
+  },
+  {
+   "id": "koa-descriptor",
+   "class": "normal",
+   "target": "node-koa",
+   "category": "descriptor",
+   "origin": "exported adapter object of the pinned module adapters/http-wave-bc/node-koa/adapter.mjs",
+   "call": {
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "fn": "adapter"
+   },
+   "expect": [
+    [
+     "/id",
+     "node-koa"
+    ],
+    [
+     "/contract",
+     "sbf.adapter/2"
+    ],
+    [
+     "/confidence",
+     "high"
+    ],
+    [
+     "/specificity",
+     54
+    ],
+    [
+     "/verificationBasis",
+     "synthetic-only"
+    ],
+    [
+     "/capabilities",
+     {
+      "api.operations": false,
+      "api.request-shape": false,
+      "resource.fetch": false,
+      "codegen.handles": false
+     }
+    ]
+   ],
+   "output_sha256": "ad65a200774300910a94428c23429a2010090803fa80899224eee67376da9a5f"
+  },
+  {
+   "id": "koa-not-detected-scan",
+   "class": "negative",
+   "target": "node-koa",
+   "category": "not-detected",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{}"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "Koa + @koa/router was not detected."
+     ]
+    ]
+   ],
+   "output_sha256": "7d11465345d18e0c6084bedaf34079663da29bcaa3968c7032a0c1d1c78ff594"
+  },
+  {
+   "id": "koa-not-detected-diagnostics",
+   "class": "negative",
+   "target": "node-koa",
+   "category": "not-detected",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "fn": "adapter.diagnostics",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{}"
+      }
+     },
+     null
+    ]
+   },
+   "expect": [
+    [
+     "/length",
+     1
+    ],
+    [
+     "/0/level",
+     "info"
+    ],
+    [
+     "/0/code",
+     "koa-router-not-detected"
+    ],
+    [
+     "/0/message",
+     "no project declaring koa + @koa/router with live local app/router constructor signals was found"
+    ]
+   ],
+   "output_sha256": "11684c98ca9d2e536457d0e402c932e30bce66cb51448457cbb2e61d7ff86042"
+  },
+  {
+   "id": "koa-variable-route-path",
+   "class": "negative",
+   "target": "node-koa",
+   "category": "generated-routes",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"koa\":\"^2.15.0\",\"@koa/router\":\"^12.0.0\"}}",
+       "src/app.js": "const Koa = require('koa');\nconst Router = require('@koa/router');\nconst app = new Koa();\nconst router = new Router();\nconst p = '/dynamic';\nrouter.get(p, (ctx) => { ctx.body = 'x'; });\napp.use(router.routes());\nmodule.exports = app;\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Koa first slice: only same-file @koa/router instances actually mounted via app.use(router.routes()) are emitted; constructor literal prefix is supported, while prefix() mutation, nested router.use(), all/register/redirect, dynamic/array/RegExp paths and unsupported matching options remain unknown.",
+      "app.js:6 router.get() not emitted: path is non-literal, array/RegExp, or otherwise outside the first slice."
+     ]
+    ]
+   ],
+   "output_sha256": "c25d6d75ae0078f8bcb9ccb691639e330dfa8e1e0064f9703482def0a737ca6c"
+  },
+  {
+   "id": "koa-routes-in-loop",
+   "class": "negative",
+   "target": "node-koa",
+   "category": "generated-routes",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"koa\":\"^2.15.0\",\"@koa/router\":\"^12.0.0\"}}",
+       "src/app.js": "const Koa = require('koa');\nconst Router = require('@koa/router');\nconst app = new Koa();\nconst router = new Router();\nfor (const name of ['a', 'b']) {\n  router.get('/' + name, (ctx) => { ctx.body = name; });\n}\napp.use(router.routes());\nmodule.exports = app;\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Koa first slice: only same-file @koa/router instances actually mounted via app.use(router.routes()) are emitted; constructor literal prefix is supported, while prefix() mutation, nested router.use(), all/register/redirect, dynamic/array/RegExp paths and unsupported matching options remain unknown.",
+      "app.js:6 router.get() not emitted: path is non-literal, array/RegExp, or otherwise outside the first slice."
+     ]
+    ]
+   ],
+   "output_sha256": "c25d6d75ae0078f8bcb9ccb691639e330dfa8e1e0064f9703482def0a737ca6c"
+  },
+  {
+   "id": "koa-template-literal-path",
+   "class": "negative",
+   "target": "node-koa",
+   "category": "generated-routes",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"koa\":\"^2.15.0\",\"@koa/router\":\"^12.0.0\"}}",
+       "src/app.js": "const Koa = require('koa');\nconst Router = require('@koa/router');\nconst app = new Koa();\nconst router = new Router();\nconst v = 'v1';\nrouter.get(`/${v}/items`, (ctx) => { ctx.body = 'x'; });\napp.use(router.routes());\nmodule.exports = app;\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Koa first slice: only same-file @koa/router instances actually mounted via app.use(router.routes()) are emitted; constructor literal prefix is supported, while prefix() mutation, nested router.use(), all/register/redirect, dynamic/array/RegExp paths and unsupported matching options remain unknown.",
+      "app.js:6 router.get() not emitted: path is non-literal, array/RegExp, or otherwise outside the first slice."
+     ]
+    ]
+   ],
+   "output_sha256": "c25d6d75ae0078f8bcb9ccb691639e330dfa8e1e0064f9703482def0a737ca6c"
+  },
+  {
+   "id": "koa-computed-method-name",
+   "class": "negative",
+   "target": "node-koa",
+   "category": "generated-routes",
+   "defect": "silent-drop",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"koa\":\"^2.15.0\",\"@koa/router\":\"^12.0.0\"}}",
+       "src/app.js": "const Koa = require('koa');\nconst Router = require('@koa/router');\nconst app = new Koa();\nconst router = new Router();\nconst verb = 'get';\nrouter[verb]('/computed', (ctx) => { ctx.body = 'x'; });\nrouter['post']('/bracket', (ctx) => { ctx.body = 'y'; });\napp.use(router.routes());\nmodule.exports = app;\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Koa first slice: only same-file @koa/router instances actually mounted via app.use(router.routes()) are emitted; constructor literal prefix is supported, while prefix() mutation, nested router.use(), all/register/redirect, dynamic/array/RegExp paths and unsupported matching options remain unknown."
+     ]
+    ]
+   ],
+   "output_sha256": "7258692b54a2780677dc35dfa017f9e29a2f0cefa7381a31ec9cbed0fe9b622e"
+  },
+  {
+   "id": "koa-chained-verbs-after-first",
+   "class": "negative",
+   "target": "node-koa",
+   "category": "generated-routes",
+   "defect": "silent-drop",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"koa\":\"^2.15.0\",\"@koa/router\":\"^12.0.0\"}}",
+       "src/app.js": "const Koa = require('koa');\nconst Router = require('@koa/router');\nconst app = new Koa();\nconst router = new Router();\nrouter.get('/a', (ctx) => { ctx.body = 'a'; }).post('/b', (ctx) => { ctx.body = 'b'; });\napp.use(router.routes());\nmodule.exports = app;\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     1
+    ],
+    [
+     "/modules/0/controllers/0/className",
+     "KoaRouter(app.js:router)"
+    ],
+    [
+     "/modules/0/controllers/0/endpoints",
+     [
+      {
+       "verb": "GET",
+       "path": "/a",
+       "operationId": null,
+       "routeName": null,
+       "method": null,
+       "line": 5
+      }
+     ]
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Koa first slice: only same-file @koa/router instances actually mounted via app.use(router.routes()) are emitted; constructor literal prefix is supported, while prefix() mutation, nested router.use(), all/register/redirect, dynamic/array/RegExp paths and unsupported matching options remain unknown."
+     ]
+    ]
+   ],
+   "output_sha256": "197dd2a07ca8c00e8c5c789435e240d692dde506a2229c280d9e86f7fe007969"
+  },
+  {
+   "id": "koa-router-built-by-factory",
+   "class": "negative",
+   "target": "node-koa",
+   "category": "dynamic-route-factory",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"koa\":\"^2.15.0\",\"@koa/router\":\"^12.0.0\"}}",
+       "src/app.js": "const Koa = require('koa');\nconst Router = require('@koa/router');\nconst app = new Koa();\nfunction makeRouter(prefix) {\n  const r = new Router({ prefix });\n  r.get('/items', (ctx) => { ctx.body = 'x'; });\n  return r;\n}\napp.use(makeRouter('/v1').routes());\nmodule.exports = app;\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Koa first slice: only same-file @koa/router instances actually mounted via app.use(router.routes()) are emitted; constructor literal prefix is supported, while prefix() mutation, nested router.use(), all/register/redirect, dynamic/array/RegExp paths and unsupported matching options remain unknown.",
+      "app.js: router r defines/contains routes but no same-file Koa app mounts r.routes(); routes are withheld."
+     ]
+    ]
+   ],
+   "output_sha256": "46e0726cbc6b76a587add094bd75ae521fcaa5f7cc66f9638263681f52264033"
+  },
+  {
+   "id": "koa-routers-mounted-from-array-loop",
+   "class": "negative",
+   "target": "node-koa",
+   "category": "dynamic-route-factory",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"koa\":\"^2.15.0\",\"@koa/router\":\"^12.0.0\"}}",
+       "src/app.js": "const Koa = require('koa');\nconst Router = require('@koa/router');\nconst app = new Koa();\nconst router = new Router();\nrouter.get('/in-list', (ctx) => { ctx.body = 'x'; });\nconst routers = [router];\nfor (const r of routers) app.use(r.routes());\nmodule.exports = app;\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Koa first slice: only same-file @koa/router instances actually mounted via app.use(router.routes()) are emitted; constructor literal prefix is supported, while prefix() mutation, nested router.use(), all/register/redirect, dynamic/array/RegExp paths and unsupported matching options remain unknown.",
+      "app.js: router router defines/contains routes but no same-file Koa app mounts router.routes(); routes are withheld."
+     ]
+    ]
+   ],
+   "output_sha256": "f461fb328d4ad544e0c1005a32cfc2aa6272c925269585b5d628a2d740f48382"
+  },
+  {
+   "id": "koa-routers-mounted-from-object-map",
+   "class": "negative",
+   "target": "node-koa",
+   "category": "dynamic-route-factory",
+   "defect": "undetected-router",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"koa\":\"^2.15.0\",\"@koa/router\":\"^12.0.0\"}}",
+       "src/app.js": "const Koa = require('koa');\nconst Router = require('@koa/router');\nconst app = new Koa();\nconst routers = { a: new Router() };\nrouters.a.get('/in-map', (ctx) => { ctx.body = 'x'; });\nfor (const r of Object.values(routers)) app.use(r.routes());\nmodule.exports = app;\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "Koa + @koa/router was not detected."
+     ]
+    ]
+   ],
+   "output_sha256": "7d11465345d18e0c6084bedaf34079663da29bcaa3968c7032a0c1d1c78ff594"
+  },
+  {
+   "id": "koa-variable-router-prefix",
+   "class": "negative",
+   "target": "node-koa",
+   "category": "dynamic-route-factory",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"koa\":\"^2.15.0\",\"@koa/router\":\"^12.0.0\"}}",
+       "src/app.js": "const Koa = require('koa');\nconst Router = require('@koa/router');\nconst app = new Koa();\nconst router = new Router({ prefix: process.env.PREFIX });\nrouter.get('/ping', (ctx) => { ctx.body = 'x'; });\napp.use(router.routes());\nmodule.exports = app;\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Koa first slice: only same-file @koa/router instances actually mounted via app.use(router.routes()) are emitted; constructor literal prefix is supported, while prefix() mutation, nested router.use(), all/register/redirect, dynamic/array/RegExp paths and unsupported matching options remain unknown.",
+      "app.js: router: Router constructor prefix is non-literal; absolute paths are unknown."
+     ]
+    ]
+   ],
+   "output_sha256": "11885154f99740a23bd194f90342e543f36afbc640017c5613844ddcb6a862ed"
+  },
+  {
+   "id": "koa-nested-router-use",
+   "class": "negative",
+   "target": "node-koa",
+   "category": "dynamic-route-factory",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"koa\":\"^2.15.0\",\"@koa/router\":\"^12.0.0\"}}",
+       "src/app.js": "const Koa = require('koa');\nconst Router = require('@koa/router');\nconst app = new Koa();\nconst outer = new Router();\nconst inner = new Router();\ninner.get('/in', (ctx) => { ctx.body = 'x'; });\nouter.use('/nested', inner.routes());\napp.use(outer.routes());\nmodule.exports = app;\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Koa first slice: only same-file @koa/router instances actually mounted via app.use(router.routes()) are emitted; constructor literal prefix is supported, while prefix() mutation, nested router.use(), all/register/redirect, dynamic/array/RegExp paths and unsupported matching options remain unknown.",
+      "app.js:7 router.use() may mount middleware or nested routers and is observed but not expanded by the first slice.",
+      "app.js: router inner defines/contains routes but no same-file Koa app mounts inner.routes(); routes are withheld."
+     ]
+    ]
+   ],
+   "output_sha256": "ba0cdd2c615c5a9b03f5ea4841f731273133262a03a34c31454c7b0b062b3e4c"
+  },
+  {
+   "id": "koa-route-in-uncalled-helper",
+   "class": "negative",
+   "target": "node-koa",
+   "category": "dynamic-route-factory",
+   "defect": "scope-insensitive",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"koa\":\"^2.15.0\",\"@koa/router\":\"^12.0.0\"}}",
+       "src/app.js": "const Koa = require('koa');\nconst Router = require('@koa/router');\nconst app = new Koa();\nconst router = new Router();\nfunction uncalledHelper(router) {\n  router.get('/helper', (ctx) => { ctx.body = 'x'; });\n}\napp.use(router.routes());\nmodule.exports = app;\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     1
+    ],
+    [
+     "/modules/0/controllers/0/className",
+     "KoaRouter(app.js:router)"
+    ],
+    [
+     "/modules/0/controllers/0/endpoints",
+     [
+      {
+       "verb": "GET",
+       "path": "/helper",
+       "operationId": null,
+       "routeName": null,
+       "method": null,
+       "line": 6
+      }
+     ]
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Koa first slice: only same-file @koa/router instances actually mounted via app.use(router.routes()) are emitted; constructor literal prefix is supported, while prefix() mutation, nested router.use(), all/register/redirect, dynamic/array/RegExp paths and unsupported matching options remain unknown."
+     ]
+    ]
+   ],
+   "output_sha256": "b1ca1cf8fc0f8a08ffb00c6d90509777eb2f22a966e374765ca23c0b1073c149"
+  },
+  {
+   "id": "koa-all-method-route",
+   "class": "negative",
+   "target": "node-koa",
+   "category": "withheld-form",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/node-koa/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"koa\":\"^2.15.0\",\"@koa/router\":\"^12.0.0\"}}",
+       "src/app.js": "const Koa = require('koa');\nconst Router = require('@koa/router');\nconst app = new Koa();\nconst router = new Router();\nrouter.all('/any', (ctx) => { ctx.body = 'x'; });\nrouter.get('/ok', (ctx) => { ctx.body = 'x'; });\napp.use(router.routes());\nmodule.exports = app;\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     1
+    ],
+    [
+     "/modules/0/controllers/0/className",
+     "KoaRouter(app.js:router)"
+    ],
+    [
+     "/modules/0/controllers/0/endpoints",
+     [
+      {
+       "verb": "GET",
+       "path": "/ok",
+       "operationId": null,
+       "routeName": null,
+       "method": null,
+       "line": 6
+      }
+     ]
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Koa first slice: only same-file @koa/router instances actually mounted via app.use(router.routes()) are emitted; constructor literal prefix is supported, while prefix() mutation, nested router.use(), all/register/redirect, dynamic/array/RegExp paths and unsupported matching options remain unknown.",
+      "app.js:5 router.all() represents all HTTP methods and is not emitted by the first slice."
+     ]
+    ]
+   ],
+   "output_sha256": "58832ed77cbb3ae617a2e8e93fef74d2ba98bdbc4da810c5ab6c2b78249687d5"
+  },
+  {
+   "id": "nextjs-upstream-example-scan",
+   "class": "normal",
+   "target": "typescript-nextjs",
+   "category": "upstream-example",
+   "origin": "pinned fixture test/http-wave-bc/fixtures/nextjs-official-route-handler; its SOURCE.md names vercel/next.js at cb95ca373be557309a962d8a6e64a75c6732bc5d as upstream and the docs page route.mdx as the source (the record does not compare it with upstream)",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$path": "test/http-wave-bc/fixtures/nextjs-official-route-handler"
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     1
+    ],
+    [
+     "/modules/0/controllers/0/className",
+     "NextRoute(app/api/route.ts)"
+    ],
+    [
+     "/modules/0/controllers/0/endpoints",
+     [
+      {
+       "verb": "GET",
+       "path": "/api",
+       "operationId": null,
+       "method": "GET",
+       "line": 1,
+       "params": []
+      }
+     ]
+    ],
+    [
+     "/filesRead",
+     [
+      "app/api/route.ts",
+      "package.json"
+     ]
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Next.js first slice: App Router route.js/route.ts files with explicit method exports are emitted; simple [param] segments and route groups are resolved, while catch-all/interception/parallel routes and Pages API control-flow methods remain unknown.",
+      "T13 emits only explicitly exported Next.js HTTP methods; framework-generated OPTIONS when OPTIONS is absent is intentionally not synthesized."
+     ]
+    ]
+   ],
+   "output_sha256": "a6dfbc94136c6027ad5313ddbf9ea95cdbd4b76bb62c676ee457b45d8f9a3927"
+  },
+  {
+   "id": "nextjs-descriptor",
+   "class": "normal",
+   "target": "typescript-nextjs",
+   "category": "descriptor",
+   "origin": "exported adapter object of the pinned module adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter"
+   },
+   "expect": [
+    [
+     "/id",
+     "typescript-nextjs"
+    ],
+    [
+     "/contract",
+     "sbf.adapter/2"
+    ],
+    [
+     "/confidence",
+     "high"
+    ],
+    [
+     "/specificity",
+     56
+    ],
+    [
+     "/verificationBasis",
+     "synthetic-only"
+    ],
+    [
+     "/capabilities",
+     {
+      "api.operations": false,
+      "api.request-shape": false,
+      "resource.fetch": false,
+      "codegen.handles": false
+     }
+    ]
+   ],
+   "output_sha256": "1455296926c14ea6e71e84d8999358b9c9e7b1da4bab6920f4717be4c698ca19"
+  },
+  {
+   "id": "nextjs-not-detected-scan",
+   "class": "negative",
+   "target": "typescript-nextjs",
+   "category": "not-detected",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{}"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "Next.js server routes were not detected."
+     ]
+    ]
+   ],
+   "output_sha256": "afbf82c2b8a4c1c235cf0b33b6c693509c1e6c1aef3670df911e2f50cf8659df"
+  },
+  {
+   "id": "nextjs-not-detected-diagnostics",
+   "class": "negative",
+   "target": "typescript-nextjs",
+   "category": "not-detected",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter.diagnostics",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{}"
+      }
+     },
+     null
+    ]
+   },
+   "expect": [
+    [
+     "/length",
+     1
+    ],
+    [
+     "/0/level",
+     "info"
+    ],
+    [
+     "/0/code",
+     "nextjs-routes-not-detected"
+    ],
+    [
+     "/0/message",
+     "no Next.js package with App Route or Pages API server files was found"
+    ]
+   ],
+   "output_sha256": "da6bb1b0360a5d41d1a4852a0da02db2cf3440ab87ff780bcab41e87e6fba980"
+  },
+  {
+   "id": "nextjs-methods-exported-in-loop",
+   "class": "negative",
+   "target": "typescript-nextjs",
+   "category": "generated-routes",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"next\":\"16.0.0\"}}",
+       "app/api/route.js": "const handler = async () => new Response(\"x\")\nfor (const m of [\"GET\", \"POST\"]) { exports[m] = handler }\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Next.js first slice: App Router route.js/route.ts files with explicit method exports are emitted; simple [param] segments and route groups are resolved, while catch-all/interception/parallel routes and Pages API control-flow methods remain unknown.",
+      "Next.js route file at app/api/route.js exports no directly supported HTTP method in the T13 first slice.",
+      "T13 emits only explicitly exported Next.js HTTP methods; framework-generated OPTIONS when OPTIONS is absent is intentionally not synthesized."
+     ]
+    ]
+   ],
+   "output_sha256": "e57997ba099ee12ca619db6c7474466b16234174e2bc26d9f90503458b15cd7d"
+  },
+  {
+   "id": "nextjs-methods-from-destructured-object",
+   "class": "negative",
+   "target": "typescript-nextjs",
+   "category": "generated-routes",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"next\":\"16.0.0\"}}",
+       "app/api/route.ts": "const handler = async () => new Response(\"x\")\nexport const { GET, POST } = { GET: handler, POST: handler }\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Next.js first slice: App Router route.js/route.ts files with explicit method exports are emitted; simple [param] segments and route groups are resolved, while catch-all/interception/parallel routes and Pages API control-flow methods remain unknown.",
+      "Next.js route file at app/api/route.ts exports no directly supported HTTP method in the T13 first slice.",
+      "T13 emits only explicitly exported Next.js HTTP methods; framework-generated OPTIONS when OPTIONS is absent is intentionally not synthesized."
+     ]
+    ]
+   ],
+   "output_sha256": "c6cd89c2c8d216071b2d182899242fa5fd789817ed6b5b241c94006852f20ac3"
+  },
+  {
+   "id": "nextjs-star-reexport",
+   "class": "negative",
+   "target": "typescript-nextjs",
+   "category": "generated-routes",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"next\":\"16.0.0\"}}",
+       "app/api/route.ts": "export * from './methods'\n",
+       "app/api/methods.ts": "export async function GET() { return new Response(\"x\") }\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Next.js first slice: App Router route.js/route.ts files with explicit method exports are emitted; simple [param] segments and route groups are resolved, while catch-all/interception/parallel routes and Pages API control-flow methods remain unknown.",
+      "Next.js route file at app/api/route.ts exports no directly supported HTTP method in the T13 first slice.",
+      "T13 emits only explicitly exported Next.js HTTP methods; framework-generated OPTIONS when OPTIONS is absent is intentionally not synthesized."
+     ]
+    ]
+   ],
+   "output_sha256": "c6cd89c2c8d216071b2d182899242fa5fd789817ed6b5b241c94006852f20ac3"
+  },
+  {
+   "id": "nextjs-commonjs-exports",
+   "class": "negative",
+   "target": "typescript-nextjs",
+   "category": "generated-routes",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"next\":\"16.0.0\"}}",
+       "app/api/route.js": "const handler = async () => new Response(\"x\")\nmodule.exports = { GET: handler, POST: handler }\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Next.js first slice: App Router route.js/route.ts files with explicit method exports are emitted; simple [param] segments and route groups are resolved, while catch-all/interception/parallel routes and Pages API control-flow methods remain unknown.",
+      "Next.js route file at app/api/route.js exports no directly supported HTTP method in the T13 first slice.",
+      "T13 emits only explicitly exported Next.js HTTP methods; framework-generated OPTIONS when OPTIONS is absent is intentionally not synthesized."
+     ]
+    ]
+   ],
+   "output_sha256": "e57997ba099ee12ca619db6c7474466b16234174e2bc26d9f90503458b15cd7d"
+  },
+  {
+   "id": "nextjs-sitemap-and-robots-metadata-routes",
+   "class": "negative",
+   "target": "typescript-nextjs",
+   "category": "generated-routes",
+   "defect": "silent-drop",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"next\":\"16.0.0\"}}",
+       "app/api/route.ts": "export async function GET() { return new Response(\"x\") }\n",
+       "app/sitemap.ts": "export default function sitemap() { return [] }\n",
+       "app/robots.ts": "export default function robots() { return { rules: [] } }\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     1
+    ],
+    [
+     "/modules/0/controllers/0/className",
+     "NextRoute(app/api/route.ts)"
+    ],
+    [
+     "/modules/0/controllers/0/endpoints",
+     [
+      {
+       "verb": "GET",
+       "path": "/api",
+       "operationId": null,
+       "method": "GET",
+       "line": 1,
+       "params": []
+      }
+     ]
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Next.js first slice: App Router route.js/route.ts files with explicit method exports are emitted; simple [param] segments and route groups are resolved, while catch-all/interception/parallel routes and Pages API control-flow methods remain unknown.",
+      "T13 emits only explicitly exported Next.js HTTP methods; framework-generated OPTIONS when OPTIONS is absent is intentionally not synthesized."
+     ]
+    ]
+   ],
+   "output_sha256": "989ef6569c2ac90d1ec9a16d526595312ef501d3d63858644f6307708540eced"
+  },
+  {
+   "id": "nextjs-config-rewrites",
+   "class": "negative",
+   "target": "typescript-nextjs",
+   "category": "generated-routes",
+   "defect": "silent-drop",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"next\":\"16.0.0\"}}",
+       "app/api/route.ts": "export async function GET() { return new Response(\"x\") }\n",
+       "next.config.js": "module.exports = { async rewrites() { return [{ source: '/old', destination: '/api' }] } }\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     1
+    ],
+    [
+     "/modules/0/controllers/0/className",
+     "NextRoute(app/api/route.ts)"
+    ],
+    [
+     "/modules/0/controllers/0/endpoints",
+     [
+      {
+       "verb": "GET",
+       "path": "/api",
+       "operationId": null,
+       "method": "GET",
+       "line": 1,
+       "params": []
+      }
+     ]
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Next.js first slice: App Router route.js/route.ts files with explicit method exports are emitted; simple [param] segments and route groups are resolved, while catch-all/interception/parallel routes and Pages API control-flow methods remain unknown.",
+      "T13 emits only explicitly exported Next.js HTTP methods; framework-generated OPTIONS when OPTIONS is absent is intentionally not synthesized."
+     ]
+    ]
+   ],
+   "output_sha256": "72b1b087f046572a601e736c83a31bf7a8f6fbb3d92295f0a73aa5bcc82e1787"
+  },
+  {
+   "id": "nextjs-catch-all-segment",
+   "class": "negative",
+   "target": "typescript-nextjs",
+   "category": "dynamic-route-factory",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"next\":\"16.0.0\"}}",
+       "app/api/[...slug]/route.ts": "export async function GET() { return new Response(\"x\") }\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Next.js first slice: App Router route.js/route.ts files with explicit method exports are emitted; simple [param] segments and route groups are resolved, while catch-all/interception/parallel routes and Pages API control-flow methods remain unknown.",
+      "Next.js Route Handler at app/api/[...slug]/route.ts uses catch-all-segment; no endpoint path was emitted.",
+      "T13 emits only explicitly exported Next.js HTTP methods; framework-generated OPTIONS when OPTIONS is absent is intentionally not synthesized."
+     ]
+    ]
+   ],
+   "output_sha256": "c343c7152320021a84773328c540d9a909b8b3f1da9e5d7275d282f5b8b3b224"
+  },
+  {
+   "id": "nextjs-optional-catch-all-segment",
+   "class": "negative",
+   "target": "typescript-nextjs",
+   "category": "dynamic-route-factory",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"next\":\"16.0.0\"}}",
+       "app/api/[[...rest]]/route.ts": "import { handle } from \"hono/vercel\"\nexport const GET = handle(app)\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Next.js first slice: App Router route.js/route.ts files with explicit method exports are emitted; simple [param] segments and route groups are resolved, while catch-all/interception/parallel routes and Pages API control-flow methods remain unknown.",
+      "Next.js Route Handler at app/api/[[...rest]]/route.ts uses catch-all-segment; no endpoint path was emitted.",
+      "T13 emits only explicitly exported Next.js HTTP methods; framework-generated OPTIONS when OPTIONS is absent is intentionally not synthesized."
+     ]
+    ]
+   ],
+   "output_sha256": "c1d5369c7c4df6c39d015f8b427caf4b4096ce2ce9226a0acecc25dadf02e6fd"
+  },
+  {
+   "id": "nextjs-variable-base-path",
+   "class": "negative",
+   "target": "typescript-nextjs",
+   "category": "dynamic-route-factory",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"next\":\"16.0.0\"}}",
+       "app/api/route.ts": "export async function GET() { return new Response(\"x\") }\n",
+       "next.config.js": "module.exports = { basePath: process.env.BASE_PATH }\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Next.js first slice: App Router route.js/route.ts files with explicit method exports are emitted; simple [param] segments and route groups are resolved, while catch-all/interception/parallel routes and Pages API control-flow methods remain unknown.",
+      "Next.js basePath is present but not a simple literal; absolute Route Handler paths are unknown",
+      "Next.js Route Handler at app/api/route.ts was withheld because basePath is unresolved.",
+      "T13 emits only explicitly exported Next.js HTTP methods; framework-generated OPTIONS when OPTIONS is absent is intentionally not synthesized."
+     ]
+    ]
+   ],
+   "output_sha256": "fe1375a6ef9b6e3100aef62e43998fe2ee9a92cf7ab1663fcc8bf65dc3b86f40"
+  },
+  {
+   "id": "nextjs-parallel-private-and-intercepting-segments",
+   "class": "negative",
+   "target": "typescript-nextjs",
+   "category": "withheld-form",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"next\":\"16.0.0\"}}",
+       "app/@modal/x/route.ts": "export async function GET() { return new Response(\"x\") }\n",
+       "app/_private/route.ts": "export async function GET() { return new Response(\"x\") }\n",
+       "app/(.)photo/route.ts": "export async function GET() { return new Response(\"x\") }\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Next.js first slice: App Router route.js/route.ts files with explicit method exports are emitted; simple [param] segments and route groups are resolved, while catch-all/interception/parallel routes and Pages API control-flow methods remain unknown.",
+      "Next.js Route Handler at app/(.)photo/route.ts uses intercepting-or-unsupported-segment; no endpoint path was emitted.",
+      "Next.js Route Handler at app/@modal/x/route.ts uses parallel-route-segment; no endpoint path was emitted.",
+      "Next.js Route Handler at app/_private/route.ts uses private-folder; no endpoint path was emitted.",
+      "T13 emits only explicitly exported Next.js HTTP methods; framework-generated OPTIONS when OPTIONS is absent is intentionally not synthesized."
+     ]
+    ]
+   ],
+   "output_sha256": "9ddb3fa7e9c3c045bc5ad18143bb4e0df84db13078f4f58746e9529200553819"
+  },
+  {
+   "id": "nextjs-pages-api-route",
+   "class": "negative",
+   "target": "typescript-nextjs",
+   "category": "withheld-form",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"next\":\"16.0.0\"}}",
+       "pages/api/hello.ts": "export default function handler(req, res) { if (req.method === \"POST\") res.end(\"p\"); else res.end(\"g\") }\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Next.js first slice: App Router route.js/route.ts files with explicit method exports are emitted; simple [param] segments and route groups are resolved, while catch-all/interception/parallel routes and Pages API control-flow methods remain unknown.",
+      "Next.js Pages API files were detected but are not emitted by the T13 App Route first slice because HTTP methods depend on handler control flow."
+     ]
+    ]
+   ],
+   "output_sha256": "6e4653a47577badb7b02612b0e9623e0550c6c2c37d55634056cd716b72f39ff"
+  },
+  {
+   "id": "nextjs-reexport-from-another-file",
+   "class": "negative",
+   "target": "typescript-nextjs",
+   "category": "withheld-form",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"next\":\"16.0.0\"}}",
+       "app/api/route.ts": "export { GET } from '../handlers'\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Next.js first slice: App Router route.js/route.ts files with explicit method exports are emitted; simple [param] segments and route groups are resolved, while catch-all/interception/parallel routes and Pages API control-flow methods remain unknown.",
+      "Next.js external re-export for GET at app/api/route.ts:1 is not followed by the T13 first slice.",
+      "Next.js route file at app/api/route.ts exports no directly supported HTTP method in the T13 first slice.",
+      "T13 emits only explicitly exported Next.js HTTP methods; framework-generated OPTIONS when OPTIONS is absent is intentionally not synthesized."
+     ]
+    ]
+   ],
+   "output_sha256": "cf76f45c4267768941e0d6033a590752625f633b02d28d62632d0ef4f3458666"
+  },
+  {
+   "id": "nextjs-no-http-method-export",
+   "class": "negative",
+   "target": "typescript-nextjs",
+   "category": "withheld-form",
+   "origin": "authored for this record",
+   "call": {
+    "module": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+    "fn": "adapter.scan",
+    "args": [
+     {
+      "$tree": {
+       "package.json": "{\"name\":\"probe\",\"version\":\"1.0.0\",\"dependencies\":{\"next\":\"16.0.0\"}}",
+       "app/api/route.ts": "export const dynamic = \"force-dynamic\"\n"
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/modules/length",
+     0
+    ],
+    [
+     "/scanNotes",
+     [
+      "T13 Next.js first slice: App Router route.js/route.ts files with explicit method exports are emitted; simple [param] segments and route groups are resolved, while catch-all/interception/parallel routes and Pages API control-flow methods remain unknown.",
+      "Next.js route file at app/api/route.ts exports no directly supported HTTP method in the T13 first slice.",
+      "T13 emits only explicitly exported Next.js HTTP methods; framework-generated OPTIONS when OPTIONS is absent is intentionally not synthesized."
+     ]
+    ]
+   ],
+   "output_sha256": "c6cd89c2c8d216071b2d182899242fa5fd789817ed6b5b241c94006852f20ac3"
+  },
+  {
+   "id": "catalog-targets",
+   "class": "normal",
+   "target": null,
+   "category": "catalog-validation",
+   "origin": "exported constant HTTP_WAVE_BC_TARGETS of the pinned module adapters/http-wave-bc/catalog.mjs",
+   "call": {
+    "module": "adapters/http-wave-bc/catalog.mjs",
+    "fn": "HTTP_WAVE_BC_TARGETS"
+   },
+   "expect": [
+    [
+     "",
+     [
+      {
+       "id": "node-hono",
+       "wave": "B",
+       "languageTrack": "T04",
+       "runtime": "node",
+       "scope": "Hono literal routes, basePath and explicit route mounts"
+      },
+      {
+       "id": "node-koa",
+       "wave": "B",
+       "languageTrack": "T04",
+       "runtime": "node",
+       "scope": "Koa + explicit router profile"
+      },
+      {
+       "id": "typescript-nextjs",
+       "wave": "B",
+       "languageTrack": "T04",
+       "runtime": "node",
+       "scope": "Next.js server/API route handlers only"
+      },
+      {
+       "id": "python-starlette",
+       "wave": "B",
+       "languageTrack": "T06",
+       "runtime": "python",
+       "scope": "Starlette Route/Mount declarations"
+      },
+      {
+       "id": "python-litestar",
+       "wave": "B",
+       "languageTrack": "T06",
+       "runtime": "python",
+       "scope": "Litestar decorated routes/controllers"
+      },
+      {
+       "id": "go-echo",
+       "wave": "B",
+       "languageTrack": "T08",
+       "runtime": "go",
+       "scope": "Echo route/group registration"
+      },
+      {
+       "id": "go-fiber",
+       "wave": "B",
+       "languageTrack": "T08",
+       "runtime": "go",
+       "scope": "Fiber app/group route registration"
+      },
+      {
+       "id": "rust-axum",
+       "wave": "B",
+       "languageTrack": "T08",
+       "runtime": "rust",
+       "scope": "Axum Router/route/nest graph"
+      },
+      {
+       "id": "rust-actix-web",
+       "wave": "B",
+       "languageTrack": "T08",
+       "runtime": "rust",
+       "scope": "Actix service/scope/resource declarations"
+      },
+      {
+       "id": "java-quarkus",
+       "wave": "C",
+       "languageTrack": "T05",
+       "runtime": "jvm",
+       "scope": "JAX-RS endpoints; classic/reactive profiles separated later"
+      },
+      {
+       "id": "java-micronaut",
+       "wave": "C",
+       "languageTrack": "T05",
+       "runtime": "jvm",
+       "scope": "Micronaut controller annotations"
+      },
+      {
+       "id": "kotlin-ktor",
+       "wave": "C",
+       "languageTrack": "T05",
+       "runtime": "jvm",
+       "scope": "Ktor routing DSL"
+      },
+      {
+       "id": "php-symfony",
+       "wave": "C",
+       "languageTrack": "T07",
+       "runtime": "php",
+       "scope": "Symfony route attributes/YAML/XML profiles"
+      },
+      {
+       "id": "elixir-phoenix",
+       "wave": "C",
+       "languageTrack": "T08",
+       "runtime": "beam",
+       "scope": "Phoenix router scopes/pipelines/resources"
+      },
+      {
+       "id": "scala-play",
+       "wave": "C",
+       "languageTrack": "T08",
+       "runtime": "jvm",
+       "scope": "Play routes file + controllers"
+      },
+      {
+       "id": "swift-vapor",
+       "wave": "C",
+       "languageTrack": "T08",
+       "runtime": "swift",
+       "scope": "Vapor route groups/collections"
+      }
+     ]
+    ]
+   ],
+   "output_sha256": "ef33b9604b7a3bcdf6a8b3421c44b4532dae5a505cef22cc6d786ba094a8bee9"
+  },
+  {
+   "id": "catalog-valid",
+   "class": "normal",
+   "target": null,
+   "category": "catalog-validation",
+   "origin": "validateWaveBcCatalog of the pinned module adapters/http-wave-bc/catalog.mjs with its default argument",
+   "call": {
+    "module": "adapters/http-wave-bc/catalog.mjs",
+    "fn": "validateWaveBcCatalog",
+    "args": []
+   },
+   "expect": [
+    [
+     "",
+     []
+    ]
+   ],
+   "output_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "id": "catalog-rejects-invalid-id",
+   "class": "negative",
+   "target": null,
+   "category": "catalog-validation",
+   "origin": "validateWaveBcCatalog of the pinned module adapters/http-wave-bc/catalog.mjs on the pinned HTTP_WAVE_BC_TARGETS with the change that call.args states",
+   "call": {
+    "module": "adapters/http-wave-bc/catalog.mjs",
+    "fn": "validateWaveBcCatalog",
+    "args": [
+     {
+      "$call": {
+       "module": "adapters/http-wave-bc/catalog.mjs",
+       "fn": "HTTP_WAVE_BC_TARGETS",
+       "chain": [
+        {
+         "method": "slice",
+         "args": [
+          1
+         ]
+        },
+        {
+         "method": "concat",
+         "args": [
+          [
+           {
+            "id": "Bad_Id",
+            "wave": "B",
+            "languageTrack": "T04",
+            "runtime": "node",
+            "scope": "a scope"
+           }
+          ]
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "",
+     [
+      "invalid id: Bad_Id"
+     ]
+    ]
+   ],
+   "output_sha256": "3890c3c6c3d9f5255972a7c2a21426b44c4b64da0535c515745ce99cb1f635b6"
+  },
+  {
+   "id": "catalog-rejects-duplicate-id",
+   "class": "negative",
+   "target": null,
+   "category": "catalog-validation",
+   "origin": "validateWaveBcCatalog of the pinned module adapters/http-wave-bc/catalog.mjs on the pinned HTTP_WAVE_BC_TARGETS with the change that call.args states",
+   "call": {
+    "module": "adapters/http-wave-bc/catalog.mjs",
+    "fn": "validateWaveBcCatalog",
+    "args": [
+     {
+      "$call": {
+       "module": "adapters/http-wave-bc/catalog.mjs",
+       "fn": "HTTP_WAVE_BC_TARGETS",
+       "chain": [
+        {
+         "method": "slice",
+         "args": [
+          1
+         ]
+        },
+        {
+         "method": "concat",
+         "args": [
+          [
+           {
+            "id": "node-koa",
+            "wave": "B",
+            "languageTrack": "T04",
+            "runtime": "node",
+            "scope": "a scope"
+           }
+          ]
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "",
+     [
+      "duplicate id: node-koa"
+     ]
+    ]
+   ],
+   "output_sha256": "90aab8238e4688e12b043e2a40dc7823ff5cdaecd127b6e376d22327d57cc5d5"
+  },
+  {
+   "id": "catalog-rejects-unknown-wave",
+   "class": "negative",
+   "target": null,
+   "category": "catalog-validation",
+   "origin": "validateWaveBcCatalog of the pinned module adapters/http-wave-bc/catalog.mjs on the pinned HTTP_WAVE_BC_TARGETS with the change that call.args states",
+   "call": {
+    "module": "adapters/http-wave-bc/catalog.mjs",
+    "fn": "validateWaveBcCatalog",
+    "args": [
+     {
+      "$call": {
+       "module": "adapters/http-wave-bc/catalog.mjs",
+       "fn": "HTTP_WAVE_BC_TARGETS",
+       "chain": [
+        {
+         "method": "slice",
+         "args": [
+          1
+         ]
+        },
+        {
+         "method": "concat",
+         "args": [
+          [
+           {
+            "id": "extra-target",
+            "wave": "D",
+            "languageTrack": "T04",
+            "runtime": "node",
+            "scope": "a scope"
+           }
+          ]
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "",
+     [
+      "extra-target: wave must be B or C",
+      "Wave B must contain 9 targets, got 8"
+     ]
+    ]
+   ],
+   "output_sha256": "6c8ef484b354bae673c84811a4b377546bff397619abec1074668ef491a4a64b"
+  },
+  {
+   "id": "catalog-rejects-unknown-language-track",
+   "class": "negative",
+   "target": null,
+   "category": "catalog-validation",
+   "origin": "validateWaveBcCatalog of the pinned module adapters/http-wave-bc/catalog.mjs on the pinned HTTP_WAVE_BC_TARGETS with the change that call.args states",
+   "call": {
+    "module": "adapters/http-wave-bc/catalog.mjs",
+    "fn": "validateWaveBcCatalog",
+    "args": [
+     {
+      "$call": {
+       "module": "adapters/http-wave-bc/catalog.mjs",
+       "fn": "HTTP_WAVE_BC_TARGETS",
+       "chain": [
+        {
+         "method": "slice",
+         "args": [
+          1
+         ]
+        },
+        {
+         "method": "concat",
+         "args": [
+          [
+           {
+            "id": "extra-target",
+            "wave": "B",
+            "languageTrack": "T99",
+            "runtime": "node",
+            "scope": "a scope"
+           }
+          ]
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "",
+     [
+      "extra-target: invalid languageTrack"
+     ]
+    ]
+   ],
+   "output_sha256": "a04a4f2a40fdc0088e5eb6bbd227a67042eaaede11da52f96978218c9fc388c6"
+  },
+  {
+   "id": "catalog-rejects-blank-runtime",
+   "class": "negative",
+   "target": null,
+   "category": "catalog-validation",
+   "origin": "validateWaveBcCatalog of the pinned module adapters/http-wave-bc/catalog.mjs on the pinned HTTP_WAVE_BC_TARGETS with the change that call.args states",
+   "call": {
+    "module": "adapters/http-wave-bc/catalog.mjs",
+    "fn": "validateWaveBcCatalog",
+    "args": [
+     {
+      "$call": {
+       "module": "adapters/http-wave-bc/catalog.mjs",
+       "fn": "HTTP_WAVE_BC_TARGETS",
+       "chain": [
+        {
+         "method": "slice",
+         "args": [
+          1
+         ]
+        },
+        {
+         "method": "concat",
+         "args": [
+          [
+           {
+            "id": "extra-target",
+            "wave": "B",
+            "languageTrack": "T04",
+            "runtime": " ",
+            "scope": "a scope"
+           }
+          ]
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "",
+     [
+      "extra-target: missing runtime"
+     ]
+    ]
+   ],
+   "output_sha256": "768beafc2e35d2007bdb509b1e304161346310f0a986e72a96050e5a58fedc7d"
+  },
+  {
+   "id": "catalog-rejects-missing-scope",
+   "class": "negative",
+   "target": null,
+   "category": "catalog-validation",
+   "origin": "validateWaveBcCatalog of the pinned module adapters/http-wave-bc/catalog.mjs on the pinned HTTP_WAVE_BC_TARGETS with the change that call.args states",
+   "call": {
+    "module": "adapters/http-wave-bc/catalog.mjs",
+    "fn": "validateWaveBcCatalog",
+    "args": [
+     {
+      "$call": {
+       "module": "adapters/http-wave-bc/catalog.mjs",
+       "fn": "HTTP_WAVE_BC_TARGETS",
+       "chain": [
+        {
+         "method": "slice",
+         "args": [
+          1
+         ]
+        },
+        {
+         "method": "concat",
+         "args": [
+          [
+           {
+            "id": "extra-target",
+            "wave": "B",
+            "languageTrack": "T04",
+            "runtime": "node"
+           }
+          ]
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "",
+     [
+      "extra-target: missing scope"
+     ]
+    ]
+   ],
+   "output_sha256": "3db7e6d70f7a22d657a6bdbdf090cd3903d06da8aaef83ef08636b1ec90ea3b9"
+  },
+  {
+   "id": "catalog-rejects-too-few-wave-b",
+   "class": "negative",
+   "target": null,
+   "category": "catalog-validation",
+   "origin": "validateWaveBcCatalog of the pinned module adapters/http-wave-bc/catalog.mjs on the pinned HTTP_WAVE_BC_TARGETS with the change that call.args states",
+   "call": {
+    "module": "adapters/http-wave-bc/catalog.mjs",
+    "fn": "validateWaveBcCatalog",
+    "args": [
+     {
+      "$call": {
+       "module": "adapters/http-wave-bc/catalog.mjs",
+       "fn": "HTTP_WAVE_BC_TARGETS",
+       "chain": [
+        {
+         "method": "slice",
+         "args": [
+          1
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "",
+     [
+      "Wave B must contain 9 targets, got 8"
+     ]
+    ]
+   ],
+   "output_sha256": "168109a17c3e8b57907b39e962f7ad73cbb0aa86b88ccd305eac2e09dc3de9ab"
+  },
+  {
+   "id": "catalog-rejects-too-few-wave-c",
+   "class": "negative",
+   "target": null,
+   "category": "catalog-validation",
+   "origin": "validateWaveBcCatalog of the pinned module adapters/http-wave-bc/catalog.mjs on the pinned HTTP_WAVE_BC_TARGETS with the change that call.args states",
+   "call": {
+    "module": "adapters/http-wave-bc/catalog.mjs",
+    "fn": "validateWaveBcCatalog",
+    "args": [
+     {
+      "$call": {
+       "module": "adapters/http-wave-bc/catalog.mjs",
+       "fn": "HTTP_WAVE_BC_TARGETS",
+       "chain": [
+        {
+         "method": "slice",
+         "args": [
+          0,
+          15
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "",
+     [
+      "Wave C must contain 7 targets, got 6"
+     ]
+    ]
+   ],
+   "output_sha256": "020f1e5ac0450528b3148e16d2b6a5e696b43d335c8669cf62c0e501d834920c"
+  },
+  {
+   "id": "catalog-rejects-a-string-entry",
+   "class": "negative",
+   "target": null,
+   "category": "catalog-validation",
+   "origin": "validateWaveBcCatalog of the pinned module adapters/http-wave-bc/catalog.mjs on the pinned HTTP_WAVE_BC_TARGETS with the change that call.args states",
+   "call": {
+    "module": "adapters/http-wave-bc/catalog.mjs",
+    "fn": "validateWaveBcCatalog",
+    "args": [
+     {
+      "$call": {
+       "module": "adapters/http-wave-bc/catalog.mjs",
+       "fn": "HTTP_WAVE_BC_TARGETS",
+       "chain": [
+        {
+         "method": "concat",
+         "args": [
+          [
+           "not an object"
+          ]
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "",
+     [
+      "target must be an object"
+     ]
+    ]
+   ],
+   "output_sha256": "7b2c2f44d3afdc4548f08bee7c84d27b9ee2e73e55f8587cec052eb658546038"
+  },
+  {
+   "id": "catalog-throws-on-a-null-entry",
+   "class": "negative",
+   "target": null,
+   "category": "catalog-validation",
+   "origin": "validateWaveBcCatalog of the pinned module adapters/http-wave-bc/catalog.mjs on the pinned HTTP_WAVE_BC_TARGETS with the change that call.args states",
+   "call": {
+    "module": "adapters/http-wave-bc/catalog.mjs",
+    "fn": "validateWaveBcCatalog",
+    "args": [
+     {
+      "$call": {
+       "module": "adapters/http-wave-bc/catalog.mjs",
+       "fn": "HTTP_WAVE_BC_TARGETS",
+       "chain": [
+        {
+         "method": "concat",
+         "args": [
+          [
+           null
+          ]
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "expect": [
+    [
+     "/threw/name",
+     "TypeError"
+    ]
+   ],
+   "output_sha256": "369193670588ec3599dcd17929c777cd30229e40810b239df44f25d646a9ab60"
+  },
+  {
+   "id": "profile-evidence-promotion-state",
+   "class": "normal",
+   "target": null,
+   "category": "profile-evidence",
+   "origin": "promotion_state of the pinned file adapters/http-wave-bc/profile-evidence.json",
+   "call": {
+    "module": "adapters/http-wave-bc/profile-evidence.json",
+    "fn": "promotion_state"
+   },
+   "expect": [
+    [
+     "",
+     "HOLD_T19_T23"
+    ]
+   ],
+   "output_sha256": "c5ac88cd1772e11c2ac6e04321b93d9117cc6d4b4ea6f11551e8df2e17ca8451"
+  },
+  {
+   "id": "profile-evidence-fanout",
+   "class": "normal",
+   "target": null,
+   "category": "profile-evidence",
+   "origin": "new_framework_fanout of the pinned file adapters/http-wave-bc/profile-evidence.json",
+   "call": {
+    "module": "adapters/http-wave-bc/profile-evidence.json",
+    "fn": "new_framework_fanout"
+   },
+   "expect": [
+    [
+     "",
+     "DEFER_UNTIL_PROFILE_REVIEW"
+    ]
+   ],
+   "output_sha256": "4adc8bd2ae2e82a3fc72bb266bb59e385a39aac007ff6d09f10a317d28a81c50"
+  },
+  {
+   "id": "profile-evidence-profiles",
+   "class": "normal",
+   "target": null,
+   "category": "profile-evidence",
+   "origin": "profiles list of the pinned file adapters/http-wave-bc/profile-evidence.json",
+   "call": {
+    "module": "adapters/http-wave-bc/profile-evidence.json",
+    "fn": "profiles"
+   },
+   "expect": [
+    [
+     "",
+     [
+      {
+       "id": "node-hono",
+       "state": "STATIC_EVIDENCE_GREEN",
+       "verificationBasis": "synthetic-only",
+       "official_reference": {
+        "repo": "honojs/hono",
+        "commit": "3ed3a14f6d47f3a000f6f0206912261fc0e4b6cd",
+        "package_version": "4.13.9"
+       },
+       "claimed_scope": [
+        "dependency + live source detection",
+        "literal per-verb routes",
+        "literal basePath",
+        "bounded same-file/relative-import route() graph",
+        "source provenance",
+        "showRoutes output parser"
+       ],
+       "explicitly_unclaimed": [
+        "api.operations",
+        "request/response schema",
+        "security enforcement",
+        "persistence",
+        "codegen",
+        "runtime execution",
+        "dynamic paths/basePath",
+        "all/on/use/mount"
+       ]
+      },
+      {
+       "id": "node-koa",
+       "state": "STATIC_EVIDENCE_GREEN",
+       "verificationBasis": "synthetic-only",
+       "official_reference": {
+        "repo": "koajs/router",
+        "commit": "dc285194dfbd9887b7ab9937996370dc4fda55d7",
+        "package_version": "15.7.0"
+       },
+       "claimed_scope": [
+        "koa + @koa/router dependency and live constructor detection",
+        "same-file router mounted through app.use(router.routes())",
+        "literal standard-method routes",
+        "named routes",
+        "literal constructor prefix",
+        "ESM/CommonJS/generic Router bindings"
+       ],
+       "explicitly_unclaimed": [
+        "api.operations",
+        "request/response schema",
+        "security enforcement",
+        "persistence",
+        "codegen",
+        "runtime middleware semantics",
+        "unmounted or cross-file router wiring",
+        "prefix() mutation",
+        "all()/use()/register()/redirect()",
+        "dynamic/array/RegExp paths",
+        "host/method/sensitive/strict matching options"
+       ]
+      },
+      {
+       "id": "typescript-nextjs",
+       "state": "STATIC_EVIDENCE_GREEN",
+       "verificationBasis": "synthetic-only",
+       "official_reference": {
+        "repo": "vercel/next.js",
+        "commit": "cb95ca373be557309a962d8a6e64a75c6732bc5d",
+        "package_version": "16.4.0-canary.45"
+       },
+       "claimed_scope": [
+        "App Router route.js/route.ts",
+        "explicit GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS exports",
+        "route groups",
+        "simple [param]",
+        "literal basePath",
+        "local export aliases",
+        "root app over src/app precedence"
+       ],
+       "explicitly_unclaimed": [
+        "api.operations",
+        "request/response schema",
+        "security enforcement",
+        "persistence",
+        "codegen",
+        "framework-generated OPTIONS",
+        "catch-all/optional catch-all",
+        "intercepting/parallel/private routes",
+        "Pages API control-flow methods",
+        "external re-export following",
+        "runtime behavior"
+       ]
+      }
+     ]
+    ]
+   ],
+   "output_sha256": "676ed225696807427bc2a730bd50a2be805350faca553756ab1f3e54a8e0a95c"
+  },
+  {
+   "id": "profile-evidence-exact-head",
+   "class": "normal",
+   "target": null,
+   "category": "profile-evidence",
+   "origin": "exact_head of the pinned file adapters/http-wave-bc/profile-evidence.json",
+   "call": {
+    "module": "adapters/http-wave-bc/profile-evidence.json",
+    "fn": "exact_head"
+   },
+   "expect": [
+    [
+     "",
+     "46bcff62731da3498cb9e7764e33cdfec83cc6ce"
+    ]
+   ],
+   "output_sha256": "4ca17805c1f98f40583a8f0f8d4543dc96f8177261e0408fb040bfb040ea4e9d"
+  },
+  {
+   "id": "profile-evidence-ci-run-id",
+   "class": "normal",
+   "target": null,
+   "category": "profile-evidence",
+   "origin": "ci.run_id of the pinned file adapters/http-wave-bc/profile-evidence.json",
+   "call": {
+    "module": "adapters/http-wave-bc/profile-evidence.json",
+    "fn": "ci.run_id"
+   },
+   "expect": [
+    [
+     "",
+     36095053997
+    ]
+   ],
+   "output_sha256": "255361a9f6bf189503c766d77b7bf7e91aa29ee887a66a3287a65b7a591717e0"
+  }
+ ],
+ "targets": [
+  {
+   "id": "node-hono",
+   "wave": "B",
+   "language_track": "T04",
+   "runtime": "node",
+   "leaf": "adapters/http-wave-bc/node-hono/adapter.mjs",
+   "profile_state": "STATIC_EVIDENCE_GREEN",
+   "framework_pin": {
+    "repo": "honojs/hono",
+    "commit": "3ed3a14f6d47f3a000f6f0206912261fc0e4b6cd",
+    "package_version": "4.13.9"
+   },
+   "scope_record": "adapters/http-wave-bc/scope/node-hono.SCOPE.json",
+   "record_status": "PINNED",
+   "support_status": "EXPERIMENTAL_SYNTHETIC_ONLY"
+  },
+  {
+   "id": "node-koa",
+   "wave": "B",
+   "language_track": "T04",
+   "runtime": "node",
+   "leaf": "adapters/http-wave-bc/node-koa/adapter.mjs",
+   "profile_state": "STATIC_EVIDENCE_GREEN",
+   "framework_pin": {
+    "repo": "koajs/router",
+    "commit": "dc285194dfbd9887b7ab9937996370dc4fda55d7",
+    "package_version": "15.7.0"
+   },
+   "scope_record": "adapters/http-wave-bc/scope/node-koa.SCOPE.json",
+   "record_status": "PINNED",
+   "support_status": "EXPERIMENTAL_SYNTHETIC_ONLY"
+  },
+  {
+   "id": "typescript-nextjs",
+   "wave": "B",
+   "language_track": "T04",
+   "runtime": "node",
+   "leaf": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+   "profile_state": "STATIC_EVIDENCE_GREEN",
+   "framework_pin": {
+    "repo": "vercel/next.js",
+    "commit": "cb95ca373be557309a962d8a6e64a75c6732bc5d",
+    "package_version": "16.4.0-canary.45"
+   },
+   "scope_record": "adapters/http-wave-bc/scope/typescript-nextjs.SCOPE.json",
+   "record_status": "PINNED",
+   "support_status": "EXPERIMENTAL_SYNTHETIC_ONLY"
+  },
+  {
+   "id": "python-starlette",
+   "wave": "B",
+   "language_track": "T06",
+   "runtime": "python",
+   "leaf": null,
+   "profile_state": null,
+   "framework_pin": null,
+   "scope_record": "adapters/http-wave-bc/python-starlette/SCOPE.json",
+   "record_status": "NOT_RECORDED",
+   "support_status": "UNSUPPORTED"
+  },
+  {
+   "id": "python-litestar",
+   "wave": "B",
+   "language_track": "T06",
+   "runtime": "python",
+   "leaf": null,
+   "profile_state": null,
+   "framework_pin": null,
+   "scope_record": "adapters/http-wave-bc/python-litestar/SCOPE.json",
+   "record_status": "NOT_RECORDED",
+   "support_status": "UNSUPPORTED"
+  },
+  {
+   "id": "go-echo",
+   "wave": "B",
+   "language_track": "T08",
+   "runtime": "go",
+   "leaf": null,
+   "profile_state": null,
+   "framework_pin": null,
+   "scope_record": null,
+   "record_status": "NOT_RECORDED",
+   "support_status": "UNSUPPORTED"
+  },
+  {
+   "id": "go-fiber",
+   "wave": "B",
+   "language_track": "T08",
+   "runtime": "go",
+   "leaf": null,
+   "profile_state": null,
+   "framework_pin": null,
+   "scope_record": null,
+   "record_status": "NOT_RECORDED",
+   "support_status": "UNSUPPORTED"
+  },
+  {
+   "id": "rust-axum",
+   "wave": "B",
+   "language_track": "T08",
+   "runtime": "rust",
+   "leaf": null,
+   "profile_state": null,
+   "framework_pin": null,
+   "scope_record": null,
+   "record_status": "NOT_RECORDED",
+   "support_status": "UNSUPPORTED"
+  },
+  {
+   "id": "rust-actix-web",
+   "wave": "B",
+   "language_track": "T08",
+   "runtime": "rust",
+   "leaf": null,
+   "profile_state": null,
+   "framework_pin": null,
+   "scope_record": null,
+   "record_status": "NOT_RECORDED",
+   "support_status": "UNSUPPORTED"
+  },
+  {
+   "id": "java-quarkus",
+   "wave": "C",
+   "language_track": "T05",
+   "runtime": "jvm",
+   "leaf": null,
+   "profile_state": null,
+   "framework_pin": null,
+   "scope_record": null,
+   "record_status": "NOT_RECORDED",
+   "support_status": "UNSUPPORTED"
+  },
+  {
+   "id": "java-micronaut",
+   "wave": "C",
+   "language_track": "T05",
+   "runtime": "jvm",
+   "leaf": null,
+   "profile_state": null,
+   "framework_pin": null,
+   "scope_record": null,
+   "record_status": "NOT_RECORDED",
+   "support_status": "UNSUPPORTED"
+  },
+  {
+   "id": "kotlin-ktor",
+   "wave": "C",
+   "language_track": "T05",
+   "runtime": "jvm",
+   "leaf": null,
+   "profile_state": null,
+   "framework_pin": null,
+   "scope_record": null,
+   "record_status": "NOT_RECORDED",
+   "support_status": "UNSUPPORTED"
+  },
+  {
+   "id": "php-symfony",
+   "wave": "C",
+   "language_track": "T07",
+   "runtime": "php",
+   "leaf": null,
+   "profile_state": null,
+   "framework_pin": null,
+   "scope_record": null,
+   "record_status": "NOT_RECORDED",
+   "support_status": "UNSUPPORTED"
+  },
+  {
+   "id": "elixir-phoenix",
+   "wave": "C",
+   "language_track": "T08",
+   "runtime": "beam",
+   "leaf": null,
+   "profile_state": null,
+   "framework_pin": null,
+   "scope_record": null,
+   "record_status": "NOT_RECORDED",
+   "support_status": "UNSUPPORTED"
+  },
+  {
+   "id": "scala-play",
+   "wave": "C",
+   "language_track": "T08",
+   "runtime": "jvm",
+   "leaf": null,
+   "profile_state": null,
+   "framework_pin": null,
+   "scope_record": null,
+   "record_status": "NOT_RECORDED",
+   "support_status": "UNSUPPORTED"
+  },
+  {
+   "id": "swift-vapor",
+   "wave": "C",
+   "language_track": "T08",
+   "runtime": "swift",
+   "leaf": null,
+   "profile_state": null,
+   "framework_pin": null,
+   "scope_record": null,
+   "record_status": "NOT_RECORDED",
+   "support_status": "UNSUPPORTED"
+  }
+ ],
+ "artifact_digest": {
+  "value": "3635e8f9a8dfa7317463fa39e3bfbeafd76e0fe87eb952613ae45b3a89811e4c"
+ },
+ "ci_observations": [
+  {
+   "repository": "popixoxipop-collab/backend-skeleton",
+   "workflow": "CI",
+   "run_id": 38075313210,
+   "run_number": 1964,
+   "run_attempt": 1,
+   "event": "push",
+   "head_sha": "15a38e923cb5e079c6f8e2a4c2a9386406c41f52",
+   "status": "completed",
+   "conclusion": "success",
+   "jobs": [
+    {
+     "job_id": 114280949479,
+     "name": "nested-next (22.x)",
+     "runner": "macstudio",
+     "conclusion": "success",
+     "step": "T13 http-wave-bc",
+     "step_conclusion": "success"
+    },
+    {
+     "job_id": 114280949550,
+     "name": "nested-next (24.x)",
+     "runner": "macstudio",
+     "conclusion": "success",
+     "step": "T13 http-wave-bc",
+     "step_conclusion": "success"
+    }
+   ],
+   "jobs_listed": 19,
+   "pages": 1,
+   "observed_via": "gh api, read-only, per_page=100"
+  }
+ ],
+ "limits": [
+  {
+   "id": "absent-leaves",
+   "status": "UNSUPPORTED",
+   "statement": "The catalog lists 16 targets. 3 of them have a leaf adapter in this directory and 13 have no leaf; those 13 are UNSUPPORTED here and NOT_RECORDED in targets. 2 of the 13 have a SCOPE.json that another work item wrote (targets[*].scope_record, not claimed by this record) and 11 have neither a leaf nor a scope record.",
+   "facts": {
+    "catalog_targets": 16,
+    "targets_with_leaf": 3,
+    "targets_without_leaf": 13,
+    "without_leaf_with_scope_record": 2,
+    "without_leaf_without_scope_record": 11
+   }
+  },
+  {
+   "id": "no-runtime",
+   "status": "UNSUPPORTED",
+   "statement": "No fixture of this record runs a framework or an oracle script: 0 fixtures call one of the 3 oracle scripts that are pinned as data. The 6 source modules import 0 packages and the Node built-ins fs, path. The 3 leaf descriptors state verificationBasis synthetic-only and 0 of their 12 capability flags are not false. Whether a leaf agrees with the runtime behaviour of Hono, Koa or Next.js is UNKNOWN.",
+   "facts": {
+    "source_modules_scanned": 6,
+    "packages_imported_by_them": [],
+    "packages_imported_count": 0,
+    "builtin_modules_imported": [
+     "fs",
+     "path"
+    ],
+    "leaf_descriptors": 3,
+    "capability_flags": 12,
+    "capability_flags_not_false": 0,
+    "verification_bases": [
+     "synthetic-only"
+    ],
+    "oracle_scripts_pinned": 3,
+    "fixtures_calling_an_oracle": 0
+   }
+  },
+  {
+   "id": "legacy-contract",
+   "status": "UNSUPPORTED",
+   "statement": "The leaf descriptors state the legacy contract sbf.adapter/2 and a scan returns the keys apiSurfaceSource, filesRead, modules, scanNotes. Of the 6 source modules scanned for import specifiers, 0 import a contracts/next module and 0 build a specifier at run time. Output in the contracts/next form is UNSUPPORTED by this layer.",
+   "facts": {
+    "descriptor_contracts": [
+     "sbf.adapter/2"
+    ],
+    "scan_output_keys": [
+     "apiSurfaceSource",
+     "filesRead",
+     "modules",
+     "scanNotes"
+    ],
+    "source_files_checked": 6,
+    "imports_of_contracts_next": 0,
+    "computed_import_specifiers": 0
+   }
+  },
+  {
+   "id": "outside-npm-files",
+   "status": "UNSUPPORTED",
+   "statement": "The package.json of the base commit lists 15 entries under files and 0 of them cover adapters/, so the T13 modules are outside the npm file list.",
+   "facts": {
+    "package_json_blob_sha1": "6fb97db43b6a4a04069749be4f6fc960f26cd7b8",
+    "files_entries": 15,
+    "entries_covering_adapters": 0
+   }
+  },
+  {
+   "id": "not-registered",
+   "status": "BLOCKED",
+   "statement": "The registry entry points scanners/registry.mjs, scanners/index.mjs mention a T13 path or leaf id 0 times. 11 files outside the two track directories name one at the base commit (references lists them), 0 of them are shipped code, and 1 of them imports a T13 module (adapters/http-wave-a/python-scope/verify.mjs). profile-evidence.json states promotion_state HOLD_T19_T23.",
+   "facts": {
+    "registry_files_checked": [
+     "scanners/registry.mjs",
+     "scanners/index.mjs"
+    ],
+    "registry_mentions": 0,
+    "files_naming_t13_outside_track_dirs": 11,
+    "shipped_code_files_naming_t13": 0,
+    "files_importing_a_t13_module": 1,
+    "importer_paths": [
+     "adapters/http-wave-a/python-scope/verify.mjs"
+    ],
+    "profile_evidence_promotion_state": "HOLD_T19_T23"
+   },
+   "references": {
+    "pattern": "http-wave-bc|node-hono|node-koa|typescript-nextjs",
+    "paths": [
+     ".github/workflows/ci.yml",
+     "adapters/http-legacy-next/scope/verify.mjs",
+     "adapters/http-wave-a/python-scope/verify.mjs",
+     "evidence/next/T19-WAVE2-MUTATION-RECORD.json",
+     "next/t00/fixtures/plan-write-scopes.json",
+     "next/t00/ownership-map.json",
+     "scanners/language/native-server/STATUS.md",
+     "scripts/run-next-nested-tests.mjs",
+     "test/conformance-next/product-mutations-wave2.json",
+     "test/http-legacy-next/target-scope-records.test.mjs",
+     "test/http-wave-a/python-scope-records.test.mjs"
+    ]
+   }
+  },
+  {
+   "id": "historical-ci",
+   "status": "NOT_RECORDED",
+   "statement": "profile-evidence.json cites CI run 36095053997 for the head 46bcff62731da3498cb9e7764e33cdfec83cc6ce; that head is the base commit: false, so the run is history and not a replay of this tree. The CI observation of this record is the push run 38075313210 of the base commit, read once from the GitHub API and not fetched again by the tests.",
+   "facts": {
+    "profile_evidence_exact_head": "46bcff62731da3498cb9e7764e33cdfec83cc6ce",
+    "profile_evidence_run_id": 36095053997,
+    "profile_evidence_head_is_the_base_commit": false,
+    "observed_run_ids": [
+     38075313210
+    ],
+    "observed_heads_are_the_base_commit": true
+   }
+  },
+  {
+   "id": "upstream-example-fixtures",
+   "status": "UNKNOWN",
+   "statement": "The 3 normal scan fixtures read directories whose SOURCE.md files (3 are pinned) name an upstream example as their source: 2 name a README.md and 1 name a docs page. The record does not compare these directories with upstream; it replays them as data.",
+   "facts": {
+    "upstream_example_scans": 3,
+    "source_notes_pinned": 3,
+    "source_notes_naming_a_readme_file": 2,
+    "source_notes_naming_a_docs_page": 1
+   }
+  },
+  {
+   "id": "authored-inputs",
+   "status": "UNKNOWN",
+   "statement": "41 fixtures run a leaf on a tree of files authored for this record. They show what a leaf returns for those texts; they are not a sample of real projects.",
+   "facts": {
+    "fixtures_with_an_authored_tree": 41
+   }
+  },
+  {
+   "id": "withheld-forms",
+   "status": "UNSUPPORTED",
+   "statement": "6 fixtures show source forms that a leaf does not emit: 6 of them carry a scan note that the upstream-example scan of the same leaf does not carry, and the endpoints they emit together number 1. A withheld form is UNKNOWN to a consumer, not absent.",
+   "facts": {
+    "fixtures": 6,
+    "fixtures_with_an_extra_note": 6,
+    "endpoints_emitted_by_them": 1
+   },
+   "fixtures": [
+    "hono-all-on-use-mount-forms",
+    "koa-all-method-route",
+    "nextjs-parallel-private-and-intercepting-segments",
+    "nextjs-pages-api-route",
+    "nextjs-reexport-from-another-file",
+    "nextjs-no-http-method-export"
+   ]
+  },
+  {
+   "id": "unknown-not-structured",
+   "status": "UNSUPPORTED",
+   "statement": "Unknown and withheld information is reported as free text in scanNotes. Across the 41 scan fixtures the endpoint keys are line, method, operationId, params, path, routeName, verb, and 4 distinct reason codes appear inside note texts (listed in the facts).",
+   "facts": {
+    "scan_fixtures": 41,
+    "endpoint_keys": [
+     "line",
+     "method",
+     "operationId",
+     "params",
+     "path",
+     "routeName",
+     "verb"
+    ],
+    "reason_codes_in_notes": [
+     "catch-all-segment",
+     "intercepting-or-unsupported-segment",
+     "parallel-route-segment",
+     "private-folder"
+    ],
+    "reason_code_count": 4
+   }
+  },
+  {
+   "id": "silent-drop",
+   "status": "UNKNOWN",
+   "statement": "In 6 fixtures a route form is lost without a note: 0 of the scans carry a note that the upstream-example scan of the same leaf does not carry, and the endpoints they emit are (paths per fixture) no path; /a; no path; /a; /api; /api. For these inputs the output does not let a consumer tell a dropped route from a route that does not exist.",
+   "facts": {
+    "fixtures": 6,
+    "fixtures_with_an_extra_note": 0,
+    "extra_note_texts": [
+     [],
+     [],
+     [],
+     [],
+     [],
+     []
+    ],
+    "endpoint_paths": [
+     [],
+     [
+      "/a"
+     ],
+     [],
+     [
+      "/a"
+     ],
+     [
+      "/api"
+     ],
+     [
+      "/api"
+     ]
+    ]
+   },
+   "fixtures": [
+    "hono-computed-method-name",
+    "hono-chained-verbs-after-first",
+    "koa-computed-method-name",
+    "koa-chained-verbs-after-first",
+    "nextjs-sitemap-and-robots-metadata-routes",
+    "nextjs-config-rewrites"
+   ]
+  },
+  {
+   "id": "incomplete-path",
+   "status": "UNKNOWN",
+   "statement": "In 2 fixtures a route is emitted under the path of its own router and without the prefix of a mount that the leaf could not resolve (emitted paths /list; /c). 2 of the scans carry a scan note about the mount (extra_note_texts in the facts), but a note is not attached to an endpoint, so the endpoint alone looks final.",
+   "facts": {
+    "fixtures": 2,
+    "fixtures_with_an_extra_note": 2,
+    "extra_note_texts": [
+     [
+      "Hono route() mount at index.ts:8 (/users, makeRoutes) could not be resolved to a local or relative-imported Hono app."
+     ],
+     [
+      "Hono route() at index.ts:6 has a dynamic path or non-identifier child and is not expanded."
+     ]
+    ],
+    "endpoint_paths": [
+     [
+      "/list"
+     ],
+     [
+      "/c"
+     ]
+    ]
+   },
+   "fixtures": [
+    "hono-route-mount-from-factory",
+    "hono-mount-with-variable-path"
+   ]
+  },
+  {
+   "id": "scope-insensitive",
+   "status": "UNKNOWN",
+   "statement": "In 2 fixtures a route registered inside a helper function is emitted as an endpoint (paths /helper; /helper) although the scanned source defines the helper and does not call it (occurrences of its name: 1, 1).",
+   "facts": {
+    "fixtures": 2,
+    "fixtures_with_an_extra_note": 0,
+    "extra_note_texts": [
+     [],
+     []
+    ],
+    "endpoint_paths": [
+     [
+      "/helper"
+     ],
+     [
+      "/helper"
+     ]
+    ],
+    "helper_name_occurrences": [
+     1,
+     1
+    ]
+   },
+   "fixtures": [
+    "hono-route-in-uncalled-helper",
+    "koa-route-in-uncalled-helper"
+   ]
+  },
+  {
+   "id": "undetected-router",
+   "status": "UNKNOWN",
+   "statement": "In 1 fixture the routers of a Koa project are held in an object map and mounted in a loop; the project declares the dependencies @koa/router + koa, yet the scan reports it as not detected (see notes in the facts) and emits 0 endpoints.",
+   "facts": {
+    "fixtures": 1,
+    "endpoints": 0,
+    "notes": [
+     [
+      "Koa + @koa/router was not detected."
+     ]
+    ],
+    "declared_dependencies": [
+     [
+      "@koa/router",
+      "koa"
+     ]
+    ]
+   },
+   "fixtures": [
+    "koa-routers-mounted-from-object-map"
+   ]
+  }
+ ],
+ "verification": {
+  "recomputed": "baseline-record.test.mjs derives these figures again and compares them with the record: files[*].bytes, files[*].git_blob_sha1 and files[*].sha256 (against the checkout, using live_after_change for the three files this change edits, and against the blobs of base_commit); base_tree and the track listing of base_commit; the exit code, the counts and the first runner line of commands[*], and files[*].test_count, from running both commands in a copy of base_commit; fixtures[*].output_sha256 and fixtures[*].expect, from replaying the fixtures as data calls twice; limits[*].facts, from the replayed outputs, the pinned files and base_commit, and the integers of limits[*].statement against those facts; targets[*], from the catalog and profile-evidence.json; the table rows, the test count, the test-file count, the NESTED_SUITE line and the base commit named in README.md; and artifact_digest.",
+  "levels": [
+   "record: structure, sums, class and category coverage per leaf, the universal-word and PR-number patterns, and artifact_digest",
+   "checkout: the pinned files and the fixture replays; both are skipped, visibly, when the track directories no longer equal the baseline, and a file whose record disagrees with it in one hash or in its size alone fails",
+   "base_commit: tree, blobs, listing, references and both commands; an unavailable commit fails unless BASELINE_ALLOW_UNVERIFIED=1, which skips these checks visibly"
+  ],
+  "not_recomputed": [
+   "ci_observations: read once from the GitHub API and not fetched again by the tests",
+   "fixtures[*].origin: the example directories are not compared with upstream",
+   "framework behaviour: no framework and no oracle script runs",
+   "the prose of limits[*].statement beyond its integers, and the prose of README.md beyond the rows and figures named above; these changes to README.md are not reported, and baseline-record.test.mjs pins each as a survivor: a line changed or appended, a heading included; a deleted figure; a figure followed by another noun; a table row with a further column; a second commit named",
+   "fixtures[*].category and fixtures[*].defect: assigned by the author; the tests check that each defect limit lists the fixtures that carry its label, not that a label is deserved",
+   "limits[*].status: only the set of allowed values is checked; the value is the choice of the author",
+   "the title and the other descriptive fields of the record: covered by artifact_digest only",
+   "artifact_digest: detects accidental edits only, because whoever edits the record can compute it again"
+  ]
+ }
+}

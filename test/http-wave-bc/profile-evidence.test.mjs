@@ -81,6 +81,6 @@ test('T13 T19 review packet matches profile evidence and references existing can
     assert.ok(fs.existsSync(path.join(repoRoot, profile.fixture)), profile.fixture);
   }
 
-  assert.ok(request.non_qa_blockers.some((x) => x.includes('T23 issue #137')));
+  assert.ok(request.non_qa_blockers.some((x) => x.includes('package-shadow allowlist')));
   assert.ok(request.reviewer_requirements.some((x) => x.includes('independently authored')));
 });
