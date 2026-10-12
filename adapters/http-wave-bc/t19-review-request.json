@@ -1,7 +1,6 @@
 {
   "schema": "bskel.t13-t19-review-request/1",
   "status": "REQUESTED_NOT_ACCEPTED",
-  "source_pr": 67,
   "implementation_evidence_head": "46bcff62731da3498cb9e7764e33cdfec83cc6ce",
   "exact_ci": {
     "run_id": 36095053997,
@@ -89,7 +88,6 @@
     "Record review against exact adapter bytes and fixture bytes, not only profile names."
   ],
   "non_qa_blockers": [
-    "T23 issue #137 must re-home out-of-lease files and register required nested T13 CI.",
     "T23 must make a separate package-shadow allowlist decision before shipping adapters/http-wave-bc/**.",
     "Production scanners/adapters registration requires a separate T00/T23 integration-owner change."
   ]

@@ -1,8 +1,6 @@
 {
   "schema": "bskel.t13-profile-evidence/1",
   "captured_on": "2026-09-26",
-  "pr": 67,
-  "branch": "scale/T13/http-wave-bc-bootstrap",
   "exact_head": "46bcff62731da3498cb9e7764e33cdfec83cc6ce",
   "base_sha": "5472a8b82655840d1d3ce76cb926987376e37ca6",
   "ci": {
@@ -21,7 +19,7 @@
         "conclusion": "success"
       }
     ],
-    "note": "Focused T13 tests are visible in the exact-head CI logs. This evidence was obtained through the temporary root aggregation shim currently outside the T13 lease; T23 required nested-suite integration is still needed for promotion."
+    "note": "Focused T13 tests were visible in the CI logs of the run recorded here for exact_head. That run is history, not a replay of main; the nested-next job of the base commit is recorded in BASELINE.json."
   },
   "profiles": [
     {
@@ -118,7 +116,6 @@
   ],
   "promotion_blockers": [
     "T19 independent negative/corpus review has not yet accepted any T13 profile.",
-    "T23 must re-home/remove the out-of-lease root aggregation shim and make test/http-wave-bc/*.test.mjs a required nested CI suite.",
     "T23 must decide package allowlisting for adapters/http-wave-bc/** before any shipped shadow profile.",
     "No T13 leaf may enter the production scanners/adapters registry without a separate integration-owner change.",
     "Runtime-tested claims require T16/beval verifier-produced evidence."
