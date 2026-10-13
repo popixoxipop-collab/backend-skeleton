@@ -1,6 +1,10 @@
 {
   "schema": "bskel.t00-lease-ledger/1",
-  "counters": { "T00": 2, "T05": 1, "T07": 1 },
+  "counters": {
+    "T00": 2,
+    "T05": 1,
+    "T07": 1
+  },
   "claims": [
     {
       "claim_id": "T00-0001",
@@ -9,11 +13,15 @@
       "worker": "wp-t00",
       "worktree": "agents/t00",
       "base_sha": "ed10b06106dd72ea4e1dac7f784827a29f9c3f90",
-      "path_scopes": ["next/t00/**"],
+      "path_scopes": [
+        "next/t00/**"
+      ],
       "issued_at": "2026-10-08T00:00:00Z",
       "expires_at": "2026-10-08T02:00:00Z",
       "fencing_token": 1,
-      "state": "EXPIRED"
+      "state": "EXPIRED",
+      "prev_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "entry_digest": "e9b33c21014f3e0dee837645693345a51de6546cc4943e6870c2e6722ce117c6"
     },
     {
       "claim_id": "T00-0002",
@@ -22,11 +30,16 @@
       "worker": "wp-t00",
       "worktree": "agents/t00",
       "base_sha": "ed10b06106dd72ea4e1dac7f784827a29f9c3f90",
-      "path_scopes": ["next/t00/**", "test/t00-baseline.test.mjs"],
+      "path_scopes": [
+        "next/t00/**",
+        "test/t00-baseline.test.mjs"
+      ],
       "issued_at": "2026-10-09T00:00:00Z",
       "expires_at": "2026-10-09T02:00:00Z",
       "fencing_token": 2,
-      "state": "ACTIVE"
+      "state": "ACTIVE",
+      "prev_digest": "e9b33c21014f3e0dee837645693345a51de6546cc4943e6870c2e6722ce117c6",
+      "entry_digest": "ab73c15436940fc60356065347b8f90b8ad3f1524d101c933bab82e433c168d4"
     },
     {
       "claim_id": "T05-0001",
@@ -35,11 +48,15 @@
       "worker": "wp-t05",
       "worktree": "agents/t05",
       "base_sha": "87bcb488dc702484e7c85317b33dd7838cb0e5ab",
-      "path_scopes": ["scanners/language/jvm/**"],
+      "path_scopes": [
+        "scanners/language/jvm/**"
+      ],
       "issued_at": "2026-10-09T00:30:00Z",
       "expires_at": "2026-10-09T03:30:00Z",
       "fencing_token": 1,
-      "state": "ACTIVE"
+      "state": "ACTIVE",
+      "prev_digest": "ab73c15436940fc60356065347b8f90b8ad3f1524d101c933bab82e433c168d4",
+      "entry_digest": "cad7309131c359eae3b5433ee088ce6a155e880f64b02b29a9bce93ef989efcb"
     },
     {
       "claim_id": "T07-0001",
@@ -48,11 +65,17 @@
       "worker": "wp-t07",
       "worktree": "agents/t07",
       "base_sha": "87bcb488dc702484e7c85317b33dd7838cb0e5ab",
-      "path_scopes": ["next/t07/**", "test/language-ruby-php/**"],
+      "path_scopes": [
+        "next/t07/**",
+        "test/language-ruby-php/**"
+      ],
       "issued_at": "2026-10-09T00:00:00Z",
       "expires_at": "2026-10-09T01:00:00Z",
       "fencing_token": 1,
-      "state": "RELEASED"
+      "state": "RELEASED",
+      "prev_digest": "cad7309131c359eae3b5433ee088ce6a155e880f64b02b29a9bce93ef989efcb",
+      "entry_digest": "f3875211c7ee6531ce84328d2f957cf58962ab4bba9990a0bd1996c29ebcb385"
     }
-  ]
+  ],
+  "head_digest": "201d4c79b2dc27610624e5802a748e7aba7027b23a56a245106265f9cecfe657"
 }

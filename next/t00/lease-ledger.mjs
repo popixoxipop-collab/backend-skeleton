@@ -1,24 +1,37 @@
 // T00-03 lease model: pure functions, no file, clock or network; the instant is a parameter and no JSON value makes them throw.
+import { createHash } from 'node:crypto';
 import { TRACK_ID, isObject, isText, matches, normalizePath, parseScope, scopeCoversPath, scopesOverlap, sortErrors } from './ownership.mjs';
 
 export const LEDGER_SCHEMA = 'bskel.t00-lease-ledger/1';
+const SCHEMA_FAMILY = 'bskel.t00-lease-ledger/';
 export const CLAIM_STATES = ['ACTIVE', 'RELEASED', 'EXPIRED'];
+export const CLAIM_FIELDS = ['claim_id', 'track', 'repository', 'worker', 'worktree', 'base_sha', 'path_scopes', 'issued_at', 'expires_at', 'fencing_token', 'state'];
+const SEAL_FIELDS = ['prev_digest', 'entry_digest'];
+const LEDGER_MEMBERS = ['schema', 'counters', 'claims', 'head_digest'];
+export const GENESIS_DIGEST = '0'.repeat(64);
 export const LEDGER_CODES = [
   'LEDGER_SCHEMA', 'INVALID_CLAIM', 'DUPLICATE_CLAIM_ID', 'UNKNOWN_TRACK', 'TRACK_REPO_MISMATCH', 'INVALID_BASE_SHA', 'INVALID_FENCING_TOKEN',
   'INVALID_LEASE_TIME', 'INVALID_LEASE_INTERVAL', 'INVALID_CLAIM_STATE', 'MISSING_PATH_SCOPES', 'INVALID_CLAIM_SCOPE', 'SCOPE_OUTSIDE_OWNERSHIP',
   'FENCING_TOKEN_REGRESSION', 'LEDGER_COUNTER_BEHIND_CLAIM', 'LEASE_EXPIRED', 'LEASE_NOT_STARTED', 'ACTIVE_SCOPE_CONFLICT',
+  'LEDGER_VERSION_UNSUPPORTED', 'UNKNOWN_LEDGER_MEMBER', 'INVALID_LEDGER_DIGEST', 'LEDGER_ENTRY_DIGEST_MISMATCH', 'LEDGER_CHAIN_BROKEN',
+  'LEDGER_HEAD_DIGEST_MISMATCH', 'LEDGER_HEAD_PIN_MISMATCH',
 ];
 export const RESULT_CODES = [
-  'UNKNOWN_CLAIM', 'RESULT_CLAIM_NOT_ACTIVE', 'RESULT_AFTER_LEASE_EXPIRY', 'RESULT_FENCING_TOKEN_MISMATCH', 'RESULT_STALE_FENCING_TOKEN',
+  'UNKNOWN_CLAIM', 'RESULT_CLAIM_NOT_ACTIVE', 'RESULT_AFTER_LEASE_EXPIRY', 'RESULT_WRONG_HOLDER', 'RESULT_FENCING_TOKEN_MISMATCH', 'RESULT_STALE_FENCING_TOKEN',
   'RESULT_BASE_SHA_MISMATCH', 'INVALID_RESULT_HEAD_SHA', 'INVALID_RESULT_PATH', 'RESULT_PATH_OUTSIDE_CLAIM',
 ];
 export const LEASE_CODES = [...LEDGER_CODES, ...RESULT_CODES];
 export const SHA = /^[0-9a-f]{40}$/;
+const DIGEST = /^[0-9a-f]{64}$/;
 const INSTANT = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/;
 const CLAIM_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const EXAMPLE = 'a UTC instant like 2026-10-09T00:00:00Z';
 const isToken = (n) => Number.isSafeInteger(n) && n > 0;
 const texts = (x) => (Array.isArray(x) ? x.filter((s) => typeof s === 'string') : []);
+const sha256 = (text) => createHash('sha256').update(text).digest('hex');
+const short = (x) => (typeof x === 'string' ? `${x.slice(0, 12)}...` : JSON.stringify(x));
+const scalar = (v) => v === null || typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean';
+const countersPlain = (counters) => Object.values(counters).every((n) => Number.isSafeInteger(n) && n >= 0);
 
 // Milliseconds of a strict UTC instant, NaN for anything else (a date that does not exist included).
 export function parseInstant(text) {
@@ -51,9 +64,48 @@ export function leasePolicy(map) {
 
 export const leaseCounts = (ledger) => ({ claims: ledger.claims.length, active: ledger.claims.filter((c) => c.state === 'ACTIVE').length });
 
+// The digests. A claim is hashed as the JSON text of its eleven fields and its prev_digest, in this order, without spaces; a
+// member the claim lacks is left out. entry_digest is not part of its own hash. The head covers the schema, the number of
+// claims, the entry_digest of the last claim (GENESIS_DIGEST when there is none) and the counters as [track, counter] pairs.
+const sealedMembers = [...CLAIM_FIELDS, 'prev_digest'];
+const hashable = (claim) => sealedMembers.every((k) => !Object.hasOwn(claim, k) || scalar(claim[k]) || (Array.isArray(claim[k]) && claim[k].every(scalar)));
+export function entryDigest(claim) {
+  const ordered = {};
+  for (const key of sealedMembers) if (Object.hasOwn(claim, key)) ordered[key] = claim[key];
+  return sha256(JSON.stringify(ordered));
+}
+export const headDigest = (counters, count, tip) => sha256(JSON.stringify([LEDGER_SCHEMA, count, tip, Object.keys(counters).sort().map((track) => [track, counters[track]])]));
+
+// Writes the digests: prev_digest and entry_digest of every claim in ledger order, then head_digest. Returns { ledger } or
+// { problem }. Sealing signs what it is given and judges nothing; it is how an edit is made on purpose, and anyone who can seal
+// can seal a rewrite, which only a head digest kept outside the file (the pin) can tell from the original.
+export function sealLedger(ledger) {
+  if (!isObject(ledger) || ledger.schema !== LEDGER_SCHEMA || !isObject(ledger.counters) || !Array.isArray(ledger.claims)) {
+    return { problem: `expected an object with schema ${LEDGER_SCHEMA}, an object counters and an array claims` };
+  }
+  const strayLedger = Object.keys(ledger).find((k) => !LEDGER_MEMBERS.includes(k));
+  if (strayLedger !== undefined) return { problem: `${JSON.stringify(strayLedger)} is not a member of a ledger` };
+  if (!countersPlain(ledger.counters)) return { problem: 'a counter is not a non-negative integer' };
+  const claims = [];
+  let tip = GENESIS_DIGEST;
+  for (const [index, claim] of ledger.claims.entries()) {
+    if (!isObject(claim) || !hashable(claim)) return { problem: `claims[${index}] is not an object whose members are plain values` };
+    const stray = Object.keys(claim).find((k) => !CLAIM_FIELDS.includes(k) && !SEAL_FIELDS.includes(k));
+    if (stray !== undefined) return { problem: `claims[${index}] has the member ${JSON.stringify(stray)}, which a claim does not have` };
+    const sealed = {};
+    for (const key of CLAIM_FIELDS) if (Object.hasOwn(claim, key)) sealed[key] = claim[key];
+    sealed.prev_digest = tip;
+    sealed.entry_digest = entryDigest(sealed);
+    tip = sealed.entry_digest;
+    claims.push(sealed);
+  }
+  return { ledger: { schema: LEDGER_SCHEMA, counters: { ...ledger.counters }, claims, head_digest: headDigest(ledger.counters, claims.length, tip) } };
+}
+
 // All errors of a ledger at the instant `at`. With currency false an ACTIVE claim that has expired, or has not started, is not
-// an error but reserves nothing; a result is then judged against its own claim only.
-export function checkLedger(ledger, policy, at, { currency = true } = {}) {
+// an error but reserves nothing; a result is then judged against its own claim only. `pin` is a head digest the caller kept
+// outside the ledger file.
+export function checkLedger(ledger, policy, at, { currency = true, pin } = {}) {
   const errors = [];
   const add = (code, subject, detail) => errors.push({ code, subject, detail });
   const now = parseInstant(at);
@@ -61,10 +113,15 @@ export function checkLedger(ledger, policy, at, { currency = true } = {}) {
     add('INVALID_LEASE_TIME', 'at', `${JSON.stringify(at)} is not ${EXAMPLE}`);
     return errors;
   }
+  if (isObject(ledger) && typeof ledger.schema === 'string' && ledger.schema.startsWith(SCHEMA_FAMILY) && ledger.schema !== LEDGER_SCHEMA) {
+    add('LEDGER_VERSION_UNSUPPORTED', 'ledger', `schema ${JSON.stringify(ledger.schema)} is another version; this gate reads ${LEDGER_SCHEMA} only and judges nothing else of that ledger`);
+    return errors;
+  }
   if (!isObject(ledger) || ledger.schema !== LEDGER_SCHEMA || !isObject(ledger.counters) || !Array.isArray(ledger.claims)) {
     add('LEDGER_SCHEMA', 'ledger', `expected an object with schema ${LEDGER_SCHEMA}, an object counters and an array claims`);
     return errors;
   }
+  for (const key of Object.keys(ledger)) if (!LEDGER_MEMBERS.includes(key)) add('UNKNOWN_LEDGER_MEMBER', key, `a ledger has the members ${LEDGER_MEMBERS.join(', ')} only`);
   for (const [track, n] of Object.entries(ledger.counters)) {
     if (!Object.hasOwn(policy, track)) add('UNKNOWN_TRACK', `counters.${track}`, 'the ownership map holds no such track');
     if (!Number.isSafeInteger(n) || n < 0) add('LEDGER_SCHEMA', `counters.${track}`, 'a counter is a non-negative integer');
@@ -72,6 +129,7 @@ export function checkLedger(ledger, policy, at, { currency = true } = {}) {
   const seen = new Set();
   const last = new Map();
   const live = [];
+  let tip = GENESIS_DIGEST; // the entry_digest the next claim must name as prev_digest; null after a claim without a usable one
   ledger.claims.forEach((claim, index) => {
     if (!isObject(claim)) {
       add('INVALID_CLAIM', `claims[${index}]`, 'a claim must be an object');
@@ -83,6 +141,7 @@ export function checkLedger(ledger, policy, at, { currency = true } = {}) {
     if (!id) bad('INVALID_CLAIM', 'claim_id is missing or outside [A-Za-z0-9._-]');
     else if (seen.has(id)) bad('DUPLICATE_CLAIM_ID', 'another claim has this id');
     if (id) seen.add(id);
+    for (const key of Object.keys(claim)) if (!CLAIM_FIELDS.includes(key) && !SEAL_FIELDS.includes(key)) bad('UNKNOWN_LEDGER_MEMBER', `${key} is not a member of a claim`);
     for (const key of ['worker', 'worktree']) if (!isText(claim[key])) bad('INVALID_CLAIM', `${key} is missing or empty`);
     const known = matches(TRACK_ID, claim.track) && Object.hasOwn(policy, claim.track);
     if (!known) bad('UNKNOWN_TRACK', `track ${JSON.stringify(claim.track)} is not a track of the ownership map`);
@@ -119,6 +178,15 @@ export function checkLedger(ledger, policy, at, { currency = true } = {}) {
       const counter = ledger.counters[claim.track];
       if (!(Number.isSafeInteger(counter) && counter >= claim.fencing_token)) bad('LEDGER_COUNTER_BEHIND_CLAIM', `counters.${claim.track} is ${JSON.stringify(counter)}, below token ${claim.fencing_token}`);
     }
+    const prevOk = matches(DIGEST, claim.prev_digest);
+    const entryOk = matches(DIGEST, claim.entry_digest);
+    if (!prevOk) bad('INVALID_LEDGER_DIGEST', 'prev_digest must be 64 lowercase hex digits');
+    if (!entryOk) bad('INVALID_LEDGER_DIGEST', 'entry_digest must be 64 lowercase hex digits');
+    if (prevOk && tip !== null && claim.prev_digest !== tip) bad('LEDGER_CHAIN_BROKEN', `prev_digest is ${short(claim.prev_digest)}, the claim before it ends at ${short(tip)}; a claim was removed, added or moved`);
+    if (prevOk && entryOk && hashable(claim) && entryDigest(claim) !== claim.entry_digest) {
+      bad('LEDGER_ENTRY_DIGEST_MISMATCH', `entry_digest is ${short(claim.entry_digest)}, the claim hashes to ${short(entryDigest(claim))}; it was edited after it was sealed`);
+    }
+    tip = entryOk ? claim.entry_digest : null;
     if (claim.state === 'ACTIVE' && timed) {
       if (now < issued) {
         if (currency) bad('LEASE_NOT_STARTED', `issued_at is after ${at}`);
@@ -134,6 +202,14 @@ export function checkLedger(ledger, policy, at, { currency = true } = {}) {
       if (hit) add('ACTIVE_SCOPE_CONFLICT', live[j].label, `${hit[1]} overlaps ${hit[0]} of the active claim ${live[i].label}`);
     }
   }
+  if (!matches(DIGEST, ledger.head_digest)) add('INVALID_LEDGER_DIGEST', 'head_digest', 'head_digest must be 64 lowercase hex digits');
+  else if (tip !== null && countersPlain(ledger.counters)) {
+    const want = headDigest(ledger.counters, ledger.claims.length, tip);
+    if (want !== ledger.head_digest) {
+      add('LEDGER_HEAD_DIGEST_MISMATCH', 'head_digest', `head_digest is ${short(ledger.head_digest)}, the schema, ${ledger.claims.length} claims, the last entry_digest and the counters hash to ${short(want)}`);
+    }
+  }
+  if (pin !== undefined && ledger.head_digest !== pin) add('LEDGER_HEAD_PIN_MISMATCH', 'head_digest', `the ledger has head_digest ${short(ledger.head_digest)}, the pin is ${short(pin)}`);
   return sortErrors(errors);
 }
 
@@ -145,8 +221,8 @@ const covers = (scope, rel, fold) => {
   }
 };
 
-// All errors of a result `{ claim_id, fencing_token, base_sha, head_sha, paths }` against the claim it names. The caller has
-// verified the ledger; a missing or repeated claim id fails here as UNKNOWN_CLAIM.
+// All errors of a result `{ claim_id, worker, worktree, fencing_token, base_sha, head_sha, paths }` against the claim it names.
+// The caller has verified the ledger; a missing or repeated claim id fails here as UNKNOWN_CLAIM.
 export function checkResult(ledger, packet, at) {
   const errors = [];
   const add = (code, subject, detail) => errors.push({ code, subject, detail });
@@ -168,6 +244,9 @@ export function checkResult(ledger, packet, at) {
   const expires = parseInstant(claim.expires_at);
   if (!Number.isNaN(issued) && now < issued) bad('LEASE_NOT_STARTED', `the lease starts after ${at}`);
   if (!Number.isNaN(expires) && now >= expires) bad('RESULT_AFTER_LEASE_EXPIRY', `the lease expired at ${claim.expires_at}, the result is judged at ${at}`);
+  for (const key of ['worker', 'worktree']) {
+    if (p[key] !== claim[key]) bad('RESULT_WRONG_HOLDER', `the result names ${key} ${JSON.stringify(p[key])}, the lease is held by ${key} ${JSON.stringify(claim[key])}`);
+  }
   if (p.fencing_token !== claim.fencing_token) bad('RESULT_FENCING_TOKEN_MISMATCH', `the result carries token ${JSON.stringify(p.fencing_token)}, the claim has ${JSON.stringify(claim.fencing_token)}`);
   const counter = isObject(ledger.counters) ? ledger.counters[claim.track] : undefined;
   if (Number.isSafeInteger(p.fencing_token) && Number.isSafeInteger(counter) && p.fencing_token < counter) {

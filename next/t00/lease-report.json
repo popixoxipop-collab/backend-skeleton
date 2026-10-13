@@ -4,12 +4,13 @@
   "generator": "node next/t00/make-lease-report.mjs --write",
   "inputs": {
     "ownership_map_sha256": "6632c33007257c228e1a4404e3478578ba9f83350888f30ff98398e74e1a1b5b",
-    "lease_ledger_fixture_sha256": "76307cce17831c946f0ae3bf160dab122bee62447b8bd8763cb8800855f5d762",
+    "lease_ledger_fixture_sha256": "2a2349045de619c6ae8d11be24c75f97e76def22ce80d20ab05e2871efa3d70c",
     "tool_sha256": {
-      "check-lease.mjs": "c17296b6c084c16b1d023fb724e4ab9c969b552ed363aa5239d5d1805fa3cdc5",
-      "lease-ledger.mjs": "205fdbaa33e652676fffe180ff14c8c1943500241f552498b174c919461e5be9",
+      "check-lease.mjs": "4b8a63726825f932bf94523c69d610652ba1adbf4db1e568a40fc9af726864a6",
+      "lease-ledger.mjs": "6706c9e491196fe045fd215279187f0904099182b44f6173b72170eb911dc62f",
       "ownership.mjs": "6a11e2a26a012e9bb45ef5d20941f659f640be39cfff3ca1637d7bec4e116360",
-      "build-ownership-map.mjs": "65d2037bf25d76ec7622c43313c2c8bc467b4d052bb0e19e852ce4a79d39412a"
+      "build-ownership-map.mjs": "65d2037bf25d76ec7622c43313c2c8bc467b4d052bb0e19e852ce4a79d39412a",
+      "check-ownership.mjs": "444fbbb1504a13f6a3c418a82fa16f344186ee95d0f1d3c42dd0a557eb42090d"
     }
   },
   "cases": [
@@ -19,8 +20,8 @@
       "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
       "exit_code": 0,
       "codes": [],
-      "stdout_first_line": "OK lease ledger verified at 2026-10-09T01:00:00Z: 4 claims, 2 active (checks: ownership map derived from its inputs, ledger shape, claim fields, track and repository, scopes inside the track, fencing order and counters, lease currency, scope conflicts)",
-      "stdout_sha256": "164235b32bc4d5471527c639a14507eaf3ccb0f38ffc7f034b2ce175d8afbc75",
+      "stdout_first_line": "OK lease ledger verified at 2026-10-09T01:00:00Z: 4 claims, 2 active (checks: ownership map derived from its inputs, ledger version and members, claim fields, track and repository, scopes inside the track, fencing order and counters, lease currency, scope conflicts, digest chain and head); head 201d4c79b2dc27610624e5802a748e7aba7027b23a56a245106265f9cecfe657 is not pinned (a ledger rewritten and sealed anew would pass too)",
+      "stdout_sha256": "bf9f1dcf98da58d719d6f2e0f6c364b9947c2b25882a32e1040384c9b7c7be83",
       "stderr_head": ""
     },
     {
@@ -29,13 +30,25 @@
       "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
       "exit_code": 0,
       "codes": [],
-      "stdout_first_line": "OK lease ledger verified at 2026-10-09T01:00:00Z: 0 claims, 0 active (checks: ownership map derived from its inputs, ledger shape, claim fields, track and repository, scopes inside the track, fencing order and counters, lease currency, scope conflicts)",
-      "stdout_sha256": "22500ef5cb749430d9ad07b48799425f24ffaebf391080b256bcbfc0dfebd606",
+      "stdout_first_line": "OK lease ledger verified at 2026-10-09T01:00:00Z: 0 claims, 0 active (checks: ownership map derived from its inputs, ledger version and members, claim fields, track and repository, scopes inside the track, fencing order and counters, lease currency, scope conflicts, digest chain and head); head b58a6d6e790e430a67bf9750f191c81025d7175a2c3d6e4d0e2372f5bb40e796 is not pinned (a ledger rewritten and sealed anew would pass too)",
+      "stdout_sha256": "cd965f9bfa17421cba2cdce87da1f203cb7dc8e5974273579049e65dd0440f6c",
       "stderr_head": ""
     },
     {
       "id": "ledger-schema-wrong",
-      "mutation": "schema name changed",
+      "mutation": "schema of another family: other-ledger/1",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "LEDGER_SCHEMA"
+      ],
+      "stdout_first_line": "FAIL LEDGER_SCHEMA ledger expected an object with schema bskel.t00-lease-ledger/1, an object counters and an array claims",
+      "stdout_sha256": "8152f5a59bd75d25aed210fab2b328ec76efabf2b435986f790ebf717fe47b7a",
+      "stderr_head": ""
+    },
+    {
+      "id": "ledger-schema-missing",
+      "mutation": "schema removed",
       "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
       "exit_code": 2,
       "codes": [
@@ -58,15 +71,64 @@
       "stderr_head": ""
     },
     {
+      "id": "ledger-json-null",
+      "mutation": "the ledger file holds null",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "LEDGER_SCHEMA"
+      ],
+      "stdout_first_line": "FAIL LEDGER_SCHEMA ledger expected an object with schema bskel.t00-lease-ledger/1, an object counters and an array claims",
+      "stdout_sha256": "8152f5a59bd75d25aed210fab2b328ec76efabf2b435986f790ebf717fe47b7a",
+      "stderr_head": ""
+    },
+    {
+      "id": "ledger-json-array",
+      "mutation": "the ledger file holds an array",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "LEDGER_SCHEMA"
+      ],
+      "stdout_first_line": "FAIL LEDGER_SCHEMA ledger expected an object with schema bskel.t00-lease-ledger/1, an object counters and an array claims",
+      "stdout_sha256": "8152f5a59bd75d25aed210fab2b328ec76efabf2b435986f790ebf717fe47b7a",
+      "stderr_head": ""
+    },
+    {
+      "id": "ledger-unknown-member",
+      "mutation": "a member \"note\" added to the ledger",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "UNKNOWN_LEDGER_MEMBER"
+      ],
+      "stdout_first_line": "FAIL UNKNOWN_LEDGER_MEMBER note a ledger has the members schema, counters, claims, head_digest only",
+      "stdout_sha256": "9f3d9df1f005eee86a23da4db2f444845d6f32eca0939add64695b82f480f190",
+      "stderr_head": ""
+    },
+    {
       "id": "claim-not-object",
       "mutation": "a claim is the number 7",
       "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
       "exit_code": 2,
       "codes": [
-        "INVALID_CLAIM"
+        "INVALID_CLAIM",
+        "LEDGER_HEAD_DIGEST_MISMATCH"
       ],
       "stdout_first_line": "FAIL INVALID_CLAIM claims[4] a claim must be an object",
-      "stdout_sha256": "272e1acdfd6c852594571afdcfea96262e509c480092fa1eb99f471be3144610",
+      "stdout_sha256": "b76d38222c4e0ee8d46be39abc0567f0d354115db49fc7182eaaa338ad80d3cb",
+      "stderr_head": ""
+    },
+    {
+      "id": "claim-unknown-member",
+      "mutation": "a member \"owner\" added to T05-0001",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "UNKNOWN_LEDGER_MEMBER"
+      ],
+      "stdout_first_line": "FAIL UNKNOWN_LEDGER_MEMBER T05-0001 owner is not a member of a claim",
+      "stdout_sha256": "cf8e292ef636b89973ab7eda66f98b3993c58dca255714f77065fab698f9da49",
       "stderr_head": ""
     },
     {
@@ -91,6 +153,18 @@
       ],
       "stdout_first_line": "FAIL INVALID_CLAIM T05-0001 worker is missing or empty",
       "stdout_sha256": "b6000dad07f443dbd25bf0bb21a3aba204c4bca3ac2614b510923d5458daab1e",
+      "stderr_head": ""
+    },
+    {
+      "id": "worktree-empty",
+      "mutation": "worktree is an empty string",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "INVALID_CLAIM"
+      ],
+      "stdout_first_line": "FAIL INVALID_CLAIM T05-0001 worktree is missing or empty",
+      "stdout_sha256": "c12967bb1537b6cdc62ac0b7ad7e3ac8ff27fdb6a8dc403df9af1445f71782f8",
       "stderr_head": ""
     },
     {
@@ -226,6 +300,18 @@
       "stderr_head": ""
     },
     {
+      "id": "interval-reversed",
+      "mutation": "expires_at three hours before issued_at",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "INVALID_LEASE_INTERVAL"
+      ],
+      "stdout_first_line": "FAIL INVALID_LEASE_INTERVAL T05-0001 expires_at must be after issued_at",
+      "stdout_sha256": "a3507847e67ddcae907023e762d8751334d658e28d8de07955097bb48202fea2",
+      "stderr_head": ""
+    },
+    {
       "id": "state-unknown",
       "mutation": "state CLAIMED",
       "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
@@ -310,6 +396,30 @@
       "stderr_head": ""
     },
     {
+      "id": "scope-below-owned-differs-in-case",
+      "mutation": "a scope below an owned directory, written with other case",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "SCOPE_OUTSIDE_OWNERSHIP"
+      ],
+      "stdout_first_line": "FAIL SCOPE_OUTSIDE_OWNERSHIP T05-0001 Scanners/language/jvm/src/** is inside no scope of T05",
+      "stdout_sha256": "d7b18c48d00c6e27e884e15d0e7ccf7c33e192bc592e83bd8f87c90f4a8d46a1",
+      "stderr_head": ""
+    },
+    {
+      "id": "scope-file-differs-in-case",
+      "mutation": "T00 claims an owned file with other case",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "SCOPE_OUTSIDE_OWNERSHIP"
+      ],
+      "stdout_first_line": "FAIL SCOPE_OUTSIDE_OWNERSHIP T00-0002 Test/t00-baseline.test.mjs is inside no scope of T00",
+      "stdout_sha256": "2b325840da9825b257914c51ad5cc800656539db2e2c6e5585c2f084ee412a5d",
+      "stderr_head": ""
+    },
+    {
       "id": "scope-hot-path",
       "mutation": "T00 claims package.json",
       "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
@@ -331,6 +441,18 @@
       ],
       "stdout_first_line": "FAIL FENCING_TOKEN_REGRESSION T00-0002 token 1 is not greater than 1 of T00-0001",
       "stdout_sha256": "bf1b6ecfa69f51b2350e21292322f18b5867473dd2537e3e195a1c8dc327cef0",
+      "stderr_head": ""
+    },
+    {
+      "id": "token-reused-by-new-claim",
+      "mutation": "a third T00 claim, RELEASED, with token 2 again",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "FENCING_TOKEN_REGRESSION"
+      ],
+      "stdout_first_line": "FAIL FENCING_TOKEN_REGRESSION T00-0003 token 2 is not greater than 2 of T00-0002",
+      "stdout_sha256": "5f0554961110250dab7651655cc3bd58e5a424258528e746d0bcdf687ad2f7f1",
       "stderr_head": ""
     },
     {
@@ -358,6 +480,281 @@
       "stderr_head": ""
     },
     {
+      "id": "counter-negative",
+      "mutation": "counters.T07 is -1",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "LEDGER_COUNTER_BEHIND_CLAIM",
+        "LEDGER_SCHEMA"
+      ],
+      "stdout_first_line": "FAIL LEDGER_COUNTER_BEHIND_CLAIM T07-0001 counters.T07 is -1, below token 1",
+      "stdout_sha256": "baf91b6add4e4eaec4d301676647bd3b792bff3398240d40dc3d9f55b7fb6764",
+      "stderr_head": ""
+    },
+    {
+      "id": "counter-fraction",
+      "mutation": "counters.T07 is 1.5",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "LEDGER_COUNTER_BEHIND_CLAIM",
+        "LEDGER_SCHEMA"
+      ],
+      "stdout_first_line": "FAIL LEDGER_COUNTER_BEHIND_CLAIM T07-0001 counters.T07 is 1.5, below token 1",
+      "stdout_sha256": "600809d33e87805de62a6f5515c06ed77438e692644760b162738b6a5500caa5",
+      "stderr_head": ""
+    },
+    {
+      "id": "ledger-version-0",
+      "mutation": "schema bskel.t00-lease-ledger/0",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 3,
+      "codes": [
+        "LEDGER_VERSION_UNSUPPORTED"
+      ],
+      "stdout_first_line": "FAIL LEDGER_VERSION_UNSUPPORTED ledger schema \"bskel.t00-lease-ledger/0\" is another version; this gate reads bskel.t00-lease-ledger/1 only and judges nothing else of that ledger",
+      "stdout_sha256": "99935d3b8231f2d1de9b086ef62a20ee4203ed45b99958cf3e1fb39ce50b70e6",
+      "stderr_head": ""
+    },
+    {
+      "id": "ledger-version-2",
+      "mutation": "schema bskel.t00-lease-ledger/2",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 3,
+      "codes": [
+        "LEDGER_VERSION_UNSUPPORTED"
+      ],
+      "stdout_first_line": "FAIL LEDGER_VERSION_UNSUPPORTED ledger schema \"bskel.t00-lease-ledger/2\" is another version; this gate reads bskel.t00-lease-ledger/1 only and judges nothing else of that ledger",
+      "stdout_sha256": "323bbe85b2ebc0eefdb4242603b5882fd0c3008878034288f78e9e1c9e8b0ccc",
+      "stderr_head": ""
+    },
+    {
+      "id": "ledger-version-1-1",
+      "mutation": "schema bskel.t00-lease-ledger/1.1",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 3,
+      "codes": [
+        "LEDGER_VERSION_UNSUPPORTED"
+      ],
+      "stdout_first_line": "FAIL LEDGER_VERSION_UNSUPPORTED ledger schema \"bskel.t00-lease-ledger/1.1\" is another version; this gate reads bskel.t00-lease-ledger/1 only and judges nothing else of that ledger",
+      "stdout_sha256": "2580a9733c1e2f97febf398650d806c9b726a2fa12d2b80655e90c0a5db3f1f5",
+      "stderr_head": ""
+    },
+    {
+      "id": "ledger-version-2-other-body",
+      "mutation": "schema /2 and the members of another layout: entries instead of counters, claims and head_digest",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 3,
+      "codes": [
+        "LEDGER_VERSION_UNSUPPORTED"
+      ],
+      "stdout_first_line": "FAIL LEDGER_VERSION_UNSUPPORTED ledger schema \"bskel.t00-lease-ledger/2\" is another version; this gate reads bskel.t00-lease-ledger/1 only and judges nothing else of that ledger",
+      "stdout_sha256": "323bbe85b2ebc0eefdb4242603b5882fd0c3008878034288f78e9e1c9e8b0ccc",
+      "stderr_head": ""
+    },
+    {
+      "id": "tamper-claim-edited",
+      "mutation": "T00-0002 expires_at moved two hours later; digests left as they were",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "LEDGER_ENTRY_DIGEST_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL LEDGER_ENTRY_DIGEST_MISMATCH T00-0002 entry_digest is ab73c1543694..., the claim hashes to 15fbb302dd0b...; it was edited after it was sealed",
+      "stdout_sha256": "da7bb4fc12b66c384ad96f01094ffe6a049b1f016b32f691cee39a75b856ce2c",
+      "stderr_head": ""
+    },
+    {
+      "id": "tamper-claim-edited-entry-digest-redone",
+      "mutation": "the same edit and the entry_digest of that claim recomputed; the claim after it still names the old one",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "LEDGER_CHAIN_BROKEN"
+      ],
+      "stdout_first_line": "FAIL LEDGER_CHAIN_BROKEN T05-0001 prev_digest is ab73c1543694..., the claim before it ends at 15fbb302dd0b...; a claim was removed, added or moved",
+      "stdout_sha256": "1d6064c2c5b796ac7574fa8bf7b9552bc8a956cadf84f6ee0acfb96530984471",
+      "stderr_head": ""
+    },
+    {
+      "id": "tamper-claim-removed-middle",
+      "mutation": "T05-0001 removed from the middle",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "LEDGER_CHAIN_BROKEN",
+        "LEDGER_HEAD_DIGEST_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL LEDGER_CHAIN_BROKEN T07-0001 prev_digest is cad7309131c3..., the claim before it ends at ab73c1543694...; a claim was removed, added or moved",
+      "stdout_sha256": "e788970a74cc88b26447083df95149bd0c2813bb76b0e96b65ad74fcc0d8cd4c",
+      "stderr_head": ""
+    },
+    {
+      "id": "tamper-claim-removed-last",
+      "mutation": "T07-0001, the last claim, removed",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "LEDGER_HEAD_DIGEST_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL LEDGER_HEAD_DIGEST_MISMATCH head_digest head_digest is 201d4c79b2dc..., the schema, 3 claims, the last entry_digest and the counters hash to 1d4ae0b1fc95...",
+      "stdout_sha256": "7f602424643829892137d40d236f3f33a609a18c2aa4a9d461cbe70e3b0a3131",
+      "stderr_head": ""
+    },
+    {
+      "id": "tamper-ledger-emptied",
+      "mutation": "every claim removed",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "LEDGER_HEAD_DIGEST_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL LEDGER_HEAD_DIGEST_MISMATCH head_digest head_digest is 201d4c79b2dc..., the schema, 0 claims, the last entry_digest and the counters hash to 460f5c75b0c1...",
+      "stdout_sha256": "ee2e0773c981961290b6fda6ff53fd98312fd57ead125ed003a27953bad5af76",
+      "stderr_head": ""
+    },
+    {
+      "id": "tamper-claims-reordered",
+      "mutation": "T00-0002 and T05-0001 swapped",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "LEDGER_CHAIN_BROKEN"
+      ],
+      "stdout_first_line": "FAIL LEDGER_CHAIN_BROKEN T00-0002 prev_digest is e9b33c21014f..., the claim before it ends at cad7309131c3...; a claim was removed, added or moved",
+      "stdout_sha256": "500881bd07f210237744c27b11322a7397bdc008a4b0927d7b61411e71898ee7",
+      "stderr_head": ""
+    },
+    {
+      "id": "tamper-claim-appended-unsealed",
+      "mutation": "a valid-looking fifth claim appended without digests",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "INVALID_LEDGER_DIGEST"
+      ],
+      "stdout_first_line": "FAIL INVALID_LEDGER_DIGEST T00-0003 entry_digest must be 64 lowercase hex digits",
+      "stdout_sha256": "8853fe8f1cf19e247f649b49bf273c41fe4713a1ef89927f02d138b0b9ef0f4a",
+      "stderr_head": ""
+    },
+    {
+      "id": "tamper-counter-raised",
+      "mutation": "counters.T00 raised from 2 to 3; head_digest left as it was",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "LEDGER_HEAD_DIGEST_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL LEDGER_HEAD_DIGEST_MISMATCH head_digest head_digest is 201d4c79b2dc..., the schema, 4 claims, the last entry_digest and the counters hash to 261664531b4d...",
+      "stdout_sha256": "62e88430fbbe9de2ee7ee5f9183bcbcecf75344ccd44d7895d29750bd6f54c1e",
+      "stderr_head": ""
+    },
+    {
+      "id": "tamper-counter-lowered",
+      "mutation": "counters.T00 lowered from 3 to 2 in a ledger sealed with 3, which every other check accepts",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "LEDGER_HEAD_DIGEST_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL LEDGER_HEAD_DIGEST_MISMATCH head_digest head_digest is 261664531b4d..., the schema, 4 claims, the last entry_digest and the counters hash to 201d4c79b2dc...",
+      "stdout_sha256": "07589a4f8d6797a9105d1371626b633d6d5cb914867f9de4ea2f4e221db5d4e5",
+      "stderr_head": ""
+    },
+    {
+      "id": "tamper-entry-digest-malformed",
+      "mutation": "entry_digest of T05-0001 is xyz",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "INVALID_LEDGER_DIGEST"
+      ],
+      "stdout_first_line": "FAIL INVALID_LEDGER_DIGEST T05-0001 entry_digest must be 64 lowercase hex digits",
+      "stdout_sha256": "840d538e2b620b4f103b26b06ad79d526ce163d835770b4be219394f5b93f40a",
+      "stderr_head": ""
+    },
+    {
+      "id": "tamper-prev-digest-missing",
+      "mutation": "prev_digest of T05-0001 removed",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "INVALID_LEDGER_DIGEST"
+      ],
+      "stdout_first_line": "FAIL INVALID_LEDGER_DIGEST T05-0001 prev_digest must be 64 lowercase hex digits",
+      "stdout_sha256": "15edc02f95de77d563fe39a29c0371d70e30f75fbb0fdd89e783277bf784e6d2",
+      "stderr_head": ""
+    },
+    {
+      "id": "tamper-head-digest-missing",
+      "mutation": "head_digest removed",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "INVALID_LEDGER_DIGEST"
+      ],
+      "stdout_first_line": "FAIL INVALID_LEDGER_DIGEST head_digest head_digest must be 64 lowercase hex digits",
+      "stdout_sha256": "a9e91f8bfc39ea1e35c30d1cb98254e2b5ccd284a479f83917ed860ae931aa20",
+      "stderr_head": ""
+    },
+    {
+      "id": "tamper-head-digest-uppercase",
+      "mutation": "head_digest in upper case",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "INVALID_LEDGER_DIGEST"
+      ],
+      "stdout_first_line": "FAIL INVALID_LEDGER_DIGEST head_digest head_digest must be 64 lowercase hex digits",
+      "stdout_sha256": "a9e91f8bfc39ea1e35c30d1cb98254e2b5ccd284a479f83917ed860ae931aa20",
+      "stderr_head": ""
+    },
+    {
+      "id": "tamper-head-digest-replaced",
+      "mutation": "head_digest replaced by 64 zeros",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "LEDGER_HEAD_DIGEST_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL LEDGER_HEAD_DIGEST_MISMATCH head_digest head_digest is 000000000000..., the schema, 4 claims, the last entry_digest and the counters hash to 201d4c79b2dc...",
+      "stdout_sha256": "d442c1784afa41d5abd7ff83385285ca6db8d97352937ed4d7af9270531b300e",
+      "stderr_head": ""
+    },
+    {
+      "id": "pin-matches",
+      "mutation": "none: the head digest of the fixture given as the pin",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z --head-digest 201d4c79b2dc27610624e5802a748e7aba7027b23a56a245106265f9cecfe657",
+      "exit_code": 0,
+      "codes": [],
+      "stdout_first_line": "OK lease ledger verified at 2026-10-09T01:00:00Z: 4 claims, 2 active (checks: ownership map derived from its inputs, ledger version and members, claim fields, track and repository, scopes inside the track, fencing order and counters, lease currency, scope conflicts, digest chain and head); head 201d4c79b2dc27610624e5802a748e7aba7027b23a56a245106265f9cecfe657 equals the pin",
+      "stdout_sha256": "0209db968adf120fba167c1c76f82fcd7ad9bf48b5e7885630943379391a6248",
+      "stderr_head": ""
+    },
+    {
+      "id": "reseal-rewrite-unpinned",
+      "mutation": "T00-0002 expires_at moved two hours later and the ledger sealed anew; no pin given",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 0,
+      "codes": [],
+      "stdout_first_line": "OK lease ledger verified at 2026-10-09T01:00:00Z: 4 claims, 2 active (checks: ownership map derived from its inputs, ledger version and members, claim fields, track and repository, scopes inside the track, fencing order and counters, lease currency, scope conflicts, digest chain and head); head d1f20655d09d302f162d59cb106d2cb9218ae961e84bab638a47ce3ceb2bbe5a is not pinned (a ledger rewritten and sealed anew would pass too)",
+      "stdout_sha256": "62aad0f0f4913327bc532e414863e257a252cba994eedc0899ac71e40d452044",
+      "stderr_head": ""
+    },
+    {
+      "id": "reseal-rewrite-pinned",
+      "mutation": "the same rewrite, judged with the head digest of the original as the pin",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z --head-digest 201d4c79b2dc27610624e5802a748e7aba7027b23a56a245106265f9cecfe657",
+      "exit_code": 2,
+      "codes": [
+        "LEDGER_HEAD_PIN_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL LEDGER_HEAD_PIN_MISMATCH head_digest the ledger has head_digest d1f20655d09d..., the pin is 201d4c79b2dc...",
+      "stdout_sha256": "e21738cf804a514c3bd32d09979cac19534618282252c8eb05c3397e05774032",
+      "stderr_head": ""
+    },
+    {
       "id": "lease-expired",
       "mutation": "judged 30 minutes after the end of an ACTIVE claim",
       "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T02:30:00Z",
@@ -379,6 +776,16 @@
       ],
       "stdout_first_line": "FAIL LEASE_EXPIRED T00-0002 expires_at is not after 2026-10-09T02:00:00Z; mark the claim EXPIRED or RELEASED",
       "stdout_sha256": "c00b6dc72a6ab501d5be31f037a4fe559f54acfd6a7d24af7445513b5ff558b1",
+      "stderr_head": ""
+    },
+    {
+      "id": "lease-starts-exactly-now",
+      "mutation": "judged at the instant a lease starts (the start is inclusive)",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T00:30:00Z",
+      "exit_code": 0,
+      "codes": [],
+      "stdout_first_line": "OK lease ledger verified at 2026-10-09T00:30:00Z: 4 claims, 2 active (checks: ownership map derived from its inputs, ledger version and members, claim fields, track and repository, scopes inside the track, fencing order and counters, lease currency, scope conflicts, digest chain and head); head 201d4c79b2dc27610624e5802a748e7aba7027b23a56a245106265f9cecfe657 is not pinned (a ledger rewritten and sealed anew would pass too)",
+      "stdout_sha256": "1a0111171164df42a9a407cf60e8f48365b2286332e24991be0b46bd007afafa",
       "stderr_head": ""
     },
     {
@@ -431,19 +838,67 @@
       "stderr_head": ""
     },
     {
+      "id": "conflict-case-insensitive-earlier",
+      "mutation": "the first claim is written with other case",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "ACTIVE_SCOPE_CONFLICT",
+        "SCOPE_OUTSIDE_OWNERSHIP"
+      ],
+      "stdout_first_line": "FAIL ACTIVE_SCOPE_CONFLICT T00-0003 next/t00/fixtures/** overlaps Next/T00/** of the active claim T00-0002",
+      "stdout_sha256": "cc29f96c5c834f174053a5f283d5ec7f3208450cd9a9a6476fb7a0c7f741c19d",
+      "stderr_head": ""
+    },
+    {
+      "id": "conflict-file-inside-directory",
+      "mutation": "a second live claim of T00 for one file inside the directory of the first",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "ACTIVE_SCOPE_CONFLICT"
+      ],
+      "stdout_first_line": "FAIL ACTIVE_SCOPE_CONFLICT T00-0003 next/t00/lease-ledger.mjs overlaps next/t00/** of the active claim T00-0002",
+      "stdout_sha256": "5468274c6d95864637cc257c6bc2a11035a1e23409bb12d718f095f488652f83",
+      "stderr_head": ""
+    },
+    {
+      "id": "conflict-other-track",
+      "mutation": "T05 claims next/t00/**, which T00-0002 holds",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 2,
+      "codes": [
+        "ACTIVE_SCOPE_CONFLICT",
+        "SCOPE_OUTSIDE_OWNERSHIP"
+      ],
+      "stdout_first_line": "FAIL ACTIVE_SCOPE_CONFLICT T05-0001 next/t00/** overlaps next/t00/** of the active claim T00-0002",
+      "stdout_sha256": "01f7d075793f848f6f524394343ee81c603fff4ffb60ae54a732f31cb49e7b45",
+      "stderr_head": ""
+    },
+    {
       "id": "no-conflict-released",
       "mutation": "the same second claim, RELEASED",
       "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
       "exit_code": 0,
       "codes": [],
-      "stdout_first_line": "OK lease ledger verified at 2026-10-09T01:00:00Z: 5 claims, 2 active (checks: ownership map derived from its inputs, ledger shape, claim fields, track and repository, scopes inside the track, fencing order and counters, lease currency, scope conflicts)",
-      "stdout_sha256": "f3fcfc1d5b6bb4cdb57e8e0937f68ca12ed708796f3b67d02ec3a5966eab7098",
+      "stdout_first_line": "OK lease ledger verified at 2026-10-09T01:00:00Z: 5 claims, 2 active (checks: ownership map derived from its inputs, ledger version and members, claim fields, track and repository, scopes inside the track, fencing order and counters, lease currency, scope conflicts, digest chain and head); head 1eb1ec49b8044da9c28fee700b6da3a8b8bd39cf270d72e73712643c612eef5e is not pinned (a ledger rewritten and sealed anew would pass too)",
+      "stdout_sha256": "e984e4b8d4aa82705b5272a993baec15e401491b8fa79915248370a1a603fda1",
+      "stderr_head": ""
+    },
+    {
+      "id": "no-conflict-disjoint-scopes",
+      "mutation": "a second live claim of T00 for a file that the first does not hold",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 0,
+      "codes": [],
+      "stdout_first_line": "OK lease ledger verified at 2026-10-09T01:00:00Z: 5 claims, 3 active (checks: ownership map derived from its inputs, ledger version and members, claim fields, track and repository, scopes inside the track, fencing order and counters, lease currency, scope conflicts, digest chain and head); head 87f24aa5777e339ea2b4d2064abda4c2a8603c5b5410f44157f27b7900a9b3bc is not pinned (a ledger rewritten and sealed anew would pass too)",
+      "stdout_sha256": "992d17db0e365213702c227a693d539f9f4910bb42780f2d09532d6094ceed57",
       "stderr_head": ""
     },
     {
       "id": "result-normal",
       "mutation": "none: two paths inside the claim",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs test/t00-baseline.test.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs test/t00-baseline.test.mjs",
       "exit_code": 0,
       "codes": [],
       "stdout_first_line": "OK the result of claim T00-0002 (token 2, 2 paths) stays inside its lease",
@@ -451,9 +906,29 @@
       "stderr_head": ""
     },
     {
+      "id": "result-path-dot-slash",
+      "mutation": "a path with a leading ./",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab ./next/t00/lease-ledger.mjs",
+      "exit_code": 0,
+      "codes": [],
+      "stdout_first_line": "OK the result of claim T00-0002 (token 2, 1 paths) stays inside its lease",
+      "stdout_sha256": "b60efd3f13e1feba92296e082b4ccad1734bb04b15ff778dcd3ae60356e20328",
+      "stderr_head": ""
+    },
+    {
+      "id": "result-last-second",
+      "mutation": "result judged one second before the lease ends",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:59:59Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "exit_code": 0,
+      "codes": [],
+      "stdout_first_line": "OK the result of claim T00-0002 (token 2, 1 paths) stays inside its lease",
+      "stdout_sha256": "b60efd3f13e1feba92296e082b4ccad1734bb04b15ff778dcd3ae60356e20328",
+      "stderr_head": ""
+    },
+    {
       "id": "result-ignores-expired-other-claim",
       "mutation": "an expired ACTIVE claim of another track does not block a result",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
       "exit_code": 0,
       "codes": [],
       "stdout_first_line": "OK the result of claim T00-0002 (token 2, 1 paths) stays inside its lease",
@@ -463,7 +938,7 @@
     {
       "id": "result-unknown-claim",
       "mutation": "claim id T00-9999",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-9999 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-9999 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
       "exit_code": 2,
       "codes": [
         "UNKNOWN_CLAIM"
@@ -475,7 +950,7 @@
     {
       "id": "result-claim-released",
       "mutation": "result of a RELEASED claim",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T00:45:00Z --claim T07-0001 --token 1 --base 87bcb488dc702484e7c85317b33dd7838cb0e5ab --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t07/a.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T00:45:00Z --claim T07-0001 --worker wp-t07 --worktree agents/t07 --token 1 --base 87bcb488dc702484e7c85317b33dd7838cb0e5ab --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t07/a.mjs",
       "exit_code": 2,
       "codes": [
         "RESULT_CLAIM_NOT_ACTIVE"
@@ -485,9 +960,23 @@
       "stderr_head": ""
     },
     {
+      "id": "result-claim-expired-zombie",
+      "mutation": "a worker presents the EXPIRED claim T00-0001 with its old token 1 after T00-0002 was issued",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0001 --worker wp-t00 --worktree agents/t00 --token 1 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "exit_code": 2,
+      "codes": [
+        "RESULT_AFTER_LEASE_EXPIRY",
+        "RESULT_CLAIM_NOT_ACTIVE",
+        "RESULT_STALE_FENCING_TOKEN"
+      ],
+      "stdout_first_line": "FAIL RESULT_AFTER_LEASE_EXPIRY T00-0001 the lease expired at 2026-10-08T02:00:00Z, the result is judged at 2026-10-09T01:00:00Z",
+      "stdout_sha256": "5e89e7e446d02232bdd045501d5c96bb0ac3c8a635fc5865629e93ae5ccde653",
+      "stderr_head": ""
+    },
+    {
       "id": "result-after-expiry",
       "mutation": "result judged 30 minutes after the lease ended",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T02:30:00Z --claim T00-0002 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T02:30:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
       "exit_code": 2,
       "codes": [
         "RESULT_AFTER_LEASE_EXPIRY"
@@ -499,7 +988,7 @@
     {
       "id": "result-at-expiry",
       "mutation": "result judged at the instant the lease ends",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T02:00:00Z --claim T00-0002 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T02:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
       "exit_code": 2,
       "codes": [
         "RESULT_AFTER_LEASE_EXPIRY"
@@ -511,7 +1000,7 @@
     {
       "id": "result-before-lease",
       "mutation": "result judged before the lease was issued",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T00:15:00Z --claim T05-0001 --token 1 --base 87bcb488dc702484e7c85317b33dd7838cb0e5ab --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab scanners/language/jvm/a.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T00:15:00Z --claim T05-0001 --worker wp-t05 --worktree agents/t05 --token 1 --base 87bcb488dc702484e7c85317b33dd7838cb0e5ab --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab scanners/language/jvm/a.mjs",
       "exit_code": 2,
       "codes": [
         "LEASE_NOT_STARTED"
@@ -521,9 +1010,45 @@
       "stderr_head": ""
     },
     {
+      "id": "result-wrong-worker",
+      "mutation": "worker wp-t05 presents the claim held by wp-t00",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t05 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "exit_code": 2,
+      "codes": [
+        "RESULT_WRONG_HOLDER"
+      ],
+      "stdout_first_line": "FAIL RESULT_WRONG_HOLDER T00-0002 the result names worker \"wp-t05\", the lease is held by worker \"wp-t00\"",
+      "stdout_sha256": "ddb5e0e121dc1ddfa164268688e65fff71fb4748883a52d6125acf670de1a49e",
+      "stderr_head": ""
+    },
+    {
+      "id": "result-wrong-worktree",
+      "mutation": "worktree agents/t05 presents the claim held in agents/t00",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t05 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "exit_code": 2,
+      "codes": [
+        "RESULT_WRONG_HOLDER"
+      ],
+      "stdout_first_line": "FAIL RESULT_WRONG_HOLDER T00-0002 the result names worktree \"agents/t05\", the lease is held by worktree \"agents/t00\"",
+      "stdout_sha256": "77ce2e197d702c88dbb5d9df5f1c29113ea1921e5642da50b3f248f0d1be918e",
+      "stderr_head": ""
+    },
+    {
+      "id": "result-holder-in-other-case",
+      "mutation": "worker WP-T00, the holder written with other case",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker WP-T00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "exit_code": 2,
+      "codes": [
+        "RESULT_WRONG_HOLDER"
+      ],
+      "stdout_first_line": "FAIL RESULT_WRONG_HOLDER T00-0002 the result names worker \"WP-T00\", the lease is held by worker \"wp-t00\"",
+      "stdout_sha256": "7713ca472859089d2345c49bb0e0e3ae9925087d7f27f79d985b600599715cb9",
+      "stderr_head": ""
+    },
+    {
       "id": "result-token-lower",
       "mutation": "result carries token 1 for a claim with token 2",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token 1 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 1 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
       "exit_code": 2,
       "codes": [
         "RESULT_FENCING_TOKEN_MISMATCH",
@@ -536,7 +1061,7 @@
     {
       "id": "result-token-higher",
       "mutation": "result carries token 3 for a claim with token 2",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token 3 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 3 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
       "exit_code": 2,
       "codes": [
         "RESULT_FENCING_TOKEN_MISMATCH"
@@ -548,7 +1073,7 @@
     {
       "id": "result-token-superseded",
       "mutation": "token 2 matches its claim but 3 was issued since",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
       "exit_code": 2,
       "codes": [
         "RESULT_STALE_FENCING_TOKEN"
@@ -560,7 +1085,7 @@
     {
       "id": "result-base-other",
       "mutation": "result made on another base",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token 2 --base 87bcb488dc702484e7c85317b33dd7838cb0e5ab --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base 87bcb488dc702484e7c85317b33dd7838cb0e5ab --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
       "exit_code": 2,
       "codes": [
         "RESULT_BASE_SHA_MISMATCH"
@@ -572,7 +1097,7 @@
     {
       "id": "result-base-short",
       "mutation": "result base is abc",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token 2 --base abc --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base abc --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
       "exit_code": 2,
       "codes": [
         "INVALID_BASE_SHA"
@@ -584,7 +1109,7 @@
     {
       "id": "result-head-short",
       "mutation": "result head is abc",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head abc next/t00/lease-ledger.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head abc next/t00/lease-ledger.mjs",
       "exit_code": 2,
       "codes": [
         "INVALID_RESULT_HEAD_SHA"
@@ -594,9 +1119,22 @@
       "stderr_head": ""
     },
     {
+      "id": "result-no-paths",
+      "mutation": "a result with a bad head that names no path",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head abc",
+      "exit_code": 2,
+      "codes": [
+        "INVALID_RESULT_HEAD_SHA",
+        "INVALID_RESULT_PATH"
+      ],
+      "stdout_first_line": "FAIL INVALID_RESULT_HEAD_SHA T00-0002 the result head must be 40 lowercase hex digits",
+      "stdout_sha256": "79f6c3bf0061d29008951edccb4ddc180db16aa623942acfc026e7841e4bd3e8",
+      "stderr_head": ""
+    },
+    {
       "id": "result-path-other-track",
       "mutation": "path of track T05",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t05/a.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t05/a.mjs",
       "exit_code": 2,
       "codes": [
         "RESULT_PATH_OUTSIDE_CLAIM"
@@ -608,7 +1146,43 @@
     {
       "id": "result-path-hot",
       "mutation": "path package.json",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab package.json",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab package.json",
+      "exit_code": 2,
+      "codes": [
+        "RESULT_PATH_OUTSIDE_CLAIM"
+      ],
+      "stdout_first_line": "FAIL RESULT_PATH_OUTSIDE_CLAIM package.json inside no path scope of T00-0002",
+      "stdout_sha256": "9eefe5de1acc92051f60880b35b55ec39fa6aff9caf14a0d29ef16a6210f0437",
+      "stderr_head": ""
+    },
+    {
+      "id": "result-path-owned-not-leased",
+      "mutation": "a test file that T00 owns and the claim does not lease",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab test/t00-ownership.test.mjs",
+      "exit_code": 2,
+      "codes": [
+        "RESULT_PATH_OUTSIDE_CLAIM"
+      ],
+      "stdout_first_line": "FAIL RESULT_PATH_OUTSIDE_CLAIM test/t00-ownership.test.mjs inside no path scope of T00-0002",
+      "stdout_sha256": "db88b7bbafea4c6fc06a909ee0e019439b5f8f3c0a34a0f7cc9362b65476b41a",
+      "stderr_head": ""
+    },
+    {
+      "id": "result-path-sibling-prefix",
+      "mutation": "next/t00x/a.mjs, a name that starts like the leased directory",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00x/a.mjs",
+      "exit_code": 2,
+      "codes": [
+        "RESULT_PATH_OUTSIDE_CLAIM"
+      ],
+      "stdout_first_line": "FAIL RESULT_PATH_OUTSIDE_CLAIM next/t00x/a.mjs inside no path scope of T00-0002",
+      "stdout_sha256": "23e168316bf7a721454ff53022b137da672bbd4ba107cb00e19342a23ff8272a",
+      "stderr_head": ""
+    },
+    {
+      "id": "result-path-one-of-two-outside",
+      "mutation": "one path inside the claim and package.json",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs package.json",
       "exit_code": 2,
       "codes": [
         "RESULT_PATH_OUTSIDE_CLAIM"
@@ -620,7 +1194,7 @@
     {
       "id": "result-path-case",
       "mutation": "path in other case",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab Next/t00/a.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab Next/t00/a.mjs",
       "exit_code": 2,
       "codes": [
         "RESULT_PATH_OUTSIDE_CLAIM"
@@ -632,7 +1206,7 @@
     {
       "id": "result-path-directory-itself",
       "mutation": "the directory name of a /** scope",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00",
       "exit_code": 2,
       "codes": [
         "RESULT_PATH_OUTSIDE_CLAIM"
@@ -644,7 +1218,7 @@
     {
       "id": "result-path-traversal",
       "mutation": "path ../x",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab ../x",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab ../x",
       "exit_code": 2,
       "codes": [
         "INVALID_RESULT_PATH"
@@ -656,7 +1230,7 @@
     {
       "id": "result-path-backslash",
       "mutation": "path with backslashes",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next\\t00\\a.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next\\t00\\a.mjs",
       "exit_code": 2,
       "codes": [
         "INVALID_RESULT_PATH"
@@ -668,7 +1242,7 @@
     {
       "id": "result-path-absolute",
       "mutation": "absolute path",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab /etc/passwd",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab /etc/passwd",
       "exit_code": 2,
       "codes": [
         "INVALID_RESULT_PATH"
@@ -680,13 +1254,37 @@
     {
       "id": "result-ledger-invalid",
       "mutation": "the result is fine but the ledger holds a conflict",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
       "exit_code": 2,
       "codes": [
         "ACTIVE_SCOPE_CONFLICT"
       ],
       "stdout_first_line": "FAIL ACTIVE_SCOPE_CONFLICT T00-0003 next/t00/fixtures/** overlaps next/t00/** of the active claim T00-0002",
       "stdout_sha256": "999b1f6d08f26082353bc049ad3ba551acdf3a9e05c470d99e31b196f2b32bc4",
+      "stderr_head": ""
+    },
+    {
+      "id": "result-ledger-tampered",
+      "mutation": "the result is fine but T00-0002 was edited after it was sealed",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "exit_code": 2,
+      "codes": [
+        "LEDGER_ENTRY_DIGEST_MISMATCH"
+      ],
+      "stdout_first_line": "FAIL LEDGER_ENTRY_DIGEST_MISMATCH T00-0002 entry_digest is ab73c1543694..., the claim hashes to 15fbb302dd0b...; it was edited after it was sealed",
+      "stdout_sha256": "da7bb4fc12b66c384ad96f01094ffe6a049b1f016b32f691cee39a75b856ce2c",
+      "stderr_head": ""
+    },
+    {
+      "id": "result-ledger-version-2",
+      "mutation": "the result is fine but the ledger has schema /2",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "exit_code": 3,
+      "codes": [
+        "LEDGER_VERSION_UNSUPPORTED"
+      ],
+      "stdout_first_line": "FAIL LEDGER_VERSION_UNSUPPORTED ledger schema \"bskel.t00-lease-ledger/2\" is another version; this gate reads bskel.t00-lease-ledger/1 only and judges nothing else of that ledger",
+      "stdout_sha256": "323bbe85b2ebc0eefdb4242603b5882fd0c3008878034288f78e9e1c9e8b0ccc",
       "stderr_head": ""
     },
     {
@@ -730,29 +1328,19 @@
       "stderr_head": "--at must be a UTC instant like 2026-10-09T00:00:00Z, got \"tomorrow\""
     },
     {
-      "id": "usage-ledger-file-missing",
-      "mutation": "the ledger file does not exist",
-      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "id": "usage-bad-head-digest",
+      "mutation": "--head-digest abc",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z --head-digest abc",
       "exit_code": 1,
       "codes": [],
       "stdout_first_line": "",
       "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "stderr_head": "cannot read the lease ledger <ledger>"
-    },
-    {
-      "id": "usage-ledger-not-json",
-      "mutation": "the ledger file is not JSON",
-      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
-      "exit_code": 1,
-      "codes": [],
-      "stdout_first_line": "",
-      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "stderr_head": "the lease ledger <ledger> is not valid JSON"
+      "stderr_head": "--head-digest must be 64 lowercase hex digits, got \"abc\""
     },
     {
       "id": "usage-no-claim-flag",
       "mutation": "result without --claim",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --worker wp-t00 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
       "exit_code": 1,
       "codes": [],
       "stdout_first_line": "",
@@ -760,9 +1348,29 @@
       "stderr_head": "result needs --claim"
     },
     {
+      "id": "usage-no-worker-flag",
+      "mutation": "result without --worker",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worktree agents/t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "result needs --worker"
+    },
+    {
+      "id": "usage-no-worktree-flag",
+      "mutation": "result without --worktree",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --token 2 --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "result needs --worktree"
+    },
+    {
       "id": "usage-token-not-number",
       "mutation": "--token two",
-      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --token two --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
+      "command": "node next/t00/check-lease.mjs result --ledger <ledger> --at 2026-10-09T01:00:00Z --claim T00-0002 --worker wp-t00 --worktree agents/t00 --token two --base ed10b06106dd72ea4e1dac7f784827a29f9c3f90 --head 87bcb488dc702484e7c85317b33dd7838cb0e5ab next/t00/lease-ledger.mjs",
       "exit_code": 1,
       "codes": [],
       "stdout_first_line": "",
@@ -777,7 +1385,57 @@
       "codes": [],
       "stdout_first_line": "",
       "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "stderr_head": "ledger takes no paths and no --claim, --token, --base or --head"
+      "stderr_head": "ledger takes no paths and none of --claim, --worker, --worktree, --token, --base or --head"
+    },
+    {
+      "id": "usage-ledger-file-missing",
+      "mutation": "the ledger file does not exist",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "cannot read the lease ledger <ledger>"
+    },
+    {
+      "id": "usage-ledger-is-a-directory",
+      "mutation": "the ledger path is a directory",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "cannot read the lease ledger <ledger>"
+    },
+    {
+      "id": "usage-ledger-under-a-file",
+      "mutation": "the ledger path goes through a regular file",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger>/under.json --at 2026-10-09T01:00:00Z",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "cannot read the lease ledger <ledger>/under.json"
+    },
+    {
+      "id": "usage-ledger-empty-file",
+      "mutation": "the ledger file is empty",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "the lease ledger <ledger> is not valid JSON"
+    },
+    {
+      "id": "usage-ledger-not-json",
+      "mutation": "the ledger file is not JSON",
+      "command": "node next/t00/check-lease.mjs ledger --ledger <ledger> --at 2026-10-09T01:00:00Z",
+      "exit_code": 1,
+      "codes": [],
+      "stdout_first_line": "",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_head": "the lease ledger <ledger> is not valid JSON"
     }
   ]
 }

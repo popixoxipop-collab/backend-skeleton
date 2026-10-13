@@ -84,8 +84,8 @@ Which track may write which path in which repository, and the gate that checks i
 | `check-ownership.mjs` | CLI: `map` verifies the committed map, `paths` verifies that given paths or a git diff belong to one track only. |
 | `recorded-runs.mjs` | Spawns the real CLI once per case and records the exit code, the error codes and a hash of stdout. |
 | `make-ownership-report.mjs`, `ownership-report.json` | Real CLI runs on this checkout and on scaffold copies with one input broken; `--check` recomputes them. |
-| `ownership-map.json` | The generated map. Never edited by hand. |
-| `fixtures/plan-write-scopes.json` | Snapshot of the write scopes in the plan backlog (the plan folder is in no repository). |
+| `ownership-map.json` | The generated map. `check-ownership.mjs` fails a map that differs from the one derived from the inputs, so a hand edit fails. |
+| `fixtures/plan-write-scopes.json` | Snapshot of the write scopes in the plan backlog (the plan folder is outside this checkout). |
 | `fixtures/ownership-rules.json` | The reserved hot paths and the limits the map states. |
 | `INTERFACE_RFC.md` | Inputs, rules, unknown and partial cases, codes, and how a track uses the gate. |
 
@@ -105,22 +105,37 @@ input. After a change to `SUITES`, to a plan write scope or to `test/t00-*.test.
 ## T00-03 lease ledger
 
 Which worker may write which paths until when (a lease), and the gate that checks a worker's result against its lease. The
-protocol is `LEASE_PROTOCOL.md`. Like the ownership gate, it is run by hand: no workflow calls `check-lease.mjs`.
+protocol is `LEASE_PROTOCOL.md`. Both gates, this one and the ownership gate, are run by hand and are not wired into CI: no
+workflow calls `check-lease.mjs` or `check-ownership.mjs`, and no job runs a gate on the diff of a pull request or on a real
+ledger. The CI test job runs `npm test`, which includes `test/t00-lease.test.mjs` and `test/t00-ownership.test.mjs`; they run
+the gates on fixtures, on this checkout and on scaffold copies of it.
 
 | File | Role |
 |---|---|
-| `lease-ledger.mjs` | Pure model: lease time, claim scopes inside the ownership policy, fencing order, scope conflicts and the judgement of one result; the code lists `LEDGER_CODES` and `RESULT_CODES`. |
-| `check-lease.mjs` | CLI: `ledger` verifies a lease ledger at an instant, `result` verifies that one claim's result is in time, carries the claim's token and base and stays inside the claim. |
-| `make-lease-report.mjs`, `lease-report.json` | Real CLI runs against this checkout's ownership map with one change to the ledger or the result per case; `--check` recomputes them. |
-| `fixtures/lease-ledger.json` | A ledger that passes at the instant the report uses; the report's cases change it one at a time. |
-| `LEASE_PROTOCOL.md` | Inputs, rules, unknown and partial cases, codes and limits. |
+| `lease-ledger.mjs` | Pure model: lease time, claim scopes inside the ownership policy, fencing order, scope conflicts, the digest chain and the judgement of one result; the code lists `LEDGER_CODES`, `RESULT_CODES` and `LEASE_CODES`. |
+| `check-lease.mjs` | CLI: `ledger` verifies a lease ledger at an instant, `result` verifies that one claim's result is in time, comes from the holder of the claim, carries the claim's token and base and stays inside the claim. |
+| `seal-lease-ledger.mjs` | Prints a ledger with its `prev_digest`, `entry_digest` and `head_digest` computed. It signs whatever it is given, judges nothing and writes nothing. |
+| `make-lease-report.mjs`, `lease-report.json` | Real CLI runs against this checkout's ownership map with one change to the ledger or the result per case; the report records the command, the exit code, the codes and the stdout hash of each case, and `--check` recomputes them. |
+| `lease-mutants.mjs` | Mutation check: each mutant replaces one piece of text of a temporary copy of the gate, and a recorded case that guards it has to fail. Writes only to a temporary directory that it removes. |
+| `fixtures/lease-ledger.json` | A sealed ledger that passes at the instant the report uses; the report's cases change it one at a time. |
+| `LEASE_PROTOCOL.md` | Inputs, identity, rules, digests and pin, versions and exit codes, the seal tool, unknown and partial cases, commands, codes and limits. |
 
 ```
 node next/t00/check-lease.mjs ledger --ledger next/t00/fixtures/lease-ledger.json --at 2026-10-09T01:00:00Z
-node next/t00/check-lease.mjs result --ledger <file> --at <instant> --claim <id> --token <n> --base <sha> --head <sha>
+node next/t00/check-lease.mjs result --ledger <file> --at <instant> --claim <id> --worker <name> --worktree <name> --token <n> --base <sha> --head <sha> [<path>...]
+node next/t00/seal-lease-ledger.mjs <ledger.json>
 node next/t00/make-lease-report.mjs --check
+node next/t00/lease-mutants.mjs
 node --test test/t00-lease.test.mjs
 ```
 
-Exit code 0 means verified, 2 means errors (one `FAIL <code> <subject> <detail>` line each), 1 means usage or unreadable
-input. After a change to the ownership map or to a lease source, run `make-lease-report.mjs --write` and commit the report.
+Exit code 0 means verified, 2 means errors (one `FAIL <code> <subject> <detail>` line each), 3 means a ledger of another schema
+version, 1 means usage or unreadable input. Both `check-lease.mjs` commands take `--head-digest <sha256>`: kept outside the
+ledger file, that pin is what tells a ledger rewritten and sealed anew from the original, and the `OK` line of `ledger` says
+whether the head was pinned. After a change to the ownership map, to the fixture or to a source the report hashes
+(`check-lease.mjs`, `lease-ledger.mjs`, `ownership.mjs`, `build-ownership-map.mjs`, `check-ownership.mjs`), run
+`make-lease-report.mjs --write` and commit the report.
+
+Node: `package.json` allows Node `>=18` and the CI test job runs `npm test` on Node 22.x and 24.x, so no job runs Node 18. The T00
+tests therefore scan every `next/t00/*.mjs` file and every `test/t00-*.test.mjs` file for the names of APIs that Node 18 lacks.
+That is a list of known names, not a proof, and Node 18 itself was not run.
