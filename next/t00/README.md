@@ -101,3 +101,26 @@ node --test test/t00-ownership.test.mjs
 Exit code 0 means verified, 2 means errors (one `FAIL <code> <subject> <detail>` line each), 1 means usage or unreadable
 input. After a change to `SUITES`, to a plan write scope or to `test/t00-*.test.mjs`, run `build-ownership-map.mjs`, then
 `make-ownership-report.mjs --write`, and commit both files.
+
+## T00-03 lease ledger
+
+Which worker may write which paths until when (a lease), and the gate that checks a worker's result against its lease. The
+protocol is `LEASE_PROTOCOL.md`. Like the ownership gate, it is run by hand: no workflow calls `check-lease.mjs`.
+
+| File | Role |
+|---|---|
+| `lease-ledger.mjs` | Pure model: lease time, claim scopes inside the ownership policy, fencing order, scope conflicts and the judgement of one result; the code lists `LEDGER_CODES` and `RESULT_CODES`. |
+| `check-lease.mjs` | CLI: `ledger` verifies a lease ledger at an instant, `result` verifies that one claim's result is in time, carries the claim's token and base and stays inside the claim. |
+| `make-lease-report.mjs`, `lease-report.json` | Real CLI runs against this checkout's ownership map with one change to the ledger or the result per case; `--check` recomputes them. |
+| `fixtures/lease-ledger.json` | A ledger that passes at the instant the report uses; the report's cases change it one at a time. |
+| `LEASE_PROTOCOL.md` | Inputs, rules, unknown and partial cases, codes and limits. |
+
+```
+node next/t00/check-lease.mjs ledger --ledger next/t00/fixtures/lease-ledger.json --at 2026-10-09T01:00:00Z
+node next/t00/check-lease.mjs result --ledger <file> --at <instant> --claim <id> --token <n> --base <sha> --head <sha>
+node next/t00/make-lease-report.mjs --check
+node --test test/t00-lease.test.mjs
+```
+
+Exit code 0 means verified, 2 means errors (one `FAIL <code> <subject> <detail>` line each), 1 means usage or unreadable
+input. After a change to the ownership map or to a lease source, run `make-lease-report.mjs --write` and commit the report.
