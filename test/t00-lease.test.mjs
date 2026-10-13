@@ -250,7 +250,8 @@ test('without paths the result is judged on what git reports between base and he
       const file = path.join(dir, `${name}.json`);
       fs.writeFileSync(file, JSON.stringify(reseal(ledger)));
       const go = (to) => lease('--repo-dir', repo, ...resultArgs(file, base, '--head', to));
-      return Object.assign(go(gitOut(repo, 'rev-parse', 'HEAD')), { again: () => go(base) });
+      const unknownBase = () => lease('--repo-dir', repo, ...resultArgs(file, '1'.repeat(40), '--head', gitOut(repo, 'rev-parse', 'HEAD')));
+      return Object.assign(go(gitOut(repo, 'rev-parse', 'HEAD')), { again: () => go(base), unknownBase });
     };
     const inside = made('inside', (write) => write('next/t00/lease-new.mjs', 'a\n'));
     assert.equal(inside.status, 0, inside.stdout + inside.stderr);
@@ -274,6 +275,11 @@ test('without paths the result is judged on what git reports between base and he
     assert.equal(same.status, 1);
     assert.equal(same.stdout, '');
     assert.match(same.stderr, /is empty, so there is nothing to check/);
+    // A base commit that the checkout does not hold, as in a shallow clone, is no pass and no silent exit: git's own failure is reported.
+    const unknown = inside.unknownBase();
+    assert.equal(unknown.status, 1);
+    assert.equal(unknown.stdout, '');
+    assert.match(unknown.stderr, /^git diff 1{40} [0-9a-f]{40} failed in /m);
   });
   const none = lease(...resultArgs(FIXTURE_FILE, BASE, '--head', 'abc'));
   assert.equal(none.status, 2);

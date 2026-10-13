@@ -118,7 +118,9 @@ integer, or a claim member that is not a plain value. To edit a ledger on purpos
   without its value, a missing flag, a malformed `--at`, `--head-digest` or `--token`, and a `ledger` command given result
   flags or paths. So is an input the process cannot read or parse: the ledger, the ownership map or one of its inputs. A
   ledger that the process may not read (`EACCES`) is such an input and never a verdict. A git diff between base and head
-  that is empty is also exit code 1, because nothing to check is not a pass.
+  that is empty is also exit code 1, because nothing to check is not a pass. So is a git diff that git cannot produce, for
+  example because the checkout does not hold the base commit: stderr then starts with `git diff <base> <head> failed in`
+  followed by the directory, a colon and git's own message.
 - The gate prints either one `OK` line or only `FAIL` lines. There is no partial pass.
 
 ## Commands
