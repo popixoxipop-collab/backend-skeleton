@@ -26,7 +26,7 @@ const suiteLine = (id, code) => `\nSUITES.find((s) => s.id === '${id}').${code};
 const noop = () => {};
 
 // The inputs of a scaffold, as parsed documents, so that a case can break one of them before the files are written.
-function baseModel() {
+export function baseModel() {
   const rules = JSON.parse(readText(FILES.rules));
   return {
     plan: JSON.parse(readText(FILES.plan)),
@@ -41,7 +41,7 @@ function baseModel() {
   };
 }
 
-function writeScaffold(repo, m) {
+export function writeScaffold(repo, m) {
   const put = (rel, text) => {
     if (m.omit.includes(rel)) return;
     fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
@@ -59,7 +59,7 @@ function writeScaffold(repo, m) {
 }
 
 // Two commits in the scaffold: `before` runs ahead of the first one, `after` between the first and the second.
-function twoCommits(repo, { before = noop, after }) {
+export function twoCommits(repo, { before = noop, after }) {
   const git = (...args) => execFileSync('git', ['-C', repo, '-c', 'user.name=t00', '-c', 'user.email=t00@example.invalid', '-c', 'commit.gpgsign=false', '-c', `core.hooksPath=${os.devNull}`, ...args], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],

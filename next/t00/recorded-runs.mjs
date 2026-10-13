@@ -12,11 +12,12 @@ export const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 
 export const failCodes = (stdout) => [...new Set(stdout.split('\n').filter((l) => l.startsWith('FAIL ')).map((l) => l.split(' ')[1]))].sort();
 
-// case: { id, mutation, exit, codes, prepare(dir) -> { argv, display, scrub? } }; prepare may be async. The CLI gets the PATH
-// only. `scrub` lists directory names that the CLI may print; they are recorded as <repo> so that a rerun gives the same
-// record. stderr_head is the CLI's first error line up to its first ": ", which names the failure without a runtime's wording.
+// case: { id, mutation, exit, codes, prepare(dir) -> { argv, display, scrub?, placeholder? } }; prepare may be async. The CLI gets
+// the PATH only. `scrub` lists names (a directory or a file) that the CLI may print; they are recorded as `placeholder` (default
+// <repo>) so that a rerun gives the same record. stderr_head is the CLI's first error line up to its first ": ", which names the
+// failure without a runtime's wording.
 export async function runRecorded(cli, c, dir) {
-  const { argv, display, scrub = [] } = await c.prepare(fs.mkdtempSync(path.join(dir, 'case-')));
+  const { argv, display, scrub = [], placeholder = '<repo>' } = await c.prepare(fs.mkdtempSync(path.join(dir, 'case-')));
   const res = spawnSync(process.execPath, [cli, ...argv], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '' } });
   if (res.error) throw res.error;
   const errorLine = res.stderr.split('\n')[0];
@@ -26,7 +27,7 @@ export async function runRecorded(cli, c, dir) {
   if (res.status !== c.exit || JSON.stringify(codes) !== JSON.stringify(c.codes)) {
     throw new Error(`${c.id}: expected exit ${c.exit} codes ${JSON.stringify(c.codes)}, the CLI gave exit ${res.status} codes ${JSON.stringify(codes)}`);
   }
-  const stderrHead = scrub.reduce((line, d) => line.replaceAll(d, '<repo>'), errorLine).split(': ')[0];
+  const stderrHead = scrub.reduce((line, d) => line.replaceAll(d, placeholder), errorLine).split(': ')[0];
   return { id: c.id, mutation: c.mutation, command: display, exit_code: res.status, codes, stdout_first_line: lines[0] ?? '', stdout_sha256: sha256(res.stdout), stderr_head: stderrHead };
 }
 

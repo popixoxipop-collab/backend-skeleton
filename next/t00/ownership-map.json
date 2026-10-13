@@ -26,7 +26,7 @@
     "bskel": "popixoxipop-collab/backend-skeleton"
   },
   "tracks": [
-    {"track":"T00","repository":"bskel","plan_scopes":["next/t00/**"],"suite_scopes":[],"extra_scopes":["test/t00-baseline.test.mjs","test/t00-ownership.test.mjs"]},
+    {"track":"T00","repository":"bskel","plan_scopes":["next/t00/**"],"suite_scopes":[],"extra_scopes":["test/t00-baseline.test.mjs","test/t00-lease.test.mjs","test/t00-ownership.test.mjs"]},
     {"track":"T01","repository":"bskel","plan_scopes":["next/t01/**"],"suite_scopes":["contracts/next/**","schemas/next/**","test/contract-next/**"],"extra_scopes":[]},
     {"track":"T02","repository":"bskel","plan_scopes":["next/t02/**"],"suite_scopes":["scanners/project-graph/**","test/project-graph/**"],"extra_scopes":[]},
     {"track":"T03","repository":"bskel","plan_scopes":["next/t03/**"],"suite_scopes":["scanners/capability-next/**","test/capability-next/**"],"extra_scopes":[]},
