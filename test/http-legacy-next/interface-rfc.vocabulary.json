@@ -63,7 +63,8 @@
   "bridge": "sbf.http-legacy-bridge/1",
   "semantic_snapshot": "sbf.http-legacy-semantic-snapshot/1",
   "shadow_projection": "bskel.internal.t11-shadow-projection/0",
-  "cutover_readiness": "bskel.internal.t11-cutover-readiness/0"
+  "cutover_readiness": "bskel.internal.t11-cutover-readiness/0",
+  "receipt": "bskel.interface-receipt/1"
  },
  "foreign_schemas": [
   "sbf.contract-ref/1",
@@ -381,6 +382,100 @@
   "parity.mjs",
   "shadow-projection.mjs"
  ],
+ "owned_dirs": [
+  "adapters/http-legacy-next/python-fastapi",
+  "adapters/http-legacy-next/scope"
+ ],
+ "report_sections": [
+  "related_modules",
+  "path_prefix_signals",
+  "files_read"
+ ],
+ "recorded_limits": [
+  "omitted-report-sections-read-as-empty"
+ ],
+ "receipt": {
+  "file": "adapters/http-legacy-next/INTERFACE_RECEIPT.json",
+  "status": "provisional",
+  "replay_env": "T11_RECEIPT_REPLAY",
+  "generator": "test/http-legacy-next/interface-receipt-generate.mjs",
+  "test": "test/http-legacy-next/interface-receipt.test.mjs",
+  "keys": [
+   "schema",
+   "status",
+   "track",
+   "items",
+   "revision",
+   "tree",
+   "node_version",
+   "commands",
+   "files",
+   "limits",
+   "receipt_digest"
+  ],
+  "command_keys": [
+   "id",
+   "argv",
+   "exit_code",
+   "tests",
+   "pass",
+   "fail",
+   "skipped",
+   "pass_text"
+  ],
+  "file_keys": [
+   "path",
+   "bytes",
+   "git_blob_sha1",
+   "sha256"
+  ],
+  "commands": [
+   {
+    "id": "interface-test",
+    "argv": [
+     "node",
+     "--test",
+     "--test-reporter=tap",
+     "test/http-legacy-next/interface-rfc.test.mjs"
+    ]
+   },
+   {
+    "id": "nested-runner",
+    "argv": [
+     "node",
+     "scripts/run-next-nested-tests.mjs",
+     "T11"
+    ]
+   }
+  ],
+  "files": [
+   "adapters/http-legacy-next/BASELINE.json",
+   "adapters/http-legacy-next/INTEGRATION.md",
+   "adapters/http-legacy-next/INTERFACE_RFC.md",
+   "adapters/http-legacy-next/baselines.mjs",
+   "adapters/http-legacy-next/bridge.mjs",
+   "adapters/http-legacy-next/checkout-completeness.mjs",
+   "adapters/http-legacy-next/cutover-readiness.mjs",
+   "adapters/http-legacy-next/parity.mjs",
+   "adapters/http-legacy-next/shadow-projection.mjs",
+   "test/http-legacy-next/baseline-record-lib.mjs",
+   "test/http-legacy-next/baseline-record.test.mjs",
+   "test/http-legacy-next/interface-receipt-generate.mjs",
+   "test/http-legacy-next/interface-receipt-lib.mjs",
+   "test/http-legacy-next/interface-receipt.test.mjs",
+   "test/http-legacy-next/interface-rfc.test.mjs",
+   "test/http-legacy-next/interface-rfc.vocabulary.json"
+  ],
+  "limits": [
+   "self-run: the generator ran both commands on one machine and nobody else observed the run.",
+   "unsigned: no key or signature covers the file, and receipt_digest only detects an edit that did not recompute it.",
+   "not an independent attestation: the receipt is produced by the code it describes, so a CI log or a reviewer is the independent record.",
+   "replay needs the revision's history: a checkout without that commit must fetch it, and on a shallow checkout a revision outside the visible history cannot be told from an ancestor whose history is cut off, so the test prints a note instead of failing.",
+   "provisional: the receipt describes the commit before the one that holds it, so a later change to a listed file makes it stale and it must be regenerated.",
+   "scope of the hashes: the counts cover every test file of the T11 suite at the revision but only the listed files are hashed; the other test files, the nested runner script, the scanner and the fixtures are covered by the revision alone.",
+   "replay without history: the replayed nested run has no git history, so the pinned-commit checks of the record test run there under BASELINE_ALLOW_UNVERIFIED=1 and are reported as not run, and it uses the node_modules of the checkout that replays it; the generator's own run had the history."
+  ]
+ },
  "ownership": [
   {
    "paths": [

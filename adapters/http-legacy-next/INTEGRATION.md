@@ -99,10 +99,16 @@ numbers or the report's other fields (`terms`, `unknowns`, `collisions`, `rg_ava
 A digest computed before the `verb` became part of the snapshot is not comparable with one computed now:
 every endpoint gained a key, so every digest changed, also for a report whose verbs did not change. That
 includes any digest quoted from an earlier head of this stage's pull request, and PR 77's
-`semantic_sha256` values, whose parity module never recorded the verb. The schema string stays
-`sbf.http-legacy-semantic-snapshot/1` because nothing in this repository stores a snapshot or a digest
-(no fixture, test pin or release file holds one), so there is no stored value that a new version string
-would protect. Whoever pins a digest must compute it with this module.
+`semantic_sha256` values, whose parity module never recorded the verb. The schema string stayed
+`sbf.http-legacy-semantic-snapshot/1` when the `verb` was added, so the string does not tell the two kinds
+of digest apart. Stored digests exist in this repository: `BASELINE.json` holds `semantic_sha256` in 5
+places and `legacy_semantic_sha256` in 2, as regression keys (the digests of the scans of the five fixture
+trees and of two shadow projections). `test/http-legacy-next/baseline-record.test.mjs` recomputes them with
+the modules of the record's base commit. A later change to the shape of the snapshot would make them
+describe the old shape under an unchanged string; it should come with a new string and a new record, and
+the record test does not fail by itself when the live modules change (see "Baseline record (T11-01)"
+below). `test/http-legacy-next/interface-rfc.test.mjs` counts the two keys in `BASELINE.json` and compares
+the counts with this paragraph. Whoever pins a digest must compute it with this module.
 
 ### Location-independent snapshots and digests
 
@@ -264,13 +270,22 @@ the blobs of the pinned commit), per-file and total test counts, both commands (
 output and expected summary, and that the nested runner collects the recorded files. A damaged record fails. It also compares every
 list and key set of the record with literal tables in the test library (`EXPECTED` in `baseline-record-lib.mjs`), not with what the record
 happens to hold: the 24 fixture ids with their api and class, the five adapter ids with their fixture directories and file counts, the six
-modules, the six test files with their counts, the eleven scanner files, the nine limits with status and fixture list, the CI observation's
+modules, the six test files with their counts, the eleven scanner files, the ten limits with status and fixture list, the CI observation's
 job names and statuses, and the exact key set of every object. A record that lost a fixture, a fixture tree or a key fails even when re-sealed.
 The pinned commit is always required, also while no pinned file has moved, because matching file hashes say nothing about `base_commit` or
 `base_tree`: its tree id, its file lists, the scanner's import closure computed from its own sources, and its blobs are checked against the
-same tables, and an export of it reproduces both commands and every fixture. The live replays run only while every pinned file equals the
-record. The commit is fetched once when a shallow checkout lacks it (`--depth=1`), and an unavailable commit fails unless
+same tables, and an export of it reproduces both commands and every fixture. The pins are compared with the pinned commit's blobs on every
+tree and with the live files too while no pinned file has moved: a record whose pins were edited together with a live file and re-sealed
+agrees with the live files by construction, so only the commit refuses it. The negative test of the forged base commit builds its checkout
+from an export of the pinned commit, so it runs on every tree and does not depend on which other files sit in the working tree.
+The commit is fetched once when a shallow checkout lacks it (`--depth=1`), and an unavailable commit fails unless
 `BASELINE_ALLOW_UNVERIFIED=1` skips those checks visibly.
+
+The live replay of the fixtures runs unless a pinned file differs from the record or the tree holds a scanner adapter or a fixture file that
+no pin covers. Other files that no pin covers (the other tracks' adapters, fixtures and tests beside this one) cannot change a replay,
+because a pinned module may import only another pinned module or a `node:` built-in, which the live replay checks first. When the replay
+stops it says so and names the files, and the export of the pinned commit still decides. A change to a pinned module after the base commit
+therefore does not fail the record test: it stops the live replay, and the record keeps describing the base commit.
 
 Not recomputed: `ci_observations` (only their shape, workflow, event, conclusion, job names and step statuses are fixed), `environment`
 (only the lock file is), the limit statements, the counterexample texts, the title and the notes, and the inputs of the hand-built fixtures
@@ -278,3 +293,17 @@ Not recomputed: `ci_observations` (only their shape, workflow, event, conclusion
 record except its own value, so an edit to any of those fields is visible unless it is re-sealed. The seal is tamper evidence, not proof:
 what a re-sealed record cannot move are the literal tables of the test library, the recomputed pins and replays, and the pinned commit's
 tree. A change to a pinned file means the record must be regenerated on purpose.
+
+## Interface RFC and receipt (T11-02)
+
+`INTERFACE_RFC.md` states the interface and `test/http-legacy-next/interface-rfc.test.mjs` compares it with the code through
+`test/http-legacy-next/interface-rfc.vocabulary.json`. `INTERFACE_RECEIPT.json` (schema `bskel.interface-receipt/1`, status `provisional`)
+records one run of that test and of `node scripts/run-next-nested-tests.mjs T11` at a named commit: the exit codes, the counts, the printed
+summary lines, the node version, and the size, SHA-256 and Git blob id of the files that section 8 of the RFC lists. Section 8 also says
+what the file proves and what it does not. `test/http-legacy-next/interface-receipt-generate.mjs` writes it from a clean tree, and
+`test/http-legacy-next/interface-receipt.test.mjs` checks it against the live files, against the blobs at its revision, against the ancestry
+of that revision and against a replay of both commands in an export of the revision.
+
+It is self-run, unsigned and not an independent attestation, and it describes the commit before the one that holds it. Regenerate it in a
+new commit (`node test/http-legacy-next/interface-receipt-generate.mjs` from the repository root, on a clean tree) after a change to any
+listed file, and after anything that rewrites the revision it names: a rebase, a reword or a squash merge.

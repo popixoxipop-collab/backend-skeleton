@@ -8,8 +8,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const RECORD_SCHEMA = 'bskel.track-baseline-record/2';
 export const RECORD_FILE = 'adapters/http-legacy-next/BASELINE.json';
+export const RECEIPT_FILE = 'adapters/http-legacy-next/INTERFACE_RECEIPT.json';
 export const OWN_TESTS = ['test/http-legacy-next/baseline-record.test.mjs', 'test/http-legacy-next/interface-rfc.test.mjs'];
-export const OWN_FILES = [...OWN_TESTS, 'test/http-legacy-next/baseline-record-lib.mjs', 'test/http-legacy-next/interface-rfc.vocabulary.json'];
+// The files of this track that describe or check the baseline and are not themselves baselined: the record and the receipt are data
+// beside the sources, the rest sit in the test directory. None of them is loaded by a replay of the fixtures.
+export const OWN_DATA = [RECORD_FILE, RECEIPT_FILE];
+export const OWN_FILES = [...OWN_TESTS, 'test/http-legacy-next/baseline-record-lib.mjs', 'test/http-legacy-next/interface-rfc.vocabulary.json', 'test/http-legacy-next/interface-receipt.test.mjs', 'test/http-legacy-next/interface-receipt-lib.mjs', 'test/http-legacy-next/interface-receipt-generate.mjs'];
 export const RUNNER_SCRIPT = 'scripts/run-next-nested-tests.mjs';
 export const AUTHORED = 'authored for this record';
 
@@ -19,6 +23,10 @@ const COUNT_KEYS = ['tests', 'suites', 'pass', 'fail', 'cancelled', 'skipped', '
 const DIGEST_KEYS = ['bytes', 'git_blob_sha1', 'sha256'];
 const ENTRY_KEYS = ['path', ...DIGEST_KEYS];
 const words = (text) => text.split(' ');
+// Variables with which a parent git process (a hook, a worktree helper) points git at its own repository. Every git child of this
+// library works on the directory it is given, so none of them may reach it.
+const GIT_REPO_VARS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_NAMESPACE', 'GIT_PREFIX'];
+export const cleanGitEnv = (env = process.env) => Object.fromEntries(Object.entries(env).filter(([key]) => !GIT_REPO_VARS.includes(key)));
 
 // Every set below is a literal in this reviewed file, so a re-sealed record cannot move it. The pinned commit's tree arbitrates
 // the file lists (treeProblems) and baselines.mjs arbitrates the adapter table (expectationProblems); the verifier iterates
@@ -64,7 +72,8 @@ export const EXPECTED = {
     ['single-runtime-observed', 'NOT_RECORDED', []],
     ['ci-observation-not-recomputable', 'NOT_RECORDED', []],
     ['real-repository-corpus', 'UNKNOWN', []],
-    ['identity-and-capability-interfaces-not-frozen', 'BLOCKED', []]
+    ['identity-and-capability-interfaces-not-frozen', 'BLOCKED', []],
+    ['omitted-report-sections-read-as-empty', 'UNSUPPORTED', []]
   ],
   ci: { keys: words('command run_id run_number run_attempt workflow event head_sha conclusion jobs'), values: { workflow: 'CI', event: 'push', conclusion: 'success' }, jobKeys: words('id name runner conclusion step step_conclusion'), jobs: ['nested-next (22.x)', 'nested-next (24.x)'], job: { conclusion: 'success', step: 'T11 http-legacy-next', step_conclusion: 'success' } },
   verification: { keys: words('command unverified_override not_recomputed'), command: `node --test ${OWN_TESTS[0]}`, labels: ['ci_observations:', 'environment:', 'limits:', 'counterexample texts, title and notes:', 'artifact_digest is tamper evidence'] }
@@ -124,7 +133,7 @@ export const liveReader = (root) => (rel) => {
 };
 
 export const commitReader = (root, commit) => (rel) => {
-  const res = spawnSync('git', ['cat-file', 'blob', `${commit}:${rel}`], { cwd: root, maxBuffer: 64 * 1024 * 1024 });
+  const res = spawnSync('git', ['cat-file', 'blob', `${commit}:${rel}`], { cwd: root, env: cleanGitEnv(), maxBuffer: 64 * 1024 * 1024 });
   return res.status === 0 ? res.stdout : null;
 };
 
@@ -291,11 +300,56 @@ export function verifyRecord(r, read, label = 'recompute') {
   const notRecomputed = list(r?.verification?.not_recomputed);
   if (!notRecomputed.every((x) => typeof x === 'string' && x.trim() !== '')) bad('verification.not_recomputed must list what the test does not recompute');
   sets('verification.not_recomputed', notRecomputed.map((x) => expectedVerification.labels.find((l) => String(x).startsWith(l)) ?? x), expectedVerification.labels);
-  if (read) {
-    problems.push(...recomputeProblems([...pinnedEntries(r), ...gitOnlyPins(r)], read, label));
-    problems.push(...originProblems(r, read));
+  if (read) problems.push(...readProblems(r, read, label));
+  return problems;
+}
+
+// What one tree (live, or the pinned commit) can say about the record: the size and both digests of every pinned file, the origin
+// citations, and the imports of the pinned modules.
+export function readProblems(r, read, label) {
+  return [
+    ...recomputeProblems([...pinnedEntries(r), ...gitOnlyPins(r)], read, label),
+    ...originProblems(r, read),
+    ...importProblems(r, read).map((problem) => `${label}: ${problem}`)
+  ];
+}
+
+// The T11 modules that a replay loads may import only each other and node: built-ins. A computed import, a require, a package or any
+// other file would let something that no pin covers change a replay, so the live replay is only sound while this list is empty.
+export function importProblems(r, read) {
+  const problems = [];
+  const sources = (Array.isArray(r?.sources) ? r.sources : []).map((e) => e?.path).filter((p) => typeof p === 'string');
+  for (const rel of sources) {
+    const buf = read(rel);
+    if (!Buffer.isBuffer(buf)) {
+      problems.push(`imports: cannot read ${rel}`);
+      continue;
+    }
+    const { specs, opaque } = importsOf(buf.toString('utf8'));
+    for (const word of opaque) problems.push(`imports: ${rel} loads a module that cannot be listed (${word.trim()})`);
+    for (const spec of specs) {
+      const target = /^\.\.?\//.test(spec) ? path.posix.join(path.posix.dirname(rel), spec) : null;
+      if (!spec.startsWith('node:') && !(target && sources.includes(target))) problems.push(`imports: ${rel} imports ${spec}, which is neither a pinned T11 module nor a node: built-in`);
+    }
   }
   return problems;
+}
+
+// The record's pins against the two trees that can arbitrate them. The pinned commit's blobs always decide what the record may say
+// about base_commit, so they are compared whenever the commit is available, a fresh live tree included: a record whose pins were
+// edited together with a live file agrees with the live tree by construction and only the commit can refuse it. The live files are
+// compared as well while no pinned file has moved. `compared` names the comparisons that ran, so a caller can say which branch it took.
+export function pinProblems(r, { live, liveRead, pinnedRead }) {
+  const [problems, compared] = [[], []];
+  if (live.pinsMoved.length === 0) {
+    problems.push(...readProblems(r, liveRead, 'live'));
+    compared.push('live files');
+  }
+  if (pinnedRead) {
+    problems.push(...readProblems(r, pinnedRead, 'pinned commit'));
+    compared.push('pinned commit blobs');
+  }
+  return { problems, compared };
 }
 
 // What only the pinned commit can arbitrate. `tree` is {read(path) -> Buffer|null, list(dir) -> paths, id(dir) -> git tree id}.
@@ -372,22 +426,29 @@ function listFiles(root, rel) {
 
 // The record is a baseline of base_commit. Every pinned file is compared with the live file by size, sha256 and blob id
 // (never by the record's own blob id alone): `corrupt` entries are damage and must fail the caller, `moved` files mean
-// the tree has left the baseline (live replays are skipped and the pinned commit decides), `fresh` means all agree.
+// the tree has left the baseline (the pinned commit decides), `fresh` means all agree. `moved` and `fresh` count every file no pin
+// covers; the other fields say which kind of file moved:
+//   pinsMoved   pinned files that drifted or are missing;
+//   unpinned    the files no pin covers, by what they could reach: T11 sources, scanner adapters (the registry loads every one by
+//               listing the directory), other test files, and the five fixture trees (a scan reads every file in them);
+//   replayMoved the files that can change a replay of the fixtures: pinsMoved, unpinned scanner adapters and unpinned fixture files.
+//               An unpinned T11 source or test file cannot, because importProblems refuses a module that imports one.
 export function classifyLive(record, root = REPO_ROOT, inputDirs = EXPECTED.inputs.map(([, dir]) => dir)) {
   const read = liveReader(root);
   const states = [...pinnedEntries(record), ...gitOnlyPins(record)].map((e) => ({ path: e.path, ...classifyEntry(e, read(e.path)) }));
   const recorded = new Set(states.map((s) => s.path));
   // The fixture trees come from the table as well as from the record, so a record that dropped a tree cannot hide a changed file in it.
   const trees = new Set([...inputDirs, ...(Array.isArray(record.inputs) ? record.inputs : []).map((g) => g?.dir)].filter(Boolean));
-  const extras = [
-    ...listFiles(root, record.source_dir).filter((p) => !p.endsWith('.md') && p !== RECORD_FILE && !recorded.has(p)),
-    ...(record.scanner_dir ? listFiles(root, record.scanner_dir) : []).filter((p) => p.endsWith('.mjs') && !recorded.has(p)),
-    ...listFiles(root, record.test_dir).filter((p) => !recorded.has(p) && !OWN_FILES.includes(p)),
-    ...[...trees].flatMap((dir) => listFiles(root, dir).filter((p) => !recorded.has(p)))
-  ];
+  const unpinned = {
+    source: listFiles(root, record.source_dir).filter((p) => !p.endsWith('.md') && !OWN_DATA.includes(p) && !recorded.has(p)),
+    scanner: (record.scanner_dir ? listFiles(root, record.scanner_dir) : []).filter((p) => p.endsWith('.mjs') && !recorded.has(p)),
+    tests: listFiles(root, record.test_dir).filter((p) => !recorded.has(p) && !OWN_FILES.includes(p)),
+    fixtures: [...trees].flatMap((dir) => listFiles(root, dir).filter((p) => !recorded.has(p)))
+  };
   const corrupt = states.filter((s) => s.state === 'corrupt').map((s) => s.detail);
-  const moved = [...states.filter((s) => s.state === 'drift' || s.state === 'missing').map((s) => s.path), ...extras];
-  return { corrupt, moved, fresh: corrupt.length === 0 && moved.length === 0 };
+  const pinsMoved = states.filter((s) => s.state === 'drift' || s.state === 'missing').map((s) => s.path);
+  const moved = [...pinsMoved, ...unpinned.source, ...unpinned.scanner, ...unpinned.tests, ...unpinned.fixtures];
+  return { corrupt, moved, fresh: corrupt.length === 0 && moved.length === 0, pinsMoved, unpinned, replayMoved: [...pinsMoved, ...unpinned.scanner, ...unpinned.fixtures] };
 }
 
 // ---- fixtures: every API call below goes through the T11 modules and the stable scanner of one tree (live or exported) ----
@@ -445,7 +506,7 @@ export function checkoutOutcome(m, input) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t11-baseline-'));
   try {
     const git = (...args) => {
-      const res = spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8', env: { ...process.env, ...GIT_ENV } });
+      const res = spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8', env: { ...cleanGitEnv(), ...GIT_ENV } });
       if (res.status !== 0) throw new Error(`fixture setup: git ${args.join(' ')} failed: ${res.stderr}`);
     };
     git('init', '--quiet', '--initial-branch=main');
@@ -601,7 +662,7 @@ export function replayProblems(record, computed) {
 // ---- git: the pinned commit is read from the checkout, fetched once when absent, and never silently skipped ----
 
 function git(root, args, options = {}) {
-  return spawnSync('git', args, { cwd: root, encoding: 'utf8', ...options });
+  return spawnSync('git', args, { cwd: root, encoding: 'utf8', ...options, env: cleanGitEnv(options.env ?? process.env) });
 }
 
 export const isShallow = (root) => git(root, ['rev-parse', '--is-shallow-repository']).stdout?.trim() === 'true';
@@ -674,23 +735,28 @@ export function depthOneCase(dir) {
 }
 
 // What the pinned commit exists to refuse: a well-formed, re-sealed record whose base_commit and base_tree are invented while
-// every live hash matches. The working tree is copied into a throw-away upstream and cloned with --depth=1, so the checkout
-// lacks the commit the record names and `origin` cannot serve an invented one.
+// every live hash matches. The tree is the real pinned commit, exported, plus the two files that run the check and the forged
+// record, so every live hash equals the record by construction and stays equal whatever later commits add to the working tree.
+// It is committed into a throw-away upstream and cloned with --depth=1, so the checkout lacks the commit the record names and
+// `origin` cannot serve an invented one. The caller makes sure the real commit is available (commitVerdict) before calling.
 export function forgedCheckout(dir) {
   const upstream = path.join(dir, 'upstream');
-  const skip = [path.join(REPO_ROOT, '.git'), path.join(REPO_ROOT, 'node_modules')];
-  fs.cpSync(REPO_ROOT, upstream, { recursive: true, verbatimSymlinks: true, filter: (src) => !skip.includes(src) });
-  run(upstream, 'init', '-q');
-  run(upstream, 'add', '-A');
-  run(upstream, 'commit', '-q', '-m', 'copy of the working tree');
-  run(dir, 'clone', '-q', '--depth=1', `file://${upstream}`, 'checkout');
-  const checkout = path.join(dir, 'checkout');
-  const real = readRecord(checkout);
+  fs.mkdirSync(upstream, { recursive: true });
+  const real = readRecord(REPO_ROOT);
+  exportCommit(REPO_ROOT, real.base_commit, upstream);
+  for (const rel of [OWN_TESTS[0], 'test/http-legacy-next/baseline-record-lib.mjs']) {
+    fs.mkdirSync(path.dirname(path.join(upstream, rel)), { recursive: true });
+    fs.copyFileSync(path.join(REPO_ROOT, rel), path.join(upstream, rel));
+  }
   const invent = (text) => text.replaceAll(real.base_commit, 'a'.repeat(40)).replaceAll(real.base_tree, 'b'.repeat(40));
   const forged = JSON.parse(invent(JSON.stringify(real)));
   forged.artifact_digest.value = artifactDigest(forged);
-  fs.writeFileSync(path.join(checkout, RECORD_FILE), `${JSON.stringify(forged, null, 2)}\n`);
-  return checkout;
+  fs.writeFileSync(path.join(upstream, RECORD_FILE), `${JSON.stringify(forged, null, 2)}\n`);
+  run(upstream, 'init', '-q');
+  run(upstream, 'add', '-A');
+  run(upstream, 'commit', '-q', '-m', 'the pinned commit exported, the two files that run the check and a forged record');
+  run(dir, 'clone', '-q', '--depth=1', `file://${upstream}`, 'checkout');
+  return path.join(dir, 'checkout');
 }
 
 export function revParse(root, spec) {
@@ -705,32 +771,75 @@ export function listAtCommit(root, commit, dir) {
   return res.status === 0 ? res.stdout.split('\n').filter(Boolean).sort() : null;
 }
 
-// The whole tree of the pinned commit, so the scanner and the T11 modules run exactly as they did at that commit.
-// node_modules is shared with the live checkout; it holds no repository code.
-export function extractTree(root, commit, dest) {
-  const archive = spawnSync('git', ['archive', '--format=tar', commit], { cwd: root, maxBuffer: 512 * 1024 * 1024 });
+// The tracked files of `commit` written into the existing directory `dest`; nothing else is added.
+export function exportCommit(root, commit, dest) {
+  const archive = spawnSync('git', ['archive', '--format=tar', commit], { cwd: root, env: cleanGitEnv(), maxBuffer: 512 * 1024 * 1024 });
   if (archive.status !== 0) throw new Error(`git archive ${commit} failed: ${archive.stderr}`);
   const unpack = spawnSync('tar', ['-xf', '-', '-C', dest], { input: archive.stdout, maxBuffer: 64 * 1024 * 1024 });
   if (unpack.status !== 0) throw new Error(`tar failed: ${unpack.stderr}`);
+}
+
+// The whole tree of the pinned commit, so the scanner and the T11 modules run exactly as they did at that commit.
+// node_modules is shared with the live checkout; it holds no repository code.
+export function extractTree(root, commit, dest) {
+  exportCommit(root, commit, dest);
   fs.symlinkSync(path.join(REPO_ROOT, 'node_modules'), path.join(dest, 'node_modules'), 'dir');
 }
 
 // The recorded commands, run as child processes (concurrently when awaited together). NODE_TEST_CONTEXT is removed so a
-// child `node --test` is a top-level run, not a reporter of the test process that started it.
-function runNode(root, args, extraEnv = {}) {
-  const env = { ...process.env, ...extraEnv };
+// child `node --test` is a top-level run, not a reporter of the test process that started it. `summary` holds the count lines as
+// printed (the reporter's `ℹ ` or TAP's `# ` prefix included, the duration line excluded); a child that outlives `timeoutMs`
+// is killed and reported with `timed_out`, never waited for.
+export function runNode(root, args, extraEnv = {}, { timeoutMs = 0 } = {}) {
+  const env = cleanGitEnv({ ...process.env, ...extraEnv });
   delete env.NODE_TEST_CONTEXT;
+  // A node:test worker can inherit FORCE_COLOR. Recorded summary counts are plain text.
+  delete env.FORCE_COLOR;
+  env.NO_COLOR = '1';
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, args, { cwd: root, env });
+    // The nested runner spawns another Node process with inherited stdout.
+    // On POSIX, give this command its own process group so a deadline can
+    // terminate the runner and all of its non-detached descendants together.
+    const posixGroup = process.platform !== 'win32';
+    const child = spawn(process.execPath, args, { cwd: root, env, detached: posixGroup });
     let stdout = '';
-    child.stdout.on('data', (chunk) => { stdout += chunk; });
-    child.stderr.resume();
-    child.on('error', reject);
-    child.on('close', (code) => {
+    let timedOut = false;
+    let settled = false;
+    let timer = null;
+    const finish = (error, code, signal) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== null) clearTimeout(timer);
+      if (error) { reject(error); return; }
       const result = {};
-      for (const m of stdout.matchAll(/^(?:ℹ|#) (tests|suites|pass|fail|cancelled|skipped|todo) (\d+)$/gm)) result[m[1]] = Number(m[2]);
-      resolve({ exit_code: code, stdout, stdout_first_line: stdout.split('\n')[0], result });
-    });
+      const summary = [];
+      for (const m of stdout.matchAll(/^(?:ℹ|#) (tests|suites|pass|fail|cancelled|skipped|todo) (\d+)$/gm)) {
+        result[m[1]] = Number(m[2]);
+        summary.push(m[0]);
+      }
+      resolve({ exit_code: code, signal, timed_out: timedOut, stdout, stdout_first_line: stdout.split('\n')[0], result, summary });
+    };
+    const terminateTree = () => {
+      timedOut = true;
+      if (Number.isInteger(child.pid) && child.pid > 0) {
+        if (posixGroup) {
+          try { process.kill(-child.pid, 'SIGKILL'); } catch { /* Child or group may already have exited. */ }
+        } else {
+          // Windows does not support negative process-group PIDs.
+          try { spawnSync('taskkill', ['/T', '/F', '/PID', String(child.pid)], { stdio: 'ignore', timeout: 2000 }); } catch { /* Fall back to child.kill. */ }
+        }
+      }
+      try { child.kill('SIGKILL'); } catch { /* Already terminated. */ }
+      // A detached grandchild could still hold the pipe open: do not wait for it
+      // before returning a timed-out (and therefore non-passing) result.
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+    };
+    child.stdout?.on('data', (chunk) => { stdout += chunk; });
+    child.stderr?.resume();
+    child.once('error', (error) => finish(error));
+    child.once('close', (code, signal) => finish(null, code, signal));
+    if (timeoutMs > 0) timer = setTimeout(terminateTree, timeoutMs);
   });
 }
 
@@ -738,3 +847,7 @@ export const runNestedRunner = (root, suiteId) => runNode(root, [RUNNER_SCRIPT, 
 export const runTapTests = (root, files) => runNode(root, ['--test', '--test-reporter=tap', ...files]);
 // Only the pinned-commit test of this record, as a top-level run in `root`; the override is off unless the caller sets it.
 export const runPinnedCheck = (root, env = {}) => runNode(root, ['--test', '--test-reporter=tap', '--test-name-pattern=the pinned commit has the recorded tree', OWN_TESTS[0]], { BASELINE_ALLOW_UNVERIFIED: '', ...env });
+
+// For the receipt library and the throw-away repositories of its tests: the throwing git helper with a fixed identity, and the plain spawn.
+export const runGit = run;
+export const spawnGit = git;
