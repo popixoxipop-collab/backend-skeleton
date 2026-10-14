@@ -793,20 +793,24 @@ export function extractTree(root, commit, dest) {
 export function runNode(root, args, extraEnv = {}, { timeoutMs = 0 } = {}) {
   const env = cleanGitEnv({ ...process.env, ...extraEnv });
   delete env.NODE_TEST_CONTEXT;
-  // A node:test worker can inherit FORCE_COLOR; the recorded TAP summary is
-  // deliberately plain text so its command counts remain machine-verifiable.
+  // A node:test worker can inherit FORCE_COLOR. Recorded summary counts are plain text.
   delete env.FORCE_COLOR;
   env.NO_COLOR = '1';
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, args, { cwd: root, env });
+    // The nested runner spawns another Node process with inherited stdout.
+    // On POSIX, give this command its own process group so a deadline can
+    // terminate the runner and all of its non-detached descendants together.
+    const posixGroup = process.platform !== 'win32';
+    const child = spawn(process.execPath, args, { cwd: root, env, detached: posixGroup });
     let stdout = '';
     let timedOut = false;
-    const timer = timeoutMs > 0 ? setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, timeoutMs) : null;
-    child.stdout.on('data', (chunk) => { stdout += chunk; });
-    child.stderr.resume();
-    child.on('error', (error) => { clearTimeout(timer); reject(error); });
-    child.on('close', (code, signal) => {
-      clearTimeout(timer);
+    let settled = false;
+    let timer = null;
+    const finish = (error, code, signal) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== null) clearTimeout(timer);
+      if (error) { reject(error); return; }
       const result = {};
       const summary = [];
       for (const m of stdout.matchAll(/^(?:ℹ|#) (tests|suites|pass|fail|cancelled|skipped|todo) (\d+)$/gm)) {
@@ -814,7 +818,28 @@ export function runNode(root, args, extraEnv = {}, { timeoutMs = 0 } = {}) {
         summary.push(m[0]);
       }
       resolve({ exit_code: code, signal, timed_out: timedOut, stdout, stdout_first_line: stdout.split('\n')[0], result, summary });
-    });
+    };
+    const terminateTree = () => {
+      timedOut = true;
+      if (Number.isInteger(child.pid) && child.pid > 0) {
+        if (posixGroup) {
+          try { process.kill(-child.pid, 'SIGKILL'); } catch { /* Child or group may already have exited. */ }
+        } else {
+          // Windows does not support negative process-group PIDs.
+          try { spawnSync('taskkill', ['/T', '/F', '/PID', String(child.pid)], { stdio: 'ignore', timeout: 2000 }); } catch { /* Fall back to child.kill. */ }
+        }
+      }
+      try { child.kill('SIGKILL'); } catch { /* Already terminated. */ }
+      // A detached grandchild could still hold the pipe open: do not wait for it
+      // before returning a timed-out (and therefore non-passing) result.
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+    };
+    child.stdout?.on('data', (chunk) => { stdout += chunk; });
+    child.stderr?.resume();
+    child.once('error', (error) => finish(error));
+    child.once('close', (code, signal) => finish(null, code, signal));
+    if (timeoutMs > 0) timer = setTimeout(terminateTree, timeoutMs);
   });
 }
 

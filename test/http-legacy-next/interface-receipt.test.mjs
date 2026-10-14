@@ -146,6 +146,33 @@ test('T11-02 the replay refuses a recorded exit code or count that the export do
   const killed = await replayed(claimOf(hanging, 1), hanging.root, 'cmp-hang', 1200);
   assert.ok(killed.problems.includes('command tiny: killed after the time limit'), lines(killed.problems));
   assert.ok(killed.problems.includes('command tiny: exit code null != recorded 0'), lines(killed.problems));
+  // A nested runner can spawn a child that inherits its stdout pipe. Terminating
+  // only the direct runner would leave that pipe open and could hang the receipt
+  // replay beyond its deadline. Run a real descendant and assert it cannot survive.
+  if (process.platform !== 'win32') {
+    const started = path.join(work, 'deadline-child-started.txt');
+    const survived = path.join(work, 'deadline-child-survived.txt');
+    const grandchild = [
+      "const fs = require('node:fs');",
+      "setTimeout(() => fs.writeFileSync(" + JSON.stringify(survived) + ", 'orphan'), 2200);",
+      'setTimeout(() => {}, 6000);'
+    ].join('\n');
+    const parent = [
+      "const fs = require('node:fs');",
+      "const { spawn } = require('node:child_process');",
+      "const child = spawn(process.execPath, ['-e', " + JSON.stringify(grandchild) + "], { stdio: ['ignore', 'inherit', 'ignore'] });",
+      "fs.writeFileSync(" + JSON.stringify(started) + ", String(child.pid));",
+      'setInterval(() => {}, 1000);'
+    ].join('\n');
+    const begin = Date.now();
+    const timed = await base.runNode(work, ['-e', parent], {}, { timeoutMs: 650 });
+    assert.equal(timed.timed_out, true);
+    assert.equal(timed.signal, 'SIGKILL');
+    assert.match(fs.readFileSync(started, 'utf8'), /^\d+$/, 'a real descendant must have started');
+    assert.ok(Date.now() - begin < 3500, 'deadline must not wait for a descendant-held stdout pipe');
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+    assert.equal(fs.existsSync(survived), false, 'deadline must terminate descendants in the command process group');
+  }
   // compareRun on its own: cancelled and todo must be 0 and a run that printed no summary matches nothing.
   const recorded = tiny.commands[0];
   const ran = (result, extra = {}) => ({ exit_code: 0, signal: null, timed_out: false, result, summary: [], ...extra });
