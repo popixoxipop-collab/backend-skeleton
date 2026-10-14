@@ -221,7 +221,10 @@ test('T11-02 the shape check names each edit of the receipt that it covers, and 
     ['a path that is a list holding the path', (r) => { entry(r).path = [RFC]; }, true, ['file path must be a string']],
     ['a limit reworded', (r) => { r.limits[2] = 'independent: a reviewer signed it.'; }, true, [/^limits must be \[.*independent: a reviewer signed it\./]],
     ['a limit dropped', (r) => { r.limits.pop(); }, true, [/^limits must be \["self-run: /]],
-    ['a command dropped', (r) => { r.commands.pop(); }, true, ['commands must list exactly interface-test and nested-runner']],
+    ['a null command entry', (r) => { r.commands[0] = null; }, true, ['command interface-test: must be an object']],
+    ['a string command entry', (r) => { r.commands[0] = 'not a command'; }, true, ['command interface-test: must be an object']],
+    ['an array command entry', (r) => { r.commands[1] = []; }, true, ['command nested-runner: must be an object']],
+    ['a command dropped', (r) => { r.commands.pop(); }, true, ['commands must list exactly interface-test and nested-runner', 'command nested-runner: must be an object']],
     ['an argv changed', (r) => { r.commands[0].argv = ['node', '--test', 'x.mjs']; }, true, ['command interface-test argv must be ["node","--test","--test-reporter=tap","test/http-legacy-next/interface-rfc.test.mjs"], not ["node","--test","x.mjs"]']]
   ];
   for (const [name, edit, resealed, expected] of rows) {

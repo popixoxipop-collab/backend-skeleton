@@ -87,8 +87,8 @@ export function shapeProblems(receipt, { commands: wantedCommands = COMMANDS, fi
   wantedCommands.forEach((expected, i) => {
     const c = ran[i];
     const label = `command ${expected.id}`;
-    if (!c || typeof c !== 'object') return;
     problems.push(...base.exactKeys(label, c, COMMAND_KEYS));
+    if (!c || typeof c !== 'object' || Array.isArray(c)) return;
     is(`${label} id`, c.id, expected.id);
     is(`${label} argv`, c.argv, expected.argv);
     for (const key of ['tests', 'pass', 'fail', 'skipped']) if (!count(c[key])) problems.push(`${label}: ${key} must be a count`);
