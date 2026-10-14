@@ -1,0 +1,167 @@
+{
+  "schema": "bskel.interface-receipt/1",
+  "status": "provisional",
+  "track": "T11",
+  "items": [
+    "T11-01",
+    "T11-02"
+  ],
+  "revision": "cdf1d35ad3aeb24f381f0dd42688e6b0d68080be",
+  "tree": "54b41e1ddd03ac5953951b0179ba0f5ad6e301e5",
+  "node_version": "v24.19.0",
+  "commands": [
+    {
+      "id": "interface-test",
+      "argv": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        "test/http-legacy-next/interface-rfc.test.mjs"
+      ],
+      "exit_code": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "skipped": 0,
+      "pass_text": [
+        "# tests 7",
+        "# suites 0",
+        "# pass 7",
+        "# fail 0",
+        "# cancelled 0",
+        "# skipped 0",
+        "# todo 0"
+      ]
+    },
+    {
+      "id": "nested-runner",
+      "argv": [
+        "node",
+        "scripts/run-next-nested-tests.mjs",
+        "T11"
+      ],
+      "exit_code": 0,
+      "tests": 181,
+      "pass": 181,
+      "fail": 0,
+      "skipped": 0,
+      "pass_text": [
+        "ℹ tests 181",
+        "ℹ suites 0",
+        "ℹ pass 181",
+        "ℹ fail 0",
+        "ℹ cancelled 0",
+        "ℹ skipped 0",
+        "ℹ todo 0"
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "adapters/http-legacy-next/BASELINE.json",
+      "bytes": 67030,
+      "git_blob_sha1": "648f6c56e5bde3cadbaf974e8193a29a084c42e2",
+      "sha256": "f260e5eb51f9e0ea205e484cf18ef191fd621100ded74693b77c3c6cb02b7547"
+    },
+    {
+      "path": "adapters/http-legacy-next/INTEGRATION.md",
+      "bytes": 24198,
+      "git_blob_sha1": "2b474fd289bb84ad6e2850884d64c0afacf03431",
+      "sha256": "ac7b8799beefb4c3da8de125b4209cb5223bc5f8254ee5e6c08a6c0449155032"
+    },
+    {
+      "path": "adapters/http-legacy-next/INTERFACE_RFC.md",
+      "bytes": 18394,
+      "git_blob_sha1": "e6086ca1813f49ec5924fcc7e20cb8cefe7977f8",
+      "sha256": "1e84926c2a11bf1f2709e31223d275ac8d61e12f865d6dcc64591372275a5730"
+    },
+    {
+      "path": "adapters/http-legacy-next/baselines.mjs",
+      "bytes": 3881,
+      "git_blob_sha1": "5f1b32f243ec13de42272d211966607f5373a69f",
+      "sha256": "09fbf687add0dc3e6c5e3c033e9ff45eb7bb4dc85dab639ec8f7ee7d31fe0932"
+    },
+    {
+      "path": "adapters/http-legacy-next/bridge.mjs",
+      "bytes": 3151,
+      "git_blob_sha1": "54a09387ab6226da2df10c9efeb60383297dc13f",
+      "sha256": "b131a25e510b3a9b67f6bba50ddbbbb6cb86368b641e80790a1c0339b09d3dad"
+    },
+    {
+      "path": "adapters/http-legacy-next/checkout-completeness.mjs",
+      "bytes": 7145,
+      "git_blob_sha1": "5b24811ba2d2d435efeba608a1c45a982076383e",
+      "sha256": "77b531c3984ab72c88dc86c902bdce8fbf11e5226093b3853a72cb88384f569a"
+    },
+    {
+      "path": "adapters/http-legacy-next/cutover-readiness.mjs",
+      "bytes": 2801,
+      "git_blob_sha1": "d9a83df894da456d8a32ca7b3f0a5775087c3ef6",
+      "sha256": "24f072168d1a0022938f6e2bd8c6a21a9d7f9120690c496e18c6411a4875fbcc"
+    },
+    {
+      "path": "adapters/http-legacy-next/parity.mjs",
+      "bytes": 8597,
+      "git_blob_sha1": "dbf59bca5c2c6d21a1eb3096560adb6227869590",
+      "sha256": "268f5e9b2f56716b8a4faf940a702c9a29b21213d7e6623c80496bb20aa8049c"
+    },
+    {
+      "path": "adapters/http-legacy-next/shadow-projection.mjs",
+      "bytes": 4523,
+      "git_blob_sha1": "2f64f418c34fcb1f2b63ea2b8785ae914afe81f1",
+      "sha256": "a4ebb8d76e29ca103d40f8ecceb88c085d634d0cbd2f328cdebd5ae36ca611eb"
+    },
+    {
+      "path": "test/http-legacy-next/baseline-record-lib.mjs",
+      "bytes": 52183,
+      "git_blob_sha1": "10c73deabe47af33ccc8c7c1f42f82f09939c0e6",
+      "sha256": "d02ee7cf77a47095eafca1e021d7fe1020b06953f01134db2e511449774b8901"
+    },
+    {
+      "path": "test/http-legacy-next/baseline-record.test.mjs",
+      "bytes": 23666,
+      "git_blob_sha1": "7c45e5fd00d8214dd2686961a1a67ea9c3435384",
+      "sha256": "7ad39f8650a2820773a6715462be98d3b6b88f61ec50f7678ac64615bf0a5adc"
+    },
+    {
+      "path": "test/http-legacy-next/interface-receipt-generate.mjs",
+      "bytes": 1022,
+      "git_blob_sha1": "57522c346aa0756b8e1e4b63d53a480e297d972b",
+      "sha256": "3c8dcb0a68f958a2623bf3e7a1b6df730b186a4a736c00d7c0de3e33fd3b61e8"
+    },
+    {
+      "path": "test/http-legacy-next/interface-receipt-lib.mjs",
+      "bytes": 19606,
+      "git_blob_sha1": "cfce060dd21a6eddba4871ac0eb4d589e0b4dd3f",
+      "sha256": "42a5a40befaebbb77f50cce9124ba9f5e29c8f89a04e7eed88b73abda573beb7"
+    },
+    {
+      "path": "test/http-legacy-next/interface-receipt.test.mjs",
+      "bytes": 35913,
+      "git_blob_sha1": "9c88947ede4a3dab68ffb8bd4d1106320c1443ec",
+      "sha256": "dd5d0b4a34145eed144386164df6fec082ba1b886803710200371730b9cfc96d"
+    },
+    {
+      "path": "test/http-legacy-next/interface-rfc.test.mjs",
+      "bytes": 60583,
+      "git_blob_sha1": "dcfbcef1bce062c3de278eab1ac43cc7fc8969b9",
+      "sha256": "fa7e56e51f855b696907e82867556212f10695fb79f1fb9c6ed283722564a7da"
+    },
+    {
+      "path": "test/http-legacy-next/interface-rfc.vocabulary.json",
+      "bytes": 11820,
+      "git_blob_sha1": "a2011e56ccb5b2dd87512c2068f92b1e802fdc5f",
+      "sha256": "9057c4147f053919be7c06c58e2d006895c23051efa31a324296b134a0076105"
+    }
+  ],
+  "limits": [
+    "self-run: the generator ran both commands on one machine and nobody else observed the run.",
+    "unsigned: no key or signature covers the file, and receipt_digest only detects an edit that did not recompute it.",
+    "not an independent attestation: the receipt is produced by the code it describes, so a CI log or a reviewer is the independent record.",
+    "replay needs the revision's history: a checkout without that commit must fetch it, and on a shallow checkout a revision outside the visible history cannot be told from an ancestor whose history is cut off, so the test prints a note instead of failing.",
+    "provisional: the receipt describes the commit before the one that holds it, so a later change to a listed file makes it stale and it must be regenerated.",
+    "scope of the hashes: the counts cover every test file of the T11 suite at the revision but only the listed files are hashed; the other test files, the nested runner script, the scanner and the fixtures are covered by the revision alone.",
+    "replay without history: the replayed nested run has no git history, so the pinned-commit checks of the record test run there under BASELINE_ALLOW_UNVERIFIED=1 and are reported as not run, and it uses the node_modules of the checkout that replays it; the generator's own run had the history."
+  ],
+  "receipt_digest": "b7d83e6f0156083befd55a80ad583a87d4077c409c34bf00d977dcb2e6950539"
+}
