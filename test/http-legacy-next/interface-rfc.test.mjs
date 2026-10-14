@@ -8,8 +8,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runScan } from '../../scanners/index.mjs';
 import { ADAPTERS } from '../../scanners/registry.mjs';
 import * as lib from './baseline-record-lib.mjs';
+import * as receiptLib from './interface-receipt-lib.mjs';
 
-// T11-02: vocabulary vs code and RFC vs vocabulary are both recomputed, so drift on either side fails; the negatives edit copies of both.
+// T11-02: what the vocabulary lists is recomputed from the code, and what the RFC cites is compared with the vocabulary, so a listed identifier, key list, table row, export, import, file or directory that differs on either side fails; the negatives edit copies of both.
+// Prose between those items is not compared with the code, except where a test below runs the behaviour that a sentence states.
 // Lists are compared as exact sets and every key list with every emitted object of that kind; an empty sample fails instead of passing. Each documented lookup also runs with hostile keys (Object.prototype names, wrong types).
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..'); const DIR = 'adapters/http-legacy-next';
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -43,6 +45,18 @@ const outcomes = { full: outcome('python-fastapi', { files: PY }), verified: out
 const checkouts = Object.fromEntries(Object.entries(outcomes).map(([k, o]) => [k, o.inspect]));
 const shadowOf = (id, result) => mods['shadow-projection'].runLegacyHttpShadowProjection({ adapter: adapterOf(id), report: emitted[id].report, projector: () => result, projectorId: 'rfc-test', projectorContract: 'rfc-test/0', root: rootOf(id) });
 const cmp = compare({ a: 1, b: [1], c: 1, e: [1] }, { a: 2, b: [1, 2], d: 1, e: { x: 1 } });
+// The known limit of BASELINE.json about omitted report sections (RFC section 5): each output it names is one entry of this table, and the same names build the RFC
+// sentences (rfcProblems) and are checked pair by pair (the test below), so the text cannot name an output that nothing runs.
+const SAME = { equal: true, diffs: [], truncated: false };
+const OUTPUT_CHECKS = {
+  summary: (a, b, m) => assert.deepEqual(summarizeLegacyHttpReport(a), summarizeLegacyHttpReport(b), m),
+  snapshot: (a, b, m) => assert.deepEqual(snapshotOf(a), snapshotOf(b), m),
+  digest: (a, b, m) => assert.equal(digestOf(a), digestOf(b), m),
+  comparison: (a, b, m) => { assert.deepEqual(compare(snapshotOf(a), snapshotOf(b)), SAME, m); assert.deepEqual(mods.parity.compareLegacyHttpReports(a, b), SAME, m); }
+};
+const OUTPUTS = Object.keys(OUTPUT_CHECKS); const LIMIT_ID = 'omitted-report-sections-read-as-empty';
+const joined = (xs, word) => `${xs.slice(0, -1).join(', ')} ${word} ${xs.at(-1)}`;
+const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
 
 function sourceProblems(v, extraSources = [], from = emitted) {
   const out = []; const all = Object.values(from); const first = all[0]; const id0 = Object.keys(from)[0]; const srcs = [...Object.keys(mods).map((m) => read(`${DIR}/${m}.mjs`)), ...extraSources]; const cs = read(`${DIR}/checkout-completeness.mjs`);
@@ -50,11 +64,11 @@ function sourceProblems(v, extraSources = [], from = emitted) {
   const shaped = new Set(); const under = (p, q) => p === q || p.startsWith(`${q}/`);
   const shape = (name, objects) => { shaped.add(name); if (!objects.length) out.push(`output_keys.${name}: no emitted sample, so nothing was compared`); objects.forEach((o) => eq(`output_keys.${name}`, v.output_keys[name], Object.keys(o))); };
   eq('adapter ids', Object.keys(v.adapters), IDS);
-  eq('vocabulary keys (each is compared with the code below; open fields are never listed as closed sets)', sorted(['schema', 'adapters', 'schemas', 'foreign_schemas', 'foreign_keys', 'exports', 'imports', 'modes', 'checkout_error_code', 'checkout_conditional_keys', 'sparse_supported_adapters', 'diff_kinds', 'open_fields', 'inherited_names', 'cutover_gates', 'output_keys', 'input_keys', 'projector', 'registry_only_keys', 'owned_files', 'ownership']), sorted(Object.keys(v)));
+  eq('vocabulary keys (each is compared with the code below; open fields are never listed as closed sets)', sorted(['schema', 'adapters', 'schemas', 'foreign_schemas', 'foreign_keys', 'exports', 'imports', 'modes', 'checkout_error_code', 'checkout_conditional_keys', 'sparse_supported_adapters', 'diff_kinds', 'open_fields', 'inherited_names', 'cutover_gates', 'output_keys', 'input_keys', 'projector', 'registry_only_keys', 'owned_files', 'owned_dirs', 'report_sections', 'recorded_limits', 'receipt', 'ownership']), sorted(Object.keys(v)));
   eq('vocabulary schema and nested groups', ['bskel.t11-interface-vocabulary/1', ['bridge', 'shadow', 'checkout'], ['input', 'output']], [v.schema, Object.keys(v.modes), Object.keys(v.projector)]);
   for (const id of IDS) { eq(`${id} registry descriptor`, v.adapters[id], pick(adapterOf(id))); eq(`${id} baseline descriptor`, v.adapters[id], pick(BASELINES[id].descriptor)); eq(`${id} contract`, v.schemas.descriptor, adapterOf(id).contract); }
   for (const [m, names] of Object.entries(v.exports)) eq(`${m}.mjs exports`, sorted(names), sorted(Object.keys(mods[m])));
-  eq('schemas', v.schemas, { descriptor: first.adapter.contract, scan_report: first.report.schema, bridge: mods.bridge.LEGACY_HTTP_BRIDGE_SCHEMA, semantic_snapshot: mods.parity.LEGACY_HTTP_SEMANTIC_SNAPSHOT_SCHEMA, shadow_projection: mods['shadow-projection'].T11_SHADOW_PROJECTION_SCHEMA, cutover_readiness: mods['cutover-readiness'].T11_CUTOVER_READINESS_SCHEMA });
+  eq('schemas', v.schemas, { descriptor: first.adapter.contract, scan_report: first.report.schema, bridge: mods.bridge.LEGACY_HTTP_BRIDGE_SCHEMA, semantic_snapshot: mods.parity.LEGACY_HTTP_SEMANTIC_SNAPSHOT_SCHEMA, shadow_projection: mods['shadow-projection'].T11_SHADOW_PROJECTION_SCHEMA, cutover_readiness: mods['cutover-readiness'].T11_CUTOVER_READINESS_SCHEMA, receipt: receiptLib.RECEIPT_SCHEMA });
   const modules = all.flatMap((e) => e.snapshot.modules); const controllers = modules.flatMap((m) => m.controllers); const nested = (k) => modules.flatMap((m) => m[k]);
   shape('baseline_entry', IDS.map(legacyHttpBaseline)); shape('baseline_descriptor', IDS.map((id) => legacyHttpBaseline(id).descriptor)); shape('bridge', all.map((e) => e.bridge)); shape('adapter_snapshot', all.map((e) => e.bridge.source_adapter));
   all.forEach((e) => eq(`${e.adapter.id} source_adapter`, snapshotLegacyHttpAdapter(e.adapter), e.bridge.source_adapter));
@@ -88,7 +102,18 @@ function sourceProblems(v, extraSources = [], from = emitted) {
     eq('gate order', v.cutover_gates.map((g) => g.gate), Object.keys(ten(v, false).checks)); eq('blockers in gate order', v.cutover_gates.map((g) => g.blocker), ten(v, false).blockers); shape('cutover_readiness', [ten(v, true), ten(v, false)]);
     for (const g of v.cutover_gates) eq(`blocker of ${g.gate}`, [[g.blocker], false], ((r) => [r.blockers, r.ready_for_t00_integration])(ten(v, true, g.gate)));
   } catch (e) { out.push(`cutover call failed: ${e.message}`); }
-  const loads = srcs.map(lib.importsOf); eq('imports', sorted(v.imports), sorted(new Set(loads.flatMap((l) => l.specs)))); eq('computed import() or require that cannot be listed', [], loads.flatMap((l) => l.opaque)); eq('owned files', sorted(v.owned_files), sorted(fs.readdirSync(path.join(ROOT, DIR), { withFileTypes: true }).filter((e) => e.isFile()).map((e) => e.name)));
+  const loads = srcs.map(lib.importsOf); eq('imports', sorted(v.imports), sorted(new Set(loads.flatMap((l) => l.specs)))); eq('computed import() or require that cannot be listed', [], loads.flatMap((l) => l.opaque));
+  // The directory is listed, not only its regular files: each entry is a regular file of owned_files (and the receipt), a directory of owned_dirs, or a failure.
+  const dirents = fs.readdirSync(path.join(ROOT, DIR), { withFileTypes: true }); const names = (kind) => sorted(dirents.filter((e) => (kind === 'file' ? e.isFile() : kind === 'directory' ? e.isDirectory() : !e.isFile() && !e.isDirectory())).map((e) => e.name));
+  const [receiptName, regular] = [path.basename(receiptLib.RECEIPT_FILE), names('file')];
+  eq(`regular files of ${DIR} (owned_files and the receipt; the receipt may be absent only while ${receiptLib.REPLAY_ENV} is 1)`, sorted([...v.owned_files, ...(receiptLib.isReplay() && !regular.includes(receiptName) ? [] : [receiptName])]), regular);
+  eq(`directories of ${DIR} (owned_dirs)`, sorted(v.owned_dirs), names('directory').map((n) => `${DIR}/${n}`));
+  eq(`entries of ${DIR} that are neither a regular file nor a directory`, [], names('other'));
+  eq('paths under owned_dirs that BASELINE.json pins or the receipt hashes', [], [...lib.pinnedEntries(record).map((e) => e.path), ...v.receipt.files].filter((p) => v.owned_dirs.some((d) => under(p, d))));
+  eq('receipt (everything the vocabulary says about it equals the receipt library)', v.receipt, { file: receiptLib.RECEIPT_FILE, status: receiptLib.RECEIPT_STATUS, replay_env: receiptLib.REPLAY_ENV, generator: receiptLib.GENERATOR_FILE, test: receiptLib.TEST_FILE, keys: receiptLib.RECEIPT_KEYS, command_keys: receiptLib.COMMAND_KEYS, file_keys: receiptLib.FILE_KEYS, commands: receiptLib.COMMANDS, files: receiptLib.FILES, limits: receiptLib.LIMITS });
+  for (const f of v.receipt.files) if (!fs.existsSync(path.join(ROOT, f))) out.push(`receipt file ${f} does not exist`);
+  eq('report_sections (the lists of a report that the snapshot copies, under their report names)', sorted(v.report_sections), sorted(Object.entries(first.snapshot).filter(([, x]) => Array.isArray(x)).map(([k]) => (k === 'modules' ? 'related_modules' : k))));
+  eq('recorded_limits (the limits of BASELINE.json that the RFC cites)', [], v.recorded_limits.filter((id) => !record.limits.some((l) => l.id === id)));
   for (const f of [...v.foreign_schemas, ...v.foreign_keys]) if (all.some((e) => JSON.stringify([e.bridge, e.snapshot, e.shadow]).includes(f))) out.push(`${f} must not appear in any T11 output`);
   for (const p of v.ownership.flatMap((o) => o.paths)) if (!fs.existsSync(path.join(ROOT, p))) out.push(`ownership path ${p} does not exist`);
   const { full, verified, partial, truncated, unsupported } = checkouts; const more = (mode) => v.checkout_conditional_keys[mode] ?? [];
@@ -112,14 +137,14 @@ function rfcProblems(text, v) {
   };
   const blocks = text.split(/\n\s*\n/).map((b) => b.trim()); // a table is one whole block, so an extra row below it fails too
   for (const [name, lines] of Object.entries(tables)) if (!blocks.includes(lines.join('\n'))) out.push(`${name} differs from the vocabulary`);
-  const lists = [...Object.entries(v.output_keys), ...Object.entries(v.input_keys), ['projector input', v.projector.input], ['projector output', v.projector.output]];
+  const lists = [...Object.entries(v.output_keys), ...Object.entries(v.input_keys), ['projector input', v.projector.input], ['projector output', v.projector.output], ['receipt', v.receipt.keys], ['receipt command', v.receipt.command_keys], ['receipt file', v.receipt.file_keys]];
   for (const [name, keys] of lists) if (!text.includes(`{${keys.join(', ')}}`)) out.push(`key list ${name} differs from the vocabulary`);
   for (const [, list] of text.matchAll(/\{(\w+(?:, \w+)+)\}/g)) if (!lists.some(([, keys]) => keys.join(', ') === list)) out.push(`RFC cites a key list that the vocabulary does not have: {${list}}`);
   const fns = {}; // the functions of each module row of the section 3 table
   for (const [, mod, cell] of text.split('\n').filter((l) => /^\| `[\w-]+\.mjs` \|/.test(l)).map((l) => l.split('|').map((c) => c.trim()))) (fns[mod.replace(/`|\.mjs/g, '')] ??= []).push(...cell.match(/\w+/g));
   if (!isDeepStrictEqual(sorted(Object.keys(fns)), sorted(Object.keys(v.exports)))) out.push('the modules of the function table differ from the vocabulary');
   for (const [m, names] of Object.entries(v.exports)) if (!isDeepStrictEqual(sorted(names.filter((n) => /^[a-z]/.test(n))), sorted(fns[m] ?? []))) out.push(`function table of ${m}.mjs differs from the vocabulary`);
-  const ids = [...Object.keys(v.adapters), ...Object.values(v.schemas), ...v.foreign_schemas, ...Object.entries(v.exports).flatMap(([m, ns]) => [`${m}.mjs`, ...ns]), ...Object.values(v.modes).flat(), ...Object.values(v.checkout_conditional_keys).flat(), v.checkout_error_code, ...v.diff_kinds, ...v.open_fields, ...v.inherited_names, ...v.owned_files, ...v.ownership.flatMap((o) => o.paths)];
+  const ids = [...Object.keys(v.adapters), ...Object.values(v.schemas), ...v.foreign_schemas, ...Object.entries(v.exports).flatMap(([m, ns]) => [`${m}.mjs`, ...ns]), ...Object.values(v.modes).flat(), ...Object.values(v.checkout_conditional_keys).flat(), v.checkout_error_code, ...v.diff_kinds, ...v.open_fields, ...v.inherited_names, ...v.owned_files, ...v.ownership.flatMap((o) => o.paths), ...v.owned_dirs, ...v.report_sections, ...v.recorded_limits, v.receipt.file, path.basename(v.receipt.file), v.receipt.generator, v.receipt.test, v.receipt.replay_env, v.receipt.status, ...v.receipt.files];
   for (const id of ids) if (!words.has(id)) out.push(`RFC does not name ${id}`);
   const strings = (x) => (typeof x === 'string' ? [x] : x && typeof x === 'object' ? Object.values(x).flatMap(strings) : []);
   const ident = (w) => /^(?:[a-z]+[A-Z]\w*|[a-z]+_\w+|[A-Z][A-Z0-9]*_\w+)$/.test(w); // camelCase, snake_case or CONSTANT_CASE
@@ -131,10 +156,36 @@ function rfcProblems(text, v) {
     if (/^(?:sbf|bskel|beval)\.[a-z0-9.-]+\/\d+$/.test(w) && !schemas.has(w)) out.push(`RFC cites an unlisted schema ${w}`);
     if (/^[a-z]+(?:-[a-z]+)*-not-[a-z-]+$/.test(w) && !blockers.has(w)) out.push(`RFC cites an unlisted blocker ${w}`);
     if (/^[\w./-]+\.mjs$/.test(w) && !fs.existsSync(path.join(ROOT, w.includes('/') ? w : `${DIR}/${w}`))) out.push(`RFC cites a missing file ${w}`);
-    if (/^(?:adapters|scanners|contracts|schemas|release|scripts|test|\.github)\//.test(w) && !fs.existsSync(path.join(ROOT, w))) out.push(`RFC cites a missing path ${w}`);
+    if (/^(?:adapters|scanners|contracts|schemas|release|scripts|test|\.github)\//.test(w) && !fs.existsSync(path.join(ROOT, w)) && !(receiptLib.isReplay() && w === v.receipt.file)) out.push(`RFC cites a missing path ${w}`);
   }
+  // Sentences that state the contents of the directory, the receipt and the limits are rebuilt from the vocabulary and must appear verbatim.
+  const q = (s) => `\`${s}\``; const num = (n) => NUMBER_WORDS[n];
+  const [modules, plain] = [v.owned_files.filter((f) => f.endsWith('.mjs')), v.owned_files.filter((f) => !f.endsWith('.mjs'))];
+  if (!text.includes(`holds exactly these regular files: ${sorted([...plain, path.basename(v.receipt.file)]).map(q).join(', ')} and the ${num(modules.length)} modules; and exactly these ${num(v.owned_dirs.length)} directories: ${v.owned_dirs.map(q).join(' and ')},`)) out.push(`the sentence on the contents of ${DIR} differs from the vocabulary`);
+  if (!text.includes(`${q(v.receipt.file)} (schema ${q(v.schemas.receipt)}, status ${q(v.receipt.status)})`)) out.push('RFC does not state the receipt file, schema and status');
+  if (!text.includes(`The files hashed are ${v.receipt.files.map(q).join(', ')}.`)) out.push('the list of hashed files differs from the vocabulary');
+  for (const c of v.receipt.commands) if (!text.includes(q(c.argv.join(' ')))) out.push(`RFC does not cite the receipt command ${c.id}`);
+  for (const l of v.receipt.limits) if (!text.split('\n').includes(`- ${l}`)) out.push(`RFC does not state the receipt limit ${l.split(':')[0]}`);
+  for (const id of v.recorded_limits) if (!text.includes(`Known limit ${q(id)}`)) out.push(`RFC does not state the known limit ${id}`);
+  // The omitted-sections limit names the sections of the vocabulary and the outputs of OUTPUT_CHECKS, and says what follows from it; the next test runs every case it lists.
+  if (!text.includes(`a report that omits ${joined(v.report_sections.map(q), 'and')} and one that holds them empty give the same ${joined(OUTPUTS, 'and')}`)) out.push('RFC does not state which outputs are the same for a report that omits its sections and one that holds them empty');
+  if (!text.includes(`nothing in ${joined(OUTPUTS.map((o) => `the ${o}`), 'or')} marks the difference, so a parity result cannot tell a section the scanner did not report from one it saw empty`)) out.push('RFC does not state that no output marks an omitted section');
   if (text.trimEnd().split('\n').length > 120) out.push('RFC exceeds 120 lines');
   return [...new Set(out)];
+}
+
+// INTEGRATION.md against BASELINE.json: the digests the document says the record stores are counted in the record, and the claim that nothing stores one stays out.
+function integrationProblems(text, rec, v = vocab) {
+  const out = []; const flat = text.replace(/\s+/g, ' ');
+  const keys = (x, key) => (Array.isArray(x) ? x.reduce((n, item) => n + keys(item, key), 0) : x && typeof x === 'object' ? Object.entries(x).reduce((n, [k, item]) => n + (k === key ? 1 : 0) + keys(item, key), 0) : 0);
+  const stored = (api, key) => rec.fixtures.filter((f) => f.api === api && Object.hasOwn(f.expected ?? {}, key)).length;
+  const [scans, shadows] = [keys(rec, 'semantic_sha256'), keys(rec, 'legacy_semantic_sha256')];
+  if (scans !== stored('scan', 'semantic_sha256') || shadows !== stored('shadow', 'legacy_semantic_sha256')) out.push(`the record holds digest keys outside the expected objects of its scan and shadow fixtures (${scans} semantic_sha256, ${shadows} legacy_semantic_sha256), so the sentence below cannot be checked`);
+  if (!flat.includes(`holds \`semantic_sha256\` in ${scans} places and \`legacy_semantic_sha256\` in ${shadows}, as regression keys`)) out.push(`INTEGRATION.md does not give the digest counts of BASELINE.json (${scans} and ${shadows})`);
+  if (/nothing in this repository stores a snapshot or a digest|no stored value/.test(flat)) out.push('INTEGRATION.md still says that nothing in the repository stores a digest');
+  if (!flat.includes(`the ${NUMBER_WORDS[rec.limits.length]} limits with status and fixture list`)) out.push(`INTEGRATION.md does not count the ${rec.limits.length} limits of BASELINE.json`);
+  for (const name of [path.basename(v.receipt.file), v.receipt.generator, v.receipt.test, 'INTERFACE_RFC.md', v.schemas.receipt]) if (!text.includes(name)) out.push(`INTEGRATION.md does not name ${name}`);
+  return out;
 }
 
 test('T11-02 the vocabulary equals what the modules, registry, imports, directory and real scans of the five fixtures emit', () => assert.deepEqual(sourceProblems(vocab), []));
@@ -234,12 +285,58 @@ test('T11-02 the lookups the RFC documents hold for hostile keys, and the inheri
   assert.equal(shadowWith(undefined)().parity.equal, true); assert.throws(shadowWith(null), RangeError);
 });
 
+test('T11-02 a report that omits its sections gives the same summary, snapshot, digest and comparison as one that holds them empty, as the recorded limit and the RFC say', () => {
+  const bare = { schema: vocab.schemas.scan_report }; const report = (extra) => ({ ...bare, ...extra }); const bareDigest = digestOf(bare);
+  const none = { controllers: [], entities: [], enums: [], dtos: [] };
+  // [what is left out, the report that leaves it out, the report that holds it empty or null]
+  const pairs = [
+    [`${vocab.report_sections.join(', ')} together`, {}, Object.fromEntries(vocab.report_sections.map((s) => [s, []]))],
+    ...vocab.report_sections.map((s) => [`${s} alone`, {}, { [s]: [] }]),
+    ...['adapter', 'verdict'].map((k) => [`${k}: missing against null`, {}, { [k]: null }]),
+    ['the lists of a module', { related_modules: [{ module: 'm' }] }, { related_modules: [{ module: 'm', ...none }] }]
+  ];
+  for (const [what, omits, holds] of pairs) for (const [output, check] of Object.entries(OUTPUT_CHECKS)) check(report(omits), report(holds), `${what}: ${output}`);
+  // The pairs are not equal because the outputs ignore their input: a present value moves the digest, shows in the comparison and, where the summary counts it, in the summary.
+  const present = [['a file read', { files_read: ['x'] }], ['a path prefix signal', { path_prefix_signals: ['x'] }], ['a module', { related_modules: [{ module: 'm' }] }], ['an adapter', { adapter: 'java-spring' }], ['a verdict', { verdict: 'v' }],
+    ['a controller of a module', { related_modules: [{ module: 'm', controllers: [{ className: 'C', endpoints: [] }] }] }]];
+  for (const [what, extra] of present) {
+    const c = compare(snapshotOf(bare), snapshotOf(report(extra)));
+    assert.notEqual(digestOf(report(extra)), bareDigest, `${what} moves the digest`);
+    assert.deepEqual([c.equal, c.diffs.length > 0], [false, true], `${what} shows in the comparison`);
+  }
+  for (const extra of [{ related_modules: [{ module: 'm' }] }, { related_modules: [{ module: 'm', controllers: [{ className: 'C', endpoints: [] }] }] }]) assert.notDeepEqual(summarizeLegacyHttpReport(report(extra)), summarizeLegacyHttpReport(bare), JSON.stringify(extra));
+  // Nothing marks an omitted section as unknown: the snapshot and the summary have no key for it and read it as an empty list or a zero.
+  const [snapshot, summary] = [snapshotOf(bare), summarizeLegacyHttpReport(bare)];
+  assert.deepEqual([Object.keys(snapshot), Object.keys(summary)], [vocab.output_keys.semantic_snapshot, vocab.output_keys.report_summary]);
+  assert.deepEqual(vocab.report_sections.map((s) => snapshot[s === 'related_modules' ? 'modules' : s]), [[], [], []]);
+  assert.deepEqual(Object.values(summary), [[], 0, 0, 0, 0, 0, 0, 0]);
+  // The record states the limit, quotes the digest computed here, names the four functions and cites this test; no fixture of the record holds the pair.
+  const limit = record.limits.find((l) => l.id === LIMIT_ID);
+  assert.ok(limit, `BASELINE.json records ${LIMIT_ID}`);
+  assert.deepEqual([limit.status, Object.hasOwn(limit, 'fixtures')], ['UNSUPPORTED', false]);
+  assert.deepEqual(limit.statement.match(/\b[0-9a-f]{64}\b/g), [bareDigest], 'the only digest the statement quotes is the one of a schema-only report');
+  for (const needle of [summarizeLegacyHttpReport.name, snapshotOf.name, digestOf.name, compare.name, ...vocab.report_sections, 'test/http-legacy-next/interface-rfc.test.mjs executes it.']) assert.ok(limit.statement.includes(needle), `the statement names ${needle}`);
+  assert.ok(!JSON.stringify(record.fixtures).includes(bareDigest), 'no fixture holds the digest of a schema-only report');
+  assert.deepEqual(vocab.recorded_limits, [LIMIT_ID]);
+  assert.deepEqual(rfcProblems(rfc, vocab), []);
+});
+
+test('T11-02 INTEGRATION.md gives the digest counts of BASELINE.json and no longer says that nothing in the repository stores a digest', () => {
+  const integration = read(`${DIR}/INTEGRATION.md`);
+  assert.deepEqual(integrationProblems(integration, record), []);
+  // integrationProblems counts the keys in the record by name, wherever they sit; the literals below are the counts as of this test, so a digest added to the record is noticed here too.
+  const scans = record.fixtures.filter((f) => f.api === 'scan'); const shadows = record.fixtures.filter((f) => f.api === 'shadow' && Object.hasOwn(f.expected, 'legacy_semantic_sha256'));
+  assert.deepEqual([scans.length, scans.every((f) => /^[0-9a-f]{64}$/.test(f.expected.semantic_sha256)), shadows.length], [5, true, 2]);
+  assert.match(integration.replace(/\s+/g, ' '), /`semantic_sha256` in 5 places and `legacy_semantic_sha256` in 2, as regression keys/);
+});
+
 test('T11-02 negative: edited copies of the RFC and the vocabulary make the same checks fail', () => {
   const rfcBad = (edit, v = vocab) => rfcProblems(edit(rfc), v).join('\n');
   const srcBad = (edit, ...rest) => { const v = structuredClone(vocab); edit(v); return sourceProblems(v, ...rest).join('\n'); };
   const cases = (bad, rows) => rows.forEach(([edit, pattern]) => assert.match(bad(edit), pattern, String(edit)));
   for (const id of ['ownership-scope-not-clean', 'sparse-unsupported-adapter', 'array-length', 'sbf.http-legacy-bridge/1', 'compareLegacyHttpReports', 'T11_CORPUS_CHECKOUT_INCOMPLETE', 'missing_paths_truncated', 'contract_hash', 'hasOwnProperty', '__proto__']) assert.match(rfcBad((t) => t.replaceAll(id, 'REDACTED')), /RFC does not name|differs from the vocabulary/, id);
-  assert.equal(rfcProblems(`${rfc.trimEnd()} \`sbf.invented/1\` \`made-up-not-clean\` \`ghost.mjs\` \`adapters/ghost\``, vocab).length, 4);
+  // The invented tokens go on a line of their own: the receipt limits are compared line by line and the last line of the RFC is one of them.
+  assert.equal(rfcProblems(`${rfc.trimEnd()}\n\`sbf.invented/1\` \`made-up-not-clean\` \`ghost.mjs\` \`adapters/ghost\``, vocab).length, 4);
   const n = rfc.trimEnd().split('\n').length;
   assert.deepEqual([120, 121].map((total) => rfcProblems(rfc.trimEnd() + '\nx'.repeat(total - n), vocab).includes('RFC exceeds 120 lines')), [false, true], 'the cap counts lines, not the final newline');
   // Each key list of the RFC: a key dropped, a key added.
@@ -253,11 +350,55 @@ test('T11-02 negative: edited copies of the RFC and the vocabulary make the same
     [(t) => t.replace(/(\| javascript-express \|.*)/, '$1\n| ghost | 1 | low | none | no | no | no | no |'), /adapter table/],
     [(t) => t.replace(/(\| \`release\/next\` \|.*)/, '$1\n| \`ghost\` | T99 | edit |'), /ownership table/],
     [(t) => t.replace('| \`bridge.mjs\` | \`summarizeLegacyHttpReport\` |', '| \`parity.mjs\` | \`summarizeLegacyHttpReport\` |'), /function table of (bridge|parity)\.mjs/],
-    [(t) => `${t.trimEnd()} bridgeEverything`, /unlisted identifier bridgeEverything/]
+    [(t) => `${t.trimEnd()} bridgeEverything`, /unlisted identifier bridgeEverything/],
+    // The directory sentence (T11-02): a directory dropped, a directory added, the kind of entry changed, a regular file dropped, the receipt left out.
+    [(t) => t.replace(' and `adapters/http-legacy-next/scope`', ''), /sentence on the contents of adapters\/http-legacy-next/],
+    [(t) => t.replace('`adapters/http-legacy-next/python-fastapi` and ', '`adapters/http-legacy-next/ghost`, `adapters/http-legacy-next/python-fastapi` and '), /sentence on the contents of adapters\/http-legacy-next/],
+    [(t) => t.replace('exactly these two directories', 'exactly these regular files'), /sentence on the contents of adapters\/http-legacy-next/],
+    [(t) => t.replace('`INTEGRATION.md`, ', ''), /sentence on the contents of adapters\/http-legacy-next/],
+    [(t) => t.replace('`INTERFACE_RECEIPT.json`, ', ''), /sentence on the contents of adapters\/http-legacy-next/],
+    // The receipt (T11-02): file, schema and status, a hashed file dropped or invented, a command, a limit, a key list.
+    [(t) => t.replace('status `provisional`)', 'status `final`)'), /does not state the receipt file, schema and status/],
+    [(t) => t.replace('(schema `bskel.interface-receipt/1`', '(schema `bskel.interface-receipt/2`'), /does not state the receipt file, schema and status|unlisted schema/],
+    [(t) => t.replace('`adapters/http-legacy-next/INTEGRATION.md`, ', ''), /list of hashed files/],
+    [(t) => t.replace('`test/http-legacy-next/interface-rfc.test.mjs`, ', '`test/http-legacy-next/interface-rfc.test.mjs`, `test/http-legacy-next/ghost.test.mjs`, '), /list of hashed files|missing path/],
+    [(t) => t.replace('`node scripts/run-next-nested-tests.mjs T11`', '`node scripts/run-next-nested-tests.mjs T12`'), /receipt command nested-runner/],
+    [(t) => t.replace('- self-run: ', '- self-checked: '), /receipt limit self-run/],
+    [(t) => t.replace('- provisional: ', '- final: '), /receipt limit provisional/],
+    [(t) => t.replace('{id, argv, exit_code, tests, pass, fail, skipped, pass_text}', '{id, argv, exit_code, tests, pass, fail, skipped}'), /key list receipt command/],
+    [(t) => t.replace('{path, bytes, git_blob_sha1, sha256}', '{path, bytes, sha256}'), /key list receipt file/],
+    [(t) => t.replace('{schema, status, track, items, revision, tree, node_version, commands, files, limits, receipt_digest}', '{schema, status, track, items, revision, tree, node_version, commands, files, limits}'), /key list receipt /],
+    // The omitted sections (T11-02): the limit left out, a section or an output dropped from the sentences, the consequence reworded.
+    [(t) => t.replace('Known limit `omitted-report-sections-read-as-empty`', 'Known limit `omitted-sections`'), /known limit omitted-report-sections-read-as-empty/],
+    [(t) => t.replace('give the same summary, snapshot, digest and comparison', 'give the same summary, snapshot and digest'), /which outputs are the same/],
+    [(t) => t.replace('`related_modules`, `path_prefix_signals` and `files_read` and one that holds', '`related_modules` and `path_prefix_signals` and one that holds'), /which outputs are the same/],
+    [(t) => t.replace('the digest or the comparison marks the difference', 'the digest marks the difference'), /no output marks an omitted section/],
+    [(t) => t.replace(', so a parity result cannot tell a section the scanner did not report from one it saw empty', ''), /no output marks an omitted section/]
   ]);
+  // INTEGRATION.md (T11-02): a count changed, the old claim restored, the limits miscounted, a cited file renamed; and records that hold another digest or fewer limits.
+  // The document wraps its lines, so the edits work on the text with its whitespace collapsed, which is also how integrationProblems reads it.
+  const integration = read(`${DIR}/INTEGRATION.md`); const integrationBad = (edit, rec = record) => integrationProblems(edit(integration.replace(/\s+/g, ' ')), rec).join('\n');
+  cases(integrationBad, [
+    [(t) => t.replace('`semantic_sha256` in 5 places', '`semantic_sha256` in 4 places'), /does not give the digest counts of BASELINE\.json \(5 and 2\)/],
+    [(t) => t.replace('`legacy_semantic_sha256` in 2,', '`legacy_semantic_sha256` in 3,'), /does not give the digest counts of BASELINE\.json \(5 and 2\)/],
+    [(t) => `${t}\nThe schema string stays unchanged because nothing in this repository stores a snapshot or a digest.`, /still says that nothing in the repository stores a digest/],
+    [(t) => `${t}\nThere is no stored value that a new version string would protect.`, /still says that nothing in the repository stores a digest/],
+    [(t) => t.replace('the ten limits', 'the nine limits'), /does not count the 10 limits of BASELINE\.json/],
+    [(t) => t.replaceAll('interface-receipt-generate.mjs', 'ghost.mjs'), /does not name test\/http-legacy-next\/interface-receipt-generate\.mjs/],
+    [(t) => t.replaceAll('INTERFACE_RECEIPT.json', 'ghost.json'), /does not name INTERFACE_RECEIPT\.json/]
+  ]);
+  const recordWith = (edit) => { const r = structuredClone(record); edit(r); return r; };
+  assert.match(integrationBad((t) => t, recordWith((r) => { r.fixtures[5].expected.semantic_sha256 = '0'.repeat(64); })), /holds digest keys outside the expected objects of its scan and shadow fixtures \(6 semantic_sha256, 2 legacy_semantic_sha256\)/);
+  assert.match(integrationBad((t) => t, recordWith((r) => { r.limits[0].legacy_semantic_sha256 = '0'.repeat(64); })), /holds digest keys outside the expected objects of its scan and shadow fixtures \(5 semantic_sha256, 3 legacy_semantic_sha256\)/);
+  assert.match(integrationBad((t) => t, recordWith((r) => { delete r.fixtures[0].expected.semantic_sha256; })), /does not give the digest counts of BASELINE\.json \(4 and 2\)/);
+  assert.match(integrationBad((t) => t, recordWith((r) => r.limits.pop())), /does not count the 9 limits of BASELINE\.json/);
   const vocabBad = (edit) => { const v = structuredClone(vocab); edit(v); return rfcProblems(rfc, v).join('\n'); };
   cases(vocabBad, [[(v) => v.foreign_keys.push('ghost_key'), /RFC does not name ghost_key/], [(v) => v.inherited_names.push('isPrototypeOf'), /RFC does not name isPrototypeOf/], [(v) => v.input_keys.bridgeLegacyHttpScan.push('x'), /key list bridgeLegacyHttpScan/], [(v) => { v.ownership[0].t11 = 'read'; }, /ownership table/], [(v) => v.projector.input.reverse(), /key list projector input/],
-    [(v) => { delete v.adapters['ruby-rails'].capabilities['codegen.handles']; }, /capability columns of ruby-rails/]]);
+    [(v) => { delete v.adapters['ruby-rails'].capabilities['codegen.handles']; }, /capability columns of ruby-rails/],
+    [(v) => v.owned_dirs.pop(), /sentence on the contents of adapters\/http-legacy-next/], [(v) => v.owned_dirs.push('adapters/http-legacy-next/ghost'), /RFC does not name adapters\/http-legacy-next\/ghost/],
+    [(v) => { v.receipt.status = 'final'; }, /receipt file, schema and status/], [(v) => v.receipt.files.pop(), /list of hashed files/], [(v) => v.receipt.limits.push('extra: a limit'), /receipt limit extra/],
+    [(v) => v.receipt.commands[1].argv.push('--x'), /receipt command nested-runner/], [(v) => v.receipt.command_keys.pop(), /key list receipt command/],
+    [(v) => v.report_sections.pop(), /which outputs are the same/], [(v) => v.recorded_limits.push('ghost-limit'), /RFC does not name ghost-limit/]]);
   cases(srcBad, [
     [(v) => { v.adapters['java-spring'].capabilities['api.operations'] = false; }, /java-spring registry descriptor/],
     [(v) => v.cutover_gates.reverse(), /blockers in gate order/],
@@ -283,7 +424,23 @@ test('T11-02 negative: edited copies of the RFC and the vocabulary make the same
     [(v) => v.owned_files.push('ghost.mjs'), /modules with exports/],
     [(v) => v.foreign_keys.push('verdict'), /verdict must not appear/],
     [(v) => v.ownership.find((o) => /pinned by/.test(o.t11)).paths.push('contracts/next'), /paths pinned by BASELINE\.json/],
-    [(v) => v.ownership.find((o) => /pinned by/.test(o.t11)).paths.pop(), /paths pinned by BASELINE\.json/]
+    [(v) => v.ownership.find((o) => /pinned by/.test(o.t11)).paths.pop(), /paths pinned by BASELINE\.json/],
+    // The directory listing (T11-02): a directory dropped or invented, a regular file dropped or invented.
+    [(v) => v.owned_dirs.pop(), /directories of adapters\/http-legacy-next \(owned_dirs\)/],
+    [(v) => v.owned_dirs.push('adapters/http-legacy-next/ghost'), /directories of adapters\/http-legacy-next \(owned_dirs\)/],
+    [(v) => v.owned_files.splice(v.owned_files.indexOf('INTEGRATION.md'), 1), /regular files of adapters\/http-legacy-next/],
+    [(v) => v.owned_files.push('EXTRA.md'), /regular files of adapters\/http-legacy-next/],
+    [(v) => v.owned_files.push(receiptLib.RECEIPT_FILE.split('/').pop()), /regular files of adapters\/http-legacy-next/],
+    // The receipt and the recorded limits (T11-02): every field the vocabulary holds is compared with the receipt library, and the pinned and hashed paths stay out of the directories.
+    [(v) => { v.receipt.status = 'final'; }, /receipt \(everything the vocabulary says about it equals the receipt library\)/],
+    [(v) => v.receipt.files.pop(), /receipt \(everything/],
+    [(v) => { v.receipt.limits[0] = 'self-run: edited'; }, /receipt \(everything/],
+    [(v) => v.receipt.keys.pop(), /receipt \(everything/],
+    [(v) => { v.receipt.commands[0].argv[1] = '--run'; }, /receipt \(everything/],
+    [(v) => v.receipt.files.push('adapters/http-legacy-next/scope/ghost.json'), /paths under owned_dirs that BASELINE\.json pins or the receipt hashes/],
+    [(v) => { v.schemas.receipt = 'bskel.interface-receipt/2'; }, /schemas: /],
+    [(v) => v.report_sections.pop(), /report_sections/],
+    [(v) => v.recorded_limits.push('ghost-limit'), /recorded_limits/]
   ]);
   const drop = [(l) => l.pop(), (l) => l.push('extra')]; // a key lost, a key invented
   for (const g of Object.keys(vocab.output_keys)) for (const edit of drop) assert.match(srcBad((v) => edit(v.output_keys[g])), new RegExp(`output_keys\\.${g}: `), g);
