@@ -33,9 +33,12 @@ test('T11-01 the record is consistent, claims nothing as supported, and every pi
   assert.deepEqual(lib.verifyRecord(record), []);
   assert.doesNotMatch(JSON.stringify(record), /"(?:SUPPORTED|supported|certified|runtime-tested)"/);
   assert.deepEqual(live.corrupt, [], 'a record that disagrees with a file in only one hash is damaged, not moved');
-  t.diagnostic(live.fresh ? 'live tree equals the recorded revision' : `live tree moved: ${live.moved.join(', ')}`);
-  if (live.fresh) assert.deepEqual(lib.verifyRecord(record, lib.liveReader(REPO_ROOT), 'live'), []);
-  else if (pinnedAvailable(t)) assert.deepEqual(lib.verifyRecord(record, lib.commitReader(REPO_ROOT, record.base_commit), 'pinned commit'), []);
+  t.diagnostic(live.pinsMoved.length === 0 ? `every pinned file equals the record; ${live.moved.length} files that no pin covers sit beside them` : `pinned files moved: ${live.pinsMoved.join(', ')}`);
+  const pinnedRead = pinnedAvailable(t) ? lib.commitReader(REPO_ROOT, record.base_commit) : null;
+  const { problems, compared } = lib.pinProblems(record, { live, liveRead: lib.liveReader(REPO_ROOT), pinnedRead });
+  t.diagnostic(`pins compared with: ${compared.length > 0 ? compared.join(' and ') : 'nothing'}`);
+  assert.deepEqual(problems, []);
+  if (process.env.BASELINE_ALLOW_UNVERIFIED !== '1') assert.ok(compared.includes('pinned commit blobs'), 'without the explicit override the pinned commit decides, fresh live tree or not');
 });
 
 test('T11-01 the nested runner still collects every recorded test file and this record test', () => {
@@ -46,7 +49,11 @@ test('T11-01 the nested runner still collects every recorded test file and this 
 });
 
 test('T11-01 replaying the fixtures on the live tree reproduces every recorded output hash', async (t) => {
-  if (!live.fresh) return t.diagnostic('live tree moved: the replay on the pinned commit below decides');
+  // Files that no pin covers sit in the live tree (other tracks add them), but only a moved pin, a scanner adapter or a fixture
+  // file can change a replay (the scenario test below runs both kinds), so the replay runs unless one of those moved.
+  if (live.replayMoved.length > 0) return t.diagnostic(`live replay NOT run, files that change a replay moved: ${live.replayMoved.join(', ')}; the export of the pinned commit decides`);
+  t.diagnostic(`live replay runs; ${live.moved.length} files that no pin covers cannot change it`);
+  assert.deepEqual(lib.importProblems(record, lib.liveReader(REPO_ROOT)), [], 'the modules load only each other and node: built-ins');
   assert.deepEqual(await replayOf(REPO_ROOT), []);
 });
 
@@ -66,6 +73,8 @@ test('T11-01 the pinned commit has the recorded tree and files, and an export of
 
   await inScratch('export', async (dest) => {
     lib.extractTree(REPO_ROOT, commit, dest);
+    const exported = lib.classifyLive(record, dest);
+    assert.deepEqual([exported.corrupt, exported.moved], [[], []], 'every pin equals its file in the pinned commit, and the commit holds no file that no pin covers: the forged checkout below starts from this export');
     const files = record.tests.map((x) => x.path);
     const [nested, tap, ...perFile] = await Promise.all([lib.runNestedRunner(dest, record.suite_id), lib.runTapTests(dest, files), ...files.map((f) => lib.runTapTests(dest, [f]))]);
     const command = (id) => record.commands.find((c) => c.id === id);
@@ -157,11 +166,17 @@ test('T11-01 negative: recomputation catches same-length edits that a format che
 });
 
 test('T11-01 negative: a re-sealed record with an invented base commit and tree fails in a shallow checkout although every live hash matches', (t) => inScratch('forged', async (dir) => {
+  // The checkout is built from the real pinned commit, which has to be available here (fetched when absent, a failure otherwise).
+  if (!pinnedAvailable(t)) return;
   const checkout = lib.forgedCheckout(dir);
   const forged = lib.readRecord(checkout);
   assert.deepEqual(lib.verifyRecord(forged), [], 'the forgery is well-formed and sealed, so only the pinned commit can refuse it');
   assert.equal(lib.isShallow(checkout), true);
-  if (!lib.classifyLive(forged, checkout).fresh) return t.diagnostic('live tree moved: this case needs live hashes that match the record');
+  assert.notEqual(forged.base_commit, record.base_commit, 'the record names a commit that exists nowhere');
+  assert.equal(lib.hasCommit(checkout, forged.base_commit), false);
+  const state = lib.classifyLive(forged, checkout);
+  assert.deepEqual([state.corrupt, state.moved], [[], []], 'every live hash matches the forged record, so the cases below run on any working tree and cannot be skipped');
+  assert.equal(state.fresh, true);
   const refused = await lib.runPinnedCheck(checkout);
   assert.notEqual(refused.exit_code, 0);
   assert.match(refused.stdout, /pinned commit unavailable/);
@@ -169,6 +184,95 @@ test('T11-01 negative: a re-sealed record with an invented base commit and tree 
   assert.equal(allowed.exit_code, 0);
   assert.match(allowed.stdout, /pinned-commit checks were NOT run/);
 }));
+
+test('T11-01 negative: a pin edited together with its file and re-sealed passes on the live files alone and is refused by the pinned commit', (t) => inScratch('pins', async (dir) => {
+  if (!pinnedAvailable(t)) return;
+  // Two exports of the pinned commit: `pristine` stands for the commit's blobs, `edited` for a live tree whose file was changed.
+  const [pristine, edited] = ['pristine', 'edited'].map((name) => { const d = path.join(dir, name); fs.mkdirSync(d); lib.exportCommit(REPO_ROOT, record.base_commit, d); return d; });
+  const kinds = [
+    ['T11 source', (r) => r.sources[0]],
+    ['test file', (r) => r.tests[0]],
+    ['scanner file', (r) => r.scanner_files[0]],
+    ['fixture file', (r) => r.inputs[0].files[0]],
+    ['runner script', (r) => r.commands[0].runner_script],
+    ['lock file', (r) => r.environment.package_lock]
+  ];
+  const genuine = lib.pinProblems(record, { live: lib.classifyLive(record, pristine), liveRead: lib.liveReader(pristine), pinnedRead: lib.liveReader(pristine) });
+  assert.deepEqual(genuine, { problems: [], compared: ['live files', 'pinned commit blobs'] }, 'the genuine record passes both comparisons');
+  for (const [kind, pick] of kinds) {
+    const rel = pick(record).path;
+    const original = fs.readFileSync(path.join(edited, rel));
+    fs.appendFileSync(path.join(edited, rel), '\n');
+    try {
+      const forged = reseal((r) => Object.assign(pick(r), lib.digestsOf(fs.readFileSync(path.join(edited, rel)))));
+      const state = lib.classifyLive(forged, edited);
+      assert.equal(state.fresh, true, `${kind}: the edited pin and the edited file agree, so the live tree looks fresh`);
+      assert.deepEqual(lib.verifyRecord(forged), [], `${kind}: the forged record is well-formed and sealed`);
+      assert.deepEqual(lib.verifyRecord(forged, lib.liveReader(edited), 'live'), [], `${kind}: the live files alone accept it`);
+      const { problems, compared } = lib.pinProblems(forged, { live: state, liveRead: lib.liveReader(edited), pinnedRead: lib.liveReader(pristine) });
+      assert.deepEqual(compared, ['live files', 'pinned commit blobs'], kind);
+      assert.deepEqual(problems.filter((p) => p.startsWith('live:')), [], `${kind}: nothing is wrong with the live files`);
+      assert.ok(problems.some((p) => p.startsWith(`pinned commit: ${rel} sha256 `)), `${kind}: the pinned commit refuses the pin of ${rel}: ${problems.join(' | ')}`);
+    } finally {
+      fs.writeFileSync(path.join(edited, rel), original);
+    }
+  }
+  // Which comparisons run: a moved pin ends the comparison with the live files, a missing commit ends the one with its blobs.
+  const idle = { live: { pinsMoved: [] }, liveRead: () => null, pinnedRead: null };
+  assert.deepEqual(lib.pinProblems({}, { ...idle, live: { pinsMoved: ['x'] } }), { problems: [], compared: [] });
+  assert.deepEqual(lib.pinProblems({}, { ...idle, live: { pinsMoved: ['x'] }, pinnedRead: () => null }).compared, ['pinned commit blobs']);
+  assert.deepEqual(lib.pinProblems({}, idle).compared, ['live files']);
+}));
+
+test('T11-01 the live replay stops for a moved pin, a scanner adapter or a fixture file, and ignores unpinned T11 sources and tests that no module imports', (t) => inScratch('replay', async (dir) => {
+  if (!pinnedAvailable(t)) return;
+  lib.extractTree(REPO_ROOT, record.base_commit, dir);
+  const put = (rel, text) => { fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true }); fs.writeFileSync(path.join(dir, rel), text); };
+  const clean = lib.classifyLive(record, dir);
+  assert.deepEqual([clean.moved, clean.replayMoved, clean.fresh], [[], [], true], 'the pinned commit itself');
+  // Files like the ones other tracks add beside the baseline: a replay on this tree is the live replay of the main branch.
+  const beside = ['adapters/http-legacy-next/python-fastapi/other.mjs', 'adapters/http-legacy-next/scope/other.json', 'test/http-legacy-next/fixtures/target-scope/other.json', 'test/http-legacy-next/other.test.mjs'];
+  for (const rel of beside) put(rel, 'export const unpinned = true;\n');
+  const ignored = lib.classifyLive(record, dir);
+  assert.deepEqual(ignored.unpinned, { source: beside.slice(0, 2), scanner: [], tests: beside.slice(2), fixtures: [] });
+  assert.deepEqual([ignored.moved.length, ignored.replayMoved, ignored.fresh], [4, [], false], 'the tree moved, the replay inputs did not');
+  assert.deepEqual(lib.importProblems(record, lib.liveReader(dir)), []);
+  assert.deepEqual(await replayOf(dir), [], 'unpinned T11 sources and tests change no recorded output');
+  const stops = (rel, text, where) => {
+    put(rel, text);
+    const state = lib.classifyLive(record, dir);
+    assert.deepEqual(state.replayMoved, [rel], where);
+    return state;
+  };
+  stops('scanners/adapters/another-adapter.mjs', 'export const id = "another";\n', 'a scanner adapter the registry would load');
+  fs.rmSync(path.join(dir, 'scanners/adapters/another-adapter.mjs'));
+  const fixture = `${record.inputs[0].dir}/src/main/java/extra/Extra.java`;
+  stops(fixture, 'package extra;\npublic class Extra {}\n', 'a file inside a fixture tree');
+  assert.notDeepEqual(await replayOf(dir), [], 'a file in a fixture tree does change the replay, so it must stop it');
+  fs.rmSync(path.join(dir, fixture));
+  const module = record.sources[0].path;
+  fs.appendFileSync(path.join(dir, module), '\n');
+  const moved = lib.classifyLive(record, dir);
+  assert.deepEqual([moved.pinsMoved, moved.replayMoved], [[module], [module]], 'a pinned module that changed');
+}));
+
+test('T11-01 negative: the live replay is only sound while the pinned modules load nothing but each other and node: built-ins', () => {
+  const [first, second] = record.sources.map((s) => s.path);
+  // The first module is replaced by `text` (or made unreadable by null); every other module is an import-free stand-in.
+  const check = (text) => lib.importProblems(record, (rel) => (rel !== first ? Buffer.from('export const unrelated = 1;\n') : text === null ? null : Buffer.from(text)));
+  assert.deepEqual(lib.importProblems(record, lib.liveReader(REPO_ROOT)), [], 'the six modules as they are');
+  assert.deepEqual(check(`import fs from 'node:fs';\nimport { x } from './${path.posix.basename(second)}';\nexport * from './${path.posix.basename(second)}';`), []);
+  for (const [text, pattern] of [
+    ["import x from './python-fastapi/adapter.mjs';", /imports \.\/python-fastapi\/adapter\.mjs, which is neither a pinned T11 module nor a node: built-in/],
+    ["export * from '../../scanners/index.mjs';", /imports \.\.\/\.\.\/scanners\/index\.mjs, which is neither/],
+    ["import left from 'left-pad';", /imports left-pad, which is neither/],
+    ["import fs from 'fs';", /imports fs, which is neither/],
+    ["import './not-a-module.mjs';", /imports \.\/not-a-module\.mjs, which is neither/],
+    ['const m = await import(name);', /loads a module that cannot be listed \(import\(\)/],
+    ["const r = require('./x.cjs');", /loads a module that cannot be listed \(require\(\)/],
+    [null, /imports: cannot read /]
+  ]) assert.match(check(text).join('\n'), pattern, String(text));
+});
 
 test('T11-01 negative: a depth-1 checkout fetches the pinned commit, and an unfetchable one fails unless explicitly allowed', () => inScratch('depth1', (dir) => {
   const { checkout, record: small } = lib.depthOneCase(dir);

@@ -1424,7 +1424,7 @@
   "artifact_digest": {
     "algorithm": "sha256",
     "covers": "canonical JSON of this whole record except artifact_digest.value, so prose (limits and their statuses, fixture classes and origins, notes, CI observations) is bound too",
-    "value": "0651ebd4e2f1660ffff84044919ac9d86462c9f6ac0c8f2fcc3e86865e2ed96e"
+    "value": "6c3a5b3b83caa7a70682922cedb7e629ced36ccfa81b6bd5d5aa57340e6d691b"
   },
   "ci_observations": [
     {
@@ -1529,6 +1529,11 @@
       "id": "identity-and-capability-interfaces-not-frozen",
       "status": "BLOCKED",
       "statement": "identity_interface_frozen and capability_interface_frozen depend on the T01 and T03 interfaces, which T11 does not import. INTERFACE_RFC.md records the intended mapping; nothing is claimed as supported."
+    },
+    {
+      "id": "omitted-report-sections-read-as-empty",
+      "status": "UNSUPPORTED",
+      "statement": "A scan report that omits a section is read as if the section were present and empty. summarizeLegacyHttpReport, legacyHttpSemanticSnapshot, legacyHttpSemanticDigest and compareLegacyHttpSemanticSnapshots give the same summary, snapshot, digest and comparison for a report that holds only its schema as for the same report with related_modules, path_prefix_signals and files_read all empty (digest 0d01380b94831703aade340c7123141f8d5c491f66bac8b8ab6b9e371b7d6762); the same holds when only one of the three sections is added empty, for a missing adapter or verdict against null, and for a module that omits its lists against empty lists. Nothing marks an omitted section as unknown, so a parity result cannot tell a section the scanner did not report from one it observed to be empty. No fixture of this record covers the pair; test/http-legacy-next/interface-rfc.test.mjs executes it."
     }
   ],
   "verification": {
