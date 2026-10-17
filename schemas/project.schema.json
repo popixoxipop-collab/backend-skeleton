@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:project:1",
+  "title": "BSKEL discovered project",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "project_id",
+    "root",
+    "name",
+    "package_json",
+    "package_digest",
+    "package_role",
+    "dependencies",
+    "scripts_declared",
+    "source_files"
+  ],
+  "properties": {
+    "schema": {
+      "const": "sbf.project/1"
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "root": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "package_json": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "scripts_declared": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "source_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "role"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "active",
+              "reference",
+              "generated",
+              "vendor",
+              "template"
+            ]
+          }
+        }
+      }
+    },
+    "source_role_counts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "parsed_source_files": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "package_digest": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "package_role": {
+      "enum": [
+        "active",
+        "reference",
+        "generated",
+        "vendor",
+        "template"
+      ]
+    }
+  }
+}
