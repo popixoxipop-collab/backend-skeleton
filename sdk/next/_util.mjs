@@ -1,3 +1,5 @@
+import { types as nodeUtilTypes } from 'node:util';
+
 export const SDK_INPUT_LIMITS = Object.freeze({
 	identifierBytes: 128,
 	titleBytes: 512,
@@ -49,7 +51,7 @@ export function utf8Bytes(value) {
 }
 
 export function isPlainObject(value) {
-	if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+	if (value === null || typeof value !== 'object' || nodeUtilTypes.isProxy(value) || Array.isArray(value)) return false;
 	const proto = Object.getPrototypeOf(value);
 	return proto === Object.prototype || proto === null;
 }
@@ -91,9 +93,9 @@ function parseSemver(value) {
 		(/^\d+$/.test(part) && part.length > 1 && part.startsWith('0')))) return null;
 	if (build.some((part) => part.length === 0 || !/^[0-9A-Za-z-]+$/.test(part))) return null;
 	return {
-		major: Number(match[1]),
-		minor: Number(match[2]),
-		patch: Number(match[3]),
+		major: BigInt(match[1]),
+		minor: BigInt(match[2]),
+		patch: BigInt(match[3]),
 		prerelease,
 	};
 }
@@ -122,7 +124,7 @@ export function compareSemver(a, b) {
 		if (aPart === bPart) continue;
 		const aNumeric = /^\d+$/.test(aPart);
 		const bNumeric = /^\d+$/.test(bPart);
-		if (aNumeric && bNumeric) return Number(aPart) < Number(bPart) ? -1 : 1;
+		if (aNumeric && bNumeric) return BigInt(aPart) < BigInt(bPart) ? -1 : 1;
 		if (aNumeric !== bNumeric) return aNumeric ? -1 : 1;
 		return aPart < bPart ? -1 : 1;
 	}
@@ -202,24 +204,49 @@ export function cloneJsonValue(value, {
 			if (!Number.isFinite(current)) throw new TypeError('JSON numbers must be finite');
 			return current;
 		}
+		// Node's native Proxy brand check does not execute user-defined traps.
+		// It must precede any ownKeys, descriptor, length or prototype access.
+		if (current !== null && typeof current === 'object' && nodeUtilTypes.isProxy(current)) {
+			throw new TypeError('JSON Proxy objects are unsupported');
+		}
 		if (Array.isArray(current)) {
-			if (Object.keys(current).length !== current.length) throw new TypeError('JSON arrays must not be sparse or carry extra enumerable keys');
 			if (active.has(current)) throw new TypeError('JSON value must not contain cycles');
+			const descriptors = Object.getOwnPropertyDescriptors(current);
+			const ownKeys = Reflect.ownKeys(current);
+			if (ownKeys.length !== current.length + 1 || !Object.hasOwn(descriptors, 'length')) {
+				throw new TypeError('JSON arrays must not be sparse or carry extra keys');
+			}
+			const out = [];
 			active.add(current);
-			const out = current.map((item) => visit(item, depth + 1));
+			for (let index = 0; index < current.length; index += 1) {
+				const item = descriptors[String(index)];
+				if (!item || !Object.hasOwn(item, 'value') || !item.enumerable) {
+					throw new TypeError('JSON arrays require own enumerable data elements');
+				}
+				out.push(visit(item.value, depth + 1));
+			}
 			active.delete(current);
 			return out;
 		}
 		if (isPlainObject(current)) {
 			if (active.has(current)) throw new TypeError('JSON value must not contain cycles');
-			active.add(current);
+			const descriptors = Object.getOwnPropertyDescriptors(current);
+			const ownKeys = Reflect.ownKeys(current);
+			if (ownKeys.some((key) => typeof key !== 'string')) {
+				throw new TypeError('JSON objects must not contain symbol keys');
+			}
 			const out = {};
-			for (const key of Object.keys(current).sort()) {
+			active.add(current);
+			for (const key of ownKeys.sort()) {
 				if (utf8Bytes(key) > maxKeyBytes || /[\u0000-\u001f\u007f]/.test(key)) {
 					throw new TypeError('JSON object key exceeds byte budget or contains control characters');
 				}
+				const descriptor = descriptors[key];
+				if (!descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) {
+					throw new TypeError('JSON objects require enumerable own data properties');
+				}
 				Object.defineProperty(out, key, {
-					value: visit(current[key], depth + 1),
+					value: visit(descriptor.value, depth + 1),
 					enumerable: true,
 					configurable: true,
 					writable: true,
