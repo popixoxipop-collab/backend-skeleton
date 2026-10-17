@@ -184,3 +184,117 @@ test('T22P09 installed SDK refuses inverted version compatibility', () => {
   assert.equal(exported.validateAdapterSdkManifest(bad).ok, false);
   assert.equal(exported.planExternalAdapterActivation(bad).executable, false);
 });
+
+
+test('T22P10 installed SDK consumer invokes caller-provided runner/provider only', async () => {
+  const seen = [];
+  const result = await exported.runAdapterSdkConformance({
+    manifest: manifest(),
+    snapshotRef: 'fixture:installed-package',
+    cases: [
+      { operation: 'detect', payload: { source: 'fixture' }, expectStatus: 'ok' },
+      { operation: 'analyze', payload: {}, expectStatus: 'unknown' },
+      { operation: 'detect', payload: {}, expectStatus: 'unsupported' },
+    ],
+    invoke: async (request) => {
+      assert.equal(Object.isFrozen(request), true);
+      assert.equal(Object.isFrozen(request.payload), true);
+      seen.push(request.operation);
+      return {
+        contract: exported.SDK_ENTRYPOINT_PROTOCOL,
+        direction: 'response',
+        requestId: request.requestId,
+        adapterId: request.adapterId,
+        status: seen.length === 1 ? 'ok' : seen.length === 2 ? 'unknown' : 'unsupported',
+        result: {},
+        diagnostics: [],
+      };
+    },
+  });
+  assert.deepEqual(seen, ['detect', 'analyze', 'detect']);
+  assert.equal(result.status, 'pass');
+  assert.equal(result.executed, true);
+  assert.deepEqual(result.observations.map(x => x.status), ['ok', 'unknown', 'unsupported']);
+  assert.equal(result.inputBinding.certificationAuthority, false);
+  assert.equal(result.activation.executable, false);
+  assert.equal(result.activation.autoImport, false);
+});
+
+test('T22P11 installed SDK consumer rejects wrong provider response identity', async () => {
+  for (const corrupt of ['requestId', 'adapterId']) {
+    const result = await exported.runAdapterSdkConformance({
+      manifest: manifest(),
+      snapshotRef: 'fixture:wrong-identity',
+      cases: [{ operation: 'detect', payload: {}, expectStatus: 'ok' }],
+      invoke: async (request) => ({
+        contract: exported.SDK_ENTRYPOINT_PROTOCOL,
+        direction: 'response',
+        requestId: corrupt === 'requestId' ? 'not-the-original' : request.requestId,
+        adapterId: corrupt === 'adapterId' ? 'wrong-adapter' : request.adapterId,
+        status: 'ok', result: {}, diagnostics: [],
+      }),
+    });
+    assert.equal(result.status, 'fail', corrupt);
+    assert.equal(result.failures[0].reason, 'invalid-response');
+    assert.equal(result.activation.executable, false);
+  }
+});
+
+test('T22P12 installed SDK consumer does not convert provider errors to success', async () => {
+  const result = await exported.runAdapterSdkConformance({
+    manifest: manifest(),
+    snapshotRef: 'fixture:throw',
+    cases: [{ operation: 'detect', payload: {}, expectStatus: 'ok' }],
+    invoke: async () => { throw new Error('simulated provider failure'); },
+  });
+  assert.equal(result.status, 'fail');
+  assert.equal(result.failures[0].reason, 'invoke-threw');
+  assert.equal(result.activation.executable, false);
+});
+
+test('T22P13 installed SDK validates manifest before invoking provider runner', async () => {
+  const bad = manifest();
+  bad.activation.mode = 'auto';
+  let calls = 0;
+  const result = await exported.runAdapterSdkConformance({
+    manifest: bad,
+    snapshotRef: 'fixture:invalid-manifest',
+    cases: [{ operation: 'detect' }],
+    invoke: async () => { calls++; throw new Error('must never execute'); },
+  });
+  assert.equal(calls, 0);
+  assert.equal(result.status, 'invalid-manifest');
+  assert.equal(result.executed, false);
+  assert.equal(result.activation.executable, false);
+});
+
+test('T22P14 installed runner isolates caller mutations from later requests', async () => {
+  const sourceManifest = manifest();
+  const cases = [
+    { operation: 'detect', payload: { a: { n: 1 } }, expectStatus: 'ok' },
+    { operation: 'detect', payload: { a: { n: 2 } }, expectStatus: 'ok' },
+  ];
+  const seen = [];
+  const result = await exported.runAdapterSdkConformance({
+    manifest: sourceManifest,
+    snapshotRef: 'fixture:immutable-claims',
+    cases,
+    invoke: async (request) => {
+      seen.push(request.payload.a.n);
+      if (seen.length === 1) {
+        sourceManifest.adapter.id = 'injected-after-first-case';
+        cases[1].payload.a.n = 10000;
+      }
+      return {
+        contract: exported.SDK_ENTRYPOINT_PROTOCOL,
+        direction: 'response',
+        requestId: request.requestId, adapterId: request.adapterId,
+        status: 'ok', result: {}, diagnostics: [],
+      };
+    },
+  });
+  assert.deepEqual(seen, [1, 2]);
+  assert.equal(result.status, 'pass');
+  assert.equal(result.adapterId, 'typescript-nestjs');
+  assert.equal(result.inputBinding.certificationAuthority, false);
+});

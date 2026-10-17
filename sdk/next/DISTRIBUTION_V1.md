@@ -16,3 +16,16 @@ The T22 SDK is strictly **manifest validation, protocol types, support explanati
 - Historical `sdk/next/README.md` and `BASELINE.json` remain unchanged. New distribution status is recorded **additively** here.
 
 **Do not confuse a green local installation with official MET promotion.** Main merge, exact-head CI and independent reviewer judgments remain necessary under T00's strict audit rules.
+
+## Consumer / runner / provider conjunction (T22-05 scoped QA)
+
+The installed npm SDK is additionally exercised through its exported `runAdapterSdkConformance` entrypoint, using a caller-injected **test-only provider**. This covers the original T22-05 requirement to combine the packed consumer with an in-memory runner/provider contract, without registering or executing untrusted external adapter modules.
+
+- Valid `detect` and conservative `analyze` statuses `ok`, `unknown`, `unsupported` are preserved rather than promoted to runtime-certified support.
+- Requests passed to the injected provider are immutable; post-first-invoke mutation of the caller's manifest/cases cannot change the next recorded input.
+- Incorrect provider `requestId` or `adapterId` becomes `invalid-response` and a failed conformance result.
+- Provider errors become `invoke-threw` failures, not empty-success responses.
+- Invalid or auto-activation manifests are rejected before any provider callback is invoked.
+- All conformance results leave `activation.executable=false`, `autoImport=false` and `inputBinding.certificationAuthority=false`.
+
+The suite provides **an installed-package consumer + injected provider positive/negative fixture**. It does NOT run a real third-party executable adapter, test isolation of an OS process, provide permission revocation or perform T19/T20 security certification. Independent product review, authorized CI, main merge and T00 exact-head re-audit are still necessary for official T22-05 MET.
