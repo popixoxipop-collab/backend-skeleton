@@ -23,6 +23,7 @@
     "lib/",
     "contracts/",
     "scanners/",
+    "sdk/",
     "handles/",
     "new/",
     "stack/",
