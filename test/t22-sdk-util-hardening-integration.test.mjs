@@ -2,7 +2,7 @@
 // No historical baseline updates, adapter execution, CI changes, or MET claim.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validSemver,compareSemver,cloneJsonValue,cloneAndFreezeJson,isPlainObject,isJsonValue,stableClone} from '../sdk/next/_util.mjs';
+import {validSemver,compareSemver,cloneJsonValue,cloneAndFreezeJson,isPlainObject,isJsonValue,stableClone,normalizeArtifactRef,deepFreezeJson} from '../sdk/next/_util.mjs';
 
 const checks = [
   ['major >2^53 precedence',()=>assert.equal(compareSemver('9007199254740992.0.0','9007199254740993.0.0'),-1)],
@@ -44,3 +44,45 @@ const checks = [
   ['stableClone ordinary data preserved',()=>assert.deepEqual(stableClone({b:2,a:1}),{a:1,b:2})],
 ];
 for (const [name,check] of checks) test('T22U '+name,check);
+
+// Follow-up negative cases from exact 0ac0070 product source RED.
+function goodRef() {
+ return {artifact_ref:'sbf.artifact-ref/1',family:'artifact.sample',version:'1.0.0',media_type:'application/json',byte_sha256:'a'.repeat(64),size_bytes:1};
+}
+
+test('T22U S1 normalizeArtifactRef refuses own getter without invocation', () => {
+ let invoked=0; const ref=goodRef();
+ Object.defineProperty(ref,'family',{configurable:true,enumerable:true,get(){invoked++;return 'artifact.sample';}});
+ assert.throws(()=>normalizeArtifactRef(ref),TypeError); assert.equal(invoked,0);
+});
+test('T22U S2 cloneJsonValue must not call inherited Object.prototype.toJSON', () => {
+ let invoked=0; const previous=Object.getOwnPropertyDescriptor(Object.prototype,'toJSON');
+ Object.defineProperty(Object.prototype,'toJSON',{configurable:true,writable:true,value(){invoked++;return {malicious:true};}});
+ try {assert.deepEqual(cloneJsonValue({a:[1,2],b:{c:3}}),{a:[1,2],b:{c:3}});assert.equal(invoked,0);}
+ finally {if(previous)Object.defineProperty(Object.prototype,'toJSON',previous);else delete Object.prototype.toJSON;}
+});
+test('T22U S3 cloneJsonValue must not call inherited Array.prototype.toJSON', () => {
+ let invoked=0; const previous=Object.getOwnPropertyDescriptor(Array.prototype,'toJSON');
+ Object.defineProperty(Array.prototype,'toJSON',{configurable:true,writable:true,value(){invoked++;return ['malicious'];}});
+ try {assert.deepEqual(cloneJsonValue([1,{a:2}]),[1,{a:2}]);assert.equal(invoked,0);}
+ finally {if(previous)Object.defineProperty(Array.prototype,'toJSON',previous);else delete Array.prototype.toJSON;}
+});
+test('T22U S4 stableClone must not execute enumerable getter', () => {
+ let invoked=0;const obj={};Object.defineProperty(obj,'a',{enumerable:true,get(){invoked++;return 1;}});
+ assert.throws(()=>stableClone(obj),TypeError);assert.equal(invoked,0);
+});
+test('T22U S5 stableClone must refuse array Proxy before traps', () => {
+ let invoked=0;const proxy=new Proxy([1],{get(){invoked++;throw new Error('TRAP');}});
+ assert.throws(()=>stableClone(proxy),TypeError);assert.equal(invoked,0);
+});
+test('T22U S6 deepFreezeJson must not execute object getters', () => {
+ let invoked=0;const obj={};Object.defineProperty(obj,'a',{enumerable:true,get(){invoked++;return {x:1};}});
+ assert.throws(()=>deepFreezeJson(obj),TypeError);assert.equal(invoked,0);
+});
+test('T22U S7 valid normalizeArtifactRef stays byte-compatible', () => {
+ const r=goodRef();assert.deepEqual(normalizeArtifactRef(r),r);
+});
+test('T22U S8 valid stableClone ordering and deepFreezeJson normal behavior', () => {
+ assert.deepEqual(stableClone({z:1,a:{b:2}}),{a:{b:2},z:1});
+ const x=deepFreezeJson({a:[{b:1}]});assert.equal(Object.isFrozen(x),true);assert.equal(Object.isFrozen(x.a[0]),true);
+});

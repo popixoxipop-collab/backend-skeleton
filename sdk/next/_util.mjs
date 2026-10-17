@@ -155,11 +155,21 @@ export function validOpaqueRef(value) {
 
 export function normalizeArtifactRef(ref) {
 	if (!isPlainObject(ref)) throw new TypeError('ArtifactRef must be a plain object');
-	const actual = Object.keys(ref).sort();
+	const actual = Reflect.ownKeys(ref);
 	const expected = ['artifact_ref', 'byte_sha256', 'family', 'media_type', 'size_bytes', 'version'];
-	if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+	if (actual.length !== expected.length || actual.some((key) => typeof key !== 'string' || !expected.includes(key))) {
 		throw new TypeError('ArtifactRef must contain exactly artifact_ref, family, version, media_type, byte_sha256, size_bytes');
 	}
+	// Read descriptor values only. Accessor fields may perform arbitrary work
+	// before the caller has authorized the purported artifact reference.
+	const descriptors = Object.getOwnPropertyDescriptors(ref);
+	for (const key of expected) {
+		const descriptor = descriptors[key];
+		if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) {
+			throw new TypeError('ArtifactRef fields must be enumerable own data properties');
+		}
+	}
+	ref = Object.fromEntries(expected.map((key) => [key, descriptors[key].value]));
 	if (ref.artifact_ref !== 'sbf.artifact-ref/1') throw new TypeError('unsupported ArtifactRef contract');
 	if (typeof ref.family !== 'string' || !/^[a-z][a-z0-9.-]*$/.test(ref.family)) throw new TypeError('ArtifactRef.family is invalid');
 	if (!validBoundedString(ref.version, SDK_INPUT_LIMITS.semverBytes, { forbidControls: true })) throw new TypeError('ArtifactRef.version is invalid');
@@ -259,8 +269,31 @@ export function cloneJsonValue(value, {
 	}
 
 	const cloned = visit(value, 0);
-	const serialized = JSON.stringify(cloned);
-	if (utf8Bytes(serialized) > maxSerializedBytes) throw new TypeError('JSON value exceeds serialized byte budget');
+	// JSON.stringify(object) first consults *inherited* toJSON(). It can run
+	// caller-installed functions even after every input getter was rejected.
+	// Measure the exact UTF-8 JSON encoding without object serialization hooks.
+	function serializedBytes(current) {
+		if (current === null) return 4;
+		if (typeof current !== 'object') return utf8Bytes(JSON.stringify(current));
+		let bytes = 2; // '[' + ']' or '{' + '}'
+		if (Array.isArray(current)) {
+			for (let i = 0; i < current.length; i += 1) {
+				if (i > 0) bytes += 1;
+				bytes += serializedBytes(current[i]);
+				if (bytes > maxSerializedBytes) throw new TypeError('JSON value exceeds serialized byte budget');
+			}
+		} else {
+			const keys = Object.keys(current);
+			for (let i = 0; i < keys.length; i += 1) {
+				const key = keys[i];
+				if (i > 0) bytes += 1;
+				bytes += utf8Bytes(JSON.stringify(key)) + 1 + serializedBytes(current[key]);
+				if (bytes > maxSerializedBytes) throw new TypeError('JSON value exceeds serialized byte budget');
+			}
+		}
+		return bytes;
+	}
+	if (serializedBytes(cloned) > maxSerializedBytes) throw new TypeError('JSON value exceeds serialized byte budget');
 	return cloned;
 }
 
@@ -274,9 +307,25 @@ export function isJsonValue(value, options) {
 }
 
 export function deepFreezeJson(value) {
-	if (value === null || typeof value !== 'object' || Object.isFrozen(value)) return value;
-	for (const child of Object.values(value)) deepFreezeJson(child);
-	return Object.freeze(value);
+	const visiting = new Set();
+	function freeze(current) {
+		if (current === null || typeof current !== 'object') return current;
+		if (nodeUtilTypes.isProxy(current)) throw new TypeError('JSON Proxy objects are unsupported');
+		if (Object.isFrozen(current)) return current;
+		if (visiting.has(current)) throw new TypeError('JSON value must not contain cycles');
+		visiting.add(current);
+		// Descriptors never invoke accessors, unlike Object.values(). Freeze
+		// nested own values (including non-enumerable keys) before the parent.
+		for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(current))) {
+			if (!Object.hasOwn(descriptor, 'value')) {
+				throw new TypeError('JSON accessors cannot be deep-frozen without execution');
+			}
+			freeze(descriptor.value);
+		}
+		visiting.delete(current);
+		return Object.freeze(current);
+	}
+	return freeze(value);
 }
 
 export function cloneAndFreezeJson(value, options) {
@@ -284,18 +333,46 @@ export function cloneAndFreezeJson(value, options) {
 }
 
 export function stableClone(value) {
-	if (Array.isArray(value)) return value.map(stableClone);
-	if (isPlainObject(value)) {
+	const active = new Set();
+	function clone(current) {
+		if (current !== null && typeof current === 'object' && nodeUtilTypes.isProxy(current)) {
+			throw new TypeError('Proxy values cannot be stably cloned');
+		}
+		if (!Array.isArray(current) && !isPlainObject(current)) return current;
+		if (active.has(current)) throw new TypeError('stableClone rejects cycles');
+		active.add(current);
+		const descriptors = Object.getOwnPropertyDescriptors(current);
+		const keys = Reflect.ownKeys(current);
+		if (Array.isArray(current)) {
+			if (keys.length !== current.length + 1 || !Object.hasOwn(descriptors, 'length')) {
+				throw new TypeError('stableClone rejects sparse arrays or extra keys');
+			}
+			const out = [];
+			for (let i = 0; i < current.length; i += 1) {
+				const entry = descriptors[String(i)];
+				if (!entry?.enumerable || !Object.hasOwn(entry, 'value')) {
+					throw new TypeError('stableClone rejects array accessors');
+				}
+				out.push(clone(entry.value));
+			}
+			active.delete(current);
+			return out;
+		}
+		if (keys.some((key) => typeof key !== 'string')) {
+			throw new TypeError('stableClone rejects symbol keys');
+		}
 		const out = {};
-		for (const key of Object.keys(value).sort()) {
+		for (const key of keys.sort()) {
+			const entry = descriptors[key];
+			if (!entry.enumerable || !Object.hasOwn(entry, 'value')) {
+				throw new TypeError('stableClone rejects object accessors or hidden keys');
+			}
 			Object.defineProperty(out, key, {
-				value: stableClone(value[key]),
-				enumerable: true,
-				configurable: true,
-				writable: true,
+				value: clone(entry.value), enumerable: true, configurable: true, writable: true,
 			});
 		}
+		active.delete(current);
 		return out;
 	}
-	return value;
+	return clone(value);
 }
