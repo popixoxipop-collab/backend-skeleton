@@ -40,7 +40,13 @@ export function parseMonorepoOptions(argv) {
   let chosenMode = false;
   const seen = new Set();
   for (let i = 0; i < argv.length; i++) {
-    const flag = argv[i];
+    const token = argv[i];
+    // bskel's shared parseCommand accepts both '--name value' and
+    // '--name=value'. Normalize here as well so the opt-in source selector
+    // does not reject a form already accepted by the public CLI.
+    const equalsAt = typeof token === 'string' ? token.indexOf('=') : -1;
+    const flag = equalsAt < 0 ? token : token.slice(0, equalsAt);
+    const inlineValue = equalsAt < 0 ? null : token.slice(equalsAt + 1);
     const key = typeof flag === 'string' && flag.startsWith('--')
       ? flag.slice(2) : '';
     if (!OPTIONS_WITH_VALUES.has(key) && !MODE_FLAGS.has(key)) {
@@ -51,12 +57,14 @@ export function parseMonorepoOptions(argv) {
     }
     seen.add(key);
     if (MODE_FLAGS.has(key)) {
+      // Boolean flags must not accept assignment values.
+      if (inlineValue !== null) throw new NextMonorepoError('INVALID_ARGUMENTS');
       if (chosenMode) throw new NextMonorepoError('CONFLICTING_SCAN_MODES');
       mode = key === 'list-projects' ? 'list' : 'all';
       chosenMode = true;
       continue;
     }
-    const value = argv[++i];
+    const value = inlineValue !== null ? inlineValue : argv[++i];
     if (typeof value !== 'string' || value.length === 0 ||
         value.startsWith('--')) {
       throw new NextMonorepoError('INVALID_ARGUMENTS');

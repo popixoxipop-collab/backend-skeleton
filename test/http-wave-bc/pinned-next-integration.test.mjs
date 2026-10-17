@@ -247,3 +247,38 @@ test('I16 invalid Git executable hash with JSON flag follows native bskel diagno
   assert.match(result.stderr, /bskel pinned-next: GIT_EXECUTABLE_SHA256_MISMATCH/);
   assert.ok(!result.stdout.includes(f.repo));
 });
+
+test('I17 --name=value matches the existing public CLI argument contract', t => {
+  const f = fixture(t);
+  const equals = [];
+  for (let i = 0; i < f.pins.length; i += 2) {
+    equals.push(f.pins[i] + '=' + f.pins[i + 1]);
+  }
+  const r = spawnSync(process.execPath, [
+    CLI, 'scan', 'pinned-next', ...equals, '--project=apps/web', '--json',
+  ], { encoding: 'utf8', timeout: 18000 });
+  const parsed = report(r, 0);
+  const standard = report(call(f, ['--project', 'apps/web'], ['--json']), 0);
+  assert.deepEqual(parsed, standard);
+  assert.deepEqual(routes(parsed), ['apps/web:GET /api', 'apps/web:POST /api']);
+});
+test('I18 --flag=value retains invalid-argument and duplicate rejection', t => {
+  const f = fixture(t);
+  const cases = [
+    [...f.pins, '--list-projects=true'],
+    [...f.pins, '--project='],
+    [...f.pins, '--project=apps/../escape'],
+    [...f.pins, '--commit=abcdef0123456789'],
+    [...f.pins, '--project=apps/web', '--project', 'apps/admin'],
+  ];
+  for (const flags of cases) {
+    const p = spawnSync(process.execPath, [
+      CLI, 'scan', 'pinned-next', ...flags, '--json',
+    ], { encoding: 'utf8', timeout: 18000 });
+    assert.equal(p.status, 14, flags.join(' ') + ' : ' + p.stderr);
+    const error = JSON.parse(p.stdout);
+    assert.equal(error.schema, 'sbf.cli-diagnostic/1');
+    assert.equal(error.ok, false);
+    assert.match(p.stderr, /./);
+  }
+});

@@ -36,6 +36,7 @@ const full = pinnedNextSourceAdapter.scanAll(source);
 
 ## Product behavior and exit contract
 
+- Both `--flag=value` and `--flag value` spellings are accepted for string options, consistently with the existing `bskel` parser; boolean selectors remain bare flags only.
 - `--list-projects` returns deterministic Next.js app identities and server-source counts.
 - `--project` returns just that app; unknown/path-traversing selections are refused.
 - `--all-projects` returns a report with project identity per HTTP endpoint, without combining different apps by URL alone.
