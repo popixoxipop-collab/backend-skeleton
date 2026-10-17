@@ -25,8 +25,68 @@ function walkFiles(root) {
   return out;
 }
 
-function readJson(file) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
+// A final-leaf O_NOFOLLOW does not prevent traversal through a symlinked
+// parent introduced after walkFiles() enumerates a Route Handler. Re-check the
+// directory chain around open/read and bind its inode identity to the same root.
+// This is bounded detection, NOT atomic openat nor a proof of zero TOCTOU.
+function inspectParentChain(file, trustedRoot) {
+  const anchor = path.resolve(trustedRoot);
+  const relativePath = path.relative(anchor, file);
+  if (!relativePath || relativePath === '..' ||
+      relativePath.startsWith('..' + path.sep) || path.isAbsolute(relativePath)) {
+    throw new Error('source path is outside its trusted root');
+  }
+  const components = relativePath.split(path.sep);
+  const directories = [];
+  let current = anchor;
+  for (let i = 0; i < components.length; i++) {
+    const stat = fs.lstatSync(current);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('linked or non-directory source parent');
+    directories.push([current, stat.dev, stat.ino]);
+    current = path.join(current, components[i]);
+  }
+  return directories;
+}
+function assertParentChainUnchanged(file, root, first) {
+  const now = inspectParentChain(file, root);
+  if (now.length !== first.length || now.some((identity, i) =>
+      identity[0] !== first[i][0] || identity[1] !== first[i][1] || identity[2] !== first[i][2])) {
+    throw new Error('source parent directory was replaced');
+  }
+}
+
+// A metadata check alone is not a source-read security boundary: another
+// process may swap a regular leaf into a symlink before readFileSync(path).
+// The opened descriptor must refer to the same regular file we inspected.
+// This narrows leaf-file races, but does not certify directory-level TOCTOU.
+function readRegularUtf8(file, trustedRoot) {
+  const parents = inspectParentChain(file, trustedRoot);
+  if (!Number.isInteger(fs.constants.O_NOFOLLOW)) throw new Error('O_NOFOLLOW is unavailable');
+  const identity = (a, b) => a.dev === b.dev && a.ino === b.ino &&
+    a.size === b.size && a.mtimeMs === b.mtimeMs;
+  const before = fs.lstatSync(file);
+  if (before.isSymbolicLink() || !before.isFile()) throw new Error('untrusted source leaf');
+  assertParentChainUnchanged(file, trustedRoot, parents);
+  let fd;
+  try {
+    fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+    const opened = fs.fstatSync(fd);
+    if (!opened.isFile() || !identity(before, opened)) throw new Error('source leaf replaced before open');
+    assertParentChainUnchanged(file, trustedRoot, parents);
+    const source = fs.readFileSync(fd, 'utf8');
+    const after = fs.fstatSync(fd);
+    if (!identity(opened, after) || !identity(after, fs.lstatSync(file))) {
+      throw new Error('source leaf changed while reading');
+    }
+    assertParentChainUnchanged(file, trustedRoot, parents);
+    return source;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
+function readJson(file, trustedRoot) {
+  try { return JSON.parse(readRegularUtf8(file, trustedRoot)); }
   catch { return null; }
 }
 
@@ -147,18 +207,33 @@ function firstCodeMatch(text, re) {
 }
 
 
+// Walk the declared project-root components, never a symlinked app/pages tree.
+// A symlink at the app root is otherwise traversed even when walkFiles skips
+// symlinks encountered as child directory entries.
+function localDirectory(projectRoot, components) {
+  let current = projectRoot;
+  for (const component of components) {
+    current = path.join(current, component);
+    try {
+      const stat = fs.lstatSync(current);
+      if (stat.isSymbolicLink() || !stat.isDirectory()) return null;
+    } catch {
+      return null;
+    }
+  }
+  return current;
+}
+
 function projectRoots(projectRoot) {
-  const rootApp = path.join(projectRoot, 'app');
-  const srcApp = path.join(projectRoot, 'src', 'app');
-  const rootPagesApi = path.join(projectRoot, 'pages', 'api');
-  const srcPagesApi = path.join(projectRoot, 'src', 'pages', 'api');
-  const appRoot = fs.existsSync(rootApp) ? rootApp : (fs.existsSync(srcApp) ? srcApp : null);
-  const pagesApiRoot = fs.existsSync(rootPagesApi) ? rootPagesApi : (fs.existsSync(srcPagesApi) ? srcPagesApi : null);
+  const rootApp = localDirectory(projectRoot, ['app']);
+  const srcApp = localDirectory(projectRoot, ['src', 'app']);
+  const rootPagesApi = localDirectory(projectRoot, ['pages', 'api']);
+  const srcPagesApi = localDirectory(projectRoot, ['src', 'pages', 'api']);
   return {
-    appRoot,
-    pagesApiRoot,
-    ignoredSrcApp: fs.existsSync(rootApp) && fs.existsSync(srcApp),
-    ignoredSrcPagesApi: fs.existsSync(rootPagesApi) && fs.existsSync(srcPagesApi),
+    appRoot: rootApp || srcApp,
+    pagesApiRoot: rootPagesApi || srcPagesApi,
+    ignoredSrcApp: Boolean(rootApp && srcApp),
+    ignoredSrcPagesApi: Boolean(rootPagesApi && srcPagesApi),
   };
 }
 
@@ -172,21 +247,44 @@ function pagesApiFiles(root) {
   return walkFiles(root).filter((file) => PAGE_API_EXTENSIONS.has(path.extname(file))).sort();
 }
 
+const NEXT_CONFIG_FILES = ['next.config.js', 'next.config.mjs', 'next.config.cjs', 'next.config.ts'];
+const nextConfigCandidates = (projectRoot) => NEXT_CONFIG_FILES.map((name) => path.join(projectRoot, name));
+
 function nextConfigFiles(projectRoot) {
-  return ['next.config.js', 'next.config.mjs', 'next.config.cjs', 'next.config.ts']
-    .map((name) => path.join(projectRoot, name))
-    .filter((file) => fs.existsSync(file));
+  return nextConfigCandidates(projectRoot).filter((file) => {
+    try {
+      const stat = fs.lstatSync(file);
+      return stat.isFile() && !stat.isSymbolicLink();
+    } catch {
+      return false;
+    }
+  });
 }
 
 function readBasePath(projectRoot) {
   const files = nextConfigFiles(projectRoot);
-  if (!files.length) return { value: '', unknown: false, files: [], notes: [] };
-  const notes = [];
+  const unsafe = nextConfigCandidates(projectRoot).filter((file) => {
+    try {
+      const stat = fs.lstatSync(file);
+      return stat.isSymbolicLink() || !stat.isFile();
+    } catch (error) {
+      // ENOENT means no configuration; EACCES/EPERM/ELOOP/EIO means
+      // inspection failed and cannot be normalized to an absent basePath.
+      return error?.code !== 'ENOENT';
+    }
+  });
+  if (!files.length && !unsafe.length) return { value: '', unknown: false, files: [], notes: [] };
+  const notes = unsafe.map((file) => 'Next.js ' + path.basename(file) + ' is a symlink, non-regular or inaccessible file; absolute Route Handler paths are unknown.');
   let value = '';
-  let unknown = false;
+  let unknown = unsafe.length > 0;
   for (const file of files) {
     let raw;
-    try { raw = fs.readFileSync(file, 'utf8'); } catch { continue; }
+    try { raw = readRegularUtf8(file, projectRoot); }
+    catch {
+      unknown = true;
+      notes.push('Next.js ' + path.basename(file) + ' could not be read securely; absolute Route Handler paths are unknown.');
+      continue;
+    }
     const masked = maskComments(raw);
     const any = firstCodeMatch(masked, /\bbasePath\s*:/g);
     const literal = firstCodeMatch(masked, /\bbasePath\s*:\s*(['"`])([^'"`]+)\1/g);
@@ -295,7 +393,12 @@ function scanProject(repoRoot, detection) {
 
   for (const file of routeFiles) {
     let text;
-    try { text = fs.readFileSync(file, 'utf8'); } catch { continue; }
+    try { text = readRegularUtf8(file, detection.projectRoot); }
+    catch {
+      notes.push('Next.js Route Handler at ' + path.relative(detection.projectRoot, file) +
+        ' could not be read securely; endpoint is unknown and was not emitted.');
+      continue;
+    }
     const route = routePathFromFile(roots.appRoot, file);
     const exported = explicitMethods(text);
 
@@ -352,7 +455,7 @@ function scanProject(repoRoot, detection) {
     .map((file) => path.relative(repoRoot, file))
     .sort();
 
-  const packageName = readJson(detection.packageFile)?.name || path.basename(detection.projectRoot) || '_next';
+  const packageName = readJson(detection.packageFile, repoRoot)?.name || path.basename(detection.projectRoot) || '_next';
   return {
     modules: controllers.length ? [{ module: packageName, controllers, entities: [], enums: [], dtos: [] }] : [],
     filesRead,
@@ -366,7 +469,7 @@ function scanProject(repoRoot, detection) {
 
 export function detectNextRoot(repoRoot) {
   for (const pkgFile of packageFiles(repoRoot)) {
-    const pkg = readJson(pkgFile);
+    const pkg = readJson(pkgFile, repoRoot);
     if (!declaresNext(pkg)) continue;
     const projectRoot = path.dirname(pkgFile);
     const roots = projectRoots(projectRoot);
