@@ -101,6 +101,7 @@ function usage() {
   bskel pattern show <pattern_id> --pattern-database-url-env <NAME> [--json]
   bskel pattern suggest --stack spring|fastapi --pattern-database-url-env <NAME> [--json]
   bskel preflight [--max-behind N] [--offline|--no-fetch] [--allow-dirty] [--max-age-minutes N] [--fetch-timeout-seconds N] [--json]
+  bskel scan pinned-next --commit <40hex> --git-exe <absolute> --git-sha256 <64hex> --git-dir <absolute> --common-dir <absolute> [--list-projects|--project <id>|--all-projects] [--json]
   bskel scan [--feature <id>] [--terms a,b,c] [--json] [--accept-low-confidence] [--runtime-routes] [--db [--database-url-env <NAME>] [--schema public]]
   bskel scan disposition --feature <id> --mode reuse|extend|replace|parallel [--module <name>] [--note "..."] [--breaking-approved]
   bskel scan explain <module> --feature <id> [--json]
@@ -680,6 +681,44 @@ async function resolveDbSchemaOrExit(root, flags) {
 		fail(EXIT_CODES.REFRESH_FAILED, 'REFRESH_FAILED', `could not introspect the live database: ${describeConnectionError(err)}`);
 	}
 	return { migrations, live };
+}
+
+// Experimental pinned-Git Next.js source inspection: an explicit product
+// source-selector command, not an auto-registered scan adapter. It NEVER
+// changes repo feature state, gates, the frozen T13 baseline or API registry.
+async function cmdScanPinnedNext(args) {
+	const flags = parseCommand('scan pinned-next', args);
+	if (flags.help) { console.log(renderCommandHelp('scan pinned-next')); return; }
+	setContext('scan pinned-next', flags);
+	try {
+		// Do not execute the target repository or accept caller-selected JS modules.
+		// The only import is a statically specified module shipped with bskel.
+		const { parseMonorepoOptions, scanMonorepoProduct } = await import('../scanners/pinned-next/next-monorepo-cli.mjs');
+		// This source-selector always emits JSON. --json only documents that
+		// format; --quiet is the existing global CLI output suppression flag.
+		const argsForPinnedParser = args.filter((a) => a !== '--json' && a !== '--quiet');
+		const input = parseMonorepoOptions(argsForPinnedParser);
+		const report = scanMonorepoProduct(input);
+		if (!flags.quiet || flags.json) console.log(JSON.stringify(report, null, 2));
+		// Preserve the opt-in product CLI's machine-readable distinction.
+		process.exitCode = report.projectSelection.selectionRequired
+			? EXIT_CODES.AWAITING_DISPOSITION
+			: (report.catalog.incomplete && ['auto', 'all'].includes(input.mode))
+				? EXIT_CODES.STALE : EXIT_CODES.OK;
+	} catch (err) {
+		// The code is a fixed, bounded label. Never echo caller's path,
+		// Git stderr, target source, or host error details back to a consumer.
+		const raw = typeof err?.code === 'string'
+			? err.code : String(err?.message ?? '').split(':')[0];
+		const errorCode = /^[A-Z][A-Z0-9_]{2,65}$/.test(raw)
+			? raw : 'PINNED_NEXT_SCAN_UNAVAILABLE';
+		const exitCode = /^(?:INVALID_|EXACT_PIN_|TRUSTED_ABSOLUTE_|DUPLICATE_|CONFLICTING_|UNEXPECTED_|SELECTED_NEXT_PROJECT_)/.test(errorCode)
+			? EXIT_CODES.BAD_ARGS : EXIT_CODES.NOT_PASSED;
+		// Match bskel's existing CLI convention: human error on stderr,
+		// optional diagnostic envelope on stdout if --json was requested.
+		// Never leak a path, source snippet, subprocess stderr or exception.
+		fail(exitCode, errorCode, 'bskel pinned-next: ' + errorCode);
+	}
 }
 
 async function cmdScan(args) {
@@ -5021,6 +5060,7 @@ async function dispatchCommand(cmd, rest) {
 			cmdPreflight(rest);
 			break;
 		case 'scan': {
+			if (rest[0] === 'pinned-next') return cmdScanPinnedNext(rest.slice(1));
 			if (rest[0] === 'disposition') return cmdScanDisposition(rest.slice(1));
 			if (rest[0] === 'explain') return cmdScanExplain(rest.slice(1));
 			if (rest[0] === 'repair') return cmdScanRepair(rest.slice(1));
