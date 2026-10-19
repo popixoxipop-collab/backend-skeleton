@@ -13,6 +13,7 @@ import { buildGateExportReport, readGateHistory } from '../lib/gate-export.mjs';
 import { writeFileAtomic, sha256File, readJsonIfExists } from '../lib/fsutil.mjs';
 import { hydrateScanReportFilePaths, dehydrateScanReportFilePaths } from '../lib/scan-report-paths.mjs';
 import { validateAgainstSchema, formatSchemaErrors } from '../lib/schema-validate.mjs';
+import { createContextPacket, renderContextGuide } from '../lib/context-packet.mjs';
 import { withLockSync } from '../lib/lock.mjs';
 import { specDir, specPath, sbfPath } from '../lib/paths.mjs';
 import { requireValidFeatureId, requireValidSlug, requireValidFeatureOrRepoId, slugWords, nextFeatureNumber } from '../lib/featureid.mjs';
@@ -117,6 +118,7 @@ function usage() {
   bskel webgame scan [--json]
   bskel webgame contract emit --feature <id> [--out <path>] [--json]
   bskel webgame contract verify --feature <id> [--json]
+  bskel context pack --contract <repo-relative-path> [--revision <ref>] [--files <a,b>] [--max-files N] [--max-bytes N] [--out <path>] [--json]
   bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <path>] [--path-prefix /api/v0] [--descriptions]
   bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed] [--status-codes range|literal]
   bskel contract export-csv --feature <id> [--out <path>] [--bom] [--json]
@@ -1411,6 +1413,31 @@ function cmdWebgameContractEmit(args) {
 		console.log('completeness: ' + contract.completeness.status);
 		console.log('note: this is an independent game-runtime contract plane; it does not satisfy or mutate the HTTP contract gate.');
 	}
+	process.exitCode = EXIT.PASS;
+}
+
+function cmdContextPack(args) {
+	const flags = parseCommand('context pack', args);
+	if (flags.help) { console.log(renderCommandHelp('context pack')); return; }
+	setContext('context pack', flags);
+	const root = requireRepoRoot();
+	const packet = createContextPacket({
+		repoRoot: root,
+		contractPath: flags.contract,
+		revision: flags.revision,
+		files: flags.files == null ? [] : flags.files.split(','),
+		maxFiles: Number(flags['max-files']),
+		maxBytes: Number(flags['max-bytes']),
+	});
+	const serialized = JSON.stringify(packet, null, 2) + '\n';
+	if (flags.out != null) {
+		if (!flags.out) throw new Error('context pack: --out must name an output file');
+		writeFileAtomic(path.resolve(root, flags.out), serialized);
+	}
+	if (flags.json) process.stdout.write(serialized);
+	else if (!flags.quiet) process.stdout.write(renderContextGuide(packet));
+	// Producing a packet can succeed with explicit context omissions. No gate is passed:
+	// consumers must inspect selection.complete (and BEVAL's independent verdict).
 	process.exitCode = EXIT.PASS;
 }
 
@@ -5047,6 +5074,12 @@ async function dispatchCommand(cmd, rest) {
 			if (rest[0] === 'contract' && rest[1] === 'verify') return cmdWebgameContractVerify(rest.slice(2));
 			usage();
 			process.exit(14);
+			break;
+		}
+		case 'context': {
+			if (rest[0] === 'pack') return cmdContextPack(rest.slice(1));
+			usage();
+			process.exit(EXIT_CODES.BAD_ARGS);
 			break;
 		}
 		case 'contract': {
