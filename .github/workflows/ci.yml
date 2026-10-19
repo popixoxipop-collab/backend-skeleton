@@ -164,6 +164,7 @@ jobs:
       - name: T22 sdk-next
         run: node scripts/run-next-nested-tests.mjs T22
       - name: T22 durable distribution report
+        if: always()
         run: npm run test:t22-distribution -- --output "$RUNNER_TEMP/t22-distribution" --expected-head "$(git rev-parse HEAD)"
       - name: Upload T22 durable distribution report
         if: always()
