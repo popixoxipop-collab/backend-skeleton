@@ -311,11 +311,12 @@ export function deepFreezeJson(value) {
 	function freeze(current) {
 		if (current === null || typeof current !== 'object') return current;
 		if (nodeUtilTypes.isProxy(current)) throw new TypeError('JSON Proxy objects are unsupported');
-		if (Object.isFrozen(current)) return current;
 		if (visiting.has(current)) throw new TypeError('JSON value must not contain cycles');
 		visiting.add(current);
-		// Descriptors never invoke accessors, unlike Object.values(). Freeze
-		// nested own values (including non-enumerable keys) before the parent.
+		// Object.freeze is shallow. Even an already-frozen container can retain
+		// mutable descendants, so descriptors must always be traversed first.
+		// Descriptors never invoke accessors, unlike Object.values(). Freeze nested
+		// own values (including non-enumerable keys) before the parent.
 		for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(current))) {
 			if (!Object.hasOwn(descriptor, 'value')) {
 				throw new TypeError('JSON accessors cannot be deep-frozen without execution');
@@ -323,7 +324,7 @@ export function deepFreezeJson(value) {
 			freeze(descriptor.value);
 		}
 		visiting.delete(current);
-		return Object.freeze(current);
+		return Object.isFrozen(current) ? current : Object.freeze(current);
 	}
 	return freeze(value);
 }

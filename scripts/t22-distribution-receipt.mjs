@@ -1,0 +1,131 @@
+import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+
+export const T22_DISTRIBUTION_RECEIPT = 'bskel.t22-distribution-receipt/1';
+const SHA256 = /^[0-9a-f]{64}$/;
+const COMMIT = /^[0-9a-f]{40}$/;
+
+export function sha256Bytes(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+export function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) =>
+      `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+export function receiptBytes(receipt) {
+  return Buffer.from(`${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
+}
+
+function regularFile(directory, name, problems) {
+  if (typeof name !== 'string' || name === '' || path.basename(name) !== name) {
+    problems.push(`unsafe artifact filename: ${JSON.stringify(name)}`);
+    return null;
+  }
+  const target = path.join(directory, name);
+  try {
+    if (!fs.statSync(target).isFile()) throw new Error('not a regular file');
+    return target;
+  } catch (error) {
+    problems.push(`artifact ${name} is unavailable: ${error.message}`);
+    return null;
+  }
+}
+
+function safeJson(bytes, label, problems) {
+  try {
+    return JSON.parse(bytes.toString('utf8'));
+  } catch (error) {
+    problems.push(`${label} is not valid JSON: ${error.message}`);
+    return null;
+  }
+}
+
+export function verifyDistributionArtifacts(directory, {
+  expectedHead,
+  expectedTarballSha256,
+} = {}) {
+  const problems = [];
+  const receiptPath = path.join(directory, 'receipt.json');
+  const digestPath = path.join(directory, 'receipt.sha256');
+  let bytes;
+  try {
+    bytes = fs.readFileSync(receiptPath);
+  } catch (error) {
+    return { problems: [`receipt.json is unavailable: ${error.message}`], receipt: null, receiptSha256: null };
+  }
+  const receiptSha256 = sha256Bytes(bytes);
+  let detached = '';
+  try {
+    detached = fs.readFileSync(digestPath, 'utf8');
+  } catch (error) {
+    problems.push(`receipt.sha256 is unavailable: ${error.message}`);
+  }
+  if (detached !== `${receiptSha256}\n`) problems.push('detached receipt SHA-256 does not match receipt.json bytes');
+
+  const receipt = safeJson(bytes, 'receipt.json', problems);
+  if (!receipt) return { problems, receipt: null, receiptSha256 };
+  if (receipt.schema !== T22_DISTRIBUTION_RECEIPT) problems.push(`unsupported receipt schema: ${receipt.schema}`);
+  if (!['pass', 'fail'].includes(receipt.status)) problems.push(`invalid receipt status: ${receipt.status}`);
+  if (!COMMIT.test(receipt.source?.head ?? '')) problems.push('source.head must be a 40-hex commit');
+  if (!COMMIT.test(receipt.source?.tree ?? '')) problems.push('source.tree must be a 40-hex tree');
+  if (expectedHead !== undefined && receipt.source?.head !== expectedHead) {
+    problems.push(`source HEAD mismatch: expected ${expectedHead}, received ${receipt.source?.head}`);
+  }
+  if (receipt.cache?.mode !== 'network-disabled-prewarmed-npm-cache') {
+    problems.push('cache.mode must state the pre-warmed offline precondition');
+  }
+  if (!SHA256.test(receipt.cache?.lockfile_sha256 ?? '')) problems.push('cache.lockfile_sha256 is invalid');
+  if (receipt.status === 'pass' && receipt.source?.dirty !== false) problems.push('a passing receipt must bind a clean checkout');
+
+  if (receipt.status === 'pass') {
+    const tarball = regularFile(directory, receipt.package?.tarball_file, problems);
+    if (!SHA256.test(receipt.package?.tarball_sha256 ?? '')) problems.push('package.tarball_sha256 is invalid');
+    if (tarball) {
+      const tarballBytes = fs.readFileSync(tarball);
+      const actual = sha256Bytes(tarballBytes);
+      if (actual !== receipt.package.tarball_sha256) problems.push('preserved tarball SHA-256 does not match receipt');
+      if (tarballBytes.byteLength !== receipt.package.tarball_size_bytes) problems.push('preserved tarball size does not match receipt');
+    }
+    if (expectedTarballSha256 !== undefined && receipt.package?.tarball_sha256 !== expectedTarballSha256) {
+      problems.push(`tarball SHA-256 mismatch: expected ${expectedTarballSha256}, received ${receipt.package?.tarball_sha256}`);
+    }
+    if (!Array.isArray(receipt.package?.members) || receipt.package.members.length === 0) {
+      problems.push('package member inventory is empty');
+    } else {
+      const inventorySha = sha256Bytes(Buffer.from(canonicalJson(receipt.package.members)));
+      if (inventorySha !== receipt.package.member_inventory_sha256) problems.push('package member inventory SHA-256 does not match');
+      if (receipt.package.member_count !== receipt.package.members.length) problems.push('package member count does not match inventory');
+    }
+
+    const transcript = regularFile(directory, receipt.test?.transcript_file, problems);
+    if (transcript && sha256Bytes(fs.readFileSync(transcript)) !== receipt.test?.transcript_sha256) {
+      problems.push('test transcript SHA-256 does not match receipt');
+    }
+    if (receipt.test?.tarball_sha256 !== receipt.package?.tarball_sha256) {
+      problems.push('test did not bind the preserved tarball SHA-256');
+    }
+    const counts = receipt.test?.counts;
+    for (const key of ['tests', 'pass', 'fail', 'skipped', 'cancelled', 'todo']) {
+      if (!Number.isSafeInteger(counts?.[key]) || counts[key] < 0) problems.push(`test count ${key} is invalid`);
+    }
+    if (receipt.test?.exit_code !== 0 || counts?.fail !== 0 || counts?.cancelled !== 0) {
+      problems.push('passing receipt contains a failing test outcome');
+    }
+    if (!Number.isInteger(receipt.cache?.empty_cache_probe_exit_code) ||
+        receipt.cache.empty_cache_probe_exit_code === 0) {
+      problems.push('empty-cache offline negative did not fail as required');
+    }
+    if (!Array.isArray(receipt.source?.relevant_files) ||
+        !receipt.source.relevant_files.some((file) => file.path === 'package-lock.json')) {
+      problems.push('source relevant-files inventory does not bind package-lock.json');
+    }
+  }
+  return { problems, receipt, receiptSha256 };
+}

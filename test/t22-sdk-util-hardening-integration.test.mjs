@@ -86,3 +86,17 @@ test('T22U S8 valid stableClone ordering and deepFreezeJson normal behavior', ()
  assert.deepEqual(stableClone({z:1,a:{b:2}}),{a:{b:2},z:1});
  const x=deepFreezeJson({a:[{b:1}]});assert.equal(Object.isFrozen(x),true);assert.equal(Object.isFrozen(x.a[0]),true);
 });
+test('T22U S9 pre-frozen root still freezes its mutable descendant', () => {
+ const child={mutable:true};const root=Object.freeze({child});
+ assert.equal(deepFreezeJson(root),root);assert.equal(Object.isFrozen(child),true);
+ assert.throws(()=>{child.mutable=false;},TypeError);
+});
+test('T22U S10 pre-frozen array still freezes nested object and array descendants', () => {
+ const object={value:1};const nested=[object];const root=Object.freeze([nested]);
+ deepFreezeJson(root);
+ assert.equal(Object.isFrozen(nested),true);assert.equal(Object.isFrozen(object),true);
+});
+test('T22U S11 mixed frozen graph still rejects a cycle below the frozen root', () => {
+ const child={};child.self=child;const root=Object.freeze({child});
+ assert.throws(()=>deepFreezeJson(root),/cycles/);
+});

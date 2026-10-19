@@ -10,12 +10,18 @@ The T22 SDK is strictly **manifest validation, protocol types, support explanati
 
 - Input: exact reviewed root `package.json` and frozen `sdk/next/**` modules.
 - Real package: npm pack tarball contains SDK `index.mjs`, its transitive local imports and **all nine JSON Schema files**.
-- Real isolated consumer: install tarball offline with `--ignore-scripts`, import the **installed** SDK rather than the repo source tree, exercise a valid manifest, negative duplicate/path traversal package inventory and fail-closed activation.
+- Real isolated consumer: install tarball with npm network access disabled (`--offline`) and lifecycle scripts disabled (`--ignore-scripts`), import the **installed** SDK rather than the repo source tree, exercise a valid manifest, negative duplicate/path traversal package inventory and fail-closed activation. This requires a dependency cache pre-warmed from the exact `package-lock.json`; the package declares registry dependencies and is not a hermetic single-tarball install.
 - Report: pass/fail/skip, exit code, SHA-256 for pack/test/receipt, bound candidate source HEAD.
 - Explicit blockers: no npm publication, main merge, GitHub PR CI, independent T19/T23 security/packaging signature, no real third-party execution or network permission.
 - Historical `sdk/next/README.md` and `BASELINE.json` remain unchanged. New distribution status is recorded **additively** here.
 
 **Do not confuse a green local installation with official MET promotion.** Main merge, exact-head CI and independent reviewer judgments remain necessary under T00's strict audit rules.
+
+## Durable distribution receipt and offline precondition
+
+`npm run test:t22-distribution -- --output <absolute-server-owned-directory> --expected-head <40-hex-commit>` creates the real tarball once, installs that exact tarball in the consumer tests, and atomically preserves the tarball, TAP transcript, stderr transcript, `receipt.json`, and detached `receipt.sha256` outside disposable scratch space. The receipt binds the tested Git HEAD/tree, `package.json`, `package-lock.json`, relevant SDK source bytes, tarball bytes and member inventory, test command/exit/counts, Node/npm versions, and transcript digests. It refuses a dirty checkout or an unexpected HEAD. CI uploads the directory even when the verifier fails, so a failure receipt remains reviewable.
+
+The verifier also performs an empty-cache negative install. That install is required to fail offline, confirming the documented precondition. The acceptance install then succeeds only with npm's pre-warmed cache and records the exact lockfile SHA-256. “Offline” here therefore means **network-disabled with a pre-warmed dependency cache**, not dependency-complete from this tarball alone.
 
 ## Consumer / runner / provider conjunction (T22-05 scoped QA)
 

@@ -50,12 +50,24 @@ function manifest() {
 }
 before(async () => {
   scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t22-pack-consumer-'));
-  const out = run(NPM, ['pack', '--offline', '--ignore-scripts', '--json',
-    '--pack-destination', scratch], ROOT, 30000);
-  const result = JSON.parse(out);
-  assert.equal(result.length, 1);
-  packageMetadata = result[0];
-  const packed = path.join(scratch, packageMetadata.filename);
+  const suppliedTarball = process.env.T22_DISTRIBUTION_TARBALL;
+  let packed;
+  if (suppliedTarball) {
+    assert.ok(path.isAbsolute(suppliedTarball));
+    assert.ok(process.env.T22_DISTRIBUTION_METADATA_PATH);
+    packageMetadata = JSON.parse(fs.readFileSync(
+      process.env.T22_DISTRIBUTION_METADATA_PATH, 'utf8'));
+    packed = suppliedTarball;
+    assert.equal(sha256(fs.readFileSync(packed)),
+      process.env.T22_DISTRIBUTION_TARBALL_SHA256);
+  } else {
+    const out = run(NPM, ['pack', '--offline', '--ignore-scripts', '--json',
+      '--pack-destination', scratch], ROOT, 30000);
+    const result = JSON.parse(out);
+    assert.equal(result.length, 1);
+    packageMetadata = result[0];
+    packed = path.join(scratch, packageMetadata.filename);
+  }
   assert.ok(fs.statSync(packed).size > 10000);
   packedNames = new Set(packageMetadata.files.map(f => f.path));
   const consumer = path.join(scratch, 'consumer');

@@ -163,6 +163,15 @@ jobs:
         run: node scripts/run-next-nested-tests.mjs T21
       - name: T22 sdk-next
         run: node scripts/run-next-nested-tests.mjs T22
+      - name: T22 durable distribution report
+        run: npm run test:t22-distribution -- --output "$RUNNER_TEMP/t22-distribution" --expected-head "$(git rev-parse HEAD)"
+      - name: Upload T22 durable distribution report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: t22-distribution-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/t22-distribution
+          if-no-files-found: error
       - name: T23 release-next
         run: node scripts/run-next-nested-tests.mjs T23
       # Checks only the bskel run online: backend-decoder and Backend-evaluation are private and this token gets 404 for their
