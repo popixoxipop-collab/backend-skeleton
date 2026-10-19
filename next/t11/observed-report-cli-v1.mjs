@@ -2,7 +2,8 @@
 // T11-02: explicit opt-in consumer of the *existing* legacy + presence bridge.
 // Reads a JSON report envelope on stdin. Does not load target project code,
 // register adapters, infer support, mutate baselines, or promote anything.
-import { pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { bridgeLegacyHttpWithObservation } from './observed-bridge-v1.mjs';
 import { summarizeLegacyHttpReport } from '../../adapters/http-legacy-next/bridge.mjs';
 
@@ -58,6 +59,18 @@ export async function runCli({ stdin = process.stdin, stdout = process.stdout, s
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+function isDirectInvocation(argv1) {
+  if (!argv1) return false;
+  try {
+    // npm exposes bins through a symlink on POSIX. Comparing file URLs alone
+    // mistakes that installed executable for an import and silently does
+    // nothing, so compare resolved filesystem identities instead.
+    return realpathSync(argv1) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectInvocation(process.argv[1])) {
   process.exitCode = await runCli();
 }

@@ -34,8 +34,8 @@ Original legacy snapshot/summary collapses absent `related_modules` and reported
 | `explicit_undefined` | own data property whose value is `undefined` |
 | `explicit_null` | own data property `null` |
 | `reported_empty` | own array with length 0 or an own scalar exactly `''` |
-| `reported_value` | own nonempty array or nonempty/non-null scalar (including `false` and `0`) |
-| `invalid_type` | array-valued report section receives a non-array value |
+| `reported_value` | own nonempty array, or a nonempty string, boolean, or finite number scalar (including `false` and `0`) |
+| `invalid_type` | an array section receives a non-array, or a scalar section receives an object, array, function, symbol, bigint, or non-finite number |
 | `invalid_container` | nested module is not an ordinary object-like container |
 | `accessor_unsupported` | own accessor instead of data property; its getter is never invoked |
 

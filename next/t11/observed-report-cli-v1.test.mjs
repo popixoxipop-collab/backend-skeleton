@@ -102,3 +102,20 @@ test('T11C programmatic consumer and child process agree on output', () => {
   const child=exec(input);assert.equal(child.status,0);
   assert.deepEqual(child.parsed,consumeObservedLegacyReport(input));
 });
+
+for (const [field, value] of [
+  ['verdict', { unexpected: true }],
+  ['confidence', ['high']],
+  ['api_surface_source', { source: 'fixture' }],
+]) {
+  test(`T11C ${field} object/array value fails closed as invalid_type`, () => {
+    const id = 'java-spring';
+    const out = exec({ adapter: descriptor(id), report: report(id, { [field]: value }) });
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(out.parsed.sections[field].state, 'invalid_type');
+    assert.equal(out.parsed.observation_quality, 'incomplete_report_fields');
+    assert.equal(out.parsed.runtime_certified, false);
+    assert.equal(out.parsed.source_authorized, false);
+    assert.equal(out.parsed.promotion_allowed, false);
+  });
+}

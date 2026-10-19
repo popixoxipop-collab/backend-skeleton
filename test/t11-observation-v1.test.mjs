@@ -200,3 +200,19 @@ test('T11O17 existing real five-legacy-adapter scan fixtures remain unchanged', 
     assert.deepEqual(report, before, id);
   }
 });
+
+test('T11O18 object, array and non-JSON scalar values fail closed', () => {
+  for (const value of [{}, [], () => 1, Symbol('unexpected'), 1n, Infinity, NaN]) {
+    const top = observe({ ...full(), verdict: value });
+    assert.equal(top.fields.verdict.state, 'invalid_type');
+    assert.equal(top.quality, 'incomplete_report_fields');
+
+    const nested = full();
+    nested.related_modules = [{
+      module: value, controllers: [], entities: [], enums: [], dtos: [],
+    }];
+    const observed = observe(nested);
+    assert.equal(observed.modules[0].fields.module.state, 'invalid_type');
+    assert.equal(observed.quality, 'incomplete_report_fields');
+  }
+});
