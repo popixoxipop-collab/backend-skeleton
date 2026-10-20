@@ -11,13 +11,13 @@ export const T22_DISTRIBUTION_TEST_ARGS = Object.freeze([
   'test/t22-packed-consumer.test.mjs',
   'test/t22-sdk-util-hardening-integration.test.mjs',
 ]);
-function isRequiredDistributionCommand(command) {
+function isRequiredDistributionCommand(command, expectedNodeExecutable) {
   if (!Array.isArray(command) || command.length !== T22_DISTRIBUTION_TEST_ARGS.length + 1 ||
       command.some((part) => typeof part !== 'string')) return false;
   const executable = command[0];
   const nativeNode = path.isAbsolute(executable) && path.basename(executable) === 'node';
   const windowsNode = path.win32.isAbsolute(executable) && path.win32.basename(executable).toLowerCase() === 'node.exe';
-  return (nativeNode || windowsNode) && T22_DISTRIBUTION_TEST_ARGS.every((part, index) => command[index + 1] === part);
+  return (nativeNode || windowsNode) && executable === expectedNodeExecutable && T22_DISTRIBUTION_TEST_ARGS.every((part, index) => command[index + 1] === part);
 }
 
 
@@ -62,9 +62,25 @@ function safeJson(bytes, label, problems) {
   }
 }
 
+function normalizeSourceInventory(files) {
+ if (!Array.isArray(files) || files.length === 0) throw new Error('source inventory must be a nonempty array');
+ const seen = new Set();
+ return files.map((file) => {
+  if (!file || typeof file !== 'object' || typeof file.path !== 'string' ||
+      file.path === '' || file.path.startsWith('/') || file.path.includes('\\') ||
+      /[\x00-\x1f]/.test(file.path) || file.path.split('/').some((part) => part === '' || part === '.' || part === '..') ||
+      !Number.isSafeInteger(file.size_bytes) || file.size_bytes < 0 || !SHA256.test(file.sha256 ?? '') || seen.has(file.path)) {
+   throw new Error('source inventory contains an invalid or duplicate record');
+  }
+  seen.add(file.path); return {path:file.path,size_bytes:file.size_bytes,sha256:file.sha256};
+ }).sort((a,b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+}
+
 export function verifyDistributionArtifacts(directory, {
   expectedHead,
   expectedTree,
+  expectedNodeExecutable,
+  expectedSourceInventory,
   expectedTarballSha256,
 } = {}) {
   const problems = [];
@@ -108,7 +124,8 @@ export function verifyDistributionArtifacts(directory, {
   if (!SHA256.test(receipt.cache?.lockfile_sha256 ?? '')) problems.push('cache.lockfile_sha256 is invalid');
   if (receipt.status === 'pass' && receipt.source?.dirty !== false) problems.push('a passing receipt must bind a clean checkout');
 
-  if (receipt.status === 'pass') {
+  const passing = receipt.status === 'pass';
+  if (passing || receipt.package != null || receipt.test != null) {
     // The caller must obtain both pins from Git, not from this receipt.
     if (!COMMIT.test(expectedHead ?? '')) problems.push('passing receipt requires an independently supplied expectedHead');
     if (!COMMIT.test(expectedTree ?? '')) problems.push('passing receipt requires an independently supplied expectedTree');
@@ -118,6 +135,15 @@ export function verifyDistributionArtifacts(directory, {
     if (receipt.source?.expected_head !== receipt.source?.head) {
       problems.push('source.expected_head does not match passing source.head');
     }
+    if (typeof expectedNodeExecutable !== 'string' ||
+        !(path.isAbsolute(expectedNodeExecutable) || path.win32.isAbsolute(expectedNodeExecutable))) {
+      problems.push('recorded execution requires independently supplied expectedNodeExecutable');
+    }
+    try {
+      const actual = normalizeSourceInventory(receipt.source?.relevant_files);
+      const expected = normalizeSourceInventory(expectedSourceInventory);
+      if (canonicalJson(actual) !== canonicalJson(expected)) problems.push('source inventory does not match expectedSourceInventory');
+    } catch (error) { problems.push(`source inventory: ${error.message}`); }
     const tarball = regularFile(directory, receipt.package?.tarball_file, problems);
     if (!SHA256.test(receipt.package?.tarball_sha256 ?? '')) problems.push('package.tarball_sha256 is invalid');
     if (tarball) {
@@ -167,8 +193,8 @@ export function verifyDistributionArtifacts(directory, {
     if (receipt.test?.tarball_sha256 !== receipt.package?.tarball_sha256) {
       problems.push('test did not bind the preserved tarball SHA-256');
     }
-    if (!isRequiredDistributionCommand(receipt.test?.command)) {
-      problems.push('receipt does not bind the required distribution test command');
+    if (!isRequiredDistributionCommand(receipt.test?.command, expectedNodeExecutable)) {
+      problems.push('receipt does not bind the required distribution test command or expected executable');
     }
     const counts = receipt.test?.counts;
     for (const key of ['tests', 'pass', 'fail', 'skipped', 'cancelled', 'todo']) {
@@ -182,7 +208,7 @@ export function verifyDistributionArtifacts(directory, {
         problems.push('test outcome counts do not form a consistent total');
       }
     }
-    if (!(counts?.tests > 0) || !(counts?.pass > 0)) {
+    if (passing && (!(counts?.tests > 0) || !(counts?.pass > 0))) {
       problems.push('passing receipt must contain at least one executed passing test');
     }
     if (transcriptCounts) {
@@ -192,12 +218,12 @@ export function verifyDistributionArtifacts(directory, {
         }
       }
     }
-    if (receipt.test?.exit_code !== 0 || receipt.test?.signal !== null ||
-        counts?.fail !== 0 || counts?.cancelled !== 0) {
+    if (passing && (receipt.test?.exit_code !== 0 || receipt.test?.signal !== null ||
+        counts?.fail !== 0 || counts?.cancelled !== 0)) {
       problems.push('passing receipt contains a failing test outcome');
     }
-    if (!Number.isInteger(receipt.cache?.empty_cache_probe_exit_code) ||
-        receipt.cache.empty_cache_probe_exit_code === 0) {
+    if (passing && (!Number.isInteger(receipt.cache?.empty_cache_probe_exit_code) ||
+        receipt.cache.empty_cache_probe_exit_code === 0)) {
       problems.push('empty-cache offline negative did not fail as required');
     }
     const lockfiles = Array.isArray(receipt.source?.relevant_files)

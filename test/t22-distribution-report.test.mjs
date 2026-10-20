@@ -16,8 +16,12 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HEAD = '1'.repeat(40);
 const TREE = '2'.repeat(40);
+const SOURCE_FILES = [
+ { path: 'package-lock.json', size_bytes: 1, sha256: 'a'.repeat(64) },
+ { path: 'sdk/next/index.mjs', size_bytes: 123, sha256: 'b'.repeat(64) },
+];
 function verifyDistributionArtifacts(directory, options = {}) {
-  return verifyDistributionArtifactsRaw(directory, { expectedHead: HEAD, expectedTree: TREE, ...options });
+  return verifyDistributionArtifactsRaw(directory, { expectedHead: HEAD, expectedTree: TREE, expectedNodeExecutable: process.execPath, expectedSourceInventory: SOURCE_FILES, ...options });
 }
 
 
@@ -40,7 +44,7 @@ function fixture(t) {
     generated_at: '2026-10-19T00:00:00.000Z',
     source: {
       head: HEAD, tree: TREE, expected_head: HEAD, dirty: false,
-      relevant_files: [{ path: 'package-lock.json', size_bytes: 1, sha256: 'a'.repeat(64) }],
+      relevant_files: SOURCE_FILES.map((file) => ({ ...file })),
     },
     package: {
       tarball_file: 'candidate.tgz', tarball_sha256: sha256Bytes(tarball),
@@ -287,3 +291,59 @@ for (const signal of ['SIGKILL', 'SIGTERM', undefined, '', false, 0]) {
     assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /signal|failing test outcome/);
   });
 }
+
+
+function failureFixture(t) {
+ const f = fixture(t); f.receipt.status = 'fail'; f.receipt.failures = ['TEST_EXIT_1'];
+ f.receipt.test.exit_code = 1;
+ f.receipt.test.counts = {tests:1,pass:0,fail:1,cancelled:0,skipped:0,todo:0};
+ replaceTap(f.directory, f.receipt, f.receipt.test.counts);
+ rewriteFixtureReceipt(f.directory, f.receipt); return f;
+}
+test('T22R23 valid recorded failure preserves verifiable diagnostics without becoming pass', (t) => {
+ const { directory } = failureFixture(t); const v = verifyDistributionArtifacts(directory);
+ assert.deepEqual(v.problems, []); assert.equal(v.receipt.status, 'fail');
+});
+for (const file of ['candidate.tgz','test.tap','test.stderr']) {
+ for (const kind of ['missing','altered']) {
+  test(`T22R24 failure diagnostics are checked: ${file} ${kind}`, (t) => {
+   const { directory } = failureFixture(t);
+   if (kind === 'missing') fs.unlinkSync(path.join(directory,file));
+   else fs.appendFileSync(path.join(directory,file),'corrupted');
+   assert.notEqual(verifyDistributionArtifacts(directory).problems.length,0);
+  });
+ }
+}
+test('T22R25 a failure before artifact creation stays a verifiable failure record', (t) => {
+ const {directory,receipt}=fixture(t); receipt.status='fail';receipt.failures=['EARLY_FAILURE'];
+ receipt.package=null;receipt.test=null;rewriteFixtureReceipt(directory,receipt);
+ assert.deepEqual(verifyDistributionArtifacts(directory).problems,[]);
+});
+for (const node of ['/tmp/node','/different/node',undefined]) {
+ test(`T22R26 exact independently supplied executable is required: ${String(node)}`, (t) => {
+  const {directory,receipt}=fixture(t);
+  if (node !== undefined) receipt.test.command[0]=node;
+  rewriteFixtureReceipt(directory,receipt);
+  const options=node===undefined ? {expectedNodeExecutable:undefined} : {};
+  assert.match(verifyDistributionArtifacts(directory,options).problems.join('\n'),/expectedNodeExecutable|executable/);
+ });
+}
+for (const kind of ['missing-entry','extra-entry','wrong-path','wrong-size','wrong-hash','duplicate','unsafe-path','null-entry']) {
+ test(`T22R27 complete expected source inventory is checked: ${kind}`, (t) => {
+  const {directory,receipt}=fixture(t);const a=receipt.source.relevant_files;
+  if(kind==='missing-entry')a.pop();
+  if(kind==='extra-entry')a.push({path:'made-up.mjs',size_bytes:1,sha256:'c'.repeat(64)});
+  if(kind==='wrong-path')a[1].path='nonexistent.mjs';
+  if(kind==='wrong-size')a[1].size_bytes=999;
+  if(kind==='wrong-hash')a[1].sha256='c'.repeat(64);
+  if(kind==='duplicate')a.push({...a[1]});
+  if(kind==='unsafe-path')a[1].path='../outside';
+  if(kind==='null-entry')a.push(null);
+  rewriteFixtureReceipt(directory,receipt);
+  assert.match(verifyDistributionArtifacts(directory).problems.join('\n'),/source inventory/);
+ });
+}
+test('T22R28 pass acceptance without external source inventory fails closed', (t) => {
+ const {directory}=fixture(t);
+ assert.match(verifyDistributionArtifacts(directory,{expectedSourceInventory:undefined}).problems.join('\n'),/expectedSourceInventory|source inventory/);
+});

@@ -55,31 +55,22 @@ function git(...args) {
   return requireSuccess(run('git', args), `git ${args.join(' ')}`);
 }
 
-function listFiles(directory, prefix = '') {
-  const output = [];
-  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-    const absolute = path.join(directory, entry.name);
-    const relative = path.posix.join(prefix, entry.name);
-    if (entry.isDirectory()) output.push(...listFiles(absolute, relative));
-    else if (entry.isFile()) output.push(relative);
-  }
-  return output.sort();
-}
-
-function sourceInventory() {
+function sourceInventory(head) {
+  const sdkFiles = git('ls-tree', '-r', '--name-only', head, '--', 'sdk/next').split('\n').filter(Boolean);
   const relative = [
-    '.github/workflows/ci.yml',
-    'package.json',
-    'package-lock.json',
-    'scripts/t22-distribution-receipt.mjs',
-    'scripts/t22-distribution-report.mjs',
-    'test/t22-distribution-report.test.mjs',
-    ...TEST_FILES,
-    ...listFiles(path.join(ROOT, 'sdk', 'next'), 'sdk/next'),
+    '.github/workflows/ci.yml', 'package.json', 'package-lock.json',
+    'scripts/t22-distribution-receipt.mjs', 'scripts/t22-distribution-report.mjs',
+    'test/t22-distribution-report.test.mjs', ...TEST_FILES, ...sdkFiles,
   ];
   return [...new Set(relative)].sort().map((name) => {
-    const bytes = fs.readFileSync(path.join(ROOT, name));
-    return { path: name, size_bytes: bytes.byteLength, sha256: sha256Bytes(bytes) };
+    // Derive trusted expected bytes from Git, never from receipt JSON.
+    const blob = spawnSync('git', ['cat-file', 'blob', `${head}:${name}`], {
+      cwd: ROOT, timeout: 10000, maxBuffer: 8 * 1024 * 1024,
+    });
+    if (blob.error || blob.status !== 0 || !Buffer.isBuffer(blob.stdout)) {
+      throw new Error(`cannot read pinned Git source blob: ${name}`);
+    }
+    return { path: name, size_bytes: blob.stdout.byteLength, sha256: sha256Bytes(blob.stdout) };
   });
 }
 
@@ -123,7 +114,7 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
     dirty = git('status', '--porcelain', '--untracked-files=all') !== '';
     if (head !== expectedHead) failures.push(`SOURCE_HEAD_MISMATCH expected=${expectedHead} actual=${head}`);
     if (dirty) failures.push('SOURCE_TREE_DIRTY');
-    relevantFiles = sourceInventory();
+    relevantFiles = sourceInventory(head);
     npmVersion = requireSuccess(run(NPM, ['--version']), 'npm --version');
 
     if (failures.length === 0) {
@@ -237,12 +228,12 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
     ],
   };
   let receiptSha256 = writeReceipt(stage, receipt);
-  let verified = verifyDistributionArtifacts(stage, { expectedHead, expectedTree: tree });
+  let verified = verifyDistributionArtifacts(stage, { expectedHead, expectedTree: tree, expectedNodeExecutable: process.execPath, expectedSourceInventory: relevantFiles });
   if (receipt.status === 'pass' && verified.problems.length > 0) {
     receipt.status = 'fail';
     receipt.failures.push(...verified.problems.map((problem) => `SELF_VERIFY ${problem}`));
     receiptSha256 = writeReceipt(stage, receipt);
-    verified = verifyDistributionArtifacts(stage, { expectedHead, expectedTree: tree });
+    verified = verifyDistributionArtifacts(stage, { expectedHead, expectedTree: tree, expectedNodeExecutable: process.execPath, expectedSourceInventory: relevantFiles });
   }
   fs.renameSync(stage, output);
   fs.rmSync(scratch, { recursive: true, force: true });
