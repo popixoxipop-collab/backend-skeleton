@@ -92,3 +92,30 @@ test('unknown composite router prefix is incomplete, not proven matching a full 
  const r=focusOperationContext(f);
  assert.notEqual(r.status,'advisory_complete');
 });
+
+test('an inline comment cannot forge the expected route literal',t=>{
+ const f=fixture(t,[
+  '@router.get( # @router.get("/ping")',
+  '    "/other"',
+  ')',
+  'async def readPing():',
+  '    return {"marker":"INLINE_COMMENT_ROUTE_DECOY"}',''
+ ].join('\n'));
+ const r=focusOperationContext(f);
+ assert.equal(r.status,'abstained');
+ assert.equal(r.focus.selected,null);
+ assert.ok(!JSON.stringify(r).includes('INLINE_COMMENT_ROUTE_DECOY'));
+});
+test('the actual route remains recognized despite a misleading inline comment',t=>{
+ const f=fixture(t,[
+  '@router.get( # @router.get("/other")',
+  '    "/ping"',
+  ')',
+  'async def readPing():',
+  '    return {"ping":"pong"}',''
+ ].join('\n'));
+ const r=focusOperationContext(f);
+ assert.equal(r.status,'advisory_complete');
+ assert.equal(r.focus.selected.path,'app/routes/api.py');
+ assert.equal(r.focus.selected.route_verification,'exact');
+});

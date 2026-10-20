@@ -107,3 +107,23 @@ The five negative/positive route-ownership regression cases are stored
 in test/context-focus-route-validation.test.mjs. Earlier navigation
 benchmarks used prior frozen source-selector commits and must not be
 recounted as a new untouched holdout for this implementation.
+
+
+## Inline comment route spoofing hardening
+
+A read-only reviewer found that a deceptive inline source comment could
+introduce a fake GET route literal for a different declared path. For
+example, an actual multiline decorator for /other could have a comment
+containing a lookalike GET /ping and previously be marked complete for
+the /ping contract.
+
+Focused route matching now reads the comment/docstring-masked source
+with genuine Python quoted route strings preserved. This does not
+execute Python or trust its comments. The source excerpt returned to
+the caller remains the original commit-pinned bytes. Two route-level
+regressions check the fake-matching and real-matching variants.
+
+The operation status remains advisory, and a matching literal does not
+resolve route prefixes, dynamic expressions, BECODER plans, import
+closure or BEVAL execution authority. Previous post-hoc benchmarks
+do not certify this updated successor commit.
