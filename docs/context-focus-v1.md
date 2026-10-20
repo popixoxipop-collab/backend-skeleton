@@ -21,3 +21,21 @@ This is a **lexical GET declaration/decorator matcher**, not true language-wide 
 In an already previously scored 22-route development set, focused selection chose the correct source file for **22/22**, abstained 0 times, and supplied **8,229 bytes total** of source excerpts. That dataset had already been opened and scored before this algorithm was written, so these are **post-hoc compatibility and byte-budget observations only**. They must not be presented as independently established general accuracy or a model token-cost result. The previous baseline source excerpts (25,150B `rg`, 27,634B AST/declarations, 57,512B unpruned BSKEL) remain frozen and unchanged.
 
 Before claiming improved accuracy or token efficiency, freeze this code commit, then select new unused repositories and independently define source gold and paired model requests. Compare to a robust `rg`/Python-AST/declaration baseline at equal source byte cap, and measure actual source-byte use, provider token reports, abstentions and exact file-and-symbol success. Evaluate backend behavior separately; navigation correctness does not prove implementation correctness.
+
+
+## Restricted focused handler paths — security review follow-up
+
+An independent read-only audit of the dependent context-slice feature found
+that the original focus selector could retrieve a Python GET handler from
+a tracked credential-like directory (for example app/secrets/token.py).
+The parent focus command now refuses to emit **any** source excerpt if
+any shortlisted candidate has a credential/secrets/private/token/key path.
+Both top-ranked and lower-ranked secret candidates are covered in regression
+tests. The command returns a structured advisory abstention rather than
+treating that source as an executable or approved context.
+
+This security change is on a **successor commit** to the original frozen
+focus algorithm. Previous 22-case model/token results belong to the frozen
+commit and are NOT an untouched holdout validation of the patched selector.
+The feature remains read-only and Draft; no BECODER plan, BEVAL verification
+or main/production promotion is implied.
