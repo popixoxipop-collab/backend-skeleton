@@ -25,9 +25,13 @@ old evidence is overwritten.
 
 Root `test/t19-wave2-closeout.test.mjs` is discovered by the existing
 `npm test` command, so both existing Node 22/24 CI lanes run a fresh five-mutant
-campaign rather than only checking stored JSON. The existing runner materializes
-Git source, installs locked dependencies with scripts disabled and bounds child
-process groups. A failed unmodified baseline, timeout, missing mutation anchor
+campaign rather than only checking stored JSON. Because sibling root tests may
+create temporary working-tree files, the gate captures one immutable commit and
+creates a private, clean local clone before calling the existing strict runner.
+The selected catalog is also read from that pinned clone, not the mutable caller
+checkout. A real dirty/untracked fixture verifies isolation without changing or
+cleaning the caller. The runner materializes Git source, installs locked
+dependencies with scripts disabled and bounds child process groups. A failed unmodified baseline, timeout, missing mutation anchor
 or surviving mutant never satisfies the new gate. The new oracle file is also
 discovered by the ordinary T19 nested suite. No workflow is disabled or relaxed.
 
