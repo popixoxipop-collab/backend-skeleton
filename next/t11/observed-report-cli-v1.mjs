@@ -10,8 +10,9 @@ import { summarizeLegacyHttpReport } from '../../adapters/http-legacy-next/bridg
 export const T11_REPORT_CONSUMER_V1 = 'bskel.t11-observed-report-consumer/1';
 export const MAX_INPUT_BYTES = 2 * 1024 * 1024;
 
-export function consumeObservedLegacyReport({ adapter, report, root } = {}) {
-  const bound = bridgeLegacyHttpWithObservation({ adapter, report, root });
+export function consumeObservedLegacyReport(input = {}) {
+  // The bridge checks descriptors/proxies before reading any envelope field.
+  const bound = bridgeLegacyHttpWithObservation(input);
   const fields = bound.report_observation.fields;
   const sections = Object.fromEntries(
     Object.entries(fields).map(([field, value]) => [field, {
