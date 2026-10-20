@@ -1,3 +1,5 @@
+import { types as nodeUtilTypes } from 'node:util';
+
 export const SDK_INPUT_LIMITS = Object.freeze({
 	identifierBytes: 128,
 	titleBytes: 512,
@@ -49,7 +51,7 @@ export function utf8Bytes(value) {
 }
 
 export function isPlainObject(value) {
-	if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+	if (value === null || typeof value !== 'object' || nodeUtilTypes.isProxy(value) || Array.isArray(value)) return false;
 	const proto = Object.getPrototypeOf(value);
 	return proto === Object.prototype || proto === null;
 }
@@ -91,9 +93,9 @@ function parseSemver(value) {
 		(/^\d+$/.test(part) && part.length > 1 && part.startsWith('0')))) return null;
 	if (build.some((part) => part.length === 0 || !/^[0-9A-Za-z-]+$/.test(part))) return null;
 	return {
-		major: Number(match[1]),
-		minor: Number(match[2]),
-		patch: Number(match[3]),
+		major: BigInt(match[1]),
+		minor: BigInt(match[2]),
+		patch: BigInt(match[3]),
 		prerelease,
 	};
 }
@@ -122,7 +124,7 @@ export function compareSemver(a, b) {
 		if (aPart === bPart) continue;
 		const aNumeric = /^\d+$/.test(aPart);
 		const bNumeric = /^\d+$/.test(bPart);
-		if (aNumeric && bNumeric) return Number(aPart) < Number(bPart) ? -1 : 1;
+		if (aNumeric && bNumeric) return BigInt(aPart) < BigInt(bPart) ? -1 : 1;
 		if (aNumeric !== bNumeric) return aNumeric ? -1 : 1;
 		return aPart < bPart ? -1 : 1;
 	}
@@ -153,11 +155,21 @@ export function validOpaqueRef(value) {
 
 export function normalizeArtifactRef(ref) {
 	if (!isPlainObject(ref)) throw new TypeError('ArtifactRef must be a plain object');
-	const actual = Object.keys(ref).sort();
+	const actual = Reflect.ownKeys(ref);
 	const expected = ['artifact_ref', 'byte_sha256', 'family', 'media_type', 'size_bytes', 'version'];
-	if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+	if (actual.length !== expected.length || actual.some((key) => typeof key !== 'string' || !expected.includes(key))) {
 		throw new TypeError('ArtifactRef must contain exactly artifact_ref, family, version, media_type, byte_sha256, size_bytes');
 	}
+	// Read descriptor values only. Accessor fields may perform arbitrary work
+	// before the caller has authorized the purported artifact reference.
+	const descriptors = Object.getOwnPropertyDescriptors(ref);
+	for (const key of expected) {
+		const descriptor = descriptors[key];
+		if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) {
+			throw new TypeError('ArtifactRef fields must be enumerable own data properties');
+		}
+	}
+	ref = Object.fromEntries(expected.map((key) => [key, descriptors[key].value]));
 	if (ref.artifact_ref !== 'sbf.artifact-ref/1') throw new TypeError('unsupported ArtifactRef contract');
 	if (typeof ref.family !== 'string' || !/^[a-z][a-z0-9.-]*$/.test(ref.family)) throw new TypeError('ArtifactRef.family is invalid');
 	if (!validBoundedString(ref.version, SDK_INPUT_LIMITS.semverBytes, { forbidControls: true })) throw new TypeError('ArtifactRef.version is invalid');
@@ -202,24 +214,49 @@ export function cloneJsonValue(value, {
 			if (!Number.isFinite(current)) throw new TypeError('JSON numbers must be finite');
 			return current;
 		}
+		// Node's native Proxy brand check does not execute user-defined traps.
+		// It must precede any ownKeys, descriptor, length or prototype access.
+		if (current !== null && typeof current === 'object' && nodeUtilTypes.isProxy(current)) {
+			throw new TypeError('JSON Proxy objects are unsupported');
+		}
 		if (Array.isArray(current)) {
-			if (Object.keys(current).length !== current.length) throw new TypeError('JSON arrays must not be sparse or carry extra enumerable keys');
 			if (active.has(current)) throw new TypeError('JSON value must not contain cycles');
+			const descriptors = Object.getOwnPropertyDescriptors(current);
+			const ownKeys = Reflect.ownKeys(current);
+			if (ownKeys.length !== current.length + 1 || !Object.hasOwn(descriptors, 'length')) {
+				throw new TypeError('JSON arrays must not be sparse or carry extra keys');
+			}
+			const out = [];
 			active.add(current);
-			const out = current.map((item) => visit(item, depth + 1));
+			for (let index = 0; index < current.length; index += 1) {
+				const item = descriptors[String(index)];
+				if (!item || !Object.hasOwn(item, 'value') || !item.enumerable) {
+					throw new TypeError('JSON arrays require own enumerable data elements');
+				}
+				out.push(visit(item.value, depth + 1));
+			}
 			active.delete(current);
 			return out;
 		}
 		if (isPlainObject(current)) {
 			if (active.has(current)) throw new TypeError('JSON value must not contain cycles');
-			active.add(current);
+			const descriptors = Object.getOwnPropertyDescriptors(current);
+			const ownKeys = Reflect.ownKeys(current);
+			if (ownKeys.some((key) => typeof key !== 'string')) {
+				throw new TypeError('JSON objects must not contain symbol keys');
+			}
 			const out = {};
-			for (const key of Object.keys(current).sort()) {
+			active.add(current);
+			for (const key of ownKeys.sort()) {
 				if (utf8Bytes(key) > maxKeyBytes || /[\u0000-\u001f\u007f]/.test(key)) {
 					throw new TypeError('JSON object key exceeds byte budget or contains control characters');
 				}
+				const descriptor = descriptors[key];
+				if (!descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) {
+					throw new TypeError('JSON objects require enumerable own data properties');
+				}
 				Object.defineProperty(out, key, {
-					value: visit(current[key], depth + 1),
+					value: visit(descriptor.value, depth + 1),
 					enumerable: true,
 					configurable: true,
 					writable: true,
@@ -232,8 +269,31 @@ export function cloneJsonValue(value, {
 	}
 
 	const cloned = visit(value, 0);
-	const serialized = JSON.stringify(cloned);
-	if (utf8Bytes(serialized) > maxSerializedBytes) throw new TypeError('JSON value exceeds serialized byte budget');
+	// JSON.stringify(object) first consults *inherited* toJSON(). It can run
+	// caller-installed functions even after every input getter was rejected.
+	// Measure the exact UTF-8 JSON encoding without object serialization hooks.
+	function serializedBytes(current) {
+		if (current === null) return 4;
+		if (typeof current !== 'object') return utf8Bytes(JSON.stringify(current));
+		let bytes = 2; // '[' + ']' or '{' + '}'
+		if (Array.isArray(current)) {
+			for (let i = 0; i < current.length; i += 1) {
+				if (i > 0) bytes += 1;
+				bytes += serializedBytes(current[i]);
+				if (bytes > maxSerializedBytes) throw new TypeError('JSON value exceeds serialized byte budget');
+			}
+		} else {
+			const keys = Object.keys(current);
+			for (let i = 0; i < keys.length; i += 1) {
+				const key = keys[i];
+				if (i > 0) bytes += 1;
+				bytes += utf8Bytes(JSON.stringify(key)) + 1 + serializedBytes(current[key]);
+				if (bytes > maxSerializedBytes) throw new TypeError('JSON value exceeds serialized byte budget');
+			}
+		}
+		return bytes;
+	}
+	if (serializedBytes(cloned) > maxSerializedBytes) throw new TypeError('JSON value exceeds serialized byte budget');
 	return cloned;
 }
 
@@ -247,9 +307,26 @@ export function isJsonValue(value, options) {
 }
 
 export function deepFreezeJson(value) {
-	if (value === null || typeof value !== 'object' || Object.isFrozen(value)) return value;
-	for (const child of Object.values(value)) deepFreezeJson(child);
-	return Object.freeze(value);
+	const visiting = new Set();
+	function freeze(current) {
+		if (current === null || typeof current !== 'object') return current;
+		if (nodeUtilTypes.isProxy(current)) throw new TypeError('JSON Proxy objects are unsupported');
+		if (visiting.has(current)) throw new TypeError('JSON value must not contain cycles');
+		visiting.add(current);
+		// Object.freeze is shallow. Even an already-frozen container can retain
+		// mutable descendants, so descriptors must always be traversed first.
+		// Descriptors never invoke accessors, unlike Object.values(). Freeze nested
+		// own values (including non-enumerable keys) before the parent.
+		for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(current))) {
+			if (!Object.hasOwn(descriptor, 'value')) {
+				throw new TypeError('JSON accessors cannot be deep-frozen without execution');
+			}
+			freeze(descriptor.value);
+		}
+		visiting.delete(current);
+		return Object.isFrozen(current) ? current : Object.freeze(current);
+	}
+	return freeze(value);
 }
 
 export function cloneAndFreezeJson(value, options) {
@@ -257,18 +334,46 @@ export function cloneAndFreezeJson(value, options) {
 }
 
 export function stableClone(value) {
-	if (Array.isArray(value)) return value.map(stableClone);
-	if (isPlainObject(value)) {
+	const active = new Set();
+	function clone(current) {
+		if (current !== null && typeof current === 'object' && nodeUtilTypes.isProxy(current)) {
+			throw new TypeError('Proxy values cannot be stably cloned');
+		}
+		if (!Array.isArray(current) && !isPlainObject(current)) return current;
+		if (active.has(current)) throw new TypeError('stableClone rejects cycles');
+		active.add(current);
+		const descriptors = Object.getOwnPropertyDescriptors(current);
+		const keys = Reflect.ownKeys(current);
+		if (Array.isArray(current)) {
+			if (keys.length !== current.length + 1 || !Object.hasOwn(descriptors, 'length')) {
+				throw new TypeError('stableClone rejects sparse arrays or extra keys');
+			}
+			const out = [];
+			for (let i = 0; i < current.length; i += 1) {
+				const entry = descriptors[String(i)];
+				if (!entry?.enumerable || !Object.hasOwn(entry, 'value')) {
+					throw new TypeError('stableClone rejects array accessors');
+				}
+				out.push(clone(entry.value));
+			}
+			active.delete(current);
+			return out;
+		}
+		if (keys.some((key) => typeof key !== 'string')) {
+			throw new TypeError('stableClone rejects symbol keys');
+		}
 		const out = {};
-		for (const key of Object.keys(value).sort()) {
+		for (const key of keys.sort()) {
+			const entry = descriptors[key];
+			if (!entry.enumerable || !Object.hasOwn(entry, 'value')) {
+				throw new TypeError('stableClone rejects object accessors or hidden keys');
+			}
 			Object.defineProperty(out, key, {
-				value: stableClone(value[key]),
-				enumerable: true,
-				configurable: true,
-				writable: true,
+				value: clone(entry.value), enumerable: true, configurable: true, writable: true,
 			});
 		}
+		active.delete(current);
 		return out;
 	}
-	return value;
+	return clone(value);
 }
