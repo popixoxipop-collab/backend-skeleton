@@ -117,3 +117,56 @@ test('T22R06 package script and regular CI preserve the durable report', () => {
   assert.equal(upload?.if, 'always()');
   assert.equal(upload?.with?.['if-no-files-found'], 'error');
 });
+
+// An empty or contradictory test receipt must not count as product evidence.
+function rewriteFixtureReceipt(directory, receipt) {
+  const bytes = receiptBytes(receipt);
+  fs.writeFileSync(path.join(directory, 'receipt.json'), bytes);
+  fs.writeFileSync(path.join(directory, 'receipt.sha256'), `${sha256Bytes(bytes)}\n`);
+}
+function replaceTap(directory, receipt, counts) {
+  const transcript = Buffer.from(`TAP version 13\n1..${counts.tests}\n` +
+    Object.entries(counts).map(([key, value]) => `# ${key} ${value}\n`).join(''));
+  fs.writeFileSync(path.join(directory, 'test.tap'), transcript);
+  receipt.test.transcript_sha256 = sha256Bytes(transcript);
+}
+
+test('T22R07 zero executed tests cannot produce an accepted passing receipt', (t) => {
+  const { directory, receipt } = fixture(t);
+  receipt.test.counts = { tests: 0, pass: 0, fail: 0, cancelled: 0, skipped: 0, todo: 0 };
+  replaceTap(directory, receipt, receipt.test.counts);
+  rewriteFixtureReceipt(directory, receipt);
+  assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /executed passing test/);
+});
+
+test('T22R08 an all-skipped suite cannot count as product acceptance', (t) => {
+  const { directory, receipt } = fixture(t);
+  receipt.test.counts = { tests: 1, pass: 0, fail: 0, cancelled: 0, skipped: 1, todo: 0 };
+  replaceTap(directory, receipt, receipt.test.counts);
+  rewriteFixtureReceipt(directory, receipt);
+  assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /executed passing test/);
+});
+
+test('T22R09 passing metadata cannot contradict the retained TAP summary', (t) => {
+  const { directory, receipt } = fixture(t);
+  replaceTap(directory, receipt, { tests: 1, pass: 0, fail: 1, cancelled: 0, skipped: 0, todo: 0 });
+  rewriteFixtureReceipt(directory, receipt);
+  assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /TAP summary.*(pass|fail)/);
+});
+
+test('T22R10 a transcript without a complete TAP summary fails closed', (t) => {
+  const { directory, receipt } = fixture(t);
+  const transcript = Buffer.from('TAP version 13\n1..1\n# pass 1\n');
+  fs.writeFileSync(path.join(directory, 'test.tap'), transcript);
+  receipt.test.transcript_sha256 = sha256Bytes(transcript);
+  rewriteFixtureReceipt(directory, receipt);
+  assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /TAP summary/);
+});
+
+test('T22R11 duplicate TAP count lines cannot be accepted as one run', (t) => {
+  const { directory, receipt } = fixture(t);
+  fs.appendFileSync(path.join(directory, 'test.tap'), '# pass 1\n');
+  receipt.test.transcript_sha256 = sha256Bytes(fs.readFileSync(path.join(directory, 'test.tap')));
+  rewriteFixtureReceipt(directory, receipt);
+  assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /TAP summary/);
+});

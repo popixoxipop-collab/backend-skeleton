@@ -105,8 +105,24 @@ export function verifyDistributionArtifacts(directory, {
     }
 
     const transcript = regularFile(directory, receipt.test?.transcript_file, problems);
-    if (transcript && sha256Bytes(fs.readFileSync(transcript)) !== receipt.test?.transcript_sha256) {
-      problems.push('test transcript SHA-256 does not match receipt');
+    let transcriptCounts = null;
+    if (transcript) {
+      const transcriptBytes = fs.readFileSync(transcript);
+      if (sha256Bytes(transcriptBytes) !== receipt.test?.transcript_sha256) {
+        problems.push('test transcript SHA-256 does not match receipt');
+      }
+      // A matching file digest binds bytes, not the claimed test outcome.
+      // Re-read the actual retained counts instead of trusting receipt metadata.
+      const text = transcriptBytes.toString('utf8');
+      transcriptCounts = {};
+      for (const key of ['tests', 'pass', 'fail', 'skipped', 'cancelled', 'todo']) {
+        const matches = [...text.matchAll(new RegExp(`^# ${key} (\\d+)\\r?$`, 'gm'))];
+        if (matches.length !== 1 || !Number.isSafeInteger(Number(matches[0]?.[1]))) {
+          problems.push(`TAP summary must contain exactly one valid ${key} count`);
+        } else {
+          transcriptCounts[key] = Number(matches[0][1]);
+        }
+      }
     }
     if (receipt.test?.tarball_sha256 !== receipt.package?.tarball_sha256) {
       problems.push('test did not bind the preserved tarball SHA-256');
@@ -114,6 +130,16 @@ export function verifyDistributionArtifacts(directory, {
     const counts = receipt.test?.counts;
     for (const key of ['tests', 'pass', 'fail', 'skipped', 'cancelled', 'todo']) {
       if (!Number.isSafeInteger(counts?.[key]) || counts[key] < 0) problems.push(`test count ${key} is invalid`);
+    }
+    if (!(counts?.tests > 0) || !(counts?.pass > 0)) {
+      problems.push('passing receipt must contain at least one executed passing test');
+    }
+    if (transcriptCounts) {
+      for (const key of ['tests', 'pass', 'fail', 'skipped', 'cancelled', 'todo']) {
+        if (transcriptCounts[key] !== counts?.[key]) {
+          problems.push(`TAP summary ${key} does not match receipt test counts`);
+        }
+      }
     }
     if (receipt.test?.exit_code !== 0 || counts?.fail !== 0 || counts?.cancelled !== 0) {
       problems.push('passing receipt contains a failing test outcome');
