@@ -1447,6 +1447,10 @@ function cmdContextPack(args) {
 	}) : null;
 	if(suggestion && !suggestion.selection.selected.length)
 		throw new Error('context pack: no source files discovered for requested operation');
+	if(suggestion && !suggestion.selection.complete)
+		throw new Error('context pack: automatic discovery is incomplete (' +
+			suggestion.selection.incomplete_reasons.join(', ') +
+			'); inspect context discover --json, then review and use explicit --files. No packet was emitted.');
 	const packet = createContextPacket({
 		repoRoot: root,
 		contractPath: flags.contract,

@@ -55,7 +55,7 @@ test('ranks the exact endpoint from immutable Git ahead of unrelated code',t=>{
   assert.equal(first.selection.selected[0].path,'app/routes/ping.py');
   assert.equal(first.selection.confidence,'high');
   assert.equal(first.selection.selected[0].sha256,createHash('sha256').update(src).digest('hex'));
-  assert.ok(first.selection.selected[0].signals.includes('operation_symbol'));
+  assert.ok(first.selection.selected[0].signals.includes('handler_declaration'));
   assert.ok(first.selection.selected.every(x=>!x.path.includes('secret')&&!x.path.includes('test')&&!x.path.includes('linked')&&!x.path.includes('.env')));
   assert.equal(JSON.stringify(first).includes('DO_NOT_INCLUDE'),false);
 });

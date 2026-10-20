@@ -32,3 +32,42 @@ Development references: `fastapi-crud-ping`, `fastapi-sqlmodel-ping`, `fastapi-b
 3. Use an existing or separately vetted source-path oracle/route inventory, independently of this scorer, for gold verification. Keep complete source/prompt/response SHA and model usage per trial.
 4. Do not count model LLM code generation task failures as retrieval successes, and do not present an A/B prompt-only study as verification of deployed backend behavior.
 5. Preserve original BSKEL contract unknown/security semantics, BECODER deterministic plan, BEVAL independent Git-byte verification, and existing merge/promotion gates.
+
+## Security review hardening on successor commit — 2026-10-20
+
+The read-only independent Codex audit found five code-path flaws in the
+original frozen source selector. This successor fixes them but does NOT
+retroactively change the original 22-pair holdout results.
+
+- Source discovery completeness is now false when scan budgets were exhausted,
+  any eligible Git blob was rejected as oversized/binary/non-UTF8, matching
+  candidates were truncated, the best match lacks callable declaration
+  evidence, or leading candidates are ambiguous.
+- The limit maxScanFiles now applies to **all inspected Git blobs**, including
+  oversized objects skipped before content is read. New inspected_files
+  explicitly reports the counter, separate from scanned_files.
+- Tree paths are strictly UTF-8 decoded without replacement characters.
+  Contracts must be regular committed blobs (no symlink) and their bytes are
+  read by immutable Git OID with a bounded byte count.
+- Comments and Python docstrings cannot produce strong declaration signals.
+  String contents are not accepted as executable function declarations.
+  Route heuristics remain approximate, not a replacement for parser/AST proof.
+- Automatic context packing fails closed on an incomplete discovery. Inspect
+  the separate context discover JSON receipt (including incomplete_reasons
+  and omitted_matching_candidates), then manually review and use explicit
+  context pack --files if necessary. Automatic packing has no bypass flag.
+
+The existing sbf.context-packet/1 schema is unchanged. In that schema,
+selection.complete refers ONLY to the explicit requested source paths. It
+does not certify repository coverage, retrieval completeness, or functional
+correctness. The new discovery completeness verdict is separately reported.
+
+Adversarial tests cover: Git raw invalid-UTF8 tree entries via git mktree
+(even on Macs forbidding invalid filenames), symlinked contracts, oversized
+entries circumventing scan limits, matching candidate truncation, malicious
+line/block/docstring comments and strings, and fail-closed auto-pack.
+
+Prior 22-pair holdout: selector SHA 9df94ea80b67ad844e9bc92bc7e2d9a81b7e7382.
+Repeating those 22 original tasks on this successor is POST-HOC compatibility
+regression, NOT a new untouched holdout. No production merge or promotion
+should rely on the old results as evidence for this successor.
