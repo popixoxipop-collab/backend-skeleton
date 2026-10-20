@@ -73,7 +73,14 @@ export function observeLegacyScanReport(report) {
   if (modules.length > MAX_MODULES) {
     throw new RangeError('T11_OBSERVATION_MODULE_LIMIT');
   }
-  const moduleSections = modules.map((value, index) => {
+  // Read every own numeric position: map() skips holes and can be overridden.
+  // Descriptors also prevent module-index accessors from executing.
+  const moduleSections = Array.from({ length: modules.length }, (_, index) => {
+    const descriptor = Object.getOwnPropertyDescriptor(modules, String(index));
+    if (descriptor && !Object.hasOwn(descriptor, 'value')) {
+      throw new TypeError('T11_OBSERVATION_MODULE_ACCESSOR_UNSUPPORTED');
+    }
+    const value = descriptor?.value;
     const item = { index, fields: {} };
     item.fields.module = section(value, 'module', false);
     for (const name of MODULE_ARRAY_FIELDS) {
