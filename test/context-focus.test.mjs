@@ -133,3 +133,29 @@ test('regular Git contract requirement rejects symlink',t=>{
  git(f.repo,'add','-A');git(f.repo,'commit','-qm','symlink');
  assert.throws(()=>focusOperationContext({repoRoot:f.repo,contractPath,operationId:'readPerson'}),/regular committed contract/);
 });
+
+test('focused source refuses a GET handler inside a secret directory',t=>{
+ const malicious=source.replace('return {"id": id}','return {"api_key": "NEVER_EXPOSE_SECRET_MARKER"}');
+ const f=create(t,{
+   'app/routes/person.py':'def unrelated(): return 0\n',
+   'app/secrets/token.py':malicious,
+ });
+ const r=get(f);
+ assert.equal(r.status,'abstained');
+ assert.equal(r.reason,'restricted_source_candidate');
+ assert.equal(r.focus.selected,null);
+ assert.equal(r.focus.source_excerpt_bytes,0);
+ assert.ok(!JSON.stringify(r).includes('NEVER_EXPOSE_SECRET_MARKER'));
+ assert.ok(!JSON.stringify(r).includes('app/secrets/token.py'));
+ const cli=runCli(f,'focus','--contract',contractPath,'--operation','readPerson','--revision',f.commit,'--json');
+ assert.equal(cli.status,0,cli.stderr);
+ assert.equal(JSON.parse(cli.stdout).focus.selected,null);
+ assert.ok(!cli.stdout.includes('NEVER_EXPOSE_SECRET_MARKER'));
+});
+test('even a lower-ranked secret source candidate conservatively prevents a trusted focus',t=>{
+ const f=create(t,{'app/private/duplicate.py':source});
+ const r=get(f);
+ assert.equal(r.status,'abstained');
+ assert.equal(r.reason,'restricted_source_candidate');
+ assert.equal(r.focus.selected,null);
+});
