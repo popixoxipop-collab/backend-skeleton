@@ -125,3 +125,33 @@ test('operation budget and source OID stay stable between duplicate reads',t=>{
  assert.equal(a.budget.used_bytes,a.handler.bytes+a.dependencies.reduce((n,d)=>n+d.bytes,0));
  assert.equal(a.dependencies[0].excerpt_sha256,createHash('sha256').update(a.dependencies[0].excerpt).digest('hex'));
 });
+
+test('explicit backslash continuation preserves an unindented next-line call',t=>{
+ const f=mk(t,serviceImport+decorator+
+  'async def readPing():\n    return \\\nreply_payload()\n');
+ const result=build(f);
+ assert.equal(result.status,'advisory_complete');
+ assert.equal(result.dependencies.length,1);
+ assert.match(result.handler.excerpt,/return \\\nreply_payload\(\)/);
+ assert.equal(result.dependencies[0].symbol,'reply_payload');
+});
+test('import_module imported from importlib is treated as dynamic and incomplete',t=>{
+ const f=mk(t,'from importlib import import_module\n'+decorator+
+  'async def readPing():\n    return import_module("app.services").reply_payload()\n');
+ const result=build(f);
+ assert.equal(result.status,'advisory_incomplete');
+ assert.equal(result.dependencies.length,0);
+ assert.ok(result.warnings.some(x=>x.reason==='dynamic_import_not_resolved'));
+});
+test('secret directory handler is not returned from the parent focus or the source slice',t=>{
+ const f=mk(t,
+  'def unrelated():\n    return {}\n',
+  {'app/secrets/token.py':decorator+
+     'async def readPing():\n    return {"credential":"SECRET_HANDLER_SHOULD_NOT_LEAK"}\n'});
+ const result=build(f);
+ assert.equal(result.status,'abstained');
+ assert.equal(result.handler,null);
+ assert.equal(result.dependencies.length,0);
+ assert.equal(result.reason,'restricted_source_candidate');
+ assert.ok(!JSON.stringify(result).includes('SECRET_HANDLER_SHOULD_NOT_LEAK'));
+});
