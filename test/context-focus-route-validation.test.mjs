@@ -166,3 +166,63 @@ test('nested expression containing a fake GET literal cannot certify route',t=>{
  const d=focusOperationContext(f);
  assert.notEqual(d.status,'advisory_complete');
 });
+
+function javaFixture(t,withPrefix=false){
+ const f=fixture(t,'def unrelated(): return 0\n');
+ const file=path.join(f.repoRoot,'src/main/java/demo/DemoController.java');
+ fs.mkdirSync(path.dirname(file),{recursive:true});
+ const content=[
+  'package demo;',
+  '@RestController',
+  ...(withPrefix?['@RequestMapping("/v1")']:[]),
+  'public class DemoController {',
+  '    @GetMapping("/ping")',
+  '    public String readPing() { return "pong"; }',
+  '}',''
+ ].join('\n');
+ fs.writeFileSync(file,content);
+ git(f.repoRoot,'add','--','src/main/java/demo/DemoController.java');
+ git(f.repoRoot,'commit','-qm','Java GET route test');
+ f.revision=git(f.repoRoot,'rev-parse','HEAD');
+ return f;
+}
+test('Spring Java @GetMapping direct literal path is handled as a JVM source',t=>{
+ const f=javaFixture(t,false);
+ const d=focusOperationContext(f);
+ assert.equal(d.status,'advisory_complete');
+ assert.equal(d.focus.selected.path,'src/main/java/demo/DemoController.java');
+ assert.equal(d.focus.selected.language,'jvm');
+ assert.equal(d.focus.selected.route_verification,'exact');
+});
+test('Spring class-level RequestMapping prefix prevents exact full-route certification',t=>{
+ const f=javaFixture(t,true);
+ const d=focusOperationContext(f);
+ assert.notEqual(d.status,'advisory_complete');
+ if(d.focus.selected){
+  assert.equal(d.focus.selected.language,'jvm');
+  assert.notEqual(d.focus.selected.route_verification,'exact');
+ }
+});
+
+test('Python conditional GET handler is not statically guaranteed to register',t=>{
+ const f=fixture(t,[
+  'if False:',
+  '    @router.get("/ping")',
+  '    async def readPing():',
+  '        return {"ping":"unregistered"}',''
+ ].join('\n'));
+ const d=focusOperationContext(f);
+ assert.notEqual(d.status,'advisory_complete');
+ if(d.focus.selected)assert.notEqual(d.focus.selected.route_verification,'exact');
+});
+test('nested Python route factory cannot certify registration without caller evidence',t=>{
+ const f=fixture(t,[
+  'def create_app_routes():',
+  '    @router.get("/ping")',
+  '    async def readPing():',
+  '        return {"ping":"requires factory call"}',''
+ ].join('\n'));
+ const d=focusOperationContext(f);
+ assert.notEqual(d.status,'advisory_complete');
+ if(d.focus.selected)assert.notEqual(d.focus.selected.route_verification,'exact');
+});
