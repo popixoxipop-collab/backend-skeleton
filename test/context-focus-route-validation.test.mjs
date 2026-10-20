@@ -119,3 +119,50 @@ test('the actual route remains recognized despite a misleading inline comment',t
  assert.equal(r.focus.selected.path,'app/routes/api.py');
  assert.equal(r.focus.selected.route_verification,'exact');
 });
+
+test('POST SBF contract is never considered a complete GET focus',t=>{
+ const f=fixture(t,[
+  '@router.get("/ping")',
+  'async def readPing():',
+  '    return {"ping":"pong"}',''
+ ].join('\n'));
+ const contract=JSON.parse(fs.readFileSync(path.join(f.repoRoot,CONTRACT),'utf8'));
+ contract.operations.readPing.verb='POST';
+ fs.writeFileSync(path.join(f.repoRoot,CONTRACT),JSON.stringify(contract)+'\n');
+ git(f.repoRoot,'add',CONTRACT);
+ git(f.repoRoot,'commit','-qm','Fixture: POST contract with source GET');
+ f.revision=git(f.repoRoot,'rev-parse','HEAD');
+ const d=focusOperationContext(f);
+ assert.equal(d.status,'abstained');
+ assert.equal(d.reason,'unsupported_contract_method');
+ assert.equal(d.focus.selected,null);
+});
+test('Python APIRouter with static nonempty prefix cannot certify full route',t=>{
+ const f=fixture(t,[
+  'router = APIRouter(prefix="/v1")',
+  '@router.get("/ping")',
+  'async def readPing():',
+  '    return {"ping":"pong"}',''
+ ].join('\n'));
+ const d=focusOperationContext(f);
+ assert.notEqual(d.status,'advisory_complete');
+ if(d.focus.selected)assert.notEqual(d.focus.selected.route_verification,'exact');
+});
+test('Python ternary conditional GET route is never certified using the first literal',t=>{
+ const f=fixture(t,[
+  '@router.get("/ping" if False else "/other")',
+  'async def readPing():',
+  '    return {"ping":"not actually at ping"}',''
+ ].join('\n'));
+ const d=focusOperationContext(f);
+ assert.notEqual(d.status,'advisory_complete');
+});
+test('nested expression containing a fake GET literal cannot certify route',t=>{
+ const f=fixture(t,[
+  "@router.get((\"/other\", \"@router.get('/ping')\")[0])",
+  'async def readPing():',
+  '    return {"ping":"not actually at ping"}',''
+ ].join('\n'));
+ const d=focusOperationContext(f);
+ assert.notEqual(d.status,'advisory_complete');
+});
