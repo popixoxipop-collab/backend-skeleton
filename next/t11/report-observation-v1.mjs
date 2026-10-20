@@ -4,6 +4,11 @@
 // null/undefined, observed empty, or held a value. It never invents endpoints,
 // contracts, framework capabilities or independent execution evidence.
 import crypto from 'node:crypto';
+import { types as nodeUtilTypes } from 'node:util';
+
+function rejectProxy(value) {
+  if (nodeUtilTypes.isProxy(value)) throw new TypeError('T11_OBSERVATION_PROXY_UNSUPPORTED');
+}
 
 export const T11_REPORT_OBSERVATION_V1 = 'bskel.t11-report-observation/1';
 const ARRAY_FIELDS = Object.freeze([
@@ -18,6 +23,7 @@ const MODULE_ARRAY_FIELDS = Object.freeze([
 const MAX_MODULES = 2048;
 
 function section(source, name, arrayType) {
+  rejectProxy(source);
   if (!source || typeof source !== 'object' || Array.isArray(source)) {
     return Object.freeze({ state: 'invalid_container', itemCount: null });
   }
@@ -31,6 +37,7 @@ function section(source, name, arrayType) {
     return Object.freeze({ state: 'accessor_unsupported', itemCount: null });
   }
   const value = prop.value;
+  rejectProxy(value);
   if (value === undefined) {
     return Object.freeze({ state: 'explicit_undefined', itemCount: null });
   }
@@ -58,6 +65,7 @@ function section(source, name, arrayType) {
 }
 
 export function observeLegacyScanReport(report) {
+  rejectProxy(report);
   if (!report || typeof report !== 'object' || Array.isArray(report) ||
       Object.getOwnPropertyDescriptor(report, 'schema')?.value !== 'sbf.scan-report/2') {
     throw new TypeError('expected an own sbf.scan-report/2 schema');
