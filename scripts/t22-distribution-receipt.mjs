@@ -92,6 +92,8 @@ export function verifyDistributionArtifacts(directory, {
   expectedHead,
   expectedTree,
   expectedNodeExecutable,
+  expectedNpmExecutable,
+  expectedNpmExecutableSha256,
   expectedSourceInventory,
   expectedMemberInventory,
   expectedTarballSha256,
@@ -139,6 +141,19 @@ export function verifyDistributionArtifacts(directory, {
 
   const passing = receipt.status === 'pass';
   if (passing || receipt.package != null || receipt.test != null) {
+    if (typeof expectedNpmExecutable !== 'string' || !path.isAbsolute(expectedNpmExecutable) ||
+        !SHA256.test(expectedNpmExecutableSha256 ?? '') ||
+        receipt.environment?.npm_executable !== expectedNpmExecutable ||
+        receipt.environment?.npm_executable_sha256 !== expectedNpmExecutableSha256 ||
+        canonicalJson(receipt.environment?.npm_command) !== canonicalJson([expectedNodeExecutable, expectedNpmExecutable])) {
+      problems.push('npm invocation does not match independently supplied expectedNpmExecutable and SHA-256');
+    }
+    if (receipt.source?.materialization?.kind !== 'git-archive' ||
+        receipt.source?.materialization?.head !== expectedHead ||
+        receipt.source?.materialization?.tree !== expectedTree) {
+      problems.push('source materialization must bind the exact pinned Git head and tree');
+    }
+
     // The caller must obtain both pins from Git, not from this receipt.
     if (!COMMIT.test(expectedHead ?? '')) problems.push('passing receipt requires an independently supplied expectedHead');
     if (!COMMIT.test(expectedTree ?? '')) problems.push('passing receipt requires an independently supplied expectedTree');

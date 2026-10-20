@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
+import { spawnSync } from 'node:child_process';
+import * as producer from '../scripts/t22-distribution-report.mjs';
 import {
   T22_DISTRIBUTION_RECEIPT,
   canonicalJson,
@@ -22,7 +24,7 @@ const SOURCE_FILES = [
 ];
 const EXPECTED_MEMBERS = [{path:'sdk/next/index.mjs',size_bytes:123,mode:420}];
 function verifyDistributionArtifacts(directory, options = {}) {
-  return verifyDistributionArtifactsRaw(directory, { expectedHead: HEAD, expectedTree: TREE, expectedNodeExecutable: process.execPath, expectedSourceInventory: SOURCE_FILES, expectedMemberInventory: EXPECTED_MEMBERS, expectedTarballSha256: sha256Bytes(Buffer.from('exact packed artifact')), ...options });
+  return verifyDistributionArtifactsRaw(directory, { expectedHead: HEAD, expectedTree: TREE, expectedNodeExecutable: process.execPath, expectedNpmExecutable: '/trusted/npm/bin/npm-cli.js', expectedNpmExecutableSha256: 'c'.repeat(64), expectedSourceInventory: SOURCE_FILES, expectedMemberInventory: EXPECTED_MEMBERS, expectedTarballSha256: sha256Bytes(Buffer.from('exact packed artifact')), ...options });
 }
 
 
@@ -45,8 +47,10 @@ function fixture(t) {
     schema: T22_DISTRIBUTION_RECEIPT,
     status: 'pass',
     generated_at: '2026-10-19T00:00:00.000Z',
+    environment: { npm_executable: '/trusted/npm/bin/npm-cli.js', npm_executable_sha256: 'c'.repeat(64), npm_command: [process.execPath, '/trusted/npm/bin/npm-cli.js'] },
     source: {
       head: HEAD, tree: TREE, expected_head: HEAD, dirty: false,
+      materialization: { kind: 'git-archive', head: HEAD, tree: TREE },
       relevant_files: SOURCE_FILES.map((file) => ({ ...file })),
     },
     package: {
@@ -400,3 +404,38 @@ test('T22R35 test spawn errors cannot coexist with a passing outcome', (t) => {
  const {directory,receipt}=fixture(t);receipt.test.error='ETIMEDOUT';rewriteFixtureReceipt(directory,receipt);
  assert.match(verifyDistributionArtifacts(directory).problems.join('\n'),/failing test outcome/);
 });
+
+for (const change of ['path','hash','command','missing-expectation']) {
+ test(`T22R36 npm execution identity must match independent expectations: ${change}`,(t)=>{
+  const {directory,receipt}=fixture(t);const options={};
+  if(change==='path')receipt.environment.npm_executable='/untrusted/npm/bin/npm-cli.js';
+  if(change==='hash')receipt.environment.npm_executable_sha256='d'.repeat(64);
+  if(change==='command')receipt.environment.npm_command=['/bin/true'];
+  if(change==='missing-expectation')options.expectedNpmExecutable=undefined;
+  rewriteFixtureReceipt(directory,receipt);
+  assert.match(verifyDistributionArtifacts(directory,options).problems.join('\n'),/npm|Npm/);
+ });
+}
+test('T22R37 evidence resolver rejects the test npm override without execution',()=>{
+ assert.equal(typeof producer.resolveNpmInvocation,'function');
+ assert.throws(()=>producer.resolveNpmInvocation({...process.env,T22_TEST_NPM:'/bin/true'}),/NPM_OVERRIDE/);
+ assert.throws(()=>producer.resolveNpmInvocation({...process.env,T22_TEST_NPM:''}),/NPM_OVERRIDE/);
+});
+test('T22R38 pinned source materialization ignores modified and untracked checkout bytes',(t)=>{
+ assert.equal(typeof producer.materializePinnedSource,'function');
+ const parent=fs.mkdtempSync(path.join(os.tmpdir(),'t22-source-pin-'));t.after(()=>fs.rmSync(parent,{recursive:true,force:true}));
+ const repo=path.join(parent,'repo');fs.mkdirSync(repo);
+ const git=(...args)=>{const p=spawnSync('git',args,{cwd:repo,encoding:'utf8'});assert.equal(p.status,0,p.stderr);return p.stdout.trim();};
+ git('init','-q');fs.writeFileSync(path.join(repo,'source.txt'),'original');git('add','.');
+ git('-c','user.name=T22 test','-c','user.email=t22@example.invalid','commit','-qm','fixture');const head=git('rev-parse','HEAD');
+ fs.writeFileSync(path.join(repo,'source.txt'),'mutated!');fs.writeFileSync(path.join(repo,'untracked.txt'),'not-pinned');
+ const dest=path.join(parent,'snapshot');producer.materializePinnedSource(repo,head,dest,[{path:'source.txt',size_bytes:8,sha256:sha256Bytes(Buffer.from('original'))}]);
+ assert.equal(fs.readFileSync(path.join(dest,'source.txt'),'utf8'),'original');assert.equal(fs.existsSync(path.join(dest,'untracked.txt')),false);
+ assert.equal(fs.readFileSync(path.join(repo,'source.txt'),'utf8'),'mutated!');
+});
+for (const field of ['kind','head','tree']) {
+ test(`T22R39 source snapshot identity is bound: ${field}`,(t)=>{
+  const {directory,receipt}=fixture(t);receipt.source.materialization[field]='wrong';rewriteFixtureReceipt(directory,receipt);
+  assert.match(verifyDistributionArtifacts(directory).problems.join('\n'),/materialization/);
+ });
+}

@@ -35,3 +35,9 @@ The installed npm SDK is additionally exercised through its exported `runAdapter
 - All conformance results leave `activation.executable=false`, `autoImport=false` and `inputBinding.certificationAuthority=false`.
 
 The suite provides **an installed-package consumer + injected provider positive/negative fixture**. It does NOT run a real third-party executable adapter, test isolation of an OS process, provide permission revocation or perform T19/T20 security certification. Independent product review, authorized CI, main merge and T00 exact-head re-audit are still necessary for official T22-05 MET.
+
+## Pinned evidence source and npm invocation
+
+The report now exports the exact Git commit into a private scratch snapshot. Both npm pack and the two distribution test files run from that snapshot, not the mutable checkout. Relevant source hashes are checked after export and all installed SDK member bytes are compared with the snapshot. The existing initial dirty-check remains a refusal, not the sole provenance guarantee.
+
+Evidence runs reject `T22_TEST_NPM`. The resolved npm CLI entrypoint runs under the same absolute Node executable; its absolute path, SHA-256 and command are recorded and passed to the installed consumer. External receipt verification additionally requires independently obtained `expectedNpmExecutable` and `expectedNpmExecutableSha256`. Do not copy these expectations from a receipt. The installed Node/npm toolchain and its dependencies remain a trusted execution prerequisite; these entrypoint pins are not whole-OS/toolchain cryptographic attestation. Historical fault-injection receipts remain historical failures or reproductions, not accepted current evidence.

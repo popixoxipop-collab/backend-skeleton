@@ -11,11 +11,19 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const NPM = process.env.T22_TEST_NPM || 'npm';
+const NPM = 'npm';
+if (Object.hasOwn(process.env, 'T22_TEST_NPM')) throw new Error('T22_NPM_OVERRIDE_FORBIDDEN');
 const sha256 = data => createHash('sha256').update(data).digest('hex');
 let scratch, installed, exported, packageMetadata, packedNames;
 
 function run(program, args, cwd, ms = 20000) {
+  if (program === NPM && process.env.T22_DISTRIBUTION_NPM_CLI) {
+    const cli = process.env.T22_DISTRIBUTION_NPM_CLI;
+    assert.ok(path.isAbsolute(cli));
+    assert.equal(sha256(fs.readFileSync(cli)), process.env.T22_DISTRIBUTION_NPM_SHA256);
+    program = process.execPath;
+    args = [cli, ...args];
+  }
   const proc = spawnSync(program, args, {
     cwd, encoding: 'utf8', timeout: ms,
     env: { ...process.env, npm_config_audit: 'false',
@@ -94,11 +102,10 @@ test('T22P01 real pack contains SDK entry, imports and nine schema assets', () =
 });
 
 test('T22P02 installed SDK is byte-identical to source, not a checkout import', () => {
-  for (const name of ['index.mjs', 'manifest.mjs', 'package-inventory.mjs',
-    'protocol.mjs', 'schema-catalog.mjs', 'testkit.mjs']) {
-    const source = fs.readFileSync(path.join(ROOT, 'sdk', 'next', name));
-    const customer = fs.readFileSync(path.join(installed, name));
-    assert.equal(sha256(source), sha256(customer), name);
+  for (const file of packageMetadata.files.filter(file => file.path.startsWith('sdk/next/'))) {
+    const source = fs.readFileSync(path.join(ROOT, file.path));
+    const customer = fs.readFileSync(path.join(installed, file.path.slice('sdk/next/'.length)));
+    assert.equal(sha256(source), sha256(customer), file.path);
   }
   assert.equal(fs.realpathSync(installed).startsWith(fs.realpathSync(ROOT) + path.sep), false);
 });

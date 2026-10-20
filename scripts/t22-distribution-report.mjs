@@ -14,7 +14,6 @@ import {
 } from './t22-distribution-receipt.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const NPM = process.env.T22_TEST_NPM || 'npm';
 const TEST_FILES = T22_DISTRIBUTION_TEST_ARGS.slice(2);
 
 function parseArgs(argv) {
@@ -99,6 +98,48 @@ function writeReceipt(stage, receipt) {
   return digest;
 }
 
+
+export function resolveNpmInvocation(env = process.env) {
+  if (Object.hasOwn(env, 'T22_TEST_NPM')) throw new Error('T22_NPM_OVERRIDE_FORBIDDEN');
+  for (const directory of String(env.PATH ?? '').split(path.delimiter)) {
+    if (!path.isAbsolute(directory)) continue;
+    const candidate = path.join(directory, 'npm');
+    try { fs.accessSync(candidate, fs.constants.X_OK); } catch { continue; }
+    const executable = fs.realpathSync(candidate);
+    // Never execute an arbitrary PATH wrapper as evidence-producing npm.
+    if (path.basename(executable) !== 'npm-cli.js') throw new Error('T22_NPM_CLI_REQUIRED');
+    const metadata = JSON.parse(fs.readFileSync(path.resolve(path.dirname(executable), '..', 'package.json'), 'utf8'));
+    if (metadata.name !== 'npm' || metadata.bin?.npm !== 'bin/npm-cli.js') throw new Error('T22_NPM_PACKAGE_IDENTITY');
+    return Object.freeze({ executable, sha256: sha256Bytes(fs.readFileSync(executable)),
+      command: Object.freeze([process.execPath, executable]) });
+  }
+  throw new Error('T22_NPM_NOT_FOUND');
+}
+
+export function materializePinnedSource(sourceRoot, head, directory, inventory) {
+  if (!/^[0-9a-f]{40}$/.test(head)) throw new Error('T22_SNAPSHOT_HEAD_INVALID');
+  fs.mkdirSync(directory, { mode: 0o700 });
+  const archive = `${directory}.tar`;
+  requireSuccess(run('git', ['archive', '--format=tar', '--output', archive, head], sourceRoot), 'git archive pinned source');
+  requireSuccess(run('tar', ['-xf', archive, '-C', directory], sourceRoot), 'unpack pinned source');
+  fs.rmSync(archive);
+  for (const file of inventory) {
+    const target = path.join(directory, file.path);
+    if (!fs.lstatSync(target).isFile()) throw new Error(`T22_SNAPSHOT_SOURCE_NOT_REGULAR ${file.path}`);
+    const bytes = fs.readFileSync(target);
+    if (bytes.byteLength !== file.size_bytes || sha256Bytes(bytes) !== file.sha256) {
+      throw new Error(`T22_SNAPSHOT_SOURCE_MISMATCH ${file.path}`);
+    }
+  }
+  return directory;
+}
+
+function runNpm(identity, args, cwd, options = {}) {
+  if (sha256Bytes(fs.readFileSync(identity.executable)) !== identity.sha256) throw new Error('T22_NPM_ENTRYPOINT_CHANGED');
+  return run(identity.command[0], [identity.executable, ...args], cwd,
+    { ...options, env: { ...(options.env ?? process.env), NODE_OPTIONS: '' } });
+}
+
 export function runDistributionReport(argv = process.argv.slice(2)) {
   const { output, expectedHead } = parseArgs(argv);
   const stage = makeStage(output);
@@ -106,7 +147,7 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
   const failures = [];
   let head = null, tree = null, dirty = true, relevantFiles = [];
   let packageEvidence = null, testEvidence = null, cacheEvidence = null;
-  let nodeVersion = process.version, npmVersion = null;
+  let nodeVersion = process.version, npmVersion = null, npmIdentity = null, materialization = null;
 
   try {
     head = git('rev-parse', 'HEAD');
@@ -115,12 +156,15 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
     if (head !== expectedHead) failures.push(`SOURCE_HEAD_MISMATCH expected=${expectedHead} actual=${head}`);
     if (dirty) failures.push('SOURCE_TREE_DIRTY');
     relevantFiles = sourceInventory(head);
-    npmVersion = requireSuccess(run(NPM, ['--version']), 'npm --version');
+    npmIdentity = resolveNpmInvocation();
+    npmVersion = requireSuccess(runNpm(npmIdentity, ['--version'], ROOT), 'npm --version');
 
     if (failures.length === 0) {
-      const pack = run(NPM, [
+      const snapshot = materializePinnedSource(ROOT, head, path.join(scratch, 'source'), relevantFiles);
+      materialization = { kind: 'git-archive', head, tree };
+      const pack = runNpm(npmIdentity, [
         'pack', '--offline', '--ignore-scripts', '--json', '--pack-destination', scratch,
-      ], ROOT, { timeout: 60000 });
+      ], snapshot, { timeout: 60000 });
       const packJson = JSON.parse(requireSuccess(pack, 'npm pack'));
       if (!Array.isArray(packJson) || packJson.length !== 1) throw new Error('npm pack returned an unexpected result count');
       const metadata = packJson[0];
@@ -150,7 +194,7 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
       const emptyConsumer = path.join(scratch, 'empty-cache-consumer');
       fs.mkdirSync(emptyCache);
       fs.mkdirSync(emptyConsumer);
-      const emptyProbe = run(NPM, [
+      const emptyProbe = runNpm(npmIdentity, [
         'install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--no-save',
         '--cache', emptyCache, '--prefix', emptyConsumer, scratchTarball,
       ], scratch, { timeout: 60000 });
@@ -172,11 +216,13 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
       if (emptyProbe.status === 0) failures.push('EMPTY_CACHE_OFFLINE_INSTALL_UNEXPECTEDLY_SUCCEEDED');
 
       const testCommand = [process.execPath, ...T22_DISTRIBUTION_TEST_ARGS];
-      const testRun = run(testCommand[0], testCommand.slice(1), ROOT, {
+      const testRun = run(testCommand[0], testCommand.slice(1), snapshot, {
         timeout: 180000,
         env: {
           ...process.env,
           NODE_OPTIONS: '',
+          T22_DISTRIBUTION_NPM_CLI: npmIdentity.executable,
+          T22_DISTRIBUTION_NPM_SHA256: npmIdentity.sha256,
           T22_DISTRIBUTION_TARBALL: scratchTarball,
           T22_DISTRIBUTION_METADATA_PATH: metadataPath,
           T22_DISTRIBUTION_TARBALL_SHA256: tarballSha256,
@@ -215,7 +261,7 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
     schema: T22_DISTRIBUTION_RECEIPT,
     status: failures.length === 0 ? 'pass' : 'fail',
     generated_at: new Date().toISOString(),
-    source: { head, tree, expected_head: expectedHead, dirty, relevant_files: relevantFiles },
+    source: { head, tree, expected_head: expectedHead, dirty, relevant_files: relevantFiles, materialization },
     package: packageEvidence,
     test: testEvidence,
     cache: cacheEvidence ?? {
@@ -226,7 +272,7 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
       empty_cache_probe_exit_code: null,
       empty_cache_probe_stderr_sha256: null,
     },
-    environment: { node: nodeVersion, npm: npmVersion, platform: process.platform, arch: process.arch },
+    environment: { node: nodeVersion, npm: npmVersion, npm_executable: npmIdentity?.executable ?? null, npm_executable_sha256: npmIdentity?.sha256 ?? null, npm_command: npmIdentity?.command ?? null, platform: process.platform, arch: process.arch },
     durability: {
       atomic_directory_publish: true,
       scratch_deleted_after_publish: true,
@@ -240,12 +286,12 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
     ],
   };
   let receiptSha256 = writeReceipt(stage, receipt);
-  let verified = verifyDistributionArtifacts(stage, { expectedHead, expectedTree: tree, expectedNodeExecutable: process.execPath, expectedSourceInventory: relevantFiles, expectedMemberInventory: packageEvidence?.members, expectedTarballSha256: packageEvidence?.tarball_sha256 });
+  let verified = verifyDistributionArtifacts(stage, { expectedHead, expectedTree: tree, expectedNodeExecutable: process.execPath, expectedNpmExecutable: npmIdentity?.executable, expectedNpmExecutableSha256: npmIdentity?.sha256, expectedSourceInventory: relevantFiles, expectedMemberInventory: packageEvidence?.members, expectedTarballSha256: packageEvidence?.tarball_sha256 });
   if (receipt.status === 'pass' && verified.problems.length > 0) {
     receipt.status = 'fail';
     receipt.failures.push(...verified.problems.map((problem) => `SELF_VERIFY ${problem}`));
     receiptSha256 = writeReceipt(stage, receipt);
-    verified = verifyDistributionArtifacts(stage, { expectedHead, expectedTree: tree, expectedNodeExecutable: process.execPath, expectedSourceInventory: relevantFiles, expectedMemberInventory: packageEvidence?.members, expectedTarballSha256: packageEvidence?.tarball_sha256 });
+    verified = verifyDistributionArtifacts(stage, { expectedHead, expectedTree: tree, expectedNodeExecutable: process.execPath, expectedNpmExecutable: npmIdentity?.executable, expectedNpmExecutableSha256: npmIdentity?.sha256, expectedSourceInventory: relevantFiles, expectedMemberInventory: packageEvidence?.members, expectedTarballSha256: packageEvidence?.tarball_sha256 });
   }
   fs.renameSync(stage, output);
   fs.rmSync(scratch, { recursive: true, force: true });
