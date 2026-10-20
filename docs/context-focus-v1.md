@@ -174,3 +174,20 @@ rather than production runtime or BEVAL proof.
 These revisions were made after a previous 22-case holdout was exposed.
 Regressions using those older cases are post-hoc compatibility tests, not
 a new independent accuracy claim.
+
+
+### Opaque prefix parameters
+
+A later independent review identified Python parenthesized router prefixes
+and Java array-valued controller RequestMapping paths as additional ways
+to mistakenly certify a local GET decorator as a complete external path.
+The focus check now conservatively downgrades the result whenever the
+pinned source contains a local Python APIRouter/include_router prefix
+configuration (including expression and keyword-splat forms), or a Java
+RequestMapping annotation requiring class-level composition.
+
+This intentionally yields some false-incomplete cases. It is preferable
+to a false-complete claim because the static source navigator does not
+execute application routing or infer arbitrary Python/Java expressions.
+The result remains advisory source evidence, never proof of runtime path
+registration or a BEVAL deployment gate.

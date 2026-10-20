@@ -226,3 +226,28 @@ test('nested Python route factory cannot certify registration without caller evi
  assert.notEqual(d.status,'advisory_complete');
  if(d.focus.selected)assert.notEqual(d.focus.selected.route_verification,'exact');
 });
+
+test('parenthesized APIRouter prefix cannot certify a full GET route',t=>{
+ const f=fixture(t,[
+  'router=APIRouter(prefix=("/v1"))',
+  '@router.get("/ping")',
+  'async def readPing():',
+  '    return {"ping":"registered at /v1/ping"}',''
+ ].join('\n'));
+ const d=focusOperationContext(f);
+ assert.notEqual(d.status,'advisory_complete');
+ if(d.focus.selected)assert.notEqual(d.focus.selected.route_verification,'exact');
+});
+test('Java array class-level RequestMapping cannot certify full GET route',t=>{
+ const f=javaFixture(t,true);
+ const filepath=path.join(f.repoRoot,'src/main/java/demo/DemoController.java');
+ const java=fs.readFileSync(filepath,'utf8');
+ assert.ok(java.includes('@RequestMapping("/v1")'));
+ fs.writeFileSync(filepath,java.replace('@RequestMapping("/v1")','@RequestMapping(path = {"/v1"})'));
+ git(f.repoRoot,'add','--','src/main/java/demo/DemoController.java');
+ git(f.repoRoot,'commit','-qm','Java list route prefix fixture');
+ f.revision=git(f.repoRoot,'rev-parse','HEAD');
+ const d=focusOperationContext(f);
+ assert.notEqual(d.status,'advisory_complete');
+ if(d.focus.selected)assert.notEqual(d.focus.selected.route_verification,'exact');
+});
