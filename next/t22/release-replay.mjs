@@ -99,6 +99,10 @@ function harnessIdentity() {
 export function buildReplayBundle({ repoRoot, previous, candidate, output }) {
   requireValue(OID.test(previous) && OID.test(candidate) && previous !== candidate, 'distinct exact Git commits required');
   requireValue(path.isAbsolute(repoRoot), 'repoRoot must be absolute');
+  for (const revision of [previous, candidate]) {
+    requireValue(gitBytes(repoRoot, ['cat-file', '-t', revision]).toString().trim() === 'commit',
+      'exact commit object required');
+  }
   const npm = resolveNpmInvocation();
   newOutput(output);
   const commands = [], packages = {};

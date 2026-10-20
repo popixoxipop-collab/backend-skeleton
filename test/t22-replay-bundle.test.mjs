@@ -130,3 +130,27 @@ test('T22B12 rejected candidate probe still performs real baseline rollback and 
   assert.equal(r.commands.filter(c=>c.exit_code!==0).length,1);
   assert.equal(r.release_authorized,false);
 },{timeout:120000});
+
+
+for (const slot of ['previous', 'candidate']) {
+  test(`T22B13 ${slot} tree object is not an exact commit`, () => {
+    const tree = git(['rev-parse', (slot === 'previous' ? previous : candidate) + '^{tree}']);
+    const output = path.join(scratch, 'invalid-tree-' + slot);
+    assert.throws(() => buildReplayBundle({ repoRoot: repo,
+      previous: slot === 'previous' ? tree : previous,
+      candidate: slot === 'candidate' ? tree : candidate, output }), /exact commit object required/);
+    assert.equal(fs.existsSync(output), false);
+  });
+}
+for (const kind of ['tree', 'commit']) {
+  test(`T22B14 annotated tag to ${kind} is not the supplied exact commit`, () => {
+    const target = kind === 'tree' ? git(['rev-parse', candidate + '^{tree}']) : candidate;
+    git(['tag', '-a', 't22-noncommit-' + kind, target, '-m', 'non-commit identity control']);
+    const tag = git(['rev-parse', 'refs/tags/t22-noncommit-' + kind]);
+    assert.equal(git(['cat-file', '-t', tag]), 'tag');
+    const output = path.join(scratch, 'invalid-tag-' + kind);
+    assert.throws(() => buildReplayBundle({ repoRoot: repo, previous, candidate: tag, output }),
+      /exact commit object required/);
+    assert.equal(fs.existsSync(output), false);
+  });
+}
