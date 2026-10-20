@@ -20,8 +20,9 @@ const SOURCE_FILES = [
  { path: 'package-lock.json', size_bytes: 1, sha256: 'a'.repeat(64) },
  { path: 'sdk/next/index.mjs', size_bytes: 123, sha256: 'b'.repeat(64) },
 ];
+const EXPECTED_MEMBERS = [{path:'sdk/next/index.mjs',size_bytes:123,mode:420}];
 function verifyDistributionArtifacts(directory, options = {}) {
-  return verifyDistributionArtifactsRaw(directory, { expectedHead: HEAD, expectedTree: TREE, expectedNodeExecutable: process.execPath, expectedSourceInventory: SOURCE_FILES, ...options });
+  return verifyDistributionArtifactsRaw(directory, { expectedHead: HEAD, expectedTree: TREE, expectedNodeExecutable: process.execPath, expectedSourceInventory: SOURCE_FILES, expectedMemberInventory: EXPECTED_MEMBERS, expectedTarballSha256: sha256Bytes(Buffer.from('exact packed artifact')), ...options });
 }
 
 
@@ -37,6 +38,8 @@ function fixture(t) {
   fs.writeFileSync(path.join(directory, 'candidate.tgz'), tarball);
   fs.writeFileSync(path.join(directory, 'test.tap'), transcript);
   fs.writeFileSync(path.join(directory, 'test.stderr'), '');
+  fs.writeFileSync(path.join(directory,'cache-probe.stdout'),'');
+  fs.writeFileSync(path.join(directory,'cache-probe.stderr'),'npm error code ENOTCACHED\n');
   const members = [{ path: 'sdk/next/index.mjs', size_bytes: 123, mode: 420 }];
   const receipt = {
     schema: T22_DISTRIBUTION_RECEIPT,
@@ -54,7 +57,7 @@ function fixture(t) {
     test: {
       command: [process.execPath, '--test', '--test-reporter=tap',
         'test/t22-packed-consumer.test.mjs', 'test/t22-sdk-util-hardening-integration.test.mjs'],
-      signal: null, exit_code: 0, counts: { tests: 1, pass: 1, fail: 0, cancelled: 0, skipped: 0, todo: 0 },
+      error: null, signal: null, exit_code: 0, counts: { tests: 1, pass: 1, fail: 0, cancelled: 0, skipped: 0, todo: 0 },
       transcript_file: 'test.tap', transcript_sha256: sha256Bytes(transcript),
       stderr_file: 'test.stderr', stderr_sha256: sha256Bytes(Buffer.from('')),
       tarball_sha256: sha256Bytes(tarball),
@@ -62,6 +65,9 @@ function fixture(t) {
     cache: {
       mode: 'network-disabled-prewarmed-npm-cache', lockfile_sha256: 'a'.repeat(64),
       empty_cache_probe_expected: 'nonzero-exit', empty_cache_probe_exit_code: 1,
+      empty_cache_probe_signal: null, empty_cache_probe_error: null,
+      empty_cache_probe_stdout_file: 'cache-probe.stdout', empty_cache_probe_stdout_sha256: sha256Bytes(Buffer.from('')),
+      empty_cache_probe_stderr_file: 'cache-probe.stderr', empty_cache_probe_stderr_sha256: sha256Bytes(Buffer.from('npm error code ENOTCACHED\n')),
     },
     failures: [],
   };
@@ -316,7 +322,9 @@ for (const file of ['candidate.tgz','test.tap','test.stderr']) {
 }
 test('T22R25 a failure before artifact creation stays a verifiable failure record', (t) => {
  const {directory,receipt}=fixture(t); receipt.status='fail';receipt.failures=['EARLY_FAILURE'];
- receipt.package=null;receipt.test=null;rewriteFixtureReceipt(directory,receipt);
+ receipt.package=null;receipt.test=null;
+ for (const file of ['candidate.tgz','test.tap','test.stderr']) fs.unlinkSync(path.join(directory,file));
+ rewriteFixtureReceipt(directory,receipt);
  assert.deepEqual(verifyDistributionArtifacts(directory).problems,[]);
 });
 for (const node of ['/tmp/node','/different/node',undefined]) {
@@ -346,4 +354,49 @@ for (const kind of ['missing-entry','extra-entry','wrong-path','wrong-size','wro
 test('T22R28 pass acceptance without external source inventory fails closed', (t) => {
  const {directory}=fixture(t);
  assert.match(verifyDistributionArtifacts(directory,{expectedSourceInventory:undefined}).problems.join('\n'),/expectedSourceInventory|source inventory/);
+});
+
+
+for (const kind of ['path','size','mode','missing','duplicate']) {
+ test(`T22R29 member inventory must match independently captured pack metadata: ${kind}`, (t) => {
+  const {directory,receipt}=fixture(t);const a=receipt.package.members;
+  if(kind==='path')a[0].path='fake.mjs';if(kind==='size')a[0].size_bytes=999;
+  if(kind==='mode')a[0].mode=493;if(kind==='missing')a.pop();if(kind==='duplicate')a.push({...a[0]});
+  receipt.package.member_count=a.length;receipt.package.member_inventory_sha256=sha256Bytes(Buffer.from(canonicalJson(a)));
+  rewriteFixtureReceipt(directory,receipt);
+  assert.match(verifyDistributionArtifacts(directory).problems.join('\n'),/member inventory/);
+ });
+}
+for (const options of [{expectedMemberInventory:undefined},{expectedTarballSha256:undefined}]) {
+ test(`T22R30 package verification requires independent expectations: ${Object.keys(options)}`, (t) => {
+  const {directory}=fixture(t);
+  assert.match(verifyDistributionArtifacts(directory,options).problems.join('\n'),/expectedMemberInventory|expectedTarballSha256/);
+ });
+}
+test('T22R31 a failure after packing retains a verifiable package without pretending tests ran', (t) => {
+ const {directory,receipt}=fixture(t);receipt.status='fail';receipt.failures=['SPAWN_ERROR'];receipt.test=null;
+ fs.unlinkSync(path.join(directory,'test.tap'));fs.unlinkSync(path.join(directory,'test.stderr'));
+ rewriteFixtureReceipt(directory,receipt);const result=verifyDistributionArtifacts(directory);
+ assert.deepEqual(result.problems,[]);assert.equal(result.receipt.test,null);
+});
+test('T22R32 unrecorded durable artifacts cannot be accepted as an early failure', (t) => {
+ const {directory,receipt}=fixture(t);receipt.status='fail';receipt.failures=['EARLY'];receipt.package=null;receipt.test=null;
+ rewriteFixtureReceipt(directory,receipt);
+ assert.match(verifyDistributionArtifacts(directory).problems.join('\n'),/unrecorded artifact/);
+});
+for (const file of ['cache-probe.stdout','cache-probe.stderr']) {
+ test(`T22R33 retained dependency-probe diagnostics are verified: ${file}`, (t) => {
+  const {directory}=fixture(t);fs.appendFileSync(path.join(directory,file),'changed');
+  assert.match(verifyDistributionArtifacts(directory).problems.join('\n'),/cache.*SHA/);
+ });
+}
+test('T22R34 unrelated offline probe failure is not dependency-cache proof', (t) => {
+ const {directory,receipt}=fixture(t);const b=Buffer.from('npm error invalid configuration');
+ fs.writeFileSync(path.join(directory,'cache-probe.stderr'),b);receipt.cache.empty_cache_probe_stderr_sha256=sha256Bytes(b);
+ rewriteFixtureReceipt(directory,receipt);
+ assert.match(verifyDistributionArtifacts(directory).problems.join('\n'),/ENOTCACHED/);
+});
+test('T22R35 test spawn errors cannot coexist with a passing outcome', (t) => {
+ const {directory,receipt}=fixture(t);receipt.test.error='ETIMEDOUT';rewriteFixtureReceipt(directory,receipt);
+ assert.match(verifyDistributionArtifacts(directory).problems.join('\n'),/failing test outcome/);
 });

@@ -42,5 +42,11 @@ test('Fastify and Django/DRF remain explicitly blocked on upstream fact gaps', (
 
 test('candidate leaves do not become npm package assets through an implicit package allowlist change', () => {
   const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
-  assert.equal(pkg.files.some((entry) => entry === 'adapters/' || entry.startsWith('adapters/')), false);
+  const adapterEntries = pkg.files.filter((entry) => entry === 'adapters/' || entry.startsWith('adapters/'));
+  assert.deepEqual(adapterEntries, [
+    'adapters/http-legacy-next/baselines.mjs',
+    'adapters/http-legacy-next/bridge.mjs',
+    'adapters/http-legacy-next/parity.mjs',
+  ]);
+  assert.equal(adapterEntries.some((entry) => entry === 'adapters/' || entry.startsWith('adapters/http-wave-a/')), false);
 });

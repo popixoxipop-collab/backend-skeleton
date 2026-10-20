@@ -127,12 +127,24 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
       const scratchTarball = path.join(scratch, metadata.filename);
       const tarballBytes = fs.readFileSync(scratchTarball);
       const tarballSha256 = sha256Bytes(tarballBytes);
-      fs.copyFileSync(scratchTarball, path.join(stage, metadata.filename));
-      const metadataPath = path.join(scratch, 'pack-metadata.json');
-      fs.writeFileSync(metadataPath, JSON.stringify(metadata));
       const members = metadata.files.map(({ path: memberPath, size, mode }) => ({
         path: memberPath, size_bytes: size, mode,
       }));
+
+      packageEvidence = {
+        name: metadata.name,
+        version: metadata.version,
+        tarball_file: metadata.filename,
+        tarball_sha256: tarballSha256,
+        tarball_size_bytes: tarballBytes.byteLength,
+        member_count: members.length,
+        member_inventory_sha256: sha256Bytes(Buffer.from(canonicalJson(members))),
+        members,
+      };
+      fs.copyFileSync(scratchTarball, path.join(stage, metadata.filename));
+      const metadataPath = path.join(scratch, 'pack-metadata.json');
+      fs.writeFileSync(metadataPath, JSON.stringify(metadata));
+
 
       const emptyCache = path.join(scratch, 'empty-cache');
       const emptyConsumer = path.join(scratch, 'empty-cache-consumer');
@@ -142,6 +154,20 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
         'install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--no-save',
         '--cache', emptyCache, '--prefix', emptyConsumer, scratchTarball,
       ], scratch, { timeout: 60000 });
+      fs.writeFileSync(path.join(stage,'cache-probe.stdout'),emptyProbe.stdout ?? '',{mode:0o600});
+      fs.writeFileSync(path.join(stage,'cache-probe.stderr'),emptyProbe.stderr ?? '',{mode:0o600});
+      cacheEvidence = {
+        mode:'network-disabled-prewarmed-npm-cache',
+        lockfile_sha256: relevantFiles.find(file=>file.path==='package-lock.json').sha256,
+        empty_cache_probe_expected:'nonzero-exit',
+        empty_cache_probe_exit_code:emptyProbe.status,
+        empty_cache_probe_signal:emptyProbe.signal,
+        empty_cache_probe_error:emptyProbe.error ? String(emptyProbe.error.message) : null,
+        empty_cache_probe_stdout_file:'cache-probe.stdout',
+        empty_cache_probe_stdout_sha256:sha256Bytes(Buffer.from(emptyProbe.stdout ?? '')),
+        empty_cache_probe_stderr_file:'cache-probe.stderr',
+        empty_cache_probe_stderr_sha256:sha256Bytes(Buffer.from(emptyProbe.stderr ?? '')),
+      };
       if (emptyProbe.error) throw emptyProbe.error;
       if (emptyProbe.status === 0) failures.push('EMPTY_CACHE_OFFLINE_INSTALL_UNEXPECTEDLY_SUCCEEDED');
 
@@ -156,30 +182,22 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
           T22_DISTRIBUTION_TARBALL_SHA256: tarballSha256,
         },
       });
-      if (testRun.error) throw testRun.error;
+
       const transcript = Buffer.from(testRun.stdout ?? '', 'utf8');
       fs.writeFileSync(path.join(stage, 'test.tap'), transcript, { mode: 0o600 });
       fs.writeFileSync(path.join(stage, 'test.stderr'), testRun.stderr ?? '', { mode: 0o600 });
       let counts = null;
       try { counts = parseTapSummary(testRun.stdout ?? ''); }
       catch (error) { failures.push(error.message); }
+      if (testRun.error) failures.push(`TEST_PROCESS_ERROR ${testRun.error.message}`);
       if (testRun.status !== 0) failures.push(`TEST_EXIT_${testRun.status}`);
       if (counts && (counts.fail !== 0 || counts.cancelled !== 0)) failures.push('TEST_SUMMARY_NOT_GREEN');
 
-      packageEvidence = {
-        name: metadata.name,
-        version: metadata.version,
-        tarball_file: metadata.filename,
-        tarball_sha256: tarballSha256,
-        tarball_size_bytes: tarballBytes.byteLength,
-        member_count: members.length,
-        member_inventory_sha256: sha256Bytes(Buffer.from(canonicalJson(members))),
-        members,
-      };
       testEvidence = {
         command: testCommand,
         exit_code: testRun.status,
         signal: testRun.signal,
+        error: testRun.error ? String(testRun.error.message) : null,
         counts,
         transcript_file: 'test.tap',
         transcript_sha256: sha256Bytes(transcript),
@@ -187,13 +205,7 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
         stderr_sha256: sha256Bytes(Buffer.from(testRun.stderr ?? '', 'utf8')),
         tarball_sha256: tarballSha256,
       };
-      cacheEvidence = {
-        mode: 'network-disabled-prewarmed-npm-cache',
-        lockfile_sha256: sha256Bytes(fs.readFileSync(path.join(ROOT, 'package-lock.json'))),
-        empty_cache_probe_expected: 'nonzero-exit',
-        empty_cache_probe_exit_code: emptyProbe.status,
-        empty_cache_probe_stderr_sha256: sha256Bytes(Buffer.from(emptyProbe.stderr ?? '', 'utf8')),
-      };
+
     }
   } catch (error) {
     failures.push(`HARNESS_ERROR ${error.message}`);
@@ -228,12 +240,12 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
     ],
   };
   let receiptSha256 = writeReceipt(stage, receipt);
-  let verified = verifyDistributionArtifacts(stage, { expectedHead, expectedTree: tree, expectedNodeExecutable: process.execPath, expectedSourceInventory: relevantFiles });
+  let verified = verifyDistributionArtifacts(stage, { expectedHead, expectedTree: tree, expectedNodeExecutable: process.execPath, expectedSourceInventory: relevantFiles, expectedMemberInventory: packageEvidence?.members, expectedTarballSha256: packageEvidence?.tarball_sha256 });
   if (receipt.status === 'pass' && verified.problems.length > 0) {
     receipt.status = 'fail';
     receipt.failures.push(...verified.problems.map((problem) => `SELF_VERIFY ${problem}`));
     receiptSha256 = writeReceipt(stage, receipt);
-    verified = verifyDistributionArtifacts(stage, { expectedHead, expectedTree: tree, expectedNodeExecutable: process.execPath, expectedSourceInventory: relevantFiles });
+    verified = verifyDistributionArtifacts(stage, { expectedHead, expectedTree: tree, expectedNodeExecutable: process.execPath, expectedSourceInventory: relevantFiles, expectedMemberInventory: packageEvidence?.members, expectedTarballSha256: packageEvidence?.tarball_sha256 });
   }
   fs.renameSync(stage, output);
   fs.rmSync(scratch, { recursive: true, force: true });

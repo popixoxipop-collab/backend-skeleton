@@ -76,11 +76,24 @@ function normalizeSourceInventory(files) {
  }).sort((a,b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 }
 
+function normalizeMemberInventory(files) {
+ if (!Array.isArray(files) || files.length === 0) throw new Error('member inventory must be a nonempty array');
+ const seen=new Set();return files.map((file)=>{
+  if(!file || typeof file.path!=='string' || file.path==='' || file.path.startsWith('/') || file.path.includes('\\') ||
+     /[\x00-\x1f]/.test(file.path) || file.path.split('/').some(p=>p===''||p==='.'||p==='..') || seen.has(file.path) ||
+     !Number.isSafeInteger(file.size_bytes)||file.size_bytes<0 || !Number.isSafeInteger(file.mode)||file.mode<0||file.mode>4095) {
+   throw new Error('member inventory contains an invalid or duplicate entry');
+  }
+  seen.add(file.path);return {path:file.path,size_bytes:file.size_bytes,mode:file.mode};
+ }).sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0);
+}
+
 export function verifyDistributionArtifacts(directory, {
   expectedHead,
   expectedTree,
   expectedNodeExecutable,
   expectedSourceInventory,
+  expectedMemberInventory,
   expectedTarballSha256,
 } = {}) {
   const problems = [];
@@ -144,6 +157,13 @@ export function verifyDistributionArtifacts(directory, {
       const expected = normalizeSourceInventory(expectedSourceInventory);
       if (canonicalJson(actual) !== canonicalJson(expected)) problems.push('source inventory does not match expectedSourceInventory');
     } catch (error) { problems.push(`source inventory: ${error.message}`); }
+    if (receipt.package != null) {
+    if (!SHA256.test(expectedTarballSha256 ?? '')) problems.push('package requires independently supplied expectedTarballSha256');
+    try {
+      const actual=normalizeMemberInventory(receipt.package.members);
+      const expected=normalizeMemberInventory(expectedMemberInventory);
+      if(canonicalJson(actual)!==canonicalJson(expected)) problems.push('package member inventory does not match expectedMemberInventory');
+    } catch(error) {problems.push(`member inventory / expectedMemberInventory: ${error.message}`);}
     const tarball = regularFile(directory, receipt.package?.tarball_file, problems);
     if (!SHA256.test(receipt.package?.tarball_sha256 ?? '')) problems.push('package.tarball_sha256 is invalid');
     if (tarball) {
@@ -163,6 +183,9 @@ export function verifyDistributionArtifacts(directory, {
       if (receipt.package.member_count !== receipt.package.members.length) problems.push('package member count does not match inventory');
     }
 
+    } else if (passing) problems.push('passing receipt is missing package evidence');
+
+    if (receipt.test != null) {
     const transcript = regularFile(directory, receipt.test?.transcript_file, problems);
     let transcriptCounts = null;
     if (transcript) {
@@ -174,7 +197,7 @@ export function verifyDistributionArtifacts(directory, {
       // Re-read the actual retained counts instead of trusting receipt metadata.
       const text = transcriptBytes.toString('utf8');
       transcriptCounts = {};
-      for (const key of ['tests', 'pass', 'fail', 'skipped', 'cancelled', 'todo']) {
+      for (const key of (passing || receipt.test?.counts != null) ? ['tests', 'pass', 'fail', 'skipped', 'cancelled', 'todo'] : []) {
         const matches = [...text.matchAll(new RegExp(`^# ${key} (\\d+)\\r?$`, 'gm'))];
         if (matches.length !== 1 || !Number.isSafeInteger(Number(matches[0]?.[1]))) {
           problems.push(`TAP summary must contain exactly one valid ${key} count`);
@@ -197,7 +220,7 @@ export function verifyDistributionArtifacts(directory, {
       problems.push('receipt does not bind the required distribution test command or expected executable');
     }
     const counts = receipt.test?.counts;
-    for (const key of ['tests', 'pass', 'fail', 'skipped', 'cancelled', 'todo']) {
+    for (const key of (passing || counts != null) ? ['tests', 'pass', 'fail', 'skipped', 'cancelled', 'todo'] : []) {
       if (!Number.isSafeInteger(counts?.[key]) || counts[key] < 0) problems.push(`test count ${key} is invalid`);
     }
     const outcomeKeys = ['pass', 'fail', 'skipped', 'cancelled', 'todo'];
@@ -211,17 +234,19 @@ export function verifyDistributionArtifacts(directory, {
     if (passing && (!(counts?.tests > 0) || !(counts?.pass > 0))) {
       problems.push('passing receipt must contain at least one executed passing test');
     }
-    if (transcriptCounts) {
+    if (transcriptCounts && (passing || counts != null)) {
       for (const key of ['tests', 'pass', 'fail', 'skipped', 'cancelled', 'todo']) {
         if (transcriptCounts[key] !== counts?.[key]) {
           problems.push(`TAP summary ${key} does not match receipt test counts`);
         }
       }
     }
-    if (passing && (receipt.test?.exit_code !== 0 || receipt.test?.signal !== null ||
+    if (passing && (receipt.test?.exit_code !== 0 || receipt.test?.signal !== null || receipt.test?.error !== null ||
         counts?.fail !== 0 || counts?.cancelled !== 0)) {
       problems.push('passing receipt contains a failing test outcome');
     }
+    } else if (passing) problems.push('passing receipt is missing test evidence');
+
     if (passing && (!Number.isInteger(receipt.cache?.empty_cache_probe_exit_code) ||
         receipt.cache.empty_cache_probe_exit_code === 0)) {
       problems.push('empty-cache offline negative did not fail as required');
@@ -232,6 +257,34 @@ export function verifyDistributionArtifacts(directory, {
         lockfiles[0]?.sha256 !== receipt.cache?.lockfile_sha256) {
       problems.push('source lockfile inventory must bind exactly one cache lockfile SHA-256');
     }
+  }
+  const recordedNames=new Set(['receipt.json','receipt.sha256']);
+  for(const name of [receipt.package?.tarball_file,receipt.test?.transcript_file,receipt.test?.stderr_file,
+      receipt.cache?.empty_cache_probe_stdout_file,receipt.cache?.empty_cache_probe_stderr_file]) {
+    if(typeof name==='string')recordedNames.add(name);
+  }
+  try {for(const name of fs.readdirSync(directory)) {
+    if(!recordedNames.has(name))problems.push(`unrecorded artifact in receipt directory: ${name}`);
+  }} catch(error) {problems.push(`cannot enumerate receipt artifacts: ${error.message}`);}
+  let probeStderr=null;
+  for(const stream of ['stdout','stderr']) {
+    const file=receipt.cache?.[`empty_cache_probe_${stream}_file`];
+    if(passing || file != null) {
+      const target=regularFile(directory,file,problems);
+      const expected=receipt.cache?.[`empty_cache_probe_${stream}_sha256`];
+      if(!SHA256.test(expected ?? ''))problems.push(`cache ${stream} SHA-256 is invalid`);
+      if(target) {
+        const bytes=fs.readFileSync(target);
+        if(sha256Bytes(bytes)!==expected)problems.push(`cache ${stream} SHA-256 does not match`);
+        if(stream==='stderr')probeStderr=bytes.toString('utf8');
+      }
+    }
+  }
+  if(passing) {
+    if(receipt.cache?.empty_cache_probe_signal!==null || receipt.cache?.empty_cache_probe_error!==null) {
+      problems.push('passing cache probe must finish without signal or spawn error');
+    }
+    if(!/ENOTCACHED/.test(probeStderr ?? ''))problems.push('cache probe does not establish expected ENOTCACHED failure');
   }
   return { problems, receipt, receiptSha256 };
 }
