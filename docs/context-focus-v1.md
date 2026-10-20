@@ -59,3 +59,25 @@ conservative filename heuristic, NOT a content-level credential scanner.
 Source files remain untrusted and require separate authorization to
 disclose to external model providers. More restrictive projects should
 avoid remote model calls entirely.
+
+
+## Final read-only audit follow-up: keys paths and docstring decoys
+
+The independent merged-PR security audit found that app/keys/handler.py
+could still be emitted, and that a fake router.get decorator inside a
+Python triple-quoted docstring could be mistaken for executable source.
+Both patterns now fail closed.
+
+The shared discovery/focus/slice source-path policy conservatively excludes
+keys/, key/, keys.py, key_store/, keystore/ and existing private,
+token and secret credential-like prefixes. The focused Python source locator
+uses the discovery module comment/string mask before matching decorators
+and callables; the returned excerpt remains byte-for-byte from pinned Git.
+A standalone adversarial regression checks that docstring decoys are
+rejected while a real handler after a docstring is retained.
+
+The source-file policy is deliberately conservative. A path rejection is
+not proof of genuine secrets. Explicit manual source selection and
+sbf.context-packet/1 authority remain separate. The older frozen focus
+holdout cannot be reused as unbiased evidence for this security change.
+Keep Draft until the newest commit passes GitHub CI and independent review.
