@@ -152,3 +152,25 @@ The old 22-case scored set and four-case code-generation smoke were used
 during development, so any compatibility rerun is **post-hoc** rather than
 new unbiased evidence. A new holdout against unchanged strong baselines
 is required before publishing new accuracy or token savings claims.
+
+
+### JVM extensions and conditionally registered Python routes
+
+Independent route-review follow-up found two additional false-assurance
+paths. The Java/Kotlin filename predicate had an over-escaped extension
+regex and classified .java/.kt handlers as the generic language; it now
+uses JVM GetMapping verification. Method-level GET route literals remain
+advisory_incomplete whenever the same Java controller file has a
+nonempty class-level RequestMapping prefix.
+
+A Python GET decorator nested beneath an if-statement, loop, class,
+factory or other indented scope cannot locally prove runtime route
+registration. The focus may show its source excerpt, but returns
+advisory_incomplete with nested_scope_unverified rather than falsely
+certifying full route registration. Python top-level literal decorators
+remain eligible for advisory_complete, strictly as local source evidence
+rather than production runtime or BEVAL proof.
+
+These revisions were made after a previous 22-case holdout was exposed.
+Regressions using those older cases are post-hoc compatibility tests, not
+a new independent accuracy claim.
