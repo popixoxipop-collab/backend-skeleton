@@ -439,3 +439,22 @@ for (const field of ['kind','head','tree']) {
   assert.match(verifyDistributionArtifacts(directory).problems.join('\n'),/materialization/);
  });
 }
+
+test('T22R40 source tree follows the captured commit when HEAD moves between Git reads',(t)=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'t22-ref-race-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const repo=path.join(root,'repo');fs.mkdirSync(repo);
+ const realGit=String(process.env.PATH).split(path.delimiter).filter(path.isAbsolute).map(dir=>path.join(dir,'git')).find(file=>{try{fs.accessSync(file,fs.constants.X_OK);return true;}catch{return false;}});
+ assert.ok(realGit,'real git must be available');
+ const git=(...args)=>{const p=spawnSync(realGit,args,{cwd:repo,encoding:'utf8'});assert.equal(p.status,0,p.stderr);return p.stdout.trim();};
+ git('init','-q','-b','main');fs.writeFileSync(path.join(repo,'data'),'first');git('add','.');git('-c','user.name=T22 test','-c','user.email=t22@example.invalid','commit','-qm','first');
+ const first=git('rev-parse','HEAD'), firstTree=git('rev-parse',`${first}^{tree}`);
+ fs.writeFileSync(path.join(repo,'data'),'later');git('add','.');git('-c','user.name=T22 test','-c','user.email=t22@example.invalid','commit','-qm','later');
+ const later=git('rev-parse','HEAD'), laterTree=git('rev-parse',`${later}^{tree}`);git('update-ref','refs/heads/main',first);
+ const bin=path.join(root,'bin');fs.mkdirSync(bin);const wrapper=path.join(bin,'git');
+ fs.writeFileSync(wrapper,`#!${process.execPath}\nconst {spawnSync}=require('node:child_process');const args=process.argv.slice(2);const real=${JSON.stringify(realGit)};const p=spawnSync(real,args,{encoding:'utf8'});process.stdout.write(p.stdout??'');process.stderr.write(p.stderr??'');if(args[0]==='rev-parse'&&args[1]==='HEAD'){const move=spawnSync(real,['update-ref','refs/heads/main',${JSON.stringify(later)}]);if(move.status!==0)process.exit(3);}process.exit(p.status??2);\n`,{mode:0o700});
+ const module=new URL('../scripts/t22-distribution-report.mjs',import.meta.url).href;
+ const child=spawnSync(process.execPath,['--input-type=module','-e',`import {captureSourceIdentity} from ${JSON.stringify(module)};console.log(JSON.stringify(captureSourceIdentity(${JSON.stringify(repo)})));`],{env:{...process.env,PATH:bin+path.delimiter+process.env.PATH,NODE_OPTIONS:''},encoding:'utf8',timeout:15000});
+ assert.equal(child.status,0,child.stderr);const identity=JSON.parse(child.stdout);
+ assert.equal(git('rev-parse','HEAD'),later,'fixture must actually move HEAD');
+ assert.equal(identity.head,first);assert.equal(identity.tree,firstTree);assert.notEqual(identity.tree,laterTree);
+});

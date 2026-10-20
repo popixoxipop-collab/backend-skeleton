@@ -54,6 +54,13 @@ function git(...args) {
   return requireSuccess(run('git', args), `git ${args.join(' ')}`);
 }
 
+
+export function captureSourceIdentity(repoRoot = ROOT) {
+  const read = (...args) => requireSuccess(run('git', args, repoRoot), `git ${args.join(' ')}`);
+  const head = read('rev-parse', 'HEAD');
+  return { head, tree: read('rev-parse', `${head}^{tree}`) };
+}
+
 function sourceInventory(head) {
   const sdkFiles = git('ls-tree', '-r', '--name-only', head, '--', 'sdk/next').split('\n').filter(Boolean);
   const relative = [
@@ -150,8 +157,7 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
   let nodeVersion = process.version, npmVersion = null, npmIdentity = null, materialization = null;
 
   try {
-    head = git('rev-parse', 'HEAD');
-    tree = git('rev-parse', 'HEAD^{tree}');
+    ({ head, tree } = captureSourceIdentity());
     dirty = git('status', '--porcelain', '--untracked-files=all') !== '';
     if (head !== expectedHead) failures.push(`SOURCE_HEAD_MISMATCH expected=${expectedHead} actual=${head}`);
     if (dirty) failures.push('SOURCE_TREE_DIRTY');
