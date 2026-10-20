@@ -81,3 +81,29 @@ not proof of genuine secrets. Explicit manual source selection and
 sbf.context-packet/1 authority remain separate. The older frozen focus
 holdout cannot be reused as unbiased evidence for this security change.
 Keep Draft until the newest commit passes GitHub CI and independent review.
+
+
+## Decorator ownership and full-contract route validation
+
+The final security review also found two ways the earlier focus locator
+could incorrectly announce advisory_complete: a method name decorated for
+a different GET route, and an actual decorator attached to an intervening
+class rather than the following target function.
+
+The locator now requires a continuous syntactic decorator chain from a
+true source decorator to the exact callable declaration. A class,
+assignment, standalone string or other statement between them invalidates
+the chain. A static literal GET route must match the expected full contract
+path; a different literal route abstains, and a route that might depend on
+an unseen router prefix is never certified as complete.
+
+This conservative matching can reject otherwise valid FastAPI prefix
+compositions, dynamic routing and unsupported syntax. Such false negatives
+are preferable to confidently attaching source to the wrong route.
+The source focus remains advisory. It is not Python AST execution, a
+verified full API call graph, a BECODER plan, or a BEVAL signed receipt.
+
+The five negative/positive route-ownership regression cases are stored
+in test/context-focus-route-validation.test.mjs. Earlier navigation
+benchmarks used prior frozen source-selector commits and must not be
+recounted as a new untouched holdout for this implementation.
