@@ -152,6 +152,54 @@ test('secret directory handler is not returned from the parent focus or the sour
  assert.equal(result.status,'abstained');
  assert.equal(result.handler,null);
  assert.equal(result.dependencies.length,0);
- assert.equal(result.reason,'restricted_source_candidate');
+ assert.equal(result.reason,'no_decorated_declaring_source');
+ assert.ok(result.incomplete_reasons.includes('focus_incomplete'));
  assert.ok(!JSON.stringify(result).includes('SECRET_HANDLER_SHOULD_NOT_LEAK'));
+});
+
+test('secret_helper.py never becomes a local dependency excerpt',t=>{
+ const source='from app.secret_helper import api_key\n'+decorator+
+   'async def readPing():\n    return api_key\n';
+ const f=mk(t,source,{'app/secret_helper.py':'api_key = "PROTECTED_DUMMY_VALUE"\n'});
+ const result=build(f);
+ assert.equal(result.status,'advisory_incomplete');
+ assert.equal(result.dependencies.length,0);
+ assert.ok(result.warnings.some(x=>x.reason==='ambiguous_or_invalid_import'));
+ assert.ok(!JSON.stringify(result).includes('PROTECTED_DUMMY_VALUE'));
+ assert.ok(!JSON.stringify(result).includes('app/secret_helper.py'));
+});
+test('a package member import never silently stands in for a helper function',t=>{
+ const source='from app import services\n'+decorator+
+   'async def readPing():\n    return services.reply_payload()\n';
+ const f=mk(t,source);
+ const result=build(f);
+ assert.equal(result.status,'advisory_incomplete');
+ assert.equal(result.dependencies.length,0);
+ assert.ok(result.warnings.some(x=>x.reason==='package_module_member_not_resolved'));
+});
+test('dynamic import_module alias cannot certify complete dependency evidence',t=>{
+ const source='from importlib import import_module as load\n'+decorator+
+   'async def readPing():\n    return load("app.services").reply_payload()\n';
+ const f=mk(t,source);
+ const result=build(f);
+ assert.equal(result.status,'advisory_incomplete');
+ assert.ok(result.warnings.some(x=>x.reason==='dynamic_import_not_resolved'));
+});
+test('Python f-string expression using an imported helper downgrades completeness',t=>{
+ const source=serviceImport+decorator+
+   'async def readPing():\n    return f"{reply_payload()}"\n';
+ const f=mk(t,source);
+ const result=build(f);
+ assert.equal(result.status,'advisory_incomplete');
+ assert.ok(result.warnings.some(x=>x.reason==='f_string_expression_not_resolved'));
+});
+test('a secret-like handler filename is blocked before a slice source excerpt',t=>{
+ const f=mk(t,'def not_the_requested_handler():\n    return 0\n',
+   {'app/secret_helper.py':decorator+
+     'async def readPing():\n    return {"hidden":"PROTECTED_DUMMY_HANDLER"}\n'});
+ const result=build(f);
+ assert.equal(result.status,'abstained');
+ assert.equal(result.handler,null);
+ assert.ok(!JSON.stringify(result).includes('PROTECTED_DUMMY_HANDLER'));
+ assert.ok(!JSON.stringify(result).includes('app/secret_helper.py'));
 });

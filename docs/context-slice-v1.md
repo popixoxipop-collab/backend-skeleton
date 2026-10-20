@@ -83,3 +83,34 @@ Promotion remains prohibited. This is a source context proof of
 concept, NOT complete language dependency closure, a generalized
 model benchmark, production security certification or runtime
 deployment.
+
+
+## Third independent security review follow-up (2026-10-20)
+
+A subsequent read-only review of merged parent and child revisions found
+three additional incorrect-coverage possibilities. The parent PR now
+shares an automated discovery / focus sensitive-path policy that excludes
+secret_helper.py, secretHelper.py, token_helper.py and related names before
+reading their source bytes, and sets restricted_source_files_excluded with
+discovery.complete=false when such tracked candidates exist.
+
+The child source slicer uses the same path policy for local import
+resolution. It now explicitly marks advisory_incomplete when:
+- a package member import such as from app import services may resolve to
+  the local app/services.py module, but the import graph is not proven;
+- aliased Python importlib.import_module invocations cannot be resolved;
+- a Python f-string may contain executable imported references hidden
+  from basic string masking.
+
+Five additional adversarial fixtures test the sensitive source basename,
+package module import, dynamic alias, f-string expression and a
+sensitive handler filename. XOX focused security/CLI/pinned Git tests:
+195/195 PASS on the child worktree. These are source-navigation safety
+controls, not a proof of sound Python interpretation.
+
+The model-generated 8-call Docker HTTP development smoke predates these
+conservative safety extensions and is kept as immutable historical
+evidence. None of the old model successes may substitute for latest-head
+CI, an independent security audit, or a new untouched functional holdout.
+This command remains advisory; automatic source discovery is not a
+secret scanning or trusted code execution authorization boundary.
