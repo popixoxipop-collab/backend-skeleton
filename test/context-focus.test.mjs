@@ -142,7 +142,8 @@ test('focused source refuses a GET handler inside a secret directory',t=>{
  });
  const r=get(f);
  assert.equal(r.status,'abstained');
- assert.equal(r.reason,'restricted_source_candidate');
+ assert.equal(r.reason,'no_decorated_declaring_source');
+ assert.ok(r.discovery.incomplete_reasons.includes('restricted_source_files_excluded'));
  assert.equal(r.focus.selected,null);
  assert.equal(r.focus.source_excerpt_bytes,0);
  assert.ok(!JSON.stringify(r).includes('NEVER_EXPOSE_SECRET_MARKER'));
@@ -152,10 +153,32 @@ test('focused source refuses a GET handler inside a secret directory',t=>{
  assert.equal(JSON.parse(cli.stdout).focus.selected,null);
  assert.ok(!cli.stdout.includes('NEVER_EXPOSE_SECRET_MARKER'));
 });
-test('even a lower-ranked secret source candidate conservatively prevents a trusted focus',t=>{
+
+test('a lower-ranked restricted candidate downgrades safe focus completeness',t=>{
  const f=create(t,{'app/private/duplicate.py':source});
  const r=get(f);
- assert.equal(r.status,'abstained');
- assert.equal(r.reason,'restricted_source_candidate');
- assert.equal(r.focus.selected,null);
+ assert.equal(r.status,'advisory_incomplete');
+ assert.equal(r.focus.selected.path,'app/routes/person.py');
+ assert.ok(r.discovery.incomplete_reasons.includes('restricted_source_files_excluded'));
+ assert.ok(!JSON.stringify(r).includes('app/private/duplicate.py'));
+});
+test('secret helper prefixes and CamelCase variants are excluded before source selection',t=>{
+ const malicious=source.replace('return {"id": id}','return {"token":"DUMMY_MARKER_DO_NOT_EMIT"}');
+ for(const secretFile of ['app/secret_helper.py','app/secretHelper.py','app/routes/token_helper.py']){
+   const f=create(t,{[secretFile]:malicious});
+   const result=get(f);
+   assert.equal(result.status,'advisory_incomplete');
+   assert.equal(result.focus.selected.path,'app/routes/person.py');
+   assert.ok(result.discovery.incomplete_reasons.includes('restricted_source_files_excluded'));
+   assert.ok(!JSON.stringify(result).includes('DUMMY_MARKER_DO_NOT_EMIT'));
+   assert.ok(!JSON.stringify(result).includes(secretFile));
+   const found=runCli(f,'discover','--contract',contractPath,'--operation','readPerson','--revision',f.commit,'--json');
+   assert.equal(found.status,0,found.stderr);
+   const discovery=JSON.parse(found.stdout);
+   assert.ok(discovery.selection.selected.every(entry=>entry.path!==secretFile));
+   const auto=runCli(f,'pack','--contract',contractPath,'--operation','readPerson',
+     '--auto-select','--revision',f.commit,'--json');
+   assert.notEqual(auto.status,0);
+   assert.equal(JSON.parse(auto.stdout).ok,false);
+ }
 });

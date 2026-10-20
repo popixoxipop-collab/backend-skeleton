@@ -39,3 +39,23 @@ focus algorithm. Previous 22-case model/token results belong to the frozen
 commit and are NOT an untouched holdout validation of the patched selector.
 The feature remains read-only and Draft; no BECODER plan, BEVAL verification
 or main/production promotion is implied.
+
+
+## Shared sensitive source-path policy (2026-10-20 follow-up)
+
+Automated context discovery and focus now share one conservative tracked
+source-path guard (lib/context-source-policy.mjs). Prefixes including
+secret_helper.py, secretHelper.py, token_helper.py, credential*, private*
+and api_key* are excluded as candidates before their source text is read.
+A repository containing such excluded eligible tracked Python/JS/JVM source
+reports restricted_source_files_excluded and discovery.complete=false.
+Auto-packing remains fail-closed; a safe focused source may be returned only
+as advisory_incomplete. This avoids labeling the scan fully complete after
+ignoring potentially sensitive source files.
+
+Manual explicit BSKEL source selection, BEVAL independent verification and
+the existing source-packet contract have not been loosened. This is a
+conservative filename heuristic, NOT a content-level credential scanner.
+Source files remain untrusted and require separate authorization to
+disclose to external model providers. More restrictive projects should
+avoid remote model calls entirely.
