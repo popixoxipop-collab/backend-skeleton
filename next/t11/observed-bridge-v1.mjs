@@ -3,6 +3,7 @@
 // No change to sbf.scan-report/2 legacy source, default scanner registry,
 // historical baselines, route support or promotion. This preserves an explicit
 // distinction between data not reported and data observed to be empty.
+import { types as nodeUtilTypes } from 'node:util';
 import { bridgeLegacyHttpScan } from '../../adapters/http-legacy-next/bridge.mjs';
 import {
   legacyHttpSemanticSnapshot, legacyHttpSemanticDigest,
@@ -20,6 +21,54 @@ function deepFreeze(value) {
   return value;
 }
 
+// Create one bounded own-data snapshot before any legacy JSON or array method
+// can run. Preserve explicit undefined and holes for the presence observer.
+function copyDataInput(input) {
+  const active = new Set(); let nodes = 0;
+  function copy(value, depth, at) {
+    if (++nodes > 200000 || depth > 128) throw new RangeError('T11_DATA_INPUT_LIMIT');
+    if (value === null || value === undefined || ['string', 'number', 'boolean'].includes(typeof value)) return value;
+    if (typeof value !== 'object') throw new TypeError('T11_NON_DATA_INPUT_UNSUPPORTED');
+    if (nodeUtilTypes.isProxy(value)) throw new TypeError('T11_PROXY_INPUT_UNSUPPORTED');
+    if (active.has(value)) throw new TypeError('T11_CYCLIC_INPUT_UNSUPPORTED');
+    const array = Array.isArray(value); const prototype = Object.getPrototypeOf(value);
+    if (prototype !== (array ? Array.prototype : Object.prototype) && prototype !== null) {
+      throw new TypeError(at.startsWith('input.report.related_modules[')
+        ? 'T11_MODULE_INHERITED_FIELD_UNSUPPORTED' : 'T11_REPORT_INHERITED_FIELD_UNSUPPORTED');
+    }
+    active.add(value);
+    let result;
+    if (array) {
+      const length = Object.getOwnPropertyDescriptor(value, 'length').value;
+      if (length > 200000) throw new RangeError('T11_DATA_INPUT_LIMIT');
+      result = new Array(length);
+      for (let index = 0; index < length; index++) {
+        const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+        if (!descriptor) continue;
+        if (!Object.hasOwn(descriptor, 'value')) throw new TypeError('T11_REPORT_ACCESSOR_UNSUPPORTED');
+        result[index] = copy(descriptor.value, depth + 1, `${at}[${index}]`);
+      }
+      // Non-index methods, iterators and toJSON hooks are not array data.
+    } else {
+      result = {};
+      // Real registry adapters include scan/detect functions that the legacy
+      // descriptor snapshot never consumes. Copy only its declared data fields.
+      const keys = at === 'input.adapter'
+        ? ['contract', 'id', 'title', 'specificity', 'confidence', 'verificationBasis', 'capabilities']
+          .filter((key) => Object.hasOwn(value, key))
+        : Object.getOwnPropertyNames(value);
+      for (const key of keys) {
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (!Object.hasOwn(descriptor, 'value')) throw new TypeError('T11_REPORT_ACCESSOR_UNSUPPORTED');
+        Object.defineProperty(result, key, { value: copy(descriptor.value, depth + 1, `${at}.${key}`),
+          enumerable: descriptor.enumerable, configurable: true, writable: true });
+      }
+    }
+    active.delete(value); return result;
+  }
+  return copy(input, 0, 'input');
+}
+
 /**
  * Opt-in T11-02 report envelope for T00/T01/T02/T03 consumers to inspect.
  * The observation is derived from the original report FIRST: the existing
@@ -32,9 +81,8 @@ function deepFreeze(value) {
  * @param {string} [arg.root] optional canonical absolute source root
  * @returns {object} report-presence evidence paired with legacy snapshot
  */
-export function bridgeLegacyHttpWithObservation({
-  adapter, report, root,
-} = {}) {
+export function bridgeLegacyHttpWithObservation(input = {}) {
+  const { adapter, report, root } = copyDataInput(input);
   const originalObservation = observeLegacyScanReport(report);
   // Existing JSON-clone/semantic projection paths dereference their input.
   // Reject any accessor in fields we inspect BEFORE handing the report to
@@ -69,7 +117,7 @@ export function bridgeLegacyHttpWithObservation({
     }
   }
   const bridge = bridgeLegacyHttpScan({ adapter, report });
-  const semanticSnapshot = legacyHttpSemanticSnapshot(report, { root });
+  const semanticSnapshot = legacyHttpSemanticSnapshot(bridge.legacy_report, { root });
   if (bridge.source_adapter.id !== semanticSnapshot.adapter) {
     throw new TypeError('T11_BRIDGE_ADAPTER_MISMATCH');
   }
@@ -98,3 +146,4 @@ export function bridgeLegacyHttpWithObservation({
     ]),
   });
 }
+
