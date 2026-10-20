@@ -1459,6 +1459,11 @@ function cmdContextPack(args) {
 		maxFiles: Number(flags['max-files']),
 		maxBytes: Number(flags['max-bytes']),
 	});
+	// The original packet contract calls a source selection complete only when
+	// all requested files were actually included. Auto-select may not claim
+	// success when either the discovery or the final packet is partial.
+	if(suggestion && !packet.selection.complete)
+		throw new Error('context pack: source selection omitted by file/byte budget; automatic pack refuses incomplete packet. Review paths and use explicit --files.');
 	const serialized = JSON.stringify(packet, null, 2) + '\n';
 	if (flags.out != null) {
 		if (!flags.out) throw new Error('context pack: --out must name an output file');

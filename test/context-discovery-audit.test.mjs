@@ -153,16 +153,34 @@ test('block-comments, line-comments, and Python docstrings do not certify declar
 
 test('string-only fake function signatures cannot certify a handler',t=>{
   const f=fixture(t,{
-    'src/readPing.js':"const guidance = \"export function readPing(req,res){} router.get('/ping',readPing);\";\\n",
-    'src/actual.js':"export function readPing(req,res){ return true; }\\nrouter.get('/ping',readPing);\\n"
+    'src/readPing.js':"const guidance = \"export function readPing(req,res){} router.get('/ping',readPing);\";\n",
+    'src/actual.js':"export function readPing(req,res){ return true; }\nrouter.get('/ping',readPing);\n"
   });
   const r=discover(f);
   assert.equal(r.selection.selected[0].path,'src/actual.js');
   assert.ok(r.selection.selected[0].signals.includes('handler_declaration'));
 });
 test('a filename with only a string containing a signature is incomplete',t=>{
-  const f=fixture(t,{'src/readPing.js':"const s = \"export function readPing(req,res){}\";\\n"});
+  const f=fixture(t,{'src/readPing.js':"const s = \"export function readPing(req,res){}\";\n"});
   const r=discover(f);
   assert.equal(r.selection.selected[0].signals.includes('handler_declaration'),false);
   assert.equal(r.selection.complete,false);
+});
+
+test('line comments reset at actual newlines before a real declaration',t=>{
+  const f=fixture(t,{
+    'src/real.py':"# docs: def readPing(): return false\n@router.get('/ping')\nasync def readPing(): return {'ping':'pong'}\n",
+    'src/readPing.py':"# def readPing(): pass\n"
+  });
+  const r=discover(f);
+  assert.equal(r.selection.selected[0].path,'src/real.py');
+  assert.ok(r.selection.selected[0].signals.includes('handler_declaration'));
+});
+test('quoted comment delimiters do not swallow a later real handler',t=>{
+  const f=fixture(t,{
+    'src/real.js':"const url = 'http://host/test#fragment';\n// an ordinary comment\nexport function readPing(req,res){return true;}\nrouter.get('/ping',readPing);\n"
+  });
+  const r=discover(f);
+  assert.equal(r.selection.selected[0].path,'src/real.js');
+  assert.ok(r.selection.selected[0].signals.includes('handler_declaration'));
 });

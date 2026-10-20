@@ -52,10 +52,13 @@ retroactively change the original 22-pair holdout results.
 - Comments and Python docstrings cannot produce strong declaration signals.
   String contents are not accepted as executable function declarations.
   Route heuristics remain approximate, not a replacement for parser/AST proof.
-- Automatic context packing fails closed on an incomplete discovery. Inspect
-  the separate context discover JSON receipt (including incomplete_reasons
-  and omitted_matching_candidates), then manually review and use explicit
-  context pack --files if necessary. Automatic packing has no bypass flag.
+- Automatic context packing fails closed when EITHER discovery is incomplete
+  OR the final packet omitted an explicitly selected source because of file
+  or byte budgets. Inspect context discover JSON (including
+  incomplete_reasons and omitted_matching_candidates), then manually review
+  and use explicit context pack --files if necessary. Legacy explicit packing
+  can truthfully produce selection.complete=false; automatic packing cannot.
+  There is no bypass flag.
 
 The existing sbf.context-packet/1 schema is unchanged. In that schema,
 selection.complete refers ONLY to the explicit requested source paths. It
@@ -65,7 +68,8 @@ correctness. The new discovery completeness verdict is separately reported.
 Adversarial tests cover: Git raw invalid-UTF8 tree entries via git mktree
 (even on Macs forbidding invalid filenames), symlinked contracts, oversized
 entries circumventing scan limits, matching candidate truncation, malicious
-line/block/docstring comments and strings, and fail-closed auto-pack.
+line/block/docstring comments and strings, restoring code scanning after real
+newlines, and fail-closed auto-pack at BOTH discovery and final packet stages.
 
 Prior 22-pair holdout: selector SHA 9df94ea80b67ad844e9bc92bc7e2d9a81b7e7382.
 Repeating those 22 original tasks on this successor is POST-HOC compatibility

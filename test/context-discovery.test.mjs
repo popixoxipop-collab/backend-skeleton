@@ -120,11 +120,25 @@ test('legacy pack path remains identical byte for byte and conflicting flags rej
   const missing=cli(f.root,'pack','--contract',CONTRACT,'--auto-select','--json');
   assert.notEqual(missing.status,0);
 });
-test('strict file budget reports omitted source; no executable gate implied',t=>{
+test('auto-pack refuses omitted source even after complete discovery; explicit pack reports incompleteness',t=>{
   const f=fixture(t);
-  const r=cli(f.root,'pack','--contract',CONTRACT,'--auto-select','--operation','readPing','--max-files','1','--json');
-  assert.equal(r.status,0,r.stderr);
-  const packet=JSON.parse(r.stdout);
+  const destination=path.join(f.root,'should-not-be-created.json');
+  const r=cli(f.root,'pack','--contract',CONTRACT,'--auto-select','--operation','readPing',
+    '--max-files','1','--out','should-not-be-created.json','--json');
+  assert.notEqual(r.status,0,'incomplete automatic packing must fail closed');
+  assert.match(r.stderr,/automatic pack refuses incomplete packet/);
+  assert.equal(r.stdout,'');
+  assert.equal(fs.existsSync(destination),false,'incomplete auto-packet must not be written');
+  // The contract itself fits; the source does not. The byte budget must
+  // be checked after discovery as a distinct fail-closed stage.
+  const budget=Buffer.byteLength(fs.readFileSync(path.join(f.root,CONTRACT)))+1;
+  const bytes=cli(f.root,'pack','--contract',CONTRACT,'--auto-select','--operation','readPing',
+    '--max-bytes',String(budget),'--out','should-not-be-created.json','--json');
+  assert.notEqual(bytes.status,0,'auto-pack may not emit a source omitted by byte budget');
+  assert.equal(fs.existsSync(destination),false);
+  const chosen=cli(f.root,'pack','--contract',CONTRACT,'--files','app/routes/ping.py','--max-files','1','--json');
+  assert.equal(chosen.status,0,chosen.stderr);
+  const packet=JSON.parse(chosen.stdout);
   assert.equal(packet.selection.complete,false);
   assert.equal(packet.sources.length,0);
   assert.ok(packet.selection.omitted.some(o=>o.reason==='file_budget'));
