@@ -14,6 +14,7 @@ import { writeFileAtomic, sha256File, readJsonIfExists } from '../lib/fsutil.mjs
 import { hydrateScanReportFilePaths, dehydrateScanReportFilePaths } from '../lib/scan-report-paths.mjs';
 import { validateAgainstSchema, formatSchemaErrors } from '../lib/schema-validate.mjs';
 import { createContextPacket, renderContextGuide } from '../lib/context-packet.mjs';
+import { discoverOperationContext } from '../lib/context-discovery.mjs';
 import { withLockSync } from '../lib/lock.mjs';
 import { specDir, specPath, sbfPath } from '../lib/paths.mjs';
 import { requireValidFeatureId, requireValidSlug, requireValidFeatureOrRepoId, slugWords, nextFeatureNumber } from '../lib/featureid.mjs';
@@ -118,7 +119,8 @@ function usage() {
   bskel webgame scan [--json]
   bskel webgame contract emit --feature <id> [--out <path>] [--json]
   bskel webgame contract verify --feature <id> [--json]
-  bskel context pack --contract <repo-relative-path> [--revision <ref>] [--files <a,b>] [--max-files N] [--max-bytes N] [--out <path>] [--json]
+  bskel context discover --contract <path> --operation <id> [--revision <ref>] [--max-selected-files N] [--json]
+  bskel context pack --contract <repo-relative-path> [--revision <ref>] [--files <a,b>|--auto-select --operation <id>] [--max-files N] [--max-bytes N] [--out <path>] [--json]
   bskel contract emit --feature <id> [--module <name>] [--json] [--openapi-file <path>] [--path-prefix /api/v0] [--descriptions]
   bskel contract export --feature <id> [--out <path>] [--json] [--allow-unprefixed] [--status-codes range|literal]
   bskel contract export-csv --feature <id> [--out <path>] [--bom] [--json]
@@ -1416,16 +1418,40 @@ function cmdWebgameContractEmit(args) {
 	process.exitCode = EXIT.PASS;
 }
 
+function cmdContextDiscover(args) {
+	const flags=parseCommand('context discover',args);
+	if(flags.help){console.log(renderCommandHelp('context discover'));return;}
+	setContext('context discover',flags);
+	const found=discoverOperationContext({
+		repoRoot:requireRepoRoot(),contractPath:flags.contract,
+		operationId:flags.operation,revision:flags.revision,
+		maxSelectedFiles:Number(flags['max-selected-files']),
+		maxScanFiles:Number(flags['max-scan-files']),maxScanBytes:Number(flags['max-scan-bytes'])
+	});
+	process.stdout.write(JSON.stringify(found,null,2)+'\n');
+	process.exitCode=EXIT.PASS;
+}
+
 function cmdContextPack(args) {
 	const flags = parseCommand('context pack', args);
 	if (flags.help) { console.log(renderCommandHelp('context pack')); return; }
 	setContext('context pack', flags);
 	const root = requireRepoRoot();
+	if(flags['auto-select'] && flags.files!=null)throw new Error('context pack: --files and --auto-select are mutually exclusive');
+	if(!flags['auto-select'] && flags.operation!=null)throw new Error('context pack: --operation requires --auto-select');
+	if(flags['auto-select'] && !flags.operation)throw new Error('context pack: --auto-select requires --operation');
+	const suggestion=flags['auto-select'] ? discoverOperationContext({
+		repoRoot:root,contractPath:flags.contract,operationId:flags.operation,revision:flags.revision,
+		maxSelectedFiles:Math.min(16,Math.max(1,Number(flags['max-files'])-1)),
+		maxScanFiles:Number(flags['max-scan-files']),maxScanBytes:Number(flags['max-scan-bytes'])
+	}) : null;
+	if(suggestion && !suggestion.selection.selected.length)
+		throw new Error('context pack: no source files discovered for requested operation');
 	const packet = createContextPacket({
 		repoRoot: root,
 		contractPath: flags.contract,
-		revision: flags.revision,
-		files: flags.files == null ? [] : flags.files.split(','),
+		revision: suggestion?.repository.commit ?? flags.revision,
+		files: suggestion ? suggestion.selection.selected.map(f=>f.path) : flags.files == null ? [] : flags.files.split(','),
 		maxFiles: Number(flags['max-files']),
 		maxBytes: Number(flags['max-bytes']),
 	});
@@ -5077,6 +5103,7 @@ async function dispatchCommand(cmd, rest) {
 			break;
 		}
 		case 'context': {
+			if (rest[0] === 'discover') return cmdContextDiscover(rest.slice(1));
 			if (rest[0] === 'pack') return cmdContextPack(rest.slice(1));
 			usage();
 			process.exit(EXIT_CODES.BAD_ARGS);
