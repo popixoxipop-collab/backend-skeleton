@@ -71,3 +71,7 @@ Companion `test/t11-observed-bridge-v1.test.mjs` checks five genuine legacy adap
 
 **Strict MET gate still outstanding:** T00 owner must approve this new consumer API's ownership and any needed downstream wiring; exact-head independent CI/review and official T00 audit after main merge are not supplied by local tests. No official MET increase is claimed.
 
+
+## Programmatic input resource bounds
+
+The product bridge and consumer copy only bounded own-data input before legacy JSON processing. In addition to the 128-depth and 200,000 aggregate node/slot limits, the copied envelope has a conservative 2 MiB JSON-output byte budget. Every occurrence of a string, including shared values, property names, UTF-8/JSON escapes, container punctuation and sparse slots is charged before output can expand. Oversized data throws `T11_DATA_BYTE_LIMIT`; it is not silently truncated or promoted. The direct field-presence observer does not serialize uninspected payload values.

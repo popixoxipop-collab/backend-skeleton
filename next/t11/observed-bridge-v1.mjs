@@ -25,9 +25,35 @@ function deepFreeze(value) {
 // can run. Preserve explicit undefined and holes for the presence observer.
 function copyDataInput(input) {
   const active = new Set(); let nodes = 0;
+  let remainingBytes = 2 * 1024 * 1024;
+  function chargeBytes(bytes) {
+    if (bytes > remainingBytes) throw new RangeError('T11_DATA_BYTE_LIMIT');
+    remainingBytes -= bytes;
+  }
+  function chargeString(value) {
+    // Every occurrence counts, even when the caller reuses one string. Count
+    // UTF-8 and JSON escaping without first allocating its serialized form.
+    if (value.length + 2 > remainingBytes) throw new RangeError('T11_DATA_BYTE_LIMIT');
+    chargeBytes(2);
+    for (let index = 0; index < value.length; index++) {
+      const unit = value.charCodeAt(index);
+      if (unit <= 0x1f) chargeBytes(6); // conservative for short JSON escapes
+      else if (unit === 0x22 || unit === 0x5c) chargeBytes(2);
+      else if (unit < 0x80) chargeBytes(1);
+      else if (unit < 0x800) chargeBytes(2);
+      else if (unit >= 0xd800 && unit <= 0xdbff && index + 1 < value.length &&
+          value.charCodeAt(index + 1) >= 0xdc00 && value.charCodeAt(index + 1) <= 0xdfff) {
+        chargeBytes(4); index++;
+      } else if (unit >= 0xd800 && unit <= 0xdfff) chargeBytes(6);
+      else chargeBytes(3);
+    }
+  }
   function copy(value, depth, at) {
     if (++nodes > 200000 || depth > 128) throw new RangeError('T11_DATA_INPUT_LIMIT');
-    if (value === null || value === undefined || ['string', 'number', 'boolean'].includes(typeof value)) return value;
+    if (typeof value === 'string') { chargeString(value); return value; }
+    if (value === null || value === undefined) { chargeBytes(4); return value; }
+    if (typeof value === 'boolean') { chargeBytes(5); return value; }
+    if (typeof value === 'number') { chargeBytes(32); return value; }
     if (typeof value !== 'object') throw new TypeError('T11_NON_DATA_INPUT_UNSUPPORTED');
     if (nodeUtilTypes.isProxy(value)) throw new TypeError('T11_PROXY_INPUT_UNSUPPORTED');
     if (active.has(value)) throw new TypeError('T11_CYCLIC_INPUT_UNSUPPORTED');
@@ -36,6 +62,7 @@ function copyDataInput(input) {
       throw new TypeError(at.startsWith('input.report.related_modules[')
         ? 'T11_MODULE_INHERITED_FIELD_UNSUPPORTED' : 'T11_REPORT_INHERITED_FIELD_UNSUPPORTED');
     }
+    chargeBytes(2); // object/array punctuation
     active.add(value);
     let result;
     if (array) {
@@ -44,6 +71,7 @@ function copyDataInput(input) {
       // descriptor lookup per slot and produce output even without own values.
       if (length > 200000 - nodes) throw new RangeError('T11_DATA_INPUT_LIMIT');
       nodes += length;
+      chargeBytes(5 * length); // commas and null output for sparse positions
       result = new Array(length);
       for (let index = 0; index < length; index++) {
         const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
@@ -61,6 +89,7 @@ function copyDataInput(input) {
           .filter((key) => Object.hasOwn(value, key))
         : Object.getOwnPropertyNames(value);
       for (const key of keys) {
+        chargeString(key); chargeBytes(2); // colon and possible comma
         const descriptor = Object.getOwnPropertyDescriptor(value, key);
         if (!Object.hasOwn(descriptor, 'value')) throw new TypeError('T11_REPORT_ACCESSOR_UNSUPPORTED');
         Object.defineProperty(result, key, { value: copy(descriptor.value, depth + 1, `${at}.${key}`),
