@@ -127,7 +127,10 @@ test('auto-pack refuses omitted source even after complete discovery; explicit p
     '--max-files','1','--out','should-not-be-created.json','--json');
   assert.notEqual(r.status,0,'incomplete automatic packing must fail closed');
   assert.match(r.stderr,/automatic pack refuses incomplete packet/);
-  assert.equal(r.stdout,'');
+  const diagnostic=JSON.parse(r.stdout);
+  assert.equal(diagnostic.schema,'sbf.cli-diagnostic/1');
+  assert.equal(diagnostic.ok,false);
+  assert.equal(diagnostic.command,'context pack');
   assert.equal(fs.existsSync(destination),false,'incomplete auto-packet must not be written');
   // The contract itself fits; the source does not. The byte budget must
   // be checked after discovery as a distinct fail-closed stage.
