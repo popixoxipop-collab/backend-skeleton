@@ -13,7 +13,8 @@
     "url": "https://github.com/popixoxipop-collab/backend-skeleton/issues"
   },
   "bin": {
-    "bskel": "bin/bskel.mjs"
+    "bskel": "bin/bskel.mjs",
+    "bskel-t11-observe": "next/t11/observed-report-cli-v1.mjs"
   },
   "engines": {
     "node": ">=18"
@@ -29,6 +30,13 @@
     "patterns/",
     "rules/",
     "schemas/",
+    "next/t11/INTERFACE_OBSERVATION_V1.md",
+    "next/t11/report-observation-v1.mjs",
+    "next/t11/observed-bridge-v1.mjs",
+    "next/t11/observed-report-cli-v1.mjs",
+    "adapters/http-legacy-next/baselines.mjs",
+    "adapters/http-legacy-next/bridge.mjs",
+    "adapters/http-legacy-next/parity.mjs",
     "scripts/preflight-base-ref.sh",
     "action.yml",
     "LICENSE",

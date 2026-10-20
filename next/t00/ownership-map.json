@@ -17,7 +17,7 @@
       "file": "scripts/run-next-nested-tests.mjs",
       "export": "SUITES",
       "suite_count": 21,
-      "canonical_sha256": "166f3c180ab0efc764a429dd7e859e4dfbe504c4320e168f5e5daab48c53f4dc"
+      "canonical_sha256": "176a6f06884e63c9bceea8f335de457c4e69f6ddbc942c8b57bd350abf93a7e5"
     }
   },
   "repositories": {
@@ -37,7 +37,7 @@
     {"track":"T08","repository":"bskel","plan_scopes":["next/t08/**"],"suite_scopes":["scanners/language/native-server/**","test/language-native-server/**"],"extra_scopes":[]},
     {"track":"T09","repository":"bskel","plan_scopes":["next/t09/**"],"suite_scopes":["contracts/reconciliation-next/**","test/reconciliation-next/**"],"extra_scopes":[]},
     {"track":"T10","repository":"bskel","plan_scopes":["adapters/persistence/activerecord/**","adapters/persistence/diesel/**","adapters/persistence/django-orm/**","adapters/persistence/drizzle/**","adapters/persistence/ef-core/**","adapters/persistence/eloquent/**","adapters/persistence/gorm/**","adapters/persistence/jpa-hibernate/**","adapters/persistence/prisma/**","adapters/persistence/sequelize/**","adapters/persistence/sqlalchemy-sqlmodel/**","adapters/persistence/typeorm/**","next/t10/**"],"suite_scopes":["scanners/persistence-next/**","test/persistence-next/**"],"extra_scopes":[]},
-    {"track":"T11","repository":"bskel","plan_scopes":["adapters/http/java-spring/**","adapters/http/javascript-express/**","adapters/http/python-fastapi/**","adapters/http/ruby-rails/**","adapters/http/typescript-express/**","next/t11/**"],"suite_scopes":["adapters/http-legacy-next/**","test/http-legacy-next/**"],"extra_scopes":[]},
+    {"track":"T11","repository":"bskel","plan_scopes":["adapters/http/java-spring/**","adapters/http/javascript-express/**","adapters/http/python-fastapi/**","adapters/http/ruby-rails/**","adapters/http/typescript-express/**","next/t11/**"],"suite_scopes":["adapters/http-legacy-next/**","next/t11/**","test/http-legacy-next/**"],"extra_scopes":[]},
     {"track":"T12","repository":"bskel","plan_scopes":["adapters/http/csharp-aspnet-core/**","adapters/http/go-gin/**","adapters/http/node-fastify/**","adapters/http/php-laravel/**","adapters/http/python-django/**","adapters/http/python-flask/**","adapters/http/typescript-nestjs/**","next/t12/**"],"suite_scopes":["adapters/http-wave-a/**","test/http-wave-a/**"],"extra_scopes":[]},
     {"track":"T13","repository":"bskel","plan_scopes":["adapters/http/elixir-phoenix/**","adapters/http/go-echo/**","adapters/http/go-fiber/**","adapters/http/java-micronaut/**","adapters/http/java-quarkus/**","adapters/http/kotlin-ktor/**","adapters/http/node-hono/**","adapters/http/node-koa/**","adapters/http/php-symfony/**","adapters/http/python-litestar/**","adapters/http/python-starlette/**","adapters/http/rust-actix-web/**","adapters/http/rust-axum/**","adapters/http/scala-play/**","adapters/http/swift-vapor/**","adapters/http/typescript-nextjs/**","next/t13/**"],"suite_scopes":["adapters/http-wave-bc/**","test/http-wave-bc/**"],"extra_scopes":[]},
     {"track":"T14","repository":"bskel","plan_scopes":["next/t14/**"],"suite_scopes":["handles/composition-next/**","test/provider-composition-next/**"],"extra_scopes":[]},

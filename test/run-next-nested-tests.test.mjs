@@ -258,3 +258,12 @@ test('T23 release control is a READY suite whose tests include release/next/test
 	const relativeTests = inspected.tests.map((p) => path.relative(REPO_ROOT, p).split(path.sep).join('/'));
 	assert.ok(relativeTests.includes('release/next/test/release-policy.test.mjs'), `T23 runs ${JSON.stringify(relativeTests)}`);
 });
+
+test('T11 regular CI suite includes the exact product CLI test', () => {
+	const suite = SUITES.find((s) => s.id === 'T11');
+	assert.ok(suite, 'SUITES has no T11 entry');
+	const inspected = inspectSuite(suite, REPO_ROOT);
+	assert.equal(inspected.status, 'READY');
+	const relativeTests = inspected.tests.map((p) => path.relative(REPO_ROOT, p).split(path.sep).join('/'));
+	assert.ok(relativeTests.includes('next/t11/observed-report-cli-v1.test.mjs'), `T11 runs ${JSON.stringify(relativeTests)}`);
+});
