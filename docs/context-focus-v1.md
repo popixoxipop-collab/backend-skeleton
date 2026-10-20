@@ -127,3 +127,28 @@ The operation status remains advisory, and a matching literal does not
 resolve route prefixes, dynamic expressions, BECODER plans, import
 closure or BEVAL execution authority. Previous post-hoc benchmarks
 do not certify this updated successor commit.
+
+
+### Static GET route and decorator ownership gate
+
+After an independent adversarial review, context focus was additionally
+restricted to **GET** contracts and simple directly quoted GET decorator
+routes. Source expressions (conditional paths, nested tuples,
+concatenations, computed path values) can no longer certify an exact route
+based on an incidental quoted string. A detectable nonempty local
+FastAPI router prefix or Spring class-level RequestMapping downgrades
+a matching method-level path to advisory_incomplete because full
+controller/router composition has not been established.
+
+A decorator stack must belong to the target callable; any intervening
+class, assignment, docstring or unrelated statement breaks ownership.
+Python inline comments cannot forge a route literal. The source is still
+only an immutable-Git **advisory navigation hint**, never a complete
+runtime routing proof, BECODER plan or BEVAL verified result. Imports,
+transitive route prefixes and dynamic runtime registration require
+independent verification.
+
+The old 22-case scored set and four-case code-generation smoke were used
+during development, so any compatibility rerun is **post-hoc** rather than
+new unbiased evidence. A new holdout against unchanged strong baselines
+is required before publishing new accuracy or token savings claims.
