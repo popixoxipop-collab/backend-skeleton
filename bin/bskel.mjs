@@ -16,6 +16,7 @@ import { validateAgainstSchema, formatSchemaErrors } from '../lib/schema-validat
 import { createContextPacket, renderContextGuide } from '../lib/context-packet.mjs';
 import { discoverOperationContext } from '../lib/context-discovery.mjs';
 import { focusOperationContext } from '../lib/context-focus.mjs';
+import { sliceOperationContext } from '../lib/context-slice.mjs';
 import { withLockSync } from '../lib/lock.mjs';
 import { specDir, specPath, sbfPath } from '../lib/paths.mjs';
 import { requireValidFeatureId, requireValidSlug, requireValidFeatureOrRepoId, slugWords, nextFeatureNumber } from '../lib/featureid.mjs';
@@ -120,6 +121,7 @@ function usage() {
   bskel webgame scan [--json]
   bskel webgame contract emit --feature <id> [--out <path>] [--json]
   bskel webgame contract verify --feature <id> [--json]
+  bskel context slice --contract <path> --operation <id> [--revision <ref>] [--max-bytes N] [--max-dependencies N] [--max-handler-lines N] [--max-candidates N] [--max-scan-files N] [--max-scan-bytes N] [--json]
   bskel context focus --contract <path> --operation <id> [--revision <ref>] [--max-bytes N] [--max-candidates N] [--max-scan-files N] [--max-scan-bytes N] [--json]
   bskel context discover --contract <path> --operation <id> [--revision <ref>] [--max-selected-files N] [--max-scan-files N] [--max-scan-bytes N] [--json]
   bskel context pack --contract <repo-relative-path> [--revision <ref>] [--files <a,b>|--auto-select --operation <id>] [--max-scan-files N] [--max-scan-bytes N] [--max-files N] [--max-bytes N] [--out <path>] [--json]
@@ -1420,6 +1422,23 @@ function cmdWebgameContractEmit(args) {
 	process.exitCode = EXIT.PASS;
 }
 
+function cmdContextSlice(args) {
+	const flags=parseCommand('context slice',args);
+	if(flags.help){console.log(renderCommandHelp('context slice'));return;}
+	setContext('context slice',flags);
+	const result=sliceOperationContext({
+		repoRoot:requireRepoRoot(),contractPath:flags.contract,
+		operationId:flags.operation,revision:flags.revision,
+		maxScanFiles:Number(flags['max-scan-files']),
+		maxScanBytes:Number(flags['max-scan-bytes']),
+		maxBytes:Number(flags['max-bytes']),
+		maxDependencies:Number(flags['max-dependencies']),
+		maxHandlerLines:Number(flags['max-handler-lines']),
+		maxCandidates:Number(flags['max-candidates'])
+	});
+	process.stdout.write(JSON.stringify(result,null,2)+'\n');
+	process.exitCode=EXIT.PASS;
+}
 function cmdContextFocus(args) {
 	const flags=parseCommand('context focus',args);
 	if(flags.help){console.log(renderCommandHelp('context focus'));return;}
@@ -5130,6 +5149,7 @@ async function dispatchCommand(cmd, rest) {
 			break;
 		}
 		case 'context': {
+			if (rest[0] === 'slice') return cmdContextSlice(rest.slice(1));
 			if (rest[0] === 'focus') return cmdContextFocus(rest.slice(1));
 			if (rest[0] === 'discover') return cmdContextDiscover(rest.slice(1));
 			if (rest[0] === 'pack') return cmdContextPack(rest.slice(1));

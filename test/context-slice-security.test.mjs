@@ -1,0 +1,205 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import test from 'node:test';
+import { sliceOperationContext } from '../lib/context-slice.mjs';
+
+const CONTRACT='specs/ecc/contracts/contract.json';
+const BASE_FUNC="def reply_payload():\n    return {'ping':'pong'}\n";
+function git(root,...a){return execFileSync('git',a,{cwd:root,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();}
+function mk(t,source,additional={}){
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'slice-security-'));
+ t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ git(root,'init','-q');git(root,'config','user.name','Security Test');git(root,'config','user.email','slice@example.invalid');
+ const doc={sbf_contract:'9',feature_id:'001-slice',feature_uid:'11111111-1111-4111-8111-111111111111',
+  source:{adapter:'python-fastapi',module:'app',provenance:'test-only'},
+  operations:{readPing:{verb:'GET',path:'/ping',pathParams:{},body:false,provenance:'source-annotation'}},
+  warnings:[],completeness:{status:'partial',operation_count:1,endpoint_count:1}};
+ const files={[CONTRACT]:JSON.stringify(doc,null,2)+'\n','app/routes/ping.py':source,
+  'app/services.py':BASE_FUNC,...additional};
+ for(const [name,body] of Object.entries(files)){
+  const file=path.join(root,name);fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,body);
+ }
+ git(root,'add','-A');git(root,'commit','-qm','Pinned evidence');
+ return {root,revision:git(root,'rev-parse','HEAD')};
+}
+const build=(f,options={})=>sliceOperationContext({repoRoot:f.root,contractPath:CONTRACT,
+ operationId:'readPing',revision:f.revision,...options});
+const serviceImport='from app.services import reply_payload\n';
+const decorator="@router.get('/ping')\n";
+test('multi-line Python signature keeps body and imported helper, never falsely complete with a half signature',t=>{
+ const f=mk(t,serviceImport+decorator+"async def readPing(\n    name: str = 'guest',\n):\n    return reply_payload()\n");
+ const result=build(f);
+ assert.equal(result.status,'advisory_complete');
+ assert.equal(result.dependencies.length,1);
+ assert.match(result.handler.excerpt,/^@router\.get\('\/ping'\)/m);
+ assert.match(result.handler.excerpt,/^\):$/m);
+ assert.match(result.handler.excerpt,/return reply_payload\(\)/);
+ assert.equal(result.dependencies[0].symbol,'reply_payload');
+});
+test('multi-line helper signature keeps helper return payload',t=>{
+ const helper="def reply_payload(\n    message: str = 'pong',\n):\n    return {'ping':message}\n";
+ const f=mk(t,serviceImport+decorator+'async def readPing():\n    return reply_payload()\n',
+  {'app/services.py':helper});
+ const result=build(f);
+ assert.equal(result.status,'advisory_complete');
+ assert.equal(result.dependencies.length,1);
+ assert.match(result.dependencies[0].excerpt,/\):\n\s+return \{'ping':message\}/);
+});
+test('unindented triple-quoted string contents inside handler do not cut return and imports',t=>{
+ const handler=serviceImport+decorator+"async def readPing():\n    note = '''hello\nunindented contents\n'''\n    return reply_payload()\n";
+ const f=mk(t,handler);
+ const v=build(f);
+ assert.equal(v.status,'advisory_complete');
+ assert.equal(v.dependencies.length,1);
+ assert.match(v.handler.excerpt,/unindented contents[\s\S]*return reply_payload\(\)/);
+});
+test('commented code ends on a REAL newline so a following helper call is found',t=>{
+ const f=mk(t,serviceImport+decorator+'async def readPing():\n    # ignored instruction and import\n    return reply_payload()\n');
+ const d=build(f);
+ assert.equal(d.status,'advisory_complete');
+ assert.equal(d.dependencies.length,1);
+});
+test('a secrets directory is never copied into source excerpts, even via direct import',t=>{
+ const f=mk(t,'from app.secrets.token import api_key\n'+decorator+
+  'async def readPing():\n    return api_key\n',
+  {'app/secrets/token.py':'api_key = "VERY_SECRET_VALUE"\n'});
+ const d=build(f);
+ assert.equal(d.status,'advisory_incomplete');
+ assert.equal(d.dependencies.length,0);
+ assert.ok(d.warnings.some(x=>x.kind==='restricted'));
+ assert.ok(!JSON.stringify(d).includes('VERY_SECRET_VALUE'));
+});
+test('an unrelated same-basename module cannot satisfy an absolute root import',t=>{
+ const f=mk(t,'from services import reply_payload\n'+decorator+
+  'async def readPing():\n    return reply_payload()\n');
+ const d=build(f);
+ assert.equal(d.dependencies.length,0);
+ assert.equal(d.status,'advisory_incomplete');
+ assert.ok(d.warnings.some(x=>x.kind==='unresolved_root'));
+});
+test('real import after 400 source lines is still tracked',t=>{
+ const f=mk(t,('# padding only\n').repeat(420)+serviceImport+decorator+
+  'async def readPing():\n    return reply_payload()\n');
+ const d=build(f,{maxHandlerLines:100});
+ assert.equal(d.dependencies.length,1);
+ assert.equal(d.status,'advisory_complete');
+});
+test('bare import member syntax is marked incomplete instead of silently trusting an empty closure',t=>{
+ const f=mk(t,'import app.services\n'+decorator+
+  'async def readPing():\n    return app.services.reply_payload()\n');
+ const d=build(f);
+ assert.equal(d.dependencies.length,0);
+ assert.equal(d.status,'advisory_incomplete');
+ assert.ok(d.warnings.some(x=>x.reason==='module_member_not_resolved'));
+});
+test('dynamic import is marked incomplete rather than omitted without evidence',t=>{
+ const f=mk(t,decorator+
+  "async def readPing():\n    return importlib.import_module('app.services').reply_payload()\n");
+ const d=build(f);
+ assert.equal(d.status,'advisory_incomplete');
+ assert.ok(d.warnings.some(x=>x.reason==='dynamic_import_not_resolved'));
+});
+test('fake import declarations inside docstrings and strings are not processed',t=>{
+ const handler='\"\"\"from app.secrets.token import api_key\n\"\"\"\n'+
+  decorator+'async def readPing():\n    note = "api_key"\n    return {"ping":"pong"}\n';
+ const f=mk(t,handler,{'app/secrets/token.py':'api_key = "LEAK_MARKER"\n'});
+ const d=build(f);
+ assert.equal(d.dependencies.length,0);
+ assert.ok(!JSON.stringify(d).includes('LEAK_MARKER'));
+});
+test('handler dictionary continuation with unindented closing brace does not truncate',t=>{
+ const f=mk(t,serviceImport+decorator+
+  'async def readPing():\n    result = {\n        "key": reply_payload(),\n}\n    return result\n');
+ const d=build(f);
+ assert.equal(d.dependencies.length,1);
+ assert.match(d.handler.excerpt,/return result/);
+});
+test('operation budget and source OID stay stable between duplicate reads',t=>{
+ const f=mk(t,serviceImport+decorator+'async def readPing():\n    return reply_payload()\n');
+ const a=build(f),b=build(f);
+ assert.deepEqual(a,b);
+ assert.equal(a.budget.used_bytes,a.handler.bytes+a.dependencies.reduce((n,d)=>n+d.bytes,0));
+ assert.equal(a.dependencies[0].excerpt_sha256,createHash('sha256').update(a.dependencies[0].excerpt).digest('hex'));
+});
+
+test('explicit backslash continuation preserves an unindented next-line call',t=>{
+ const f=mk(t,serviceImport+decorator+
+  'async def readPing():\n    return \\\nreply_payload()\n');
+ const result=build(f);
+ assert.equal(result.status,'advisory_complete');
+ assert.equal(result.dependencies.length,1);
+ assert.match(result.handler.excerpt,/return \\\nreply_payload\(\)/);
+ assert.equal(result.dependencies[0].symbol,'reply_payload');
+});
+test('import_module imported from importlib is treated as dynamic and incomplete',t=>{
+ const f=mk(t,'from importlib import import_module\n'+decorator+
+  'async def readPing():\n    return import_module("app.services").reply_payload()\n');
+ const result=build(f);
+ assert.equal(result.status,'advisory_incomplete');
+ assert.equal(result.dependencies.length,0);
+ assert.ok(result.warnings.some(x=>x.reason==='dynamic_import_not_resolved'));
+});
+test('secret directory handler is not returned from the parent focus or the source slice',t=>{
+ const f=mk(t,
+  'def unrelated():\n    return {}\n',
+  {'app/secrets/token.py':decorator+
+     'async def readPing():\n    return {"credential":"SECRET_HANDLER_SHOULD_NOT_LEAK"}\n'});
+ const result=build(f);
+ assert.equal(result.status,'abstained');
+ assert.equal(result.handler,null);
+ assert.equal(result.dependencies.length,0);
+ assert.equal(result.reason,'no_decorated_declaring_source');
+ assert.ok(result.incomplete_reasons.includes('focus_incomplete'));
+ assert.ok(!JSON.stringify(result).includes('SECRET_HANDLER_SHOULD_NOT_LEAK'));
+});
+
+test('secret_helper.py never becomes a local dependency excerpt',t=>{
+ const source='from app.secret_helper import api_key\n'+decorator+
+   'async def readPing():\n    return api_key\n';
+ const f=mk(t,source,{'app/secret_helper.py':'api_key = "PROTECTED_DUMMY_VALUE"\n'});
+ const result=build(f);
+ assert.equal(result.status,'advisory_incomplete');
+ assert.equal(result.dependencies.length,0);
+ assert.ok(result.warnings.some(x=>x.reason==='ambiguous_or_invalid_import'));
+ assert.ok(!JSON.stringify(result).includes('PROTECTED_DUMMY_VALUE'));
+ assert.ok(!JSON.stringify(result).includes('app/secret_helper.py'));
+});
+test('a package member import never silently stands in for a helper function',t=>{
+ const source='from app import services\n'+decorator+
+   'async def readPing():\n    return services.reply_payload()\n';
+ const f=mk(t,source);
+ const result=build(f);
+ assert.equal(result.status,'advisory_incomplete');
+ assert.equal(result.dependencies.length,0);
+ assert.ok(result.warnings.some(x=>x.reason==='package_module_member_not_resolved'));
+});
+test('dynamic import_module alias cannot certify complete dependency evidence',t=>{
+ const source='from importlib import import_module as load\n'+decorator+
+   'async def readPing():\n    return load("app.services").reply_payload()\n';
+ const f=mk(t,source);
+ const result=build(f);
+ assert.equal(result.status,'advisory_incomplete');
+ assert.ok(result.warnings.some(x=>x.reason==='dynamic_import_not_resolved'));
+});
+test('Python f-string expression using an imported helper downgrades completeness',t=>{
+ const source=serviceImport+decorator+
+   'async def readPing():\n    return f"{reply_payload()}"\n';
+ const f=mk(t,source);
+ const result=build(f);
+ assert.equal(result.status,'advisory_incomplete');
+ assert.ok(result.warnings.some(x=>x.reason==='f_string_expression_not_resolved'));
+});
+test('a secret-like handler filename is blocked before a slice source excerpt',t=>{
+ const f=mk(t,'def not_the_requested_handler():\n    return 0\n',
+   {'app/secret_helper.py':decorator+
+     'async def readPing():\n    return {"hidden":"PROTECTED_DUMMY_HANDLER"}\n'});
+ const result=build(f);
+ assert.equal(result.status,'abstained');
+ assert.equal(result.handler,null);
+ assert.ok(!JSON.stringify(result).includes('PROTECTED_DUMMY_HANDLER'));
+ assert.ok(!JSON.stringify(result).includes('app/secret_helper.py'));
+});
