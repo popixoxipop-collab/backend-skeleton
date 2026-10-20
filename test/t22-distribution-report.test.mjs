@@ -170,3 +170,28 @@ test('T22R11 duplicate TAP count lines cannot be accepted as one run', (t) => {
   rewriteFixtureReceipt(directory, receipt);
   assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /TAP summary/);
 });
+
+
+for (const [label, counts] of [
+  ['pass exceeds tests', { tests: 1, pass: 2, fail: 0, cancelled: 0, skipped: 0, todo: 0 }],
+  ['outcomes undercount tests', { tests: 2, pass: 1, fail: 0, cancelled: 0, skipped: 0, todo: 0 }],
+  ['overlapping pass and skipped', { tests: 1, pass: 1, fail: 0, cancelled: 0, skipped: 1, todo: 0 }],
+  ['unsafe summed outcome count', { tests: Number.MAX_SAFE_INTEGER, pass: Number.MAX_SAFE_INTEGER,
+    fail: 0, cancelled: 0, skipped: 1, todo: 0 }],
+]) {
+  test(`T22R12 inconsistent totals fail closed: ${label}`, (t) => {
+    const { directory, receipt } = fixture(t);
+    receipt.test.counts = counts;
+    replaceTap(directory, receipt, counts);
+    rewriteFixtureReceipt(directory, receipt);
+    assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /outcome counts.*total/);
+  });
+}
+
+test('T22R13 valid passing tests with an explicit skip retain consistent totals', (t) => {
+  const { directory, receipt } = fixture(t);
+  receipt.test.counts = { tests: 2, pass: 1, fail: 0, cancelled: 0, skipped: 1, todo: 0 };
+  replaceTap(directory, receipt, receipt.test.counts);
+  rewriteFixtureReceipt(directory, receipt);
+  assert.deepEqual(verifyDistributionArtifacts(directory).problems, []);
+});

@@ -131,6 +131,14 @@ export function verifyDistributionArtifacts(directory, {
     for (const key of ['tests', 'pass', 'fail', 'skipped', 'cancelled', 'todo']) {
       if (!Number.isSafeInteger(counts?.[key]) || counts[key] < 0) problems.push(`test count ${key} is invalid`);
     }
+    const outcomeKeys = ['pass', 'fail', 'skipped', 'cancelled', 'todo'];
+    if (Number.isSafeInteger(counts?.tests) &&
+        outcomeKeys.every((key) => Number.isSafeInteger(counts?.[key]) && counts[key] >= 0)) {
+      const total = outcomeKeys.reduce((sum, key) => sum + counts[key], 0);
+      if (!Number.isSafeInteger(total) || total !== counts.tests) {
+        problems.push('test outcome counts do not form a consistent total');
+      }
+    }
     if (!(counts?.tests > 0) || !(counts?.pass > 0)) {
       problems.push('passing receipt must contain at least one executed passing test');
     }
