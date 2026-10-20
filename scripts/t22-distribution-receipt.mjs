@@ -5,6 +5,21 @@ import path from 'node:path';
 export const T22_DISTRIBUTION_RECEIPT = 'bskel.t22-distribution-receipt/1';
 const SHA256 = /^[0-9a-f]{64}$/;
 const COMMIT = /^[0-9a-f]{40}$/;
+// Shared with the producer; a generic green test is not distribution evidence.
+export const T22_DISTRIBUTION_TEST_ARGS = Object.freeze([
+  '--test', '--test-reporter=tap',
+  'test/t22-packed-consumer.test.mjs',
+  'test/t22-sdk-util-hardening-integration.test.mjs',
+]);
+function isRequiredDistributionCommand(command) {
+  if (!Array.isArray(command) || command.length !== T22_DISTRIBUTION_TEST_ARGS.length + 1 ||
+      command.some((part) => typeof part !== 'string')) return false;
+  const executable = command[0];
+  const nativeNode = path.isAbsolute(executable) && path.basename(executable) === 'node';
+  const windowsNode = path.win32.isAbsolute(executable) && path.win32.basename(executable).toLowerCase() === 'node.exe';
+  return (nativeNode || windowsNode) && T22_DISTRIBUTION_TEST_ARGS.every((part, index) => command[index + 1] === part);
+}
+
 
 export function sha256Bytes(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
@@ -151,6 +166,9 @@ export function verifyDistributionArtifacts(directory, {
     }
     if (receipt.test?.tarball_sha256 !== receipt.package?.tarball_sha256) {
       problems.push('test did not bind the preserved tarball SHA-256');
+    }
+    if (!isRequiredDistributionCommand(receipt.test?.command)) {
+      problems.push('receipt does not bind the required distribution test command');
     }
     const counts = receipt.test?.counts;
     for (const key of ['tests', 'pass', 'fail', 'skipped', 'cancelled', 'todo']) {

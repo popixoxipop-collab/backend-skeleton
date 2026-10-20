@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   T22_DISTRIBUTION_RECEIPT,
+  T22_DISTRIBUTION_TEST_ARGS,
   canonicalJson,
   receiptBytes,
   sha256Bytes,
@@ -14,10 +15,7 @@ import {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const NPM = process.env.T22_TEST_NPM || 'npm';
-const TEST_FILES = [
-  'test/t22-packed-consumer.test.mjs',
-  'test/t22-sdk-util-hardening-integration.test.mjs',
-];
+const TEST_FILES = T22_DISTRIBUTION_TEST_ARGS.slice(2);
 
 function parseArgs(argv) {
   const parsed = {};
@@ -156,7 +154,7 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
       if (emptyProbe.error) throw emptyProbe.error;
       if (emptyProbe.status === 0) failures.push('EMPTY_CACHE_OFFLINE_INSTALL_UNEXPECTEDLY_SUCCEEDED');
 
-      const testCommand = [process.execPath, '--test', '--test-reporter=tap', ...TEST_FILES];
+      const testCommand = [process.execPath, ...T22_DISTRIBUTION_TEST_ARGS];
       const testRun = run(testCommand[0], testCommand.slice(1), ROOT, {
         timeout: 180000,
         env: {

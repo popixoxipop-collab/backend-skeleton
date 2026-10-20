@@ -48,6 +48,8 @@ function fixture(t) {
       member_inventory_sha256: sha256Bytes(Buffer.from(canonicalJson(members))), members,
     },
     test: {
+      command: [process.execPath, '--test', '--test-reporter=tap',
+        'test/t22-packed-consumer.test.mjs', 'test/t22-sdk-util-hardening-integration.test.mjs'],
       exit_code: 0, counts: { tests: 1, pass: 1, fail: 0, cancelled: 0, skipped: 0, todo: 0 },
       transcript_file: 'test.tap', transcript_sha256: sha256Bytes(transcript),
       stderr_file: 'test.stderr', stderr_sha256: sha256Bytes(Buffer.from('')),
@@ -255,5 +257,24 @@ for (const options of [{}, { expectedHead: HEAD }, { expectedHead: HEAD, expecte
   test(`T22R20 pass acceptance requires externally supplied commit and tree: ${JSON.stringify(options)}`, (t) => {
     const { directory } = fixture(t);
     assert.match(verifyDistributionArtifactsRaw(directory, options).problems.join('\n'), /expectedHead|expectedTree/);
+  });
+}
+
+
+for (const [label, command] of [
+  ['missing', undefined], ['unrelated program', ['true']],
+  ['unrelated absolute program', ['/bin/true', '--test', '--test-reporter=tap',
+    'test/t22-packed-consumer.test.mjs', 'test/t22-sdk-util-hardening-integration.test.mjs']],
+  ['missing required suite', [process.execPath, '--test', '--test-reporter=tap', 'test/t22-packed-consumer.test.mjs']],
+  ['different test', [process.execPath, '--test', '--test-reporter=tap', 'test/unrelated.test.mjs', 'test/t22-sdk-util-hardening-integration.test.mjs']],
+  ['injected node flag', [process.execPath, '--require', 'inject.mjs', '--test', '--test-reporter=tap',
+    'test/t22-packed-consumer.test.mjs', 'test/t22-sdk-util-hardening-integration.test.mjs']],
+  ['wrong reporter', [process.execPath, '--test', '--test-reporter=spec',
+    'test/t22-packed-consumer.test.mjs', 'test/t22-sdk-util-hardening-integration.test.mjs']],
+]) {
+  test(`T22R21 required distribution command is bound: ${label}`, (t) => {
+    const { directory, receipt } = fixture(t); receipt.test.command = command;
+    rewriteFixtureReceipt(directory, receipt);
+    assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /required distribution test command/);
   });
 }
