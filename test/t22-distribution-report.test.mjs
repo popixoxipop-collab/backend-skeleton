@@ -50,7 +50,7 @@ function fixture(t) {
     test: {
       command: [process.execPath, '--test', '--test-reporter=tap',
         'test/t22-packed-consumer.test.mjs', 'test/t22-sdk-util-hardening-integration.test.mjs'],
-      exit_code: 0, counts: { tests: 1, pass: 1, fail: 0, cancelled: 0, skipped: 0, todo: 0 },
+      signal: null, exit_code: 0, counts: { tests: 1, pass: 1, fail: 0, cancelled: 0, skipped: 0, todo: 0 },
       transcript_file: 'test.tap', transcript_sha256: sha256Bytes(transcript),
       stderr_file: 'test.stderr', stderr_sha256: sha256Bytes(Buffer.from('')),
       tarball_sha256: sha256Bytes(tarball),
@@ -276,5 +276,14 @@ for (const [label, command] of [
     const { directory, receipt } = fixture(t); receipt.test.command = command;
     rewriteFixtureReceipt(directory, receipt);
     assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /required distribution test command/);
+  });
+}
+
+
+for (const signal of ['SIGKILL', 'SIGTERM', undefined, '', false, 0]) {
+  test(`T22R22 passing execution requires an explicit null signal: ${String(signal)}`, (t) => {
+    const { directory, receipt } = fixture(t); receipt.test.signal = signal;
+    rewriteFixtureReceipt(directory, receipt);
+    assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /signal|failing test outcome/);
   });
 }

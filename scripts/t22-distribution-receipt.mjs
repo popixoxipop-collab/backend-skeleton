@@ -192,7 +192,8 @@ export function verifyDistributionArtifacts(directory, {
         }
       }
     }
-    if (receipt.test?.exit_code !== 0 || counts?.fail !== 0 || counts?.cancelled !== 0) {
+    if (receipt.test?.exit_code !== 0 || receipt.test?.signal !== null ||
+        counts?.fail !== 0 || counts?.cancelled !== 0) {
       problems.push('passing receipt contains a failing test outcome');
     }
     if (!Number.isInteger(receipt.cache?.empty_cache_probe_exit_code) ||
