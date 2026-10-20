@@ -84,10 +84,18 @@ function copyDataInput(input) {
       result = {};
       // Real registry adapters include scan/detect functions that the legacy
       // descriptor snapshot never consumes. Copy only its declared data fields.
-      const keys = at === 'input.adapter'
-        ? ['contract', 'id', 'title', 'specificity', 'confidence', 'verificationBasis', 'capabilities']
-          .filter((key) => Object.hasOwn(value, key))
-        : Object.getOwnPropertyNames(value);
+      let keys;
+      if (at === 'input.adapter') {
+        keys = ['contract', 'id', 'title', 'specificity', 'confidence', 'verificationBasis', 'capabilities']
+          .filter((key) => Object.hasOwn(value, key));
+      } else {
+        // Enumeration visits symbols even though they are not copied to JSON.
+        // Charge the complete inventory on each alias before filtering it.
+        const ownKeys = Reflect.ownKeys(value);
+        if (ownKeys.length > 200000 - nodes) throw new RangeError('T11_DATA_INPUT_LIMIT');
+        nodes += ownKeys.length;
+        keys = ownKeys.filter((key) => typeof key === 'string');
+      }
       for (const key of keys) {
         chargeString(key); chargeBytes(2); // colon and possible comma
         const descriptor = Object.getOwnPropertyDescriptor(value, key);
