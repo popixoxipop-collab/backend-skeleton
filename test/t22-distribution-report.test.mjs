@@ -28,6 +28,7 @@ function fixture(t) {
   const transcript = Buffer.from('TAP version 13\n1..1\n# tests 1\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n');
   fs.writeFileSync(path.join(directory, 'candidate.tgz'), tarball);
   fs.writeFileSync(path.join(directory, 'test.tap'), transcript);
+  fs.writeFileSync(path.join(directory, 'test.stderr'), '');
   const members = [{ path: 'sdk/next/index.mjs', size_bytes: 123, mode: 420 }];
   const receipt = {
     schema: T22_DISTRIBUTION_RECEIPT,
@@ -45,6 +46,7 @@ function fixture(t) {
     test: {
       exit_code: 0, counts: { tests: 1, pass: 1, fail: 0, cancelled: 0, skipped: 0, todo: 0 },
       transcript_file: 'test.tap', transcript_sha256: sha256Bytes(transcript),
+      stderr_file: 'test.stderr', stderr_sha256: sha256Bytes(Buffer.from('')),
       tarball_sha256: sha256Bytes(tarball),
     },
     cache: {
@@ -194,4 +196,46 @@ test('T22R13 valid passing tests with an explicit skip retain consistent totals'
   replaceTap(directory, receipt, receipt.test.counts);
   rewriteFixtureReceipt(directory, receipt);
   assert.deepEqual(verifyDistributionArtifacts(directory).problems, []);
+});
+
+
+for (const failures of [['HARNESS_ERROR retained failure'], null, 'not-an-array']) {
+  test(`T22R14 contradictory or malformed failure inventory is rejected: ${JSON.stringify(failures)}`, (t) => {
+    const { directory, receipt } = fixture(t); receipt.failures = failures;
+    rewriteFixtureReceipt(directory, receipt);
+    assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /failures/);
+  });
+}
+
+for (const mode of ['missing', 'modified', 'symlink']) {
+  test(`T22R15 retained stderr must remain exact and regular: ${mode}`, (t) => {
+    const { directory } = fixture(t); const p = path.join(directory, 'test.stderr');
+    if (mode === 'missing') fs.unlinkSync(p);
+    if (mode === 'modified') fs.writeFileSync(p, 'changed diagnostics');
+    if (mode === 'symlink') { fs.renameSync(p, path.join(directory, 'outside.stderr'));
+      fs.symlinkSync('outside.stderr', p); }
+    assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /stderr|regular/);
+  });
+}
+
+for (const mode of ['mismatch', 'duplicate', 'invalid-digest']) {
+  test(`T22R16 source and cache bind one exact lockfile: ${mode}`, (t) => {
+    const { directory, receipt } = fixture(t);
+    if (mode === 'mismatch') receipt.cache.lockfile_sha256 = 'b'.repeat(64);
+    if (mode === 'duplicate') receipt.source.relevant_files.push({ ...receipt.source.relevant_files[0] });
+    if (mode === 'invalid-digest') receipt.source.relevant_files[0].sha256 = 'invalid';
+    rewriteFixtureReceipt(directory, receipt);
+    assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /lockfile/);
+  });
+}
+
+test('T22R17 source expected_head cannot contradict a passing source head', (t) => {
+  const { directory, receipt } = fixture(t); receipt.source.expected_head = 'f'.repeat(40);
+  rewriteFixtureReceipt(directory, receipt);
+  assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /expected_head/);
+});
+
+test('T22R18 JSON null is a malformed receipt, not empty successful verification', (t) => {
+  const { directory } = fixture(t); rewriteFixtureReceipt(directory, null);
+  assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /receipt.*object/);
 });

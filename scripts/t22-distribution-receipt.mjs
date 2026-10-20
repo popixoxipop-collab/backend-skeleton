@@ -30,7 +30,7 @@ function regularFile(directory, name, problems) {
   }
   const target = path.join(directory, name);
   try {
-    if (!fs.statSync(target).isFile()) throw new Error('not a regular file');
+    if (!fs.lstatSync(target).isFile()) throw new Error('not a regular file');
     return target;
   } catch (error) {
     problems.push(`artifact ${name} is unavailable: ${error.message}`);
@@ -70,7 +70,15 @@ export function verifyDistributionArtifacts(directory, {
   if (detached !== `${receiptSha256}\n`) problems.push('detached receipt SHA-256 does not match receipt.json bytes');
 
   const receipt = safeJson(bytes, 'receipt.json', problems);
-  if (!receipt) return { problems, receipt: null, receiptSha256 };
+  if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) {
+    problems.push('receipt.json must contain a receipt object');
+    return { problems, receipt: null, receiptSha256 };
+  }
+  if (!Array.isArray(receipt.failures) || receipt.failures.some((value) => typeof value !== 'string')) {
+    problems.push('receipt.failures must be an array of failure messages');
+  } else if (receipt.status === 'pass' && receipt.failures.length !== 0) {
+    problems.push('passing receipt contains recorded failures');
+  }
   if (receipt.schema !== T22_DISTRIBUTION_RECEIPT) problems.push(`unsupported receipt schema: ${receipt.schema}`);
   if (!['pass', 'fail'].includes(receipt.status)) problems.push(`invalid receipt status: ${receipt.status}`);
   if (!COMMIT.test(receipt.source?.head ?? '')) problems.push('source.head must be a 40-hex commit');
@@ -85,6 +93,9 @@ export function verifyDistributionArtifacts(directory, {
   if (receipt.status === 'pass' && receipt.source?.dirty !== false) problems.push('a passing receipt must bind a clean checkout');
 
   if (receipt.status === 'pass') {
+    if (receipt.source?.expected_head !== receipt.source?.head) {
+      problems.push('source.expected_head does not match passing source.head');
+    }
     const tarball = regularFile(directory, receipt.package?.tarball_file, problems);
     if (!SHA256.test(receipt.package?.tarball_sha256 ?? '')) problems.push('package.tarball_sha256 is invalid');
     if (tarball) {
@@ -124,6 +135,13 @@ export function verifyDistributionArtifacts(directory, {
         }
       }
     }
+    const stderr = regularFile(directory, receipt.test?.stderr_file, problems);
+    if (!SHA256.test(receipt.test?.stderr_sha256 ?? '')) {
+      problems.push('test stderr SHA-256 is invalid');
+    }
+    if (stderr && sha256Bytes(fs.readFileSync(stderr)) !== receipt.test?.stderr_sha256) {
+      problems.push('test stderr SHA-256 does not match receipt');
+    }
     if (receipt.test?.tarball_sha256 !== receipt.package?.tarball_sha256) {
       problems.push('test did not bind the preserved tarball SHA-256');
     }
@@ -156,9 +174,11 @@ export function verifyDistributionArtifacts(directory, {
         receipt.cache.empty_cache_probe_exit_code === 0) {
       problems.push('empty-cache offline negative did not fail as required');
     }
-    if (!Array.isArray(receipt.source?.relevant_files) ||
-        !receipt.source.relevant_files.some((file) => file.path === 'package-lock.json')) {
-      problems.push('source relevant-files inventory does not bind package-lock.json');
+    const lockfiles = Array.isArray(receipt.source?.relevant_files)
+      ? receipt.source.relevant_files.filter((file) => file?.path === 'package-lock.json') : [];
+    if (lockfiles.length !== 1 || !SHA256.test(lockfiles[0]?.sha256 ?? '') ||
+        lockfiles[0]?.sha256 !== receipt.cache?.lockfile_sha256) {
+      problems.push('source lockfile inventory must bind exactly one cache lockfile SHA-256');
     }
   }
   return { problems, receipt, receiptSha256 };
