@@ -46,9 +46,9 @@ function section(source, name, arrayType) {
       itemCount: value.length,
     });
   }
-  const scalar = typeof value === 'string' || typeof value === 'boolean' ||
-    (typeof value === 'number' && Number.isFinite(value));
-  if (!scalar) {
+  // These observed scalar fields are strings in sbf.scan-report/2.
+  // Present false/0 values stay observable as invalid, never missing or empty.
+  if (typeof value !== 'string') {
     return Object.freeze({ state: 'invalid_type', itemCount: null });
   }
   return Object.freeze({

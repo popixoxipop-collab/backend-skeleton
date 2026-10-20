@@ -54,9 +54,9 @@ test('T11O03 explicit null and own undefined differ from absent and from []', ()
   assert.equal(digests.size, sources.length);
 });
 
-test('T11O04 false/0 are reported scalar values, empty string remains distinguishable', () => {
+test('T11O04 false/0 are invalid string fields, distinct from empty and absent', () => {
   const base = missing();
-  for (const [value, expected] of [[false, 'reported_value'], [0, 'reported_value'],
+  for (const [value, expected] of [[false, 'invalid_type'], [0, 'invalid_type'],
     ['', 'reported_empty'], [null, 'explicit_null'], [undefined, 'explicit_undefined']]) {
     const result = observe({ ...base, verdict: value });
     assert.equal(result.fields.verdict.state, expected);
@@ -214,5 +214,28 @@ test('T11O18 object, array and non-JSON scalar values fail closed', () => {
     const observed = observe(nested);
     assert.equal(observed.modules[0].fields.module.state, 'invalid_type');
     assert.equal(observed.quality, 'incomplete_report_fields');
+  }
+});
+
+
+test('T11O19 string report fields reject boolean and finite-number values', () => {
+  for (const field of ['adapter', 'verdict', 'confidence', 'api_surface_source']) {
+    for (const value of [false, true, 0, 42, -1, 0.5]) {
+      const result = observe({ ...full(), [field]: value });
+      assert.equal(result.fields[field].state, 'invalid_type', `${field}=${value}`);
+      assert.equal(result.quality, 'incomplete_report_fields');
+      assert.equal(result.fields[field].itemCount, null);
+    }
+  }
+});
+
+test('T11O20 nested module identifiers reject booleans and numbers', () => {
+  for (const value of [false, true, 0, 42]) {
+    const report = { ...full(), related_modules: [{ module: value,
+      controllers: [], entities: [], enums: [], dtos: [] }] };
+    const result = observe(report);
+    assert.equal(result.modules[0].fields.module.state, 'invalid_type');
+    assert.equal(result.quality, 'incomplete_report_fields');
+    assert.equal(report.related_modules[0].module, value);
   }
 });

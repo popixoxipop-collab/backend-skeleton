@@ -34,10 +34,12 @@ Original legacy snapshot/summary collapses absent `related_modules` and reported
 | `explicit_undefined` | own data property whose value is `undefined` |
 | `explicit_null` | own data property `null` |
 | `reported_empty` | own array with length 0 or an own scalar exactly `''` |
-| `reported_value` | own nonempty array, or a nonempty string, boolean, or finite number scalar (including `false` and `0`) |
-| `invalid_type` | an array section receives a non-array, or a scalar section receives an object, array, function, symbol, bigint, or non-finite number |
+| `reported_value` | own nonempty array, or a nonempty string in a string report field |
+| `invalid_type` | an array section receives a non-array, or a string section receives any non-string value, including booleans, finite/non-finite numbers, objects, arrays, functions, symbols or bigint |
 | `invalid_container` | nested module is not an ordinary object-like container |
 | `accessor_unsupported` | own accessor instead of data property; its getter is never invoked |
+
+String-field checks are type/presence checks, not full report-schema or enum validation. Present `false` and `0` remain `invalid_type`, never `not_reported` or an invented empty value.
 
 Lists record `itemCount`, a nonnegative integer for a reported array, otherwise `null`. This never invents missing entities/endpoints. Nested module observation order matches the report array order. Maximum 2048 module entries is a bounded failure, not silent truncation. A malformed or unknown report schema is rejected.
 
@@ -68,3 +70,4 @@ For fields explicitly covered by the report observation contract, own-property o
 Companion `test/t11-observed-bridge-v1.test.mjs` checks five genuine legacy adapter fixture reports, old semantic SHA equality versus new observation SHA difference, explicit null/undefined preservation, immutable envelopes, adapter/root mismatch and accessor refusal with zero getter calls.
 
 **Strict MET gate still outstanding:** T00 owner must approve this new consumer API's ownership and any needed downstream wiring; exact-head independent CI/review and official T00 audit after main merge are not supplied by local tests. No official MET increase is claimed.
+

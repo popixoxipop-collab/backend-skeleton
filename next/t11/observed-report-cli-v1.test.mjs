@@ -104,11 +104,14 @@ test('T11C programmatic consumer and child process agree on output', () => {
 });
 
 for (const [field, value] of [
+  ['verdict', false],
+  ['confidence', 0],
+  ['api_surface_source', true],
   ['verdict', { unexpected: true }],
   ['confidence', ['high']],
   ['api_surface_source', { source: 'fixture' }],
 ]) {
-  test(`T11C ${field} object/array value fails closed as invalid_type`, () => {
+  test(`T11C ${field} non-string value fails closed as invalid_type`, () => {
     const id = 'java-spring';
     const out = exec({ adapter: descriptor(id), report: report(id, { [field]: value }) });
     assert.equal(out.status, 0, out.stderr);
