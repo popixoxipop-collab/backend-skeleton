@@ -40,7 +40,10 @@ function copyDataInput(input) {
     let result;
     if (array) {
       const length = Object.getOwnPropertyDescriptor(value, 'length').value;
-      if (length > 200000) throw new RangeError('T11_DATA_INPUT_LIMIT');
+      // Charge holes and repeated aliases before allocation: they still cost a
+      // descriptor lookup per slot and produce output even without own values.
+      if (length > 200000 - nodes) throw new RangeError('T11_DATA_INPUT_LIMIT');
+      nodes += length;
       result = new Array(length);
       for (let index = 0; index < length; index++) {
         const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
