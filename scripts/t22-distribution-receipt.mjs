@@ -49,6 +49,7 @@ function safeJson(bytes, label, problems) {
 
 export function verifyDistributionArtifacts(directory, {
   expectedHead,
+  expectedTree,
   expectedTarballSha256,
 } = {}) {
   const problems = [];
@@ -93,6 +94,12 @@ export function verifyDistributionArtifacts(directory, {
   if (receipt.status === 'pass' && receipt.source?.dirty !== false) problems.push('a passing receipt must bind a clean checkout');
 
   if (receipt.status === 'pass') {
+    // The caller must obtain both pins from Git, not from this receipt.
+    if (!COMMIT.test(expectedHead ?? '')) problems.push('passing receipt requires an independently supplied expectedHead');
+    if (!COMMIT.test(expectedTree ?? '')) problems.push('passing receipt requires an independently supplied expectedTree');
+    if (expectedTree !== undefined && receipt.source?.tree !== expectedTree) {
+      problems.push(`source tree mismatch: expected ${expectedTree}, received ${receipt.source?.tree}`);
+    }
     if (receipt.source?.expected_head !== receipt.source?.head) {
       problems.push('source.expected_head does not match passing source.head');
     }

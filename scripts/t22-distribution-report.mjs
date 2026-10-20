@@ -239,12 +239,12 @@ export function runDistributionReport(argv = process.argv.slice(2)) {
     ],
   };
   let receiptSha256 = writeReceipt(stage, receipt);
-  let verified = verifyDistributionArtifacts(stage, { expectedHead });
+  let verified = verifyDistributionArtifacts(stage, { expectedHead, expectedTree: tree });
   if (receipt.status === 'pass' && verified.problems.length > 0) {
     receipt.status = 'fail';
     receipt.failures.push(...verified.problems.map((problem) => `SELF_VERIFY ${problem}`));
     receiptSha256 = writeReceipt(stage, receipt);
-    verified = verifyDistributionArtifacts(stage, { expectedHead });
+    verified = verifyDistributionArtifacts(stage, { expectedHead, expectedTree: tree });
   }
   fs.renameSync(stage, output);
   fs.rmSync(scratch, { recursive: true, force: true });

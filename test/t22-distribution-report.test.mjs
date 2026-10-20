@@ -10,12 +10,16 @@ import {
   canonicalJson,
   receiptBytes,
   sha256Bytes,
-  verifyDistributionArtifacts,
+  verifyDistributionArtifacts as verifyDistributionArtifactsRaw,
 } from '../scripts/t22-distribution-receipt.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HEAD = '1'.repeat(40);
 const TREE = '2'.repeat(40);
+function verifyDistributionArtifacts(directory, options = {}) {
+  return verifyDistributionArtifactsRaw(directory, { expectedHead: HEAD, expectedTree: TREE, ...options });
+}
+
 
 function fixture(t) {
   const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t22-receipt-test-'));
@@ -88,7 +92,7 @@ test('T22R03 preserved tarball mutation and external digest mismatch fail closed
 });
 
 test('T22R04 changed receipt bytes invalidate the detached SHA-256', (t) => {
-  const { directory } = fixture(t);
+  const { directory, receipt } = fixture(t);
   fs.appendFileSync(path.join(directory, 'receipt.json'), ' ');
   assert.match(verifyDistributionArtifacts(directory).problems.join('\n'),
     /detached receipt SHA-256 does not match/);
@@ -239,3 +243,17 @@ test('T22R18 JSON null is a malformed receipt, not empty successful verification
   const { directory } = fixture(t); rewriteFixtureReceipt(directory, null);
   assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /receipt.*object/);
 });
+
+
+test('T22R19 externally bound HEAD also requires its exact trusted Git tree', (t) => {
+  const { directory, receipt } = fixture(t); receipt.source.tree = 'f'.repeat(40);
+  rewriteFixtureReceipt(directory, receipt);
+  assert.match(verifyDistributionArtifacts(directory).problems.join('\n'), /source tree mismatch/);
+});
+
+for (const options of [{}, { expectedHead: HEAD }, { expectedHead: HEAD, expectedTree: 'invalid' }, { expectedTree: TREE }]) {
+  test(`T22R20 pass acceptance requires externally supplied commit and tree: ${JSON.stringify(options)}`, (t) => {
+    const { directory } = fixture(t);
+    assert.match(verifyDistributionArtifactsRaw(directory, options).problems.join('\n'), /expectedHead|expectedTree/);
+  });
+}
