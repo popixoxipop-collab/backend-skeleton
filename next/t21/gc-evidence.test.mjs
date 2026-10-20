@@ -82,3 +82,22 @@ test('evidence cannot grant deletion or release authority', () => {
     const r = clone(); r[key] = true; assert.ok(verify(r).includes('record identity or authority mismatch'));
   }
 });
+
+
+for (const [label, mutate] of [
+  ['limitations text', r => { r.limits = Array(5).fill('All platforms are certified and no limitation remains.'); }],
+  ['non-text limitations', r => { r.limits = Array(5).fill(null); }],
+  ['observation timestamp', r => { r.observed_at = '2020-01-01T00:00:00Z'; }],
+  ['Node version', r => { r.environment.node_version = 'v0.0.0'; }],
+  ['platform', r => { r.environment.platform = 'win32'; }],
+  ['self-consistent executable substitution', r => {
+    r.environment.node_executable = '/fixture/not-the-observed-node';
+    for (const command of r.commands) command.argv[0] = r.environment.node_executable;
+  }],
+  ['invented certification metadata', r => { r.certification = { independently_attested: true }; }],
+]) {
+  test(`fixed measurement metadata cannot change: ${label}`, () => {
+    const r = clone(); mutate(r);
+    assert.ok(verify(r).includes('fixed measurement record identity mismatch'));
+  });
+}

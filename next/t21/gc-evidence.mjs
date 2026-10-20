@@ -15,12 +15,18 @@ export const SOURCE_PATHS = Object.freeze([
   'test/t21-gc-plan.test.mjs',
 ]);
 const COUNTS = Object.freeze({ tests: 35, pass: 35, fail: 0, cancelled: 0, skipped: 0, todo: 0 });
+// Identity of the one preserved measurement, not a signature or host attestation.
+// A new measurement needs a new reviewed record and independent expected digest.
+export const RECORDED_MEASUREMENT_SHA256 = '8610315589f6914968cc7712f2fb86b63807d55a8511be064fe5f8376e0faa37';
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const blob = bytes => createHash('sha1').update(Buffer.from(`blob ${bytes.length}\0`)).update(bytes).digest('hex');
 
 export function verifyGarbageEvidence(record, { pinned, current, probeBytes, testBytes, replayed }) {
   const problems = [];
   const check = (label, fn) => { try { fn(); } catch { problems.push(label); } };
+  check('fixed measurement record identity mismatch', () => {
+    assert.equal(hash(Buffer.from(JSON.stringify(record, null, 2) + '\n')), RECORDED_MEASUREMENT_SHA256);
+  });
   check('record identity or authority mismatch', () => {
     assert.equal(record.schema, 't21.gc-exact-baseline-record/1');
     assert.equal(record.source_commit, SOURCE_COMMIT); assert.equal(record.source_tree, SOURCE_TREE);
