@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   scanTypeScriptExpress,
+  scanTypeScriptExpressHistoricalT11,
   detectTypeScriptExpressRoot,
 } from '../scanners/adapters/typescript-express.mjs';
 
@@ -111,4 +112,24 @@ test('dynamic parent mount propagates unknownness to a statically mounted grandc
   const scan=routes(root);
   assert.deepEqual(scan.routes,['GET /health']);
   assert.deepEqual(scan.signals,[{kind:'computed-mount',file:'src/main.ts'}]);
+});
+
+test('T11 pinned historical reproduction keeps the acknowledged old false route, never the product default',t=>{
+  const root=fixture(t,{'src/main.ts':[
+   ...header,
+   'const prefix=process.env.API_PREFIX;',
+   'app.use(prefix,router);',
+   route,
+  ].join('\n')});
+  const selected=detectTypeScriptExpressRoot(root);
+  const current=scanTypeScriptExpress(root,selected);
+  const original=scanTypeScriptExpressHistoricalT11(root,selected);
+  const paths=(scan)=>scan.modules.flatMap(m=>
+   m.controllers.flatMap(c=>c.endpoints.map(e=>e.verb+' '+e.path))).sort();
+  assert.deepEqual(paths(current),['GET /health']);
+  assert.deepEqual(current.pathPrefixSignals,[{kind:'computed-mount',file:'src/main.ts'}]);
+  assert.deepEqual(paths(original),['GET /health','GET /ping']);
+  assert.deepEqual(original.pathPrefixSignals,[]);
+  assert.notDeepEqual(paths(current),paths(original),
+   'history is reproduced only under explicitly named legacy mode');
 });

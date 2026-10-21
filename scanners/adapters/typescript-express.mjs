@@ -2156,7 +2156,7 @@ function defaultImportSourceForBinding(text, name) {
 	return null;
 }
 
-function buildMountEdges(files, fileTexts) {
+function buildMountEdges(files, fileTexts, { historicalComputedMounts = false } = {}) {
 	const edges = [];
 	// A receiver reached through a computed mount has no proven absolute
 	// path, even if its own local route is a literal.
@@ -2177,6 +2177,10 @@ function buildMountEdges(files, fileTexts) {
 				const args = splitTopLevelArgs(text.slice(openIdx + 1, closeIdx));
 				if (args.length < 2) continue;
 				const prefix = staticPathLiteral(args[0]);
+				// T11's original historical scanner baseline deliberately dropped
+				// computed edges. Reproduce that pinned limitation ONLY when the
+				// evidence verifier explicitly requests historical semantics.
+				if (prefix === null && historicalComputedMounts) continue;
 				for (const candidate of args.slice(1)) {
 					const identMatch = candidate.trim().match(/^([A-Za-z_$][\w$]*)$/);
 					if (!identMatch) continue;
@@ -2287,7 +2291,7 @@ const API_SURFACE_SOURCE = 'route paths are resolved by walking a receiver-aware
 	'`bskel contract emit --openapi-file <path> --path-prefix <prefix>` for trustworthy operation identity, ' +
 	'if this target app has one (most plain Express apps do not auto-generate one the way FastAPI does).';
 
-export function scanTypeScriptExpress(repoRoot, projectRoot) {
+export function scanTypeScriptExpress(repoRoot, projectRoot, { historicalComputedMounts = false } = {}) {
 	const files = listTypeScriptFiles(projectRoot);
 	// G6: masked, the same way javascript-express.mjs masks its own sources. Without this a
 	// commented-out `// router.get('/old', oldHandler)` -- or prose quoting a route registration --
@@ -2296,7 +2300,7 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 	// adapter, where a fixture's own header comment collapsed the entire mount graph. String
 	// literals are left intact, so every path/table VALUE this adapter reports is unchanged.
 	const fileTexts = new Map(files.map((f) => [f, maskJsComments(fs.readFileSync(f, 'utf8'))]));
-	const { edges, unresolvedTargets, computedMountFiles } = buildMountEdges(files, fileTexts);
+	const { edges, unresolvedTargets, computedMountFiles } = buildMountEdges(files, fileTexts, { historicalComputedMounts });
 
 	const modules = new Map();
 	const moduleEntry = (name) => {
@@ -2371,6 +2375,15 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 		apiSurfaceSource: API_SURFACE_SOURCE,
 		filesRead: files.map((f) => path.relative(repoRoot, f)),
 	};
+}
+
+// The T11 legacy scope evidence records the October 9, 2026 behavior,
+// including an acknowledged false route from computed mounts. Freeze only
+// THAT historical reproduction explicitly: production adapter.scan() and
+// ordinary scanTypeScriptExpress() always use the corrected semantics.
+// This intentionally remains separate from current scanner capability.
+export function scanTypeScriptExpressHistoricalT11(repoRoot, projectRoot) {
+	return scanTypeScriptExpress(repoRoot, projectRoot, { historicalComputedMounts: true });
 }
 
 // G5 (D-typescript-express-provider): adapter descriptor consumed by scanners/registry.mjs. `id`
