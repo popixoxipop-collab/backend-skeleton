@@ -1,0 +1,112 @@
+{
+  "contract": "sbf.qa-product-mutation-catalog/1",
+  "mutants": [
+    {
+      "id": "PMUT7-UNSUPPORTED-ASSERTION-SILENTLY-DROPPED",
+      "vector_id": "NEG-SCHEMA-01",
+      "critical": true,
+      "file": "contracts/openapi.mjs",
+      "find": "fail(`unsupported-keyword:${key}`);\n\t}\n\n\treturn out;",
+      "replace": "continue;\n\t}\n\n\treturn out;",
+      "test_files": [
+        "test/conformance-next/wave7-schema-01.test.mjs"
+      ],
+      "invariant": "Lossy schema conversion blocks capabilities that require lost information."
+    },
+    {
+      "id": "PMUT7-UNION-BRANCH-TYPES-LOST",
+      "vector_id": "NEG-SCHEMA-04",
+      "critical": true,
+      "file": "contracts/openapi.mjs",
+      "find": "if (key === 'oneOf' || key === 'anyOf' || key === 'allOf' || key === 'prefixItems') {",
+      "replace": "if (key === 'allOf' || key === 'prefixItems') {",
+      "test_files": [
+        "test/conformance-next/wave7-schema-04.test.mjs"
+      ],
+      "invariant": "oneOf/anyOf/discriminator semantics are preserved or explicitly marked unsupported."
+    },
+    {
+      "id": "PMUT7-DISCRIMINATOR-HINT-SILENTLY-DROPPED",
+      "vector_id": "NEG-SCHEMA-04",
+      "critical": true,
+      "file": "contracts/openapi.mjs",
+      "find": "if (propertyNameOk && mappingOk) {",
+      "replace": "if (false && propertyNameOk && mappingOk) {",
+      "test_files": [
+        "test/conformance-next/wave7-schema-04.test.mjs"
+      ],
+      "invariant": "oneOf/anyOf/discriminator semantics are preserved or explicitly marked unsupported."
+    },
+    {
+      "id": "PMUT7-NULL-ERASED-FROM-TYPE-UNION",
+      "vector_id": "NEG-SCHEMA-05",
+      "critical": true,
+      "file": "contracts/openapi.mjs",
+      "find": "out[key] = node[key];",
+      "replace": "out[key] = key === 'type' && Array.isArray(node[key]) ? node[key].filter((value) => value !== 'null') : node[key];",
+      "test_files": [
+        "test/conformance-next/wave7-schema-05.test.mjs"
+      ],
+      "invariant": "Nullable and optional are kept distinct across schema projections."
+    },
+    {
+      "id": "PMUT7-RESPONSE-MAPPED-FROM-ERROR-STATUS",
+      "vector_id": "NEG-SCHEMA-06",
+      "critical": true,
+      "file": "contracts/openapi.mjs",
+      "find": "applyProjectionOutcome(result, projectResponseSchemas(docEntry.responses, SUCCESS_STATUS_RE, componentSchemas, { includeFieldDocs }), stats, 'response');",
+      "replace": "applyProjectionOutcome(result, projectResponseSchemas(docEntry.responses, ERROR_STATUS_RE, componentSchemas, { includeFieldDocs }), stats, 'response');",
+      "test_files": [
+        "test/conformance-next/wave7-schema-06.test.mjs"
+      ],
+      "invariant": "Request and response schema directions are not silently reused as each other."
+    },
+    {
+      "id": "PMUT7-MULTIPART-NO-SKIP-DIAGNOSTIC",
+      "vector_id": "NEG-SCHEMA-07",
+      "critical": false,
+      "file": "contracts/openapi.mjs",
+      "find": "if (typeof content !== 'object' || content === null || Array.isArray(content) || !Object.hasOwn(content, JSON_MEDIA_TYPE)) {",
+      "replace": "if (typeof content !== 'object' || content === null || Array.isArray(content) || false) {",
+      "test_files": [
+        "test/conformance-next/wave7-schema-07.test.mjs"
+      ],
+      "invariant": "Multipart, binary, and media-type-specific request bodies keep their transport semantics."
+    },
+    {
+      "id": "PMUT7-INT64-SAFE-FORMAT-MISSING",
+      "vector_id": "NEG-SCHEMA-08",
+      "critical": true,
+      "file": "contracts/openapi.mjs",
+      "find": "'int32', 'int64', 'email'",
+      "replace": "'int32', 'email'",
+      "test_files": [
+        "test/conformance-next/wave7-schema-08.test.mjs"
+      ],
+      "invariant": "int64/decimal precision and parameter serialization styles are preserved or blocked."
+    },
+    {
+      "id": "PMUT7-PARAMETER-EXPLODE-METADATA-LOST",
+      "vector_id": "NEG-SCHEMA-08",
+      "critical": true,
+      "file": "contracts/openapi.mjs",
+      "find": "'required', 'deprecated', 'description', 'style', 'explode', 'allowReserved', 'allowEmptyValue'",
+      "replace": "'required', 'deprecated', 'description', 'style', 'allowReserved', 'allowEmptyValue'",
+      "test_files": [
+        "test/conformance-next/wave7-schema-08.test.mjs"
+      ],
+      "invariant": "int64/decimal precision and parameter serialization styles are preserved or blocked."
+    }
+  ],
+  "coverage_scope": {
+    "planned_catalog": "test/corpus-next/negative-vectors.json",
+    "planned_catalog_sha256": "829ac742786cb570d5ef4238c81bb9051123812beaffce320e211cf6a148e23e",
+    "base_pr295_head": "d883b334fd374e41aa0f712dbb881c9faadc8090",
+    "prior_stack_represented": 61,
+    "wave7_unique_vectors": 6,
+    "wave7_live_mutants": 8,
+    "stacked_candidate_vectors": 67,
+    "unrepresented_after_stack": 12,
+    "scope": "Only synthetic first-party source-backed OpenAPI 3.1 schema projection and request/media/parameter metadata; not external API execution, live transport, crypto attestation, or T19 completion."
+  }
+}
