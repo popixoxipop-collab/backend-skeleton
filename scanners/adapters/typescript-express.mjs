@@ -2158,6 +2158,10 @@ function defaultImportSourceForBinding(text, name) {
 
 function buildMountEdges(files, fileTexts) {
 	const edges = [];
+	// A receiver reached through a computed mount has no proven absolute
+	// path, even if its own local route is a literal.
+	const unresolvedTargets = new Set();
+	const computedMountFiles = new Set();
 	const fileSet = new Set(files);
 	for (const file of files) {
 		const text = fileTexts.get(file);
@@ -2173,44 +2177,50 @@ function buildMountEdges(files, fileTexts) {
 				const args = splitTopLevelArgs(text.slice(openIdx + 1, closeIdx));
 				if (args.length < 2) continue;
 				const prefix = staticPathLiteral(args[0]);
-				if (prefix === null) continue;
-
 				for (const candidate of args.slice(1)) {
 					const identMatch = candidate.trim().match(/^([A-Za-z_$][\w$]*)$/);
 					if (!identMatch) continue;
 					const target = identMatch[1];
 					const localBinding = receiverBindingAt(text, target, m.index);
-					if (localBinding) {
-						edges.push({ from: nodeKey(file, fromBinding), to: nodeKey(file, localBinding), prefix });
-						continue;
+					let to = localBinding ? nodeKey(file, localBinding) : null;
+					if (!to) {
+						if (!topLevelReferenceIsAuthorized(text, target, m.index)) continue;
+						const importSource = defaultImportSourceForBinding(text, target);
+						if (!importSource) continue;
+						const toFile = resolveRelativeImport(file, importSource);
+						if (!toFile || !fileSet.has(toFile)) continue;
+						const toBinding = defaultExportedReceiverBinding(fileTexts.get(toFile));
+						if (!toBinding) continue;
+						to = nodeKey(toFile, toBinding);
 					}
-
-					if (!topLevelReferenceIsAuthorized(text, target, m.index)) continue;
-					const importSource = defaultImportSourceForBinding(text, target);
-					if (!importSource) continue;
-					const toFile = resolveRelativeImport(file, importSource);
-					if (!toFile || !fileSet.has(toFile)) continue;
-					const toBinding = defaultExportedReceiverBinding(fileTexts.get(toFile));
-					if (!toBinding) continue;
-					edges.push({ from: nodeKey(file, fromBinding), to: nodeKey(toFile, toBinding), prefix });
+					if (prefix === null) {
+						// Mark only an identifiable router target; middleware alone
+						// is not a route. A separate static edge remains valid.
+						unresolvedTargets.add(to);
+						computedMountFiles.add(file);
+					} else {
+						edges.push({ from: nodeKey(file, fromBinding), to, prefix });
+					}
 				}
 			}
 		}
 	}
-	return edges;
+	return { edges, unresolvedTargets, computedMountFiles };
 }
 
 // Prefixes belong to receiver nodes, not whole files: one file may contain both an application
 // root and a Router mounted beneath it. Cycles are bounded rather than recursively guessed through.
-function prefixChainsFor(node, edges, seen = new Set()) {
+function prefixChainsFor(node, edges, unresolvedTargets, seen = new Set()) {
 	if (seen.has(node)) return [];
 	const nextSeen = new Set(seen);
 	nextSeen.add(node);
 	const incoming = edges.filter((edge) => edge.to === node);
-	if (incoming.length === 0) return [''];
+	// A dynamic parent root cannot give its child a verified local absolute
+	// path. Unknownness also flows through known static descendants.
+	if (incoming.length === 0) return unresolvedTargets.has(node) ? [] : [''];
 	const prefixes = [];
 	for (const edge of incoming) {
-		for (const parentPrefix of prefixChainsFor(edge.from, edges, nextSeen)) {
+		for (const parentPrefix of prefixChainsFor(edge.from, edges, unresolvedTargets, nextSeen)) {
 			prefixes.push(joinPath(parentPrefix, edge.prefix));
 		}
 	}
@@ -2271,7 +2281,7 @@ function extractTableEntities(text, file) {
 }
 
 const API_SURFACE_SOURCE = 'route paths are resolved by walking a receiver-aware Express mount-tree (.use(\'/literal\', ' +
-	'subRouter) edges through RELATIVE imports only -- a computed/dynamic mount is skipped, never guessed) -- ' +
+	'subRouter) edges through RELATIVE imports only -- an identifiable computed mount is signaled as unknown, never guessed) -- ' +
 	'plain Express has no operationId concept at all (weaker than FastAPI, which at least generates one at ' +
 	'runtime), so they are never statically derivable here. Pass a real OpenAPI document via ' +
 	'`bskel contract emit --openapi-file <path> --path-prefix <prefix>` for trustworthy operation identity, ' +
@@ -2286,7 +2296,7 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 	// adapter, where a fixture's own header comment collapsed the entire mount graph. String
 	// literals are left intact, so every path/table VALUE this adapter reports is unchanged.
 	const fileTexts = new Map(files.map((f) => [f, maskJsComments(fs.readFileSync(f, 'utf8'))]));
-	const edges = buildMountEdges(files, fileTexts);
+	const { edges, unresolvedTargets, computedMountFiles } = buildMountEdges(files, fileTexts);
 
 	const modules = new Map();
 	const moduleEntry = (name) => {
@@ -2309,7 +2319,7 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 		for (const binding of bindings) {
 			const localEndpoints = extractEndpoints(text, binding);
 			if (localEndpoints.length === 0) continue;
-			const prefixes = prefixChainsFor(nodeKey(file, binding), edges);
+			const prefixes = prefixChainsFor(nodeKey(file, binding), edges, unresolvedTargets);
 			const receiverSuffix = `${binding.name.charAt(0).toUpperCase()}${binding.name.slice(1)}`;
 			const duplicateSuffix = (nameCounts.get(binding.name) ?? 0) > 1
 				? `L${lineNumberAt(text, binding.declarationIndex)}`
@@ -2355,7 +2365,9 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 
 	return {
 		modules: [...modules.values()],
-		pathPrefixSignals: [],
+		pathPrefixSignals: [...computedMountFiles]
+			.map((file) => ({ kind: 'computed-mount', file: path.relative(repoRoot, file) }))
+			.sort((a, b) => compareText(a.file, b.file)),
 		apiSurfaceSource: API_SURFACE_SOURCE,
 		filesRead: files.map((f) => path.relative(repoRoot, f)),
 	};
