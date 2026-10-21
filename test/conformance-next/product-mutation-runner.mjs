@@ -182,7 +182,10 @@ function containsTestSetupFailure(stdout) {
 }
 
 function runTestFiles(scratch, testFiles, timeoutMs) {
-  const env={...process.env}; delete env.NODE_TEST_CONTEXT;
+  // This disposable child owns exactly one TAP reporter. Inheriting the
+  // parent test process's NODE_OPTIONS may add a second reporter (or preload
+  // code), corrupt the original oracle, and produce a false baseline failure.
+  const env={...process.env}; delete env.NODE_TEST_CONTEXT; delete env.NODE_OPTIONS;
   // Pin TAP in the actual child, even when the caller runs a different
   // reporter. Node prints counters AFTER failing-assertion details in TAP.
   const args=['--test','--test-reporter=tap',...testFiles.map((p)=>path.join(scratch,p))];

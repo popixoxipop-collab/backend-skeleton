@@ -137,3 +137,38 @@ test('T19 mixed parser failure plus another real assertion cannot forge a killed
   assert.equal(m.classification,'mutant-test-identity-mismatch');
   assert.equal(result.pass,false);
 });
+
+
+test('T19 child TAP reporter ignores inherited conflicting Node reporter flags',{
+ timeout:120000,
+},t=>{
+ const {root,head}=makeFixture(t);
+ const catalog={contract:'sbf.qa-product-mutation-catalog/1',mutants:[
+  mutant('critical-caller-reporter-must-not-poison-a-real-kill',true,
+   'export const value = 2;'),
+  mutant('noncritical-caller-reporter-must-not-poison-a-real-kill',false,
+   'export const value = 2;'),
+ ]};
+ const previous=process.env.NODE_OPTIONS;
+ try{
+  for(const inherited of ['--test-reporter=tap','--test-reporter=spec']){
+   process.env.NODE_OPTIONS=inherited;
+   const result=runProductMutationCampaign({repoRoot:root,catalog,sourceCommit:head});
+   assert.equal(result.catalog_errors.length,0);
+   assert.equal(result.mutants.length,2);
+   for(const row of result.mutants){
+    assert.equal(row.baseline.exit_code,0,'original oracle failed under '+inherited+
+      ': '+row.baseline.stderr_tail);
+    assert.equal(row.status,'killed','valid real assertion cannot be discarded under '+inherited);
+    assert.equal(row.classification,'mutant-detected');
+    assert.equal(row.exit_code,1);
+    assert.equal(row.baseline.tap.tests,1);
+    assert.equal(row.tap.fail,1);
+   }
+   assert.equal(result.pass,true);
+  }
+ }finally{
+  if(previous===undefined)delete process.env.NODE_OPTIONS;
+  else process.env.NODE_OPTIONS=previous;
+ }
+});
