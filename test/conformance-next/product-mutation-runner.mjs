@@ -45,11 +45,33 @@ function safeRepoPath(rel) {
   return nonEmptyString(rel) &&
     !path.isAbsolute(rel) &&
     !rel.includes('\\') &&
-    !rel.split('/').includes('..') &&
-    !rel.startsWith('.git/') &&
-    rel !== '.git' &&
-    !rel.startsWith('node_modules/') &&
-    rel !== 'node_modules';
+    rel.split('/').every((segment) =>
+      segment !== '' && segment !== '.' && segment !== '..' &&
+      segment !== '.git' && segment !== 'node_modules');
+}
+
+// Lexical checks alone cannot contain a Git-tracked symlink. Before running a
+// test or mutating a source, require an actual regular file reached only
+// through real directories within the disposable checkout. Git archives
+// preserve symlink objects, including ones pointing outside the scratch tree.
+function regularSourcePath(scratch, rel) {
+  if (!safeRepoPath(rel)) return { ok: false, reason: 'unsafe noncanonical repository path' };
+  let current = path.resolve(scratch);
+  const segments = rel.split('/');
+  for (const [index, segment] of segments.entries()) {
+    current = path.join(current, segment);
+    let stat;
+    try { stat = fs.lstatSync(current); }
+    catch { return { ok: false, reason: 'source path component is missing or unreadable' }; }
+    if (stat.isSymbolicLink()) return { ok: false, reason: 'source path contains a symbolic link' };
+    if (index !== segments.length - 1 && !stat.isDirectory()) {
+      return { ok: false, reason: 'source path parent is not a directory' };
+    }
+    if (index === segments.length - 1 && !stat.isFile()) {
+      return { ok: false, reason: 'source path target is not a regular file' };
+    }
+  }
+  return { ok: true, file: current };
 }
 
 export function validateProductMutationCatalog(catalog) {
@@ -182,6 +204,18 @@ function containsTestSetupFailure(stdout) {
 }
 
 function runTestFiles(scratch, testFiles, timeoutMs) {
+  const unsafeTest = testFiles.map((file) => ({ file, inspection: regularSourcePath(scratch, file) }))
+    .find(({ inspection }) => !inspection.ok);
+  if (unsafeTest) {
+    // Do not execute Git-tracked test symlinks that can escape the committed
+    // checkout. A missing or unsafe oracle is not a semantic mutant kill.
+    return {
+      exit_code: null, signal: null, timed_out: false, error_code: 'UNSAFE_TEST_PATH',
+      tap: null, test_names: [], semantic_assertion_failures: 0,
+      setup_failure_detected: true, stdout_tail: '',
+      stderr_tail: `refused unsafe test file ${unsafeTest.file}: ${unsafeTest.inspection.reason}`,
+    };
+  }
   // This disposable child owns exactly one TAP reporter. Inheriting the
   // parent test process's NODE_OPTIONS may add a second reporter (or preload
   // code), corrupt the original oracle, and produce a false baseline failure.
@@ -233,7 +267,9 @@ function cleanupScratch(parent) {
 }
 
 function applyMutation(scratch,mutant) {
-  const file=path.join(scratch,mutant.file);
+  const inspected=regularSourcePath(scratch,mutant.file);
+  if (!inspected.ok) return {ok:false,reason:`unsafe mutation target: ${inspected.reason}`};
+  const file=inspected.file;
   const original=fs.readFileSync(file,'utf8');
   const first=original.indexOf(mutant.find);
   const last=original.lastIndexOf(mutant.find);
