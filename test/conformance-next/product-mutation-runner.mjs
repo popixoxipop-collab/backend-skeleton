@@ -297,6 +297,25 @@ export function runProductMutationCampaign({repoRoot,catalog,sourceCommit=null})
         materializeTrackedCommit(repoRoot,scratch,resolvedSourceCommit);
         initializeScratchGit(scratch);
         attachControlledDependencies(scratch,dependencyInfo);
+        // A linked mutation source must not be imported by the *original*
+        // test either. Reject it before running the baseline (and inspect
+        // again when writing after the baseline to handle its own changes).
+        const originalTarget=regularSourcePath(scratch,mutant.file);
+        if(!originalTarget.ok){
+          const reason=`unsafe mutation target: ${originalTarget.reason}`;
+          results.push({
+            id:mutant.id,vector_id:mutant.vector_id,critical:mutant.critical,
+            timeout_ms:timeoutMs,status:'survived',classification:'mutation-not-applied',
+            reason,
+            baseline:{
+              exit_code:null,signal:null,timed_out:false,error_code:'UNSAFE_MUTATION_PATH',
+              tap:null,test_names:[],semantic_assertion_failures:0,
+              setup_failure_detected:true,stdout_tail:'',stderr_tail:reason,
+              attempts:0,prior_attempts:[],
+            },
+          });
+          continue;
+        }
         const baseline=runBaselineTestFiles(scratch,mutant.test_files,timeoutMs);
       if(baseline.exit_code!==0){
         results.push({id:mutant.id,vector_id:mutant.vector_id,critical:mutant.critical,timeout_ms:timeoutMs,status:'survived',classification:'baseline-failed',reason:'unmodified scratch test suite did not pass; mutant cannot be counted as killed',baseline});

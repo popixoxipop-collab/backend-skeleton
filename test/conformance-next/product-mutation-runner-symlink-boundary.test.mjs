@@ -77,11 +77,32 @@ test('T19 source mutation refuses a Git-tracked symlink to outside the scratch c
   const result = runProductMutationCampaign({repoRoot: repo, catalog: catalog(), sourceCommit: head});
   assert.equal(result.pass, false);
   const mutant = result.mutants[0];
-  assert.equal(mutant.baseline.exit_code, 0, mutant.baseline.stderr_tail);
+  assert.equal(mutant.baseline.exit_code, null, 'unsafe source must be rejected before the original oracle');
+  assert.equal(mutant.baseline.attempts, 0);
+  assert.equal(mutant.baseline.error_code, 'UNSAFE_MUTATION_PATH');
   assert.equal(mutant.status, 'survived');
   assert.equal(mutant.classification, 'mutation-not-applied');
   assert.match(mutant.reason, /unsafe mutation target: source path contains a symbolic link/);
   assert.deepEqual(fs.readFileSync(external), before, 'mutation must not reach the symlink destination');
+});
+
+test('T19 linked original source cannot execute external code even during baseline', {
+  timeout: 90000,
+}, t => {
+  const {repo, head, external, executedMarker} = fixture(t, {mutationSymlink: true});
+  fs.writeFileSync(external, [
+    "import fs from 'node:fs';",
+    `fs.writeFileSync(${JSON.stringify(executedMarker)}, 'unsafe-baseline-executed');`,
+    'export const value = 1;',
+  ].join('\n') + '\n');
+  const result = runProductMutationCampaign({repoRoot: repo, catalog: catalog(), sourceCommit: head});
+  assert.equal(result.pass, false);
+  assert.equal(result.mutants[0].status, 'survived');
+  assert.equal(result.mutants[0].classification, 'mutation-not-applied');
+  assert.equal(result.mutants[0].baseline.error_code, 'UNSAFE_MUTATION_PATH');
+  assert.equal(result.mutants[0].baseline.attempts, 0);
+  assert.equal(fs.existsSync(executedMarker), false,
+    'original test must not import a tracked symlink source pointing outside the disposable checkout');
 });
 
 test('T19 selected test module symlink outside source is refused before execution', {
