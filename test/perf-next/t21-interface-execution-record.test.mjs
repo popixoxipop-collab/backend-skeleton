@@ -29,6 +29,32 @@ const git = (args) => {
 const asText = (bytes) => bytes.toString('utf8').trim();
 const expectedCounts = { tests: 46, pass: 46, fail: 0, skipped: 0, cancelled: 0, todo: 0 };
 
+// An actions/checkout default depth=1 clone may not contain the second
+// parent that pins the measured source. Retrieve only the hard-coded source
+// object by SHA from this repository's origin, and fail closed on any error.
+function ensurePinnedSourceAvailable() {
+  const probe = spawnSync('git', ['-C', ROOT, 'cat-file', '-t', PINNED_SOURCE_COMMIT],
+    { encoding: null, timeout: 10000 });
+  if (probe.status === 0) {
+    assert.equal(asText(probe.stdout), 'commit');
+    return;
+  }
+  assert.equal(asText(git(['rev-parse', '--is-shallow-repository'])), 'true',
+    'missing pinned commit in a non-shallow checkout cannot be silently accepted');
+  const origin = asText(git(['remote', 'get-url', 'origin']));
+  assert.match(origin, /^(?:https:\/\/github\.com\/|git@github\.com:)popixoxipop-collab\/backend-skeleton(?:\.git)?$/,
+    'only the owner repository may supply the missing pinned commit');
+  const fetched = spawnSync('git', ['-C', ROOT, 'fetch', '--no-tags', '--depth=1', 'origin', PINNED_SOURCE_COMMIT], {
+    encoding: null,
+    timeout: 30000,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+  });
+  assert.equal(fetched.status, 0, 'pinned-source fetch failed: ' + String(fetched.stderr).slice(-1200));
+  assert.equal(asText(git(['cat-file', '-t', PINNED_SOURCE_COMMIT])), 'commit');
+}
+
+
+
 function verifyRecord(record, archivedStdout) {
   assert.equal(record.schema, 't21.rfc-exact-execution/1');
   assert.equal(record.task, 'T21-02');
@@ -67,7 +93,7 @@ test('T21-02 recorded RFC command and full TAP are fixed-byte, revision-bound ev
   assert.equal(sha(compressed), record.stdout_archive_sha256);
   verifyRecord(record, gunzipSync(compressed));
 
-  assert.equal(asText(git(['cat-file', '-t', PINNED_SOURCE_COMMIT])), 'commit');
+  ensurePinnedSourceAvailable();
   assert.equal(asText(git(['rev-parse', PINNED_SOURCE_COMMIT + '^{tree}'])), PINNED_SOURCE_TREE);
   for (const rel of SOURCE_PATHS) {
     const bytes = git(['show', PINNED_SOURCE_COMMIT + ':' + rel]);
