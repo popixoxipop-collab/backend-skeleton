@@ -524,12 +524,12 @@
  "identity": {
   "legacy": {
    "sourceDigest": "the source_digest of the file index of repoRoot",
-   "resolverDigest": "digest of the mode legacy-single-project, cacheNamespace, the adapter id, rgAvailable and the constants include_db false and runtime_routes false",
-   "configDigest": "digest of the terms array",
+   "resolverDigest": "digestJson of object with exact fields mode='legacy-single-project'; cache_namespace=cacheNamespace; adapter_id=descriptor.id; rg_available=Boolean(rgAvailable); include_db=false; runtime_routes=false",
+   "configDigest": "digestJson({ terms }), an object wrapper, not digestJson(terms)",
    "parserDigest": "implementationDigest as given by the caller",
-   "adapterDigest": "digest of implementationDigest and the adapter snapshot: contract, id, title, specificity, confidence, verification_basis and capabilities",
-   "schemaDigest": "digest of the scan report schema string sbf.scan-report/2",
-   "policyDigest": "digest of the contract tag t21-legacy-scan-shadow/1, policyFingerprint and the constants db disabled, runtime_routes disabled, cache_corruption fail-closed",
+   "adapterDigest": "digestJson of object with fields implementation_digest=implementationDigest and descriptor=adapterSnapshot(adapter); descriptor has contract, id, title, specificity, confidence, verification_basis and capabilities",
+   "schemaDigest": "digestJson({ scan_schema: 'sbf.scan-report/2' }), an object wrapper, not digestJson('sbf.scan-report/2')",
+   "policyDigest": "digestJson of object with exact fields cache_contract='t21-legacy-scan-shadow/1'; external_policy_fingerprint=policyFingerprint; db='disabled'; runtime_routes='disabled'; cache_corruption='fail-closed'",
    "runtimeFingerprint": "as given; the default is node=VERSION;platform=PLATFORM;arch=ARCH of the running process"
   },
   "project": ["graph_schema, the schema string of the project graph", "project_id and project_root", "adapter_id, and mode: first-class from the selected adapter, fallback only when includeFallback is set", "markers: path, kind and digest of each marker, sorted by path and kind", "dependency_project_ids: only local-package-dependency edges, from the consumer to the dependency"],
