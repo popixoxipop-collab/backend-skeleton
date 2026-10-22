@@ -1,0 +1,52 @@
+{
+  "claim_scope": "Actual recorded run of exact commit and command; no signed host provenance or current CI substitution",
+  "command": [
+    "node",
+    "--test",
+    "--test-reporter=tap",
+    "test/perf-next/t21-interface-rfc.test.mjs"
+  ],
+  "counts": {
+    "cancelled": 0,
+    "fail": 0,
+    "pass": 46,
+    "skipped": 0,
+    "tests": 46,
+    "todo": 0
+  },
+  "exit_code": 0,
+  "limits": [
+    "Historical source-bound local test; no formal independent reviewer or production release authority",
+    "Recorded TAP includes non-deterministic durations; replay compares semantic TAP counts, not exact stdout bytes"
+  ],
+  "measurement_local_commit": "5ddd35e59fafe55bf972a6801739c675b685e776",
+  "observed_node_version": "v24.19.0",
+  "observed_platform": "darwin",
+  "schema": "t21.rfc-exact-execution/1",
+  "source_commit": "b240fe15e3f1e7784c126c6799872c62daeafd1b",
+  "source_files": {
+    "lib/scan-scheduler-next/INTERFACE_RFC.md": {
+      "bytes": 49482,
+      "git_blob_sha1": "df18582a2afe89333b32ce5cd29fcb729979c250",
+      "sha256": "ce984c85bd45973f6c4bf59cd3aec76cb360037cf47b6db604d239d3e81b3019"
+    },
+    "test/perf-next/t21-interface-rfc.test.mjs": {
+      "bytes": 102098,
+      "git_blob_sha1": "45423a2ce46d33a957ebefb3b811b8d888de1025",
+      "sha256": "bca4460fa904fba7a590bc6fddf5f9830d9f94ad1a4fe24b583a1396676ec9f4"
+    },
+    "test/perf-next/t21-interface-rfc.vocabulary.json": {
+      "bytes": 30252,
+      "git_blob_sha1": "de23d9e609ddeb318e1255d0967d46f6874ac2ed",
+      "sha256": "adc217624f69fd9209120567e5fceeb9c9b878d6c08985a34c03357948148715"
+    }
+  },
+  "source_identity_note": "Actual 46-case TAP measured at local commit measurement_local_commit; public source_commit reproduces exactly the same tree and three tracked source blob bytes. Commit metadata differs; measured local commit is not claimed to be publicly available.",
+  "source_repository": "popixoxipop-collab/backend-skeleton",
+  "source_tree": "598d35d2f3229402350fd491a036e1917be65e0b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_archive_path": "next/t21/evidence/T21_02_INTERFACE_STDOUT.gz.b64",
+  "stdout_archive_sha256": "7e51001c3de36a838752b6b5257610ab09b5814ea8a3776e3cb925921c4ec0f3",
+  "stdout_sha256": "8beae7622c1de21aa1c115bc79485a583459abd8fbeff57a726d86fd1e7973f4",
+  "task": "T21-02"
+}
