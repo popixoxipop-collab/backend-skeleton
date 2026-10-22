@@ -10,9 +10,9 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const RECORD_PATH = 'next/t21/evidence/T21_02_INTERFACE_RUN.json';
 const ARCHIVE_PATH = 'next/t21/evidence/T21_02_INTERFACE_STDOUT.gz.b64';
-const PINNED_RECORD_SHA256 = '493f9ceaf43ec97b6be424ece194a4ec12535784c661f143b6a8a8ddbe117cd6';
+const PINNED_RECORD_SHA256 = '5e1ff9bd57b764ccb7be7222731c925ae6c750225e3bd4efd11f5f37da8af1cf';
 const PINNED_ARCHIVE_TEXT_SHA256 = '6d1fa36f9f6e7d3309b3e44edec6e265bd2425235405c901c01e3dd7e08ed3f2';
-const PINNED_SOURCE_COMMIT = '5ddd35e59fafe55bf972a6801739c675b685e776';
+const PINNED_SOURCE_COMMIT = 'b240fe15e3f1e7784c126c6799872c62daeafd1b';
 const PINNED_SOURCE_TREE = '598d35d2f3229402350fd491a036e1917be65e0b';
 const SOURCE_PATHS = [
   'lib/scan-scheduler-next/INTERFACE_RFC.md',
@@ -33,6 +33,8 @@ function verifyRecord(record, archivedStdout) {
   assert.equal(record.schema, 't21.rfc-exact-execution/1');
   assert.equal(record.task, 'T21-02');
   assert.equal(record.source_commit, PINNED_SOURCE_COMMIT);
+  assert.equal(record.measurement_local_commit, '5ddd35e59fafe55bf972a6801739c675b685e776');
+  assert.match(record.source_identity_note, /same tree and three tracked source blob bytes/);
   assert.equal(record.source_tree, PINNED_SOURCE_TREE);
   assert.deepEqual(record.command, ['node', '--test', '--test-reporter=tap', 'test/perf-next/t21-interface-rfc.test.mjs']);
   assert.equal(record.observed_node_version, 'v24.19.0');

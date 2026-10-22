@@ -19,10 +19,11 @@
     "Historical source-bound local test; no formal independent reviewer or production release authority",
     "Recorded TAP includes non-deterministic durations; replay compares semantic TAP counts, not exact stdout bytes"
   ],
+  "measurement_local_commit": "5ddd35e59fafe55bf972a6801739c675b685e776",
   "observed_node_version": "v24.19.0",
   "observed_platform": "darwin",
   "schema": "t21.rfc-exact-execution/1",
-  "source_commit": "5ddd35e59fafe55bf972a6801739c675b685e776",
+  "source_commit": "b240fe15e3f1e7784c126c6799872c62daeafd1b",
   "source_files": {
     "lib/scan-scheduler-next/INTERFACE_RFC.md": {
       "bytes": 49482,
@@ -40,6 +41,7 @@
       "sha256": "adc217624f69fd9209120567e5fceeb9c9b878d6c08985a34c03357948148715"
     }
   },
+  "source_identity_note": "Actual 46-case TAP measured at local commit measurement_local_commit; public source_commit reproduces exactly the same tree and three tracked source blob bytes. Commit metadata differs; measured local commit is not claimed to be publicly available.",
   "source_repository": "popixoxipop-collab/backend-skeleton",
   "source_tree": "598d35d2f3229402350fd491a036e1917be65e0b",
   "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
