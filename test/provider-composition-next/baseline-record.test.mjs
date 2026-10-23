@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import * as L from './baseline-record-lib.mjs';
 
-// T14-01: every value in handles/composition-next/BASELINE.json and every number INTERFACE_RFC.md states about it is recomputed here; an unavailable pinned commit FAILS unless BASELINE_ALLOW_UNVERIFIED=1.
+// T14-01: verify the pinned baseline record and the RFC figures explicitly covered by this test. This is not an exhaustive proof of RFC prose or external producers; a missing pinned commit requires explicit unverified handling.
 const ROOT = L.REPO_ROOT;
 const KEYS = ['bytes', 'git_blob_sha1', 'sha256'];
 const record = L.readRecord();

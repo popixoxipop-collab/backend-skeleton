@@ -16,6 +16,9 @@
         "baseline-record-lib.mjs",
         "baseline-record.test.mjs",
         "evidence-boundary.test.mjs",
+        "interface-rfc-coercion.test.mjs",
+        "interface-rfc-evidence.mjs",
+        "interface-rfc-evidence.test.mjs",
         "interface-rfc.test.mjs",
         "interface-rfc.vocabulary.json",
         "legacy-provider-composition.test.mjs"
@@ -1084,6 +1087,15 @@
       "baseline-record.test.mjs": {
         "role": "checks BASELINE.json: file hashes, replay of the fixtures, commands, counts, limits and the figures of this document"
       },
+      "interface-rfc-coercion.test.mjs": {
+        "role": "source-backed regression for coercible provider id behavior and bounded documentation claims"
+      },
+      "interface-rfc-evidence.mjs": {
+        "role": "builds and verifies the source-bound RFC command receipt; it cannot approve a MET or release"
+      },
+      "interface-rfc-evidence.test.mjs": {
+        "role": "replays the RFC test and rejects forged or drifted receipt fields"
+      },
       "interface-rfc.test.mjs": {
         "role": "checks this document: derives the vocabulary from the code, compares it with the vocabulary file and with the tables, headings, names and rule statements of the text"
       },
@@ -1721,7 +1733,7 @@
       {
         "name": "producerApproval",
         "module": "evidence-boundary.mjs",
-        "meaning": "field of the projection: accepted is the only value that passes (runtime-handoff-not-approved); no file outside the layer writes it (see accepted-handoffs-have-no-producer)"
+        "meaning": "field of the projection: accepted is the only value that passes (runtime-handoff-not-approved); the bounded search has not established an outside producer (absence UNKNOWN; see accepted-handoffs-have-no-producer)"
       }
     ],
     "rules": [
