@@ -782,7 +782,7 @@ test('the commands of the protocol document use the flags the gate prints in its
   assert.ok(doc.includes('node next/t00/seal-lease-ledger.mjs'));
 });
 
-test('what the documents say of the CI is true: no workflow runs a T00 gate, the test job runs npm test on Node 22 and 24, and nothing runs Node 18', () => {
+test('CI runs no legacy T00 lease/ownership gate; the separate MET triage is read-only and main test matrix remains Node 22/24', () => {
   const dir = path.join(ROOT, '.github', 'workflows');
   const workflows = fs.readdirSync(dir).filter((n) => /\.ya?ml$/.test(n));
   assert.ok(workflows.includes('ci.yml'));
@@ -792,8 +792,11 @@ test('what the documents say of the CI is true: no workflow runs a T00 gate, the
     const text = fs.readFileSync(path.join(dir, name), 'utf8');
     assert.ok(!/check-lease|check-ownership|seal-lease-ledger|lease-mutants|make-lease-report/.test(text), `${name} runs a legacy T00 gate: ${changeThem}`);
     if (name === 't00-met-conveyor.yml') {
-      assert.match(text, /next\/t00\/met_conveyor_test\.py/, 'MET conveyor must run its adversarial test');
-      assert.doesNotMatch(text, /release_activate|MET_delta\s*[:=]\s*[1-9]/, 'read-only MET workflow cannot promote');
+      assert.match(text, /run:\s*node --test test\/t00-met-conveyor\.test\.mjs/, 'MET workflow must invoke its Node wrapper');
+      assert.match(text, /permissions:\s*\n\s+contents:\s*read\b/, 'MET workflow must remain read-only');
+      const wrapper = read('test/t00-met-conveyor.test.mjs');
+      assert.match(wrapper, /met_conveyor_test\.py/, 'Node wrapper must run the Python adversarial suite');
+      assert.doesNotMatch(text, /release_activate|MET_delta\s*[:=]\s*[1-9]|pull_request_target/, 'read-only MET workflow cannot promote or use privileged PR context');
     } else {
       assert.ok(!/next\/t00/.test(text), `${name} unexpectedly runs a T00 tool: ${changeThem}`);
     }
