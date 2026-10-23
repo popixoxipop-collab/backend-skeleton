@@ -8,7 +8,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const RECORD_SCHEMA = 'bskel.track-baseline-record/1';
 export const RECORD_FILE = 'scanners/language/js-ts/BASELINE.json';
-export const OWN_FILES = ['test/language-js-ts/baseline-record.test.mjs', 'test/language-js-ts/baseline-record-lib.mjs'];
+export const OWN_FILES = [
+  'test/language-js-ts/baseline-record.test.mjs',
+  'test/language-js-ts/baseline-record-lib.mjs',
+  'test/language-js-ts/interface-rfc.test.mjs',
+  'test/language-js-ts/interface-rfc-evidence.mjs',
+  'test/language-js-ts/interface-rfc-evidence.test.mjs',
+];
 export const RUNNER_SCRIPT = 'scripts/run-next-nested-tests.mjs';
 export const AUTHORED = 'authored for this record';
 export const DECLARED_LIMIT = 'legacy-a-commits-declared-not-verified';
