@@ -1,15 +1,24 @@
 {
   "schema": "bskel.t06-interface-evidence/1",
   "task_id": "T06-02",
-  "verified_source_commit": "e1e9a28f601faa9983760503762247b4d11b5bf3",
+  "verified_source_commit": "3fc8027451dc8941fd9baba08dc028a71b9de3ec",
   "source_files": {
+    "scanners/language/python/BASELINE.json": "39cfbff551e93ddf374239c9d21f65b63cf341a19219a956a4eb223f26c48691",
     "scanners/language/python/README.md": "271f6af23036f3545f403c5ef74d6e03307611c60874953ce907593792a5cd55",
     "scanners/language/python/INTERFACE_RFC.md": "079208b1d8971e4146dda57fe235a82df9899d3061d6e6954f529e31371c350f",
+    "scanners/language/python/analyzer.mjs": "295921c12d58f7d108a4a0a1f272e478295dd426fe0fa2b89c13266905f61b54",
+    "scanners/language/python/ast-helper.py": "cddc9f5e31c0b621d8bd224a924aad08897e50a8d0ff8a0f82d6a60ecf207517",
+    "scanners/language/python/resolver.mjs": "bc2d2841429deea095d388710060b521646a779936f9d1ae002f959a239b71f1",
+    "scanners/language/python/type-shape.mjs": "2fcf77c5835bf98291fd56e6f2fb5bafb02666c634e1dae108a80980e426b51e",
+    "scanners/language/python/model-shape.mjs": "bdc8a8deb635f9f443827d727c7929c57da193b221a11f89e4b175232435b43b",
+    "scanners/language/python/fastapi-shadow.mjs": "8533c25359c921455650ab827e227ad77a0113b07310c3c5d3b990e9b9881d87",
+    "scanners/language/python/flask-shadow.mjs": "785ff3ff4ebbe8a7cafe4a12674003b8441a3630a039ee58a02d464c92bc3169",
+    "scanners/language/python/django-shadow.mjs": "b85e8515242c40056b1123d9296b121b141546ba955b9cd13727a07b186432a6",
     "test/language-python/interface-rfc.vocabulary.json": "9ce1237252f11e7300c4fa9dec202d2fbc7dcbf3544518296c6b95a09f7b5b7e",
     "test/language-python/interface-rfc.test.mjs": "de02b0cf6cc293aff3b8b9c9be73922c700d8b4fb9261fc0ecef7510a94096d4",
     "test/language-python/baseline-record-lib.mjs": "1086f7f6b91953f11b3359e4df30452fa47dfc9fdb8eb479758fd859345cc371",
-    "test/language-python/interface-rfc-evidence.mjs": "8a128298dacfe6fd5008e93afb4a9a583ae6d27dd069de762351b82bda873538",
-    "test/language-python/interface-rfc-evidence.test.mjs": "61d9a86f175adfccf850afdc8243c70d7bb695b217c7a2c26586c0fbc6b54be5"
+    "test/language-python/interface-rfc-evidence.mjs": "002fb238887f7ac4d89b86887d94598946c54ba4cd692befba9fa950c6720d50",
+    "test/language-python/interface-rfc-evidence.test.mjs": "babf4ddd8bce59b38bd98dede6a7fd97a50f5b3fe2e86457e19f26cab6ed36c0"
   },
   "observed_run": {
     "command": [
