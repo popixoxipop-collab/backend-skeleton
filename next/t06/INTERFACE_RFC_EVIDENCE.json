@@ -1,0 +1,38 @@
+{
+  "schema": "bskel.t06-interface-evidence/1",
+  "task_id": "T06-02",
+  "verified_source_commit": "e1e9a28f601faa9983760503762247b4d11b5bf3",
+  "source_files": {
+    "scanners/language/python/README.md": "271f6af23036f3545f403c5ef74d6e03307611c60874953ce907593792a5cd55",
+    "scanners/language/python/INTERFACE_RFC.md": "079208b1d8971e4146dda57fe235a82df9899d3061d6e6954f529e31371c350f",
+    "test/language-python/interface-rfc.vocabulary.json": "9ce1237252f11e7300c4fa9dec202d2fbc7dcbf3544518296c6b95a09f7b5b7e",
+    "test/language-python/interface-rfc.test.mjs": "de02b0cf6cc293aff3b8b9c9be73922c700d8b4fb9261fc0ecef7510a94096d4",
+    "test/language-python/baseline-record-lib.mjs": "1086f7f6b91953f11b3359e4df30452fa47dfc9fdb8eb479758fd859345cc371",
+    "test/language-python/interface-rfc-evidence.mjs": "8a128298dacfe6fd5008e93afb4a9a583ae6d27dd069de762351b82bda873538",
+    "test/language-python/interface-rfc-evidence.test.mjs": "61d9a86f175adfccf850afdc8243c70d7bb695b217c7a2c26586c0fbc6b54be5"
+  },
+  "observed_run": {
+    "command": [
+      "node",
+      "--test",
+      "test/language-python/interface-rfc.test.mjs"
+    ],
+    "exit_code": 0,
+    "counts": {
+      "tests": 56,
+      "pass": 56,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    }
+  },
+  "assertions": {
+    "official_MET_delta": 0,
+    "automatic_promotion": false,
+    "release_activation": false,
+    "signed_independent_attestation": false,
+    "runtime_certified": false
+  },
+  "limits": "This validates the T06-02 Python analysis RFC and sample evidence, not a runtime certification. The T06-01 historical baseline and optional corpus are separate and not modified or certified by this receipt."
+}
