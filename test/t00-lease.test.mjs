@@ -790,7 +790,13 @@ test('what the documents say of the CI is true: no workflow runs a T00 gate, the
   let seen = 0;
   for (const name of workflows) {
     const text = fs.readFileSync(path.join(dir, name), 'utf8');
-    assert.ok(!/check-lease|check-ownership|seal-lease-ledger|lease-mutants|make-lease-report|next\/t00/.test(text), `${name} runs a T00 gate: ${changeThem}`);
+    assert.ok(!/check-lease|check-ownership|seal-lease-ledger|lease-mutants|make-lease-report/.test(text), `${name} runs a legacy T00 gate: ${changeThem}`);
+    if (name === 't00-met-conveyor.yml') {
+      assert.match(text, /next\/t00\/met_conveyor_test\.py/, 'MET conveyor must run its adversarial test');
+      assert.doesNotMatch(text, /release_activate|MET_delta\s*[:=]\s*[1-9]/, 'read-only MET workflow cannot promote');
+    } else {
+      assert.ok(!/next\/t00/.test(text), `${name} unexpectedly runs a T00 tool: ${changeThem}`);
+    }
     assert.ok(!/7b517e7a|bootstrap-baseline/.test(text), `${name} refers to the coordination branch or commit that the documents say no workflow refers to`);
     const versions = [...text.matchAll(/node-version:[ \t]*(.+)$/gm)].map((m) => m[1].trim().replace(/^['"]|['"]$/g, ''));
     assert.ok(versions.every((v) => v === '22.x' || v === '24.x' || v === '${{ matrix.node }}'), `${name} runs a Node version the README does not name: ${versions.join(' ')}`);
