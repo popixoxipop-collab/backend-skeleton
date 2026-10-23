@@ -1,7 +1,7 @@
 {
   "schema": "bskel.t14-interface-rfc-evidence/1",
   "task_id": "T14-02",
-  "verified_source_commit": "1fbd67cdbbefa4c1691bc818b60f83220ecc77bb",
+  "verified_source_commit": "ca9c8fccecdbb6e28e28caffc2d7c4c3ed7fe30c",
   "source_files": {
     "handles/composition-next/INTERFACE_RFC.md": "62d273559b025406c1a3718f2002cbcdad4d562269334246d16bbc70f065482b",
     "test/provider-composition-next/interface-rfc.vocabulary.json": "f34359aadd3ae3c215d32cee672d9ec8f9cdd38387e5d32c4aa948d12371d55b",
@@ -9,8 +9,8 @@
     "test/provider-composition-next/interface-rfc-coercion.test.mjs": "80855acb673eca4626c4041a3f071e953358eb404a533f8be463a40859ed04a5",
     "test/provider-composition-next/baseline-record.test.mjs": "877deccc9eefea0008e434820398a5af587ebe0de10200b70136d487efba668e",
     "test/provider-composition-next/baseline-record-lib.mjs": "f03bfbbc6ae9192edcbda0e8805f4a662ee91433a12885df11df952b9450a76c",
-    "test/provider-composition-next/interface-rfc-evidence.mjs": "a38d922d0165588140d70f36b08e0ad4b3eec0a156e3050cf55942c055f05420",
-    "test/provider-composition-next/interface-rfc-evidence.test.mjs": "e8927d77085cc2246d5f18225edb834aaa6fc86232268d3a719f83de059ae124"
+    "test/provider-composition-next/interface-rfc-evidence.mjs": "c215525e2f2ed67343bf16369c47c9bb7616f8e9a656638a295352703aaeb364",
+    "test/provider-composition-next/interface-rfc-evidence.test.mjs": "19ff78adf1e463dca565d8416b13455da2b69d02742e3f33193071fef37525ae"
   },
   "observed_run": {
     "command": [
