@@ -14,13 +14,18 @@ test('T14 rejects source drift, omitted proof, and forged MET/release/reviewer a
   const record = JSON.parse(fs.readFileSync(RECEIPT, 'utf8'));
   const badFiles = { ...pinnedFiles(), 'handles/composition-next/INTERFACE_RFC.md': 'f'.repeat(64) };
   assert.match(evidenceProblems(record, badFiles).join(';'), /source hash drift/);
+  const forgedCommit = { ...record, verified_source_commit: '0'.repeat(40) };
+  assert.match(evidenceProblems(forgedCommit).join(';'), /source commit unavailable|source object is not a commit/);
+  const targetedPath = 'test/provider-composition-next/interface-rfc-coercion.test.mjs';
+  const forgedHashes = { ...record.source_files, [targetedPath]: 'f'.repeat(64) };
+  const forgedWorkingCopy = { ...pinnedFiles(), [targetedPath]: 'f'.repeat(64) };
+  assert.match(evidenceProblems({ ...record, source_files: forgedHashes }, forgedWorkingCopy).join(';'),
+    /source commit blob hash differs/);
+
   assert.match(evidenceProblems({ ...record, source_files: {} }).join(';'), /source file pins/);
   assert.match(evidenceProblems({ ...record, assertions: { ...record.assertions, official_MET_delta: 1 } }).join(';'), /false MET/);
   assert.match(evidenceProblems({ ...record, assertions: { ...record.assertions, signed_independent_review: true } }).join(';'), /reviewer/);
   assert.match(evidenceProblems({ ...record, observed_run: { ...record.observed_run, exit_code: 1 } }).join(';'), /recorded command/);
   assert.match(evidenceProblems({ ...record, observed_run: { ...record.observed_run, counts: { ...record.observed_run.counts, skipped: 1 } } }).join(';'), /recorded command/);
   assert.match(evidenceProblems({ ...record, scope_limit: 'APPROVED' }).join(';'), /limited scope/);
-  // A syntactically valid but nonexistent commit is not an acceptable source identity.
-  const forgedSource = { ...record, verified_source_commit: '0'.repeat(40) };
-  assert.match(verify(forgedSource).join(';'), /pinned source commit unavailable/);
 });
