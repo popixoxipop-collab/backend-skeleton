@@ -8,9 +8,9 @@ import {
   sourceCommitProblems, verifyEvidence,
 } from './interface-rfc-evidence.mjs';
 
-test('T04-02 receipt pins 17 real source blobs and reproduces its actual zero-skip Node command', () => {
+test('T04-02 receipt pins 27 source and T00 ownership-check dependency blobs and reproduces its actual zero-skip Node command', () => {
   const record=JSON.parse(fs.readFileSync(RECEIPT,'utf8'));
-  assert.equal(SOURCE_FILES.length,17);
+  assert.equal(SOURCE_FILES.length,27);
   const actual=runRfcChecks();
   assert.deepEqual(actual.command,COMMAND);
   assert.equal(actual.counts.skipped,0);
@@ -28,6 +28,13 @@ test('T04-02 evidence refuses source edits, forged Git identity, fabricated MET 
   assert.deepEqual(structureProblems({...record,source_files:forged},forgedWorking),[],
     'source/working-copy matching forgery must pass shallow structure checks only');
   assert.match(sourceCommitProblems({...record,source_files:forged}).join(';'),/source Git blob digest mismatch/);
+  const checkerDrift={...pinnedFiles(),'next/t00/check-ownership.mjs':'f'.repeat(64)};
+  assert.match(structureProblems(record,checkerDrift).join(';'),/source file digest drift next\/t00\/check-ownership\.mjs/);
+  const forgedChecker={...record.source_files,'next/t00/ownership.mjs':'0'.repeat(64)};
+  const forgedCheckerWorking={...pinnedFiles(),'next/t00/ownership.mjs':'0'.repeat(64)};
+  assert.deepEqual(structureProblems({...record,source_files:forgedChecker},forgedCheckerWorking),[]);
+  assert.match(sourceCommitProblems({...record,source_files:forgedChecker}).join(';'),/source Git blob digest mismatch next\/t00\/ownership\.mjs/);
+
   assert.match(sourceCommitProblems({...record,verified_source_commit:'0'.repeat(40)}).join(';'),/source commit unavailable/);
   assert.match(structureProblems({...record,assertions:{...record.assertions,official_MET_delta:1}}).join(';'),/forged MET/);
   assert.match(structureProblems({...record,assertions:{...record.assertions,release_activation:true}}).join(';'),/forged MET/);
