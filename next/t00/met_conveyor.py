@@ -333,9 +333,15 @@ def main(argv=None):
     report = analyze(plan,audit,args.plan_sha256,args.audit_sha256,
                      max_items=args.max,focus=args.focus.split(","))
     out = args.out_dir
+    # Both source roots are immutable. An output nested ANY number of levels
+    # under either one is unsafe, not only an immediate child.
+    def inside(ancestor, child):
+        return child == ancestor or ancestor in child.parents
+
     check(out.is_absolute() and not out.exists() and out.parent.is_dir()
-          and out.parent.resolve() not in (args.plan.parent.resolve(), args.audit.parent.resolve()),
-          "OUTPUT_PATH", "need fresh directory separate from authority")
+          and all(not inside(source_root, out.parent.resolve())
+                  for source_root in (args.plan.parent.resolve(), args.audit.parent.resolve())),
+          "OUTPUT_PATH", "need fresh directory outside all authority source roots")
     out.mkdir(mode=0o700)
     payload = (json.dumps(report,ensure_ascii=False,indent=2)+"\n").encode("utf8")
     (out/"triage.json").open("xb").write(payload)

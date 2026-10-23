@@ -109,6 +109,57 @@ class ConveyorTests(unittest.TestCase):
             cli[-1] = str(root/"invalid")
             self.assertEqual(subprocess.run(cli, capture_output=True).returncode, 2)
             self.assertFalse((root/"invalid").exists())
+
+            # A nested output directory must not be written into either
+            # authoritative source tree, however many subfolders it uses.
+            nested = inputs/"nested"
+            nested.mkdir()
+            cli[cli.index("--audit-sha256")+1] = sha(a)
+            cli[-1] = str(nested/"output")
+            blocked = subprocess.run(cli, capture_output=True, text=True)
+            self.assertEqual(blocked.returncode, 2)
+            self.assertIn("OUTPUT_PATH", blocked.stderr)
+            self.assertFalse((nested/"output").exists())
+
+            # The verifier must reject independently forged MET totals.
+            receipt_file = root/"out/receipt.json"
+            baseline_receipt = receipt_file.read_bytes()
+            changed = json.loads(baseline_receipt)
+            changed["official_MET"] = 999
+            receipt_file.write_text(json.dumps(changed), encoding="utf8")
+            with self.assertRaises(ValueError):
+                verifier.verify(root/"out")
+            receipt_file.write_bytes(baseline_receipt)
+
+            # A hostile writer can recompute the packet/index checksums.
+            # The verifier must still reject contradictory source identity
+            # and a forged empty proof-slot contract.
+            index_file = root/"out/work-packet-index.json"
+            baseline_index = index_file.read_bytes()
+            baseline_index_obj = json.loads(baseline_index)
+            first = baseline_index_obj["packets"][0]
+            packet_file = root/"out"/first["path"]
+            baseline_packet = packet_file.read_bytes()
+            for mode in ("source", "missing_proofs"):
+                tampered = json.loads(baseline_packet)
+                if mode == "source":
+                    tampered["source"]["audit_sha256"] = "f"*64
+                else:
+                    tampered["proof_slots"] = {}
+                packet_file.write_text(json.dumps(tampered)+"\n", encoding="utf8")
+                idx = json.loads(baseline_index)
+                idx["packets"][0]["sha256"] = sha(packet_file)
+                index_file.write_text(json.dumps(idx)+"\n", encoding="utf8")
+                rr = json.loads(baseline_receipt)
+                rr["packet_index_sha256"] = sha(index_file)
+                receipt_file.write_text(json.dumps(rr)+"\n", encoding="utf8")
+                with self.assertRaises(ValueError):
+                    verifier.verify(root/"out")
+                packet_file.write_bytes(baseline_packet)
+                index_file.write_bytes(baseline_index)
+                receipt_file.write_bytes(baseline_receipt)
+
+            assert verifier.verify(root/"out")["valid"]
             f = root/"out/brief.md"
             f.write_text(f.read_text() + "edited", encoding="utf8")
             with self.assertRaises(ValueError):
