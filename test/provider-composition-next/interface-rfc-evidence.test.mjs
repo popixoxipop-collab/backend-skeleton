@@ -20,4 +20,7 @@ test('T14 rejects source drift, omitted proof, and forged MET/release/reviewer a
   assert.match(evidenceProblems({ ...record, observed_run: { ...record.observed_run, exit_code: 1 } }).join(';'), /recorded command/);
   assert.match(evidenceProblems({ ...record, observed_run: { ...record.observed_run, counts: { ...record.observed_run.counts, skipped: 1 } } }).join(';'), /recorded command/);
   assert.match(evidenceProblems({ ...record, scope_limit: 'APPROVED' }).join(';'), /limited scope/);
+  // A syntactically valid but nonexistent commit is not an acceptable source identity.
+  const forgedSource = { ...record, verified_source_commit: '0'.repeat(40) };
+  assert.match(verify(forgedSource).join(';'), /pinned source commit unavailable/);
 });
