@@ -96,8 +96,41 @@ export function evidenceProblems(record, currentFiles = pinnedFiles()) {
   return bad;
 }
 
+// The exact source commit is an integrity authority, not just a string label.
+// GitHub Actions uses shallow clones. Fetch only this immutable SHA if missing;
+// never replace the source checkout or accept an unresolvable attribution.
+function commitSourceProblems(record) {
+  const commit = record.verified_source_commit;
+  if (!SHA1.test(commit)) return ['invalid exact source commit'];
+  const git = (args) => spawnSync('git', args, {
+    cwd: ROOT, encoding: null, timeout: 30000, maxBuffer: 16 * 1024 * 1024,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+  });
+  let type = git(['cat-file', '-t', commit]);
+  if (type.error || type.status !== 0 || type.stdout.toString('utf8').trim() !== 'commit') {
+    const fetched = git(['fetch', '--no-tags', '--depth=1', '--quiet',
+      'https://github.com/popixoxipop-collab/backend-skeleton.git', commit]);
+    if (fetched.error || fetched.status !== 0) return ['pinned source commit unavailable'];
+    type = git(['cat-file', '-t', commit]);
+    if (type.error || type.status !== 0 || type.stdout.toString('utf8').trim() !== 'commit') {
+      return ['pinned source commit unavailable'];
+    }
+  }
+  const errors = [];
+  for (const rel of SOURCE_FILES) {
+    const blob = git(['show', `${commit}:${rel}`]);
+    if (blob.error || blob.status !== 0) {
+      errors.push('missing source-commit blob ' + rel);
+    } else if (sourceHash(blob.stdout) !== record.source_files[rel]) {
+      errors.push('source-commit blob digest mismatch ' + rel);
+    }
+  }
+  return errors;
+}
+
 export function verify(record = JSON.parse(fs.readFileSync(RECEIPT, 'utf8')), replay = null) {
   const bad = evidenceProblems(record);
+  if (bad.length === 0) bad.push(...commitSourceProblems(record));
   if (replay && JSON.stringify(record.observed_run) !== JSON.stringify(replay)) {
     bad.push('fresh command replay differs from committed evidence');
   }
