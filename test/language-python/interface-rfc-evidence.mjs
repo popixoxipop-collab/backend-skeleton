@@ -9,8 +9,17 @@ import { fileURLToPath } from 'node:url';
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const RECEIPT = path.join(ROOT, 'next/t06/INTERFACE_RFC_EVIDENCE.json');
 export const SOURCE_FILES = Object.freeze([
+  'scanners/language/python/BASELINE.json',
   'scanners/language/python/README.md',
   'scanners/language/python/INTERFACE_RFC.md',
+  'scanners/language/python/analyzer.mjs',
+  'scanners/language/python/ast-helper.py',
+  'scanners/language/python/resolver.mjs',
+  'scanners/language/python/type-shape.mjs',
+  'scanners/language/python/model-shape.mjs',
+  'scanners/language/python/fastapi-shadow.mjs',
+  'scanners/language/python/flask-shadow.mjs',
+  'scanners/language/python/django-shadow.mjs',
   'test/language-python/interface-rfc.vocabulary.json',
   'test/language-python/interface-rfc.test.mjs',
   'test/language-python/baseline-record-lib.mjs',
