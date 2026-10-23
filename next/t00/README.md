@@ -139,3 +139,5 @@ whether the head was pinned. After a change to the ownership map, to the fixture
 Node: `package.json` allows Node `>=18` and the CI test job runs `npm test` on Node 22.x and 24.x, so no job runs Node 18. The T00
 tests therefore scan every `next/t00/*.mjs` file and every `test/t00-*.test.mjs` file for the names of APIs that Node 18 lacks.
 That is a list of known names, not a proof, and Node 18 itself was not run.
+
+The separate `.github/workflows/t00-met-conveyor.yml` runs only the read-only MET conveyor checks. It does not replace lease, ownership, release, or authoritative T00 MET adjudication gates.
