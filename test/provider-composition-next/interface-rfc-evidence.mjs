@@ -61,6 +61,38 @@ export function observe() {
   return { command: [...COMMAND], exit_code: 0, counts };
 }
 
+
+const gitRead = (args, timeout = 12000) => spawnSync('git', args, {
+  cwd: ROOT, encoding: null, maxBuffer: 16 * 1024 * 1024, timeout,
+});
+function authoritativeSourceHashes(commit) {
+  const problems = [];
+  const hashes = {};
+  if (!SHA1.test(commit)) return { hashes, problems: ['invalid source commit identifier'] };
+  let kind = gitRead(['cat-file', '-t', commit]);
+  // CI uses shallow checkouts. Fetch only the explicitly recorded immutable
+  // commit object when it is absent; never accept a missing object as proof.
+  if (kind.status !== 0) {
+    const fetched = gitRead(['fetch', '--no-tags', '--depth=1', 'origin', commit], 45000);
+    if (fetched.status !== 0) {
+      return { hashes, problems: ['source commit unavailable: ' + commit] };
+    }
+    kind = gitRead(['cat-file', '-t', commit]);
+  }
+  if (kind.status !== 0 || kind.stdout?.toString('utf8').trim() !== 'commit') {
+    return { hashes, problems: ['source object is not a commit: ' + commit] };
+  }
+  for (const rel of SOURCE_FILES) {
+    const blob = gitRead(['show', commit + ':' + rel]);
+    if (blob.status !== 0 || !Buffer.isBuffer(blob.stdout)) {
+      problems.push('source commit blob unavailable: ' + rel);
+      continue;
+    }
+    hashes[rel] = sourceHash(blob.stdout);
+  }
+  return { hashes, problems };
+}
+
 export function evidenceProblems(record, currentFiles = pinnedFiles()) {
   const bad = [];
   if (!exactKeys(record, ['schema', 'task_id', 'verified_source_commit', 'source_files',
@@ -73,6 +105,18 @@ export function evidenceProblems(record, currentFiles = pinnedFiles()) {
   else for (const rel of SOURCE_FILES) {
     if (!SHA256.test(record.source_files[rel]) || currentFiles[rel] !== record.source_files[rel]) {
       bad.push('source hash drift ' + rel);
+    }
+  }
+  // The receipt does not authenticate its own source commit. Compare the
+  // actual Git blobs at that commit with each pinned SHA-256, even when
+  // someone forges the receipt and a matching working-tree mock together.
+  if (SHA1.test(record.verified_source_commit) && exactKeys(record.source_files, SOURCE_FILES)) {
+    const source = authoritativeSourceHashes(record.verified_source_commit);
+    bad.push(...source.problems);
+    for (const rel of SOURCE_FILES) {
+      if (source.hashes[rel] && source.hashes[rel] !== record.source_files[rel]) {
+        bad.push('source commit blob hash differs: ' + rel);
+      }
     }
   }
   if (!exactKeys(record.assertions, ['official_MET_delta', 'auto_promote_MET',
@@ -96,41 +140,8 @@ export function evidenceProblems(record, currentFiles = pinnedFiles()) {
   return bad;
 }
 
-// The exact source commit is an integrity authority, not just a string label.
-// GitHub Actions uses shallow clones. Fetch only this immutable SHA if missing;
-// never replace the source checkout or accept an unresolvable attribution.
-function commitSourceProblems(record) {
-  const commit = record.verified_source_commit;
-  if (!SHA1.test(commit)) return ['invalid exact source commit'];
-  const git = (args) => spawnSync('git', args, {
-    cwd: ROOT, encoding: null, timeout: 30000, maxBuffer: 16 * 1024 * 1024,
-    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-  });
-  let type = git(['cat-file', '-t', commit]);
-  if (type.error || type.status !== 0 || type.stdout.toString('utf8').trim() !== 'commit') {
-    const fetched = git(['fetch', '--no-tags', '--depth=1', '--quiet',
-      'https://github.com/popixoxipop-collab/backend-skeleton.git', commit]);
-    if (fetched.error || fetched.status !== 0) return ['pinned source commit unavailable'];
-    type = git(['cat-file', '-t', commit]);
-    if (type.error || type.status !== 0 || type.stdout.toString('utf8').trim() !== 'commit') {
-      return ['pinned source commit unavailable'];
-    }
-  }
-  const errors = [];
-  for (const rel of SOURCE_FILES) {
-    const blob = git(['show', `${commit}:${rel}`]);
-    if (blob.error || blob.status !== 0) {
-      errors.push('missing source-commit blob ' + rel);
-    } else if (sourceHash(blob.stdout) !== record.source_files[rel]) {
-      errors.push('source-commit blob digest mismatch ' + rel);
-    }
-  }
-  return errors;
-}
-
 export function verify(record = JSON.parse(fs.readFileSync(RECEIPT, 'utf8')), replay = null) {
   const bad = evidenceProblems(record);
-  if (bad.length === 0) bad.push(...commitSourceProblems(record));
   if (replay && JSON.stringify(record.observed_run) !== JSON.stringify(replay)) {
     bad.push('fresh command replay differs from committed evidence');
   }
