@@ -124,6 +124,14 @@ function git(args, timeout = 18000) {
 }
 const output = (p) => p.stdout?.toString('utf8').trim() ?? '';
 
+// Future changes owned by T04/T06/T13/T14 and other tracks are not inputs
+// to this receipt. Only the 20 recorded T12 source files are byte-bound;
+// unrelated HEAD changes cannot invalidate their immutable evidence.
+export function evidenceRelevantChangedPaths(paths) {
+  const pinned = new Set(SOURCE_FILES);
+  return paths.filter((p) => pinned.has(p));
+}
+
 export function sourceCommitProblems(rec) {
   const sha = rec?.verified_source_commit;
   if (!SHA1.test(sha ?? '')) return ['invalid source commit identity'];
@@ -145,8 +153,8 @@ export function sourceCommitProblems(rec) {
     problems.push('source commit and current tree comparison unavailable');
   } else {
     const changed = output(tree).split('\n').filter(Boolean);
-    if (changed.some((p) => p !== RECEIPT_REL)) {
-      problems.push('tracked source tree changed beyond evidence receipt');
+    if (evidenceRelevantChangedPaths(changed).length) {
+      problems.push('pinned source tree changed beyond evidence receipt');
     }
   }
   // The source checkout may contain exactly one untracked file while --write
