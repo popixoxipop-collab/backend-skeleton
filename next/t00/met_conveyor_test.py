@@ -121,6 +121,22 @@ class ConveyorTests(unittest.TestCase):
             self.assertIn("OUTPUT_PATH", blocked.stderr)
             self.assertFalse((nested/"output").exists())
 
+            # Even aliases outside the authority tree must resolve to the real
+            # source file directory before checking the output ancestry.
+            aliases = root/"aliases"
+            aliases.mkdir()
+            plan_link, audit_link = aliases/"plan.json", aliases/"audit.json"
+            plan_link.symlink_to(p)
+            audit_link.symlink_to(a)
+            cli[cli.index("--plan")+1] = str(plan_link)
+            cli[cli.index("--audit")+1] = str(audit_link)
+            blocked_alias = subprocess.run(cli, capture_output=True, text=True)
+            self.assertEqual(blocked_alias.returncode, 2, blocked_alias.stderr)
+            self.assertIn("OUTPUT_PATH", blocked_alias.stderr)
+            self.assertFalse((nested/"output").exists())
+            cli[cli.index("--plan")+1] = str(p)
+            cli[cli.index("--audit")+1] = str(a)
+
             # The verifier must reject independently forged MET totals.
             receipt_file = root/"out/receipt.json"
             baseline_receipt = receipt_file.read_bytes()
@@ -129,6 +145,39 @@ class ConveyorTests(unittest.TestCase):
             receipt_file.write_text(json.dumps(changed), encoding="utf8")
             with self.assertRaises(ValueError):
                 verifier.verify(root/"out")
+            receipt_file.write_bytes(baseline_receipt)
+
+            # Compensating with a negative nonstandard status must not allow
+            # forged MET=999 while maintaining the numeric sum 291.
+            triage_file = root/"out/triage.json"
+            baseline_triage = triage_file.read_bytes()
+            forged_triage = json.loads(baseline_triage)
+            forged_triage["authority"]["official_counts"]["MET"] = 999
+            forged_triage["authority"]["official_counts"]["COMPENSATION"] = -907
+            triage_file.write_text(json.dumps(forged_triage)+"\\n", encoding="utf8")
+            forged_receipt = json.loads(baseline_receipt)
+            forged_receipt["official_MET"] = 999
+            forged_receipt["triage_sha256"] = sha(triage_file)
+            receipt_file.write_text(json.dumps(forged_receipt)+"\\n", encoding="utf8")
+            with self.assertRaises(ValueError):
+                verifier.verify(root/"out")
+            triage_file.write_bytes(baseline_triage)
+            receipt_file.write_bytes(baseline_receipt)
+
+            # All independent-review/release claims must stay explicitly
+            # negative, even if the report digest is recomputed by a forger.
+            review_forge = json.loads(baseline_triage)
+            review_forge["authority"]["authenticated_external_verdict"] = True
+            review_forge["policy"]["release_activation"] = True
+            review_forge["policy"]["evidence_is_unverified"] = False
+            review_forge["official_audit_unchanged"] = False
+            triage_file.write_text(json.dumps(review_forge)+"\\n", encoding="utf8")
+            forged_receipt = json.loads(baseline_receipt)
+            forged_receipt["triage_sha256"] = sha(triage_file)
+            receipt_file.write_text(json.dumps(forged_receipt)+"\\n", encoding="utf8")
+            with self.assertRaises(ValueError):
+                verifier.verify(root/"out")
+            triage_file.write_bytes(baseline_triage)
             receipt_file.write_bytes(baseline_receipt)
 
             # A hostile writer can recompute the packet/index checksums.
@@ -140,12 +189,18 @@ class ConveyorTests(unittest.TestCase):
             first = baseline_index_obj["packets"][0]
             packet_file = root/"out"/first["path"]
             baseline_packet = packet_file.read_bytes()
-            for mode in ("source", "missing_proofs"):
+            for mode in ("source", "missing_proofs", "malformed_schema"):
                 tampered = json.loads(baseline_packet)
                 if mode == "source":
                     tampered["source"]["audit_sha256"] = "f"*64
-                else:
+                elif mode == "missing_proofs":
                     tampered["proof_slots"] = {}
+                else:
+                    tampered["current_official_verdict"] = "APPROVED"
+                    for key in ("schema", "current_official_gap",
+                                "current_official_evidence", "mandatory_tests",
+                                "acceptance"):
+                        tampered.pop(key)
                 packet_file.write_text(json.dumps(tampered)+"\n", encoding="utf8")
                 idx = json.loads(baseline_index)
                 idx["packets"][0]["sha256"] = sha(packet_file)

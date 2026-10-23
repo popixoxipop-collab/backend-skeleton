@@ -33,16 +33,24 @@ def verify(root):
     if any(authority.get(k) != receipt.get(k) for k in ("plan_sha256", "audit_sha256")):
         refuse("source digest mismatch")
     counts = authority.get("official_counts", {})
-    if not isinstance(counts, dict) or any(type(counts.get(k)) is not int or counts[k] < 0
-                                           for k in ("MET", "PARTIAL", "NOT_MET", "NOT_CHECKED")):
+    expected_status_keys = {"MET", "PARTIAL", "NOT_MET", "NOT_CHECKED"}
+    if not isinstance(counts, dict) or set(counts) != expected_status_keys or any(
+            type(counts[k]) is not int or counts[k] < 0 for k in expected_status_keys):
         refuse("unreconciled official counts")
     if (sum(counts.values()) != 291 or receipt.get("official_MET") != counts["MET"]
             or receipt.get("official_delta") != 0
             or authority.get("official_MET_delta") != 0
             or not receipt.get("not_an_adjudication")):
         refuse("MET authority spoofed")
-    if document.get("policy", {}).get("auto_promote_MET") is not False:
-        refuse("auto-promotion claimed")
+    policy = document.get("policy", {})
+    if (not isinstance(policy, dict)
+            or policy.get("mode") != "READ_ONLY_TRIAGE"
+            or policy.get("auto_promote_MET") is not False
+            or policy.get("release_activation") is not False
+            or policy.get("evidence_is_unverified") is not True
+            or authority.get("authenticated_external_verdict") is not False
+            or document.get("official_audit_unchanged") is not True):
+        refuse("false reviewer, release or MET authority")
     packets = index.get("packets")
     if index.get("schema") != "t00.met-work-packet-index/1" or not isinstance(packets, list) or len(packets) != receipt.get("packets_generated"):
         refuse("invalid packet index")
@@ -58,10 +66,35 @@ def verify(root):
         if row.get("path") != name or h(load(root, name)) != row.get("sha256"):
             refuse("packet bytes mismatch")
         packet = json.loads(load(root, name))
-        if packet.get("task_id") != ident or packet.get("current_official_verdict") == "MET" or not packet.get("candidate_only_no_MET_granted"):
-            refuse("false completion claim")
+        expected_packet_fields = {
+            "schema", "task_id", "source", "current_official_verdict",
+            "current_official_gap", "current_official_evidence",
+            "dependencies_not_met", "dependency_ready", "deliverables",
+            "mandatory_tests", "acceptance", "write_scope", "proof_slots",
+            "recorded_evidence_authenticated", "candidate_only_no_MET_granted",
+        }
+        if (not isinstance(packet, dict) or set(packet) != expected_packet_fields
+                or packet.get("schema") != "t00.met-evidence-request/1"
+                or packet.get("task_id") != ident
+                or packet.get("current_official_verdict") not in ("PARTIAL", "NOT_MET", "NOT_CHECKED")
+                or packet.get("candidate_only_no_MET_granted") is not True
+                or not all(isinstance(packet.get(k), str) for k in
+                           ("current_official_gap", "current_official_evidence"))
+                or any(not isinstance(packet.get(k), list) or not all(
+                    isinstance(v, str) for v in packet[k])
+                    for k in ("dependencies_not_met", "deliverables",
+                              "mandatory_tests", "acceptance", "write_scope"))
+                or packet.get("dependency_ready") is not (len(packet["dependencies_not_met"]) == 0)
+                or len(set(packet["dependencies_not_met"])) != len(packet["dependencies_not_met"])):
+            refuse("missing, malformed or falsely adjudicated packet")
         packet_source = packet.get("source", {})
-        if not isinstance(packet_source, dict) or packet_source.get("plan_sha256") != receipt["plan_sha256"] or packet_source.get("audit_sha256") != receipt["audit_sha256"]:
+        if (not isinstance(packet_source, dict)
+                or set(packet_source) != {"plan_sha256", "audit_sha256", "repository", "track"}
+                or packet_source.get("plan_sha256") != receipt["plan_sha256"]
+                or packet_source.get("audit_sha256") != receipt["audit_sha256"]
+                or packet_source.get("repository") not in ("bskel", "becoder", "beval")
+                or not isinstance(packet_source.get("track"), str)
+                or not re.fullmatch(r"T[0-9]{2}", packet_source["track"])):
             refuse("packet source binding mismatch")
         slots = packet.get("proof_slots")
         REQUIRED_PROOF_SLOTS = {

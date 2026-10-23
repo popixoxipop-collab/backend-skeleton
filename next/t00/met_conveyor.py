@@ -340,7 +340,7 @@ def main(argv=None):
 
     check(out.is_absolute() and not out.exists() and out.parent.is_dir()
           and all(not inside(source_root, out.parent.resolve())
-                  for source_root in (args.plan.parent.resolve(), args.audit.parent.resolve())),
+                  for source_root in (args.plan.resolve().parent, args.audit.resolve().parent)),
           "OUTPUT_PATH", "need fresh directory outside all authority source roots")
     out.mkdir(mode=0o700)
     payload = (json.dumps(report,ensure_ascii=False,indent=2)+"\n").encode("utf8")
