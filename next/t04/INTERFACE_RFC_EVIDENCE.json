@@ -1,0 +1,49 @@
+{
+  "schema": "bskel.t04-interface-rfc-evidence/1",
+  "task_id": "T04-02",
+  "verified_source_commit": "c802139f56c781e6f844b2d2d55d889175ee6fc0",
+  "source_files": {
+    "scanners/language/js-ts/BASELINE.json": "6d3c963d57edb17033e7489d9479272241184bb72f3034a6b61219164fca62d1",
+    "scanners/language/js-ts/README.md": "8aa866f601d9ffcd047bd5827fa6c74ebb7657090da191462259e980c0f5b9b9",
+    "scanners/language/js-ts/INTERFACE_RFC.md": "d1c0727392b8c5dfbdc4406ab2f3c1e5c6b88e77a4ff56f24e692c7d57f80a79",
+    "scanners/language/js-ts/source-facts.mjs": "b51aed021a852b89f732ac4494e697824407e41b872d9cb3a7224c9125a6df29",
+    "scanners/language/js-ts/module-resolver.mjs": "5c61df6d99dd9bf94053bd9794357928548e18fca0a97c5aec4bdf8a11aadb9c",
+    "scanners/language/js-ts/snapshot-graph.mjs": "4be095ed698d0cb0363c997c5f79a351cefcd4a7d1e68665eee7435f3ce50eb6",
+    "scanners/language/js-ts/backend-comparison.mjs": "a699df8c21d623becd8ed44cf7d6fba9293d5a2ef99f9bc7112155ae6dfdf0f3",
+    "test/language-js-ts/source-facts.test.mjs": "aa72ec7153d9a4de1b3045724d8c6885afa8c7f37cc16989c940b92bed0cad98",
+    "test/language-js-ts/module-resolver.test.mjs": "f9fbeed686104825dbac5337a95d76c0bb422c650ca806390c187c392fad851c",
+    "test/language-js-ts/snapshot-graph.test.mjs": "0b55c7a4bc120f26ff42e603ed2325bf3ba7198b4b31d580c57352ce9bdcf7a7",
+    "test/language-js-ts/backend-comparison.test.mjs": "400d6a86232504b966bdb7deca3342f7f811e313f5ddf8971a72db35e2496d1c",
+    "test/language-js-ts/legacy-a-regressions.test.mjs": "ad45103af4431d937b7be546c8a105b8728db2375de10d15aebc6a68dc47542a",
+    "test/language-js-ts/baseline-record.test.mjs": "6d5760522c733fecd980876588cf75516e987bdf62fcd8cd1748d0d99fe4ec6b",
+    "test/language-js-ts/baseline-record-lib.mjs": "f18962291b12ad24e845fd013bc64314382ae86fccfc080c40b931399c4ccd75",
+    "test/language-js-ts/interface-rfc.test.mjs": "8c3d552bc4847847c1a896d50ee812788ee46b6a2838d2e0445112205aea73c1",
+    "test/language-js-ts/interface-rfc-evidence.mjs": "c44b4f215fa6ace12a88c796dd391fa122e1d7694735ad6ff7595fcb763a6ea0",
+    "test/language-js-ts/interface-rfc-evidence.test.mjs": "2d7ca0b40ac0d533ff48628429f65c6ed78688f7cca08386d8995cf1e65a26cb"
+  },
+  "observed_run": {
+    "command": [
+      "node",
+      "--test",
+      "test/language-js-ts/interface-rfc.test.mjs"
+    ],
+    "exit_code": 0,
+    "counts": {
+      "tests": 14,
+      "pass": 14,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    }
+  },
+  "assertions": {
+    "official_MET_delta": 0,
+    "automatic_promotion": false,
+    "release_activation": false,
+    "signed_independent_attestation": false,
+    "runtime_certified": false,
+    "stable_sbf_contract": false
+  },
+  "limitations": "This pins only the T04 internal v0 interface and exact source-facts/RFC command evidence; not a stable SBF cross-tool contract, not runtime-certified or a parser/typechecker approval. The historical T04-01 baseline remains separately pinned and unchanged."
+}
