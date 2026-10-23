@@ -1,7 +1,7 @@
 {
   "schema": "bskel.t12-interface-rfc-evidence/1",
   "task_id": "T12-02",
-  "verified_source_commit": "aeb3ab27b559ecbfee07be69e70e32b3b8bff510",
+  "verified_source_commit": "a886c0ab17274914cae105b568c06d202e6ace5b",
   "source_files": {
     "adapters/http-wave-a/BASELINE.json": "94520c6a2996b746ae7498e033300d6830403232a24f7ee0db6cacdfadddad60",
     "adapters/http-wave-a/INTERFACE_RFC.md": "ab7cd0ba77070a46a9b5dddc00527a152315fde34d22567751a1207721f6b22a",
@@ -21,8 +21,8 @@
     "test/http-wave-a/interface-rfc.test.mjs": "d37295ef0d15f3758acd5832ea11c468169ee0ec48b7e915bf5ccdd9000c9403",
     "test/http-wave-a/interface-rfc.vocabulary.json": "60a466e87cf1a824fb1c94ee20c18176735420c64b31a4ec76b6019469c56a17",
     "test/http-wave-a/rfc-boundaries.test.mjs": "4161fa04387351343a26688d0867f727a5771af6b39de455048d5e3cf305e00e",
-    "test/http-wave-a/interface-rfc-evidence.mjs": "44c14008495ec9b87911dc0683b0124c2efbfb7b1b358c1160ecb11b28f8ec4e",
-    "test/http-wave-a/interface-rfc-evidence.test.mjs": "88e38f5b3d995e34ca945d3d9de30fe533915ff8897b86a3e0b24407e953dcf1"
+    "test/http-wave-a/interface-rfc-evidence.mjs": "80afa0dd369c904560e15542f9d49378cd490b82171be4776c730effadd6a5ce",
+    "test/http-wave-a/interface-rfc-evidence.test.mjs": "0aa1fe5d11d83df424da43cfc3300496fd5d7c0a958dac24e1b4785e9c1567f5"
   },
   "observed_run": {
     "command": [
