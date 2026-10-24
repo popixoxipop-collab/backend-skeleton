@@ -1,0 +1,32 @@
+name: T00 MET Conveyor Fast Check
+
+on:
+  pull_request:
+    paths:
+      - 'next/t00/met_conveyor.py'
+      - 'next/t00/verify_met_conveyor.py'
+      - 'next/t00/met_conveyor_test.py'
+      - 'next/t00/MET_CONVEYOR.md'
+      - 'test/t00-met-conveyor.test.mjs'
+      - '.github/workflows/t00-met-conveyor.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'next/t00/met_conveyor.py'
+      - 'next/t00/verify_met_conveyor.py'
+      - 'next/t00/met_conveyor_test.py'
+      - 'next/t00/MET_CONVEYOR.md'
+      - 'test/t00-met-conveyor.test.mjs'
+      - '.github/workflows/t00-met-conveyor.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-triage-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: T00 pinned-source and false-completion tests
+        run: node --test test/t00-met-conveyor.test.mjs
