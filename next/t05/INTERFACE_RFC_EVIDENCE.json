@@ -1,0 +1,47 @@
+{
+  "schema": "bskel.t05-interface-rfc-evidence/1",
+  "task_id": "T05-02",
+  "verified_source_commit": "2cf1031fb6db673bfc5e766f60386bf770e4ccc5",
+  "source_files": {
+    "scanners/language/jvm/BASELINE.json": "cd1c59410747740d62e54ad54e4439e48196e404f0ea266290747e76da546833",
+    "scanners/language/jvm/README.md": "72b6cec1eb531dc89879df14f11c99bccca79121a48c7878456f6bcac096a28d",
+    "scanners/language/jvm/protocol.mjs": "4f5715bdf67e3c00e10e5630ab4bfd10635ffaa1a23df31352282d43d67aab7f",
+    "scanners/language/jvm/java-syntax-facts.mjs": "bef2488bb19d3039f2e973127699e6ade404e2debd91dc8c20a87a66ed96fcde",
+    "scanners/language/jvm/annotation-graph.mjs": "95d991d16859f9daa501467ff4d7ccbb3810643ffdea0bf94247952e5fbdc6b5",
+    "scanners/language/jvm/member-facts.mjs": "fb903e1e84dd5e45a1f57052d2531c4e979bff34db99e8089ccd68e81272cee5",
+    "scanners/language/jvm/method-facts.mjs": "ebbcfcbb5c65037e4268da48aa9c7c87d7fbf3d28f9e2f32f6dd52b3680a699d",
+    "scanners/language/jvm/jpa-direct-facts.mjs": "54bba52fae20f163e4f2fbe54e1473ad5cb3bb8a888e6f85c6ee54d1d37cd87c",
+    "scanners/language/jvm/framework-profiles.mjs": "c160a1d0b8a4ac1690ad6c361fc691f2b277f8bd972301054e82514080c39a07",
+    "scanners/language/jvm/semantic-backend.mjs": "ed7d4136de62a06b802d09c4db8f8d69351df0de958e9cbcf5f319c2b4858ee7",
+    "scanners/language/jvm/spring-shadow.mjs": "263a98e64a1d7d2badcd5be9766f54a47965151ae0f5c6d1c85ef11996c55e3a",
+    "next/t05/INTERFACE_RFC.md": "5ced63f662d386c4f458866667cbb49296c23d9f76a72d38b3de4182100104f1",
+    "next/t05/interface-rfc.test.mjs": "bcfb9a48aa44d91cc6b1311c2204551d11682a9478eae57b297c0611a3b85cd3",
+    "next/t05/interface-rfc-evidence.mjs": "7a0067487ed8914f2ea491658e0bbf9ed81cba0b3ec71e7e2f0d3a478492f8a5",
+    "next/t05/interface-rfc-evidence.test.mjs": "f1f3743cbcd999abe10085b696fd9ee7a663fc158c922efb0ee507ae18f26e18"
+  },
+  "observed_run": {
+    "command": [
+      "node",
+      "--test",
+      "next/t05/interface-rfc.test.mjs"
+    ],
+    "exit_code": 0,
+    "counts": {
+      "tests": 16,
+      "pass": 16,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    }
+  },
+  "assertions": {
+    "official_MET_delta": 0,
+    "automatic_promotion": false,
+    "release_activation": false,
+    "signed_independent_attestation": false,
+    "runtime_certified": false,
+    "stable_sbf_contract": false
+  },
+  "limitations": "This pins only the T05 internal v0 interface and exact source-facts/RFC command evidence; not a stable SBF cross-tool contract, not runtime-certified or a parser/typechecker approval. The historical T05-01 baseline remains separately pinned and unchanged; Kotlin/Ktor blocked."
+}
