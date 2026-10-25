@@ -8,7 +8,8 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..')
 const REL='adapters/http/java-spring/SCOPE_EVIDENCE.json';
 const SHA=/^[0-9a-f]{40}$/;
 const H=b=>createHash('sha256').update(b).digest('hex');
-const git=(args)=>execFileSync('git',args,{cwd:ROOT,encoding:'utf8',timeout:25000}).trim();
+const git=(args)=>execFileSync('git',args,{cwd:ROOT,encoding:'utf8',timeout:25000,
+ stdio:['ignore','pipe','pipe']}).trim();
 const read=p=>fs.readFileSync(path.join(ROOT,p));
 const inputs=[
  'adapters/http/java-spring/TARGET_SCOPE.md',
@@ -30,14 +31,15 @@ const dependencyFiles=git(['ls-files',
  'scanners/adapters','scanners/registry.mjs','schemas/adapter.schema.json',
  'schemas/scan-report.schema.json','lib/schema-validate.mjs','package.json','package-lock.json',
  'next/t00/build-ownership-map.mjs','next/t00/verify-baseline.mjs','next/t00/snapshot-plan.mjs',
- 'next/t00/ownership-map.json','next/t00/fixtures'
+ 'next/t00/ownership-map.json','next/t00/baseline.lock.json','next/t00/fixtures',
+ 'scripts/run-next-nested-tests.mjs'
 ]).split('\n').filter(Boolean);
 export const SOURCE_FILES=Object.freeze([...new Set([...inputs,
  ...git(['ls-files','test/fixtures/java-spring']).split('\n').filter(Boolean),
  ...dependencyFiles])].sort());
-export const COMMAND=['node','--test',
+export const COMMAND=Object.freeze(['node','--test',
  'adapters/http/java-spring/target-scope.test.mjs',
- 'adapters/http/java-spring/target-scope-negative.test.mjs'];
+ 'adapters/http/java-spring/target-scope-negative.test.mjs']);
 export const RECEIPT=path.join(ROOT,REL);
 export const digests=()=>Object.fromEntries(SOURCE_FILES.map(p=>[p,H(read(p))]));
 

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {RECEIPT,SOURCE_FILES,digests,problems,replay} from './scope-evidence.mjs';
+import {COMMAND,RECEIPT,SOURCE_FILES,digests,problems,replay} from './scope-evidence.mjs';
 
 test('Spring scope receipt replays a real zero-skip 14-case Node run',()=>{
  const r=JSON.parse(fs.readFileSync(RECEIPT,'utf8'));
@@ -43,10 +43,19 @@ test('recorded fabricated PASS or skipped counts cannot substitute real replay',
   .some(x=>x.includes('replay mismatch')));
 });
 
+test('the authenticated replay command is immutable and fabricated commands are rejected',()=>{
+ const r=JSON.parse(fs.readFileSync(RECEIPT,'utf8'));
+ assert.equal(Object.isFrozen(COMMAND),true);
+ assert.throws(()=>COMMAND.splice(1),TypeError);
+ const forged={...r,observed:{...r.observed,command:['node','-e','print fake TAP totals']}};
+ assert.ok(problems(forged,undefined,false).some(x=>x.includes('replay mismatch')));
+});
+
 test('Spring analyzer, registry, prefix fixture and workflow truth remain pinned',()=>{
  const deps=['scanners/adapters/java-spring.mjs','scanners/adapters/_java-spring-analyzer.mjs',
   'scanners/registry.mjs','test/fixtures/java-spring/src/main/java/com/example/app/global/config/ApiPathConfig.java',
-  'test/fixtures/java-spring/src/main/resources/application.yml','.github/workflows/ci.yml'];
+  'test/fixtures/java-spring/src/main/resources/application.yml','.github/workflows/ci.yml',
+  'next/t00/baseline.lock.json','scripts/run-next-nested-tests.mjs'];
  for(const p of deps)assert.ok(SOURCE_FILES.includes(p),'missing dependency pin '+p);
  const r=JSON.parse(fs.readFileSync(RECEIPT,'utf8'));
  const p='scanners/adapters/_java-spring-analyzer.mjs';
