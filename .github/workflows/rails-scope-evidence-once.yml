@@ -13,7 +13,7 @@ jobs:
       - name: Checkout exact Rails source
         uses: actions/checkout@v4
         with:
-          ref: 7a383139203362e3ec64dc8b1550ae847246e937
+          ref: 0220c2865e4a7d14cad19b8b46a523be1876db45
           fetch-depth: 0
           persist-credentials: false
       - name: Install ripgrep for scanner parity
@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: '24'
       - name: Verify exact source
-        run: test "$(git rev-parse HEAD)" = "7a383139203362e3ec64dc8b1550ae847246e937"
+        run: test "$(git rev-parse HEAD)" = "0220c2865e4a7d14cad19b8b46a523be1876db45"
       - name: Install dependencies
         run: npm ci
       - name: Generate source-bound Rails evidence
