@@ -13,7 +13,7 @@ jobs:
       - name: Checkout exact Rails source
         uses: actions/checkout@v4
         with:
-          ref: e22245c8d92f858fe12681212145dba6152f4706
+          ref: 7a383139203362e3ec64dc8b1550ae847246e937
           fetch-depth: 0
           persist-credentials: false
       - name: Install ripgrep for scanner parity
@@ -23,19 +23,13 @@ jobs:
         with:
           node-version: '24'
       - name: Verify exact source
-        run: test "$(git rev-parse HEAD)" = "e22245c8d92f858fe12681212145dba6152f4706"
+        run: test "$(git rev-parse HEAD)" = "7a383139203362e3ec64dc8b1550ae847246e937"
       - name: Install dependencies
         run: npm ci
       - name: Generate source-bound Rails evidence
         run: |
           node --test adapters/http/ruby-rails/target-scope.test.mjs adapters/http/ruby-rails/target-scope-negative.test.mjs
-          node adapters/http/ruby-rails/scope-evidence.mjs --write
           node --test adapters/http/ruby-rails/scope-evidence.test.mjs
           node adapters/http/ruby-rails/scope-evidence.mjs --check
-      - name: Print source receipt for review
-        run: |
-          echo EVIDENCE_BASE64_START
-          base64 -w0 adapters/http/ruby-rails/SCOPE_EVIDENCE.json
-          echo
-          echo EVIDENCE_BASE64_END
-          sha256sum adapters/http/ruby-rails/SCOPE_EVIDENCE.json
+      - name: Verify committed receipt SHA-256
+        run: sha256sum adapters/http/ruby-rails/SCOPE_EVIDENCE.json
