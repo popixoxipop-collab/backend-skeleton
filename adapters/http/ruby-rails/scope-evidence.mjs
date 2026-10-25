@@ -31,9 +31,10 @@ export const COMMAND=['node','--test',
 export const RECEIPT=path.join(ROOT,REL);
 export const digests=()=>Object.fromEntries(SOURCE_FILES.map(p=>[p,H(read(p))]));
 export function replay(){
+ const env={...process.env,NODE_OPTIONS:''};
+ for(const key of Object.keys(env))if(key.startsWith('NODE_TEST_'))delete env[key];
  const r=spawnSync(process.execPath,COMMAND.slice(1),
-   {cwd:ROOT,encoding:'utf8',timeout:120000,maxBuffer:16*1024*1024,
-    env:{...process.env,NODE_OPTIONS:''}});
+   {cwd:ROOT,encoding:'utf8',timeout:120000,maxBuffer:16*1024*1024,env});
  if(r.error||r.status!==0||r.signal)throw Error('direct scope tests did not pass: '+r.stderr?.slice(-500));
  const text=(r.stdout||'')+'\n'+(r.stderr||'');
  const counts={};
