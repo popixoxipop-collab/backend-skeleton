@@ -1,0 +1,59 @@
+{
+  "schema": "bskel.rails-target-scope-proof/1",
+  "task": "HTTP-ruby-rails-01",
+  "source_commit": "fb57aa856c206a9cbb6e842b8ac8634a5cf8f237",
+  "sources": {
+    "adapters/http/ruby-rails/TARGET_SCOPE.md": "9dac0e441e868a92378d9ddb2029a6c81804913381af350bfa4037cb3487e614",
+    "adapters/http/ruby-rails/scope-evidence.mjs": "af0954e4560d2aa398bb304c08bcfaf99a041b4d922b8d6496912bfaa0bfe0d5",
+    "adapters/http/ruby-rails/scope-evidence.test.mjs": "2c600a759493fe89953621d8a0f6d6c120958de2eb9c64097a450a5aefdf948b",
+    "adapters/http/ruby-rails/target-scope-negative.test.mjs": "0e63ffd3ae442e6e5c19f45e64a373c0952fb666b4595bc106d2a114b61bc43e",
+    "adapters/http/ruby-rails/target-scope.test.mjs": "a0a96b157c5c403c164e83bb4db506a8eba9859e3c31b16c68adb2f44a1cc44b",
+    "next/t00/check-ownership.mjs": "444fbbb1504a13f6a3c418a82fa16f344186ee95d0f1d3c42dd0a557eb42090d",
+    "next/t00/ownership.mjs": "6a11e2a26a012e9bb45ef5d20941f659f640be39cfff3ca1637d7bec4e116360",
+    "scanners/adapters/ruby-rails.mjs": "1623cc4242354a3e42f97f0f02a1a4bebd5ac7ac5b6ea3ef79a2965b09c4b0ff",
+    "scanners/index.mjs": "d6261c741e45df7f7b9b48b812158e575c3a0ef48a5c144d2e68f2733d13d63c",
+    "scanners/language/ruby-php/dsl-expand.mjs": "164cf9087ea0ba60f2a5ef65470d9fa2ee15db0e625a79125bb94ef5dd21fc1d",
+    "scanners/language/ruby-php/dsl-facts.mjs": "d2b7151853c79a2811737221405b616c0ec7a35bc27821b29522825467ae30a6",
+    "scanners/text-util.mjs": "293383368952be98c7f868847c8184ebc5df49615a3bdd7861613a372e8d2198",
+    "scripts/rails-integration-smoke.mjs": "71aaf5bdbeac62e8db0ba8883148f17031eaf9f60ab06362bcec610a32c19cbb",
+    "test/fixtures/oracle-manifest.json": "b7f61d69f35f9746d9dd9106a19ed897d7062bd34389650310410da80e1374b2",
+    "test/fixtures/ruby-rails/backend/Gemfile": "317df244cff37a41c02a7c63d50c3438c9e137dbafe9e200fbcf333d80fe6d1e",
+    "test/fixtures/ruby-rails/backend/app/controllers/api/v1/articles_controller.rb": "db83c599f3533cda78dfa2645547dbe0162a8d748641f9564ba6ab9bc87cd656",
+    "test/fixtures/ruby-rails/backend/app/controllers/health_controller.rb": "a1786c1fee0bab8154878b47798c8fd55e8e4c00ac18224608e48905966f48a4",
+    "test/fixtures/ruby-rails/backend/app/controllers/profiles_controller.rb": "6b3304a8a8b9b75fe4b1edc6522a45f1c41ab6274e3c9879d691c12050e74b95",
+    "test/fixtures/ruby-rails/backend/app/models/application_record.rb": "12bf7d0eaefce4d50e0719991e19b48a36a7865aeb7ac745980584806155fdc1",
+    "test/fixtures/ruby-rails/backend/app/models/article.rb": "89f3427426a2585b057f629821b7dd4dc8faabc4b422500662c6df9f7f07dfd9",
+    "test/fixtures/ruby-rails/backend/app/models/profile.rb": "0e65eceb87750a602231d2b0faf9f29e6b1531a5a90e0001e8e724e53de80667",
+    "test/fixtures/ruby-rails/backend/config/application.rb": "bf0d742d6947defd228f0f59c3714caa1146a23cfd84dc3e1ec1393a41987ebe",
+    "test/fixtures/ruby-rails/backend/config/routes.rb": "cf1dad6247cdd0210db4d084dd35f2041237bad0a08848065c8b4eca2ca10628",
+    "test/language-ruby-php/corpus-manifest.json": "5b93f2e3f46431df2d48fc3981d41f25f382d98d1af52231976e9dd028a0fc6c",
+    "test/language-ruby-php/corpus-observed-2026-09-26.json": "891e2b948c3f25b509a32b42de94950905a2bb40bf2b795d5e29b8d4bf43054d",
+    "test/language-ruby-php/rails-scope-literals.test.mjs": "e3252bbe11d929ee919acf5c1d160c29d1fdc9df8cdc1e5de8d65940741c6311",
+    "test/ruby-rails-cli.test.mjs": "30bbdce308f3e5cc18560fcc1cd2fbb11ef5cabf7459de284a945c6d49ff2d59"
+  },
+  "observed": {
+    "command": [
+      "node",
+      "--test",
+      "adapters/http/ruby-rails/target-scope.test.mjs",
+      "adapters/http/ruby-rails/target-scope-negative.test.mjs"
+    ],
+    "exit_code": 0,
+    "counts": {
+      "tests": 14,
+      "pass": 14,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    }
+  },
+  "assertions": {
+    "MET": 0,
+    "release": false,
+    "runtime_certified": false,
+    "external_runtime_equal": false,
+    "signed_attestation": false
+  },
+  "limits": "Static Rails target plan only, not runtime certified; outside CI third-party route equivalence remains unverified."
+}
