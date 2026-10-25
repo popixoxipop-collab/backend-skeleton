@@ -48,11 +48,26 @@ export function replay(){
 }
 export function problems(rec,actual=digests(),gitCheck=true){
  const bad=[];
+ if(!rec||typeof rec!=='object'||Array.isArray(rec)||
+    JSON.stringify(Object.keys(rec).sort())!==JSON.stringify(
+      ['schema','task','source_commit','sources','observed','assertions','limits'].sort()))
+   return ['invalid receipt field set'];
+ if(!rec.sources||typeof rec.sources!=='object'||Array.isArray(rec.sources))return ['invalid source map'];
+ if(!rec.assertions||typeof rec.assertions!=='object'||
+    JSON.stringify(Object.keys(rec.assertions).sort())!==JSON.stringify(
+      ['MET','release','runtime_certified','external_runtime_equal','signed_attestation'].sort()))
+   bad.push('invalid authority field set');
+ if(!rec.observed||JSON.stringify(Object.keys(rec.observed).sort())!==JSON.stringify(
+      ['command','exit_code','counts'].sort()))
+   bad.push('invalid replay field set');
+ if(!rec.observed?.counts||JSON.stringify(Object.keys(rec.observed.counts).sort())!==JSON.stringify(
+      ['tests','pass','fail','skipped','cancelled','todo'].sort()))
+   bad.push('invalid TAP field set');
  if(rec?.schema!=='bskel.rails-target-scope-proof/1'||rec?.task!=='HTTP-ruby-rails-01')bad.push('identity');
  if(!SHA.test(rec?.source_commit||''))bad.push('source commit invalid');
  const keys=Object.keys(rec?.sources||{}).sort();
  if(JSON.stringify(keys)!==JSON.stringify(SOURCE_FILES))bad.push('source path set drift');
- else for(const p of SOURCE_FILES)if(rec.sources[p]!==actual[p])bad.push('source digest drift '+p);
+ else for(const p of SOURCE_FILES)if(!/^[0-9a-f]{64}$/.test(rec.sources[p])||rec.sources[p]!==actual[p])bad.push('source digest drift '+p);
  const a=rec?.assertions||{};
  if(a.MET!==0||a.release!==false||a.runtime_certified!==false||
     a.external_runtime_equal!==false||a.signed_attestation!==false)bad.push('false authority');
