@@ -42,3 +42,21 @@ test('recorded fabricated PASS or skipped counts cannot substitute real replay',
  assert.ok(problems({...r,observed:{...r.observed,counts:{...r.observed.counts,pass:13,skipped:1}}},undefined,false)
   .some(x=>x.includes('replay mismatch')));
 });
+
+test('Rails expansion implementation and dynamic registry source remain pinned',()=>{
+ const deps=[
+  'scanners/language/ruby-php/expand-rails.mjs',
+  'scanners/language/ruby-php/_route-candidates.mjs',
+  'scanners/language/ruby-php/expand-laravel.mjs',
+  'scanners/language/ruby-php/expand-symfony.mjs',
+  'scanners/registry.mjs',
+  'schemas/adapter.schema.json'
+ ];
+ for(const p of deps)assert.ok(SOURCE_FILES.includes(p),'missing dependency pin '+p);
+ const r=JSON.parse(fs.readFileSync(RECEIPT,'utf8'));
+ const p='scanners/language/ruby-php/expand-rails.mjs';
+ const tampered={...digests(),[p]:'0'.repeat(64)};
+ assert.ok(problems(r,tampered,false).some(x=>x.includes('source digest drift '+p)));
+ const forged={...r,sources:{...r.sources,[p]:'0'.repeat(64)}};
+ assert.ok(problems(forged,tampered,true).some(x=>x.includes('original Git blob differs '+p)));
+});
