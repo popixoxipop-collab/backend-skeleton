@@ -1,0 +1,39 @@
+name: Rails target-scope one-shot evidence
+on:
+  push:
+    branches:
+      - ci/rails-scope-evidence-20261025-v1
+permissions:
+  contents: read
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact Rails source
+        uses: actions/checkout@v4
+        with:
+          ref: e22245c8d92f858fe12681212145dba6152f4706
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify exact source
+        run: test "$(git rev-parse HEAD)" = "e22245c8d92f858fe12681212145dba6152f4706"
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate source-bound Rails evidence
+        run: |
+          node --test adapters/http/ruby-rails/target-scope.test.mjs adapters/http/ruby-rails/target-scope-negative.test.mjs
+          node adapters/http/ruby-rails/scope-evidence.mjs --write
+          node --test adapters/http/ruby-rails/scope-evidence.test.mjs
+          node adapters/http/ruby-rails/scope-evidence.mjs --check
+      - name: Print source receipt for review
+        run: |
+          echo EVIDENCE_BASE64_START
+          base64 -w0 adapters/http/ruby-rails/SCOPE_EVIDENCE.json
+          echo
+          echo EVIDENCE_BASE64_END
+          sha256sum adapters/http/ruby-rails/SCOPE_EVIDENCE.json
