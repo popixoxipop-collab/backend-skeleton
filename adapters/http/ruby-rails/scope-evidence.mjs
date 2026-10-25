@@ -23,8 +23,27 @@ const inputs=[
  'test/language-ruby-php/rails-scope-literals.test.mjs',
  'next/t00/check-ownership.mjs','next/t00/ownership.mjs'
 ];
+// Registry discovers adapters via dynamic import; static Rails DSL expansion itself
+// delegates to expand-rails.mjs and _route-candidates.mjs. Pin the complete
+// tracked adapter and Ruby/PHP analysis subtrees, plus registry/schema/ownership
+// dependencies, so changed code cannot replay against an old source receipt.
+const dependencyFiles=git(['ls-files',
+ 'scanners/adapters',
+ 'scanners/language/ruby-php',
+ 'scanners/registry.mjs',
+ 'schemas/adapter.schema.json',
+ 'schemas/scan-report.schema.json',
+ 'lib/schema-validate.mjs',
+ 'package.json','package-lock.json',
+ 'next/t00/build-ownership-map.mjs',
+ 'next/t00/verify-baseline.mjs',
+ 'next/t00/snapshot-plan.mjs',
+ 'next/t00/ownership-map.json',
+ 'next/t00/fixtures'
+]).split('\n').filter(Boolean);
 export const SOURCE_FILES=Object.freeze([...new Set([...inputs,
- ...git(['ls-files','test/fixtures/ruby-rails/backend']).split('\n').filter(Boolean)])].sort());
+ ...git(['ls-files','test/fixtures/ruby-rails/backend']).split('\n').filter(Boolean),
+ ...dependencyFiles])].sort());
 export const COMMAND=['node','--test',
  'adapters/http/ruby-rails/target-scope.test.mjs',
  'adapters/http/ruby-rails/target-scope-negative.test.mjs'];
