@@ -16,6 +16,8 @@ jobs:
           ref: e22245c8d92f858fe12681212145dba6152f4706
           fetch-depth: 0
           persist-credentials: false
+      - name: Install ripgrep for scanner parity
+        run: sudo apt-get update -qq && sudo apt-get install -y ripgrep
       - name: Set up Node 24
         uses: actions/setup-node@v4
         with:
