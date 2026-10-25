@@ -1,0 +1,69 @@
+{
+  "schema": "bskel.aspnet-target-scope-proof/1",
+  "task": "HTTP-csharp-aspnet-core-01",
+  "source_commit": "f2fee5e774060076b68c52d1e52604d24e26df96",
+  "upstream": {
+    "repo": "dotnet/AspNetCore.Docs",
+    "path": "aspnetcore/tutorials/min-web-api/samples/8.x/todoDTO",
+    "commit": "5f20cce1736b24cb468c98833d965e969613bc3f",
+    "framework": "net8.0 sample",
+    "comparison": "BLOCKED_INFRA",
+    "reason": "No dotnet/Roslyn execution or pinned upstream checkout was acquired by this bounded local run."
+  },
+  "scope": {
+    "oracle": "T08 csharp-static-pilot facts projected by the existing T12 ASP.NET Core leaf",
+    "framework_range": "net8.0 sample source shape only; no SDK, package, or runtime range claimed",
+    "dotnet_executed": false,
+    "roslyn_executed": false,
+    "kestrel_executed": false
+  },
+  "sources": {
+    "adapters/http/csharp-aspnet-core/TARGET_SCOPE.md": "95a0bc3596c1c7dd167ddfa3f06818f88771a6f7b84bf9e887f39f14335289a6",
+    "adapters/http/csharp-aspnet-core/fixtures/negative/DynamicRoutes.cs": "f7642cb0bc31b260d9ed7ff2dc7b353b8030a02412f611a85aac73bad4628747",
+    "adapters/http/csharp-aspnet-core/fixtures/positive/Program.cs": "d164ecd34f892ba8bd7c08deed33e775161f6e1366232a5f7c3eec00d3c28584",
+    "adapters/http/csharp-aspnet-core/fixtures/positive/TodoController.cs": "ac20321109d7e905f02f0d9354735bb1b7467a4b519926254c4d440e0d262ceb",
+    "adapters/http/csharp-aspnet-core/scope-evidence.mjs": "f84f8d8d071dfce819283e7f92aa14ba030af58043a223be59d40b4465014f2e",
+    "adapters/http/csharp-aspnet-core/scope-evidence.test.mjs": "82d2d2a3511ba0bdcd344010b7dcef4bea60f1b595d451e457b94d103640290d",
+    "adapters/http/csharp-aspnet-core/target-scope-negative.test.mjs": "79e7cfd55207ff23ad23fcfec86ad213c2c0cbf0b1c4b85a17a88940f96660fd",
+    "adapters/http/csharp-aspnet-core/target-scope.test.mjs": "7c0df74764be1e8973034c9caa6273ca14688ae956eaf77469cb523af569b458",
+    "adapters/http-wave-a/_shared.mjs": "a0aa1a42126a5143e7589b1f281f37b4bc0912110eb98070f40398ef1a8323fc",
+    "adapters/http-wave-a/aspnet-core.mjs": "743177b28d6e5dc077c0c7dac1e9f48315e80f6a8fbfb42548939ceccd048a68",
+    "scanners/language/native-server/csharp.mjs": "b2dfaec2c030ebe2844d9f88c9ca34788a617b572a4e2fbec8a85136ef1c72ad",
+    "scanners/language/native-server/shared.mjs": "7101b36446c29988ad8d5c4ab59e95fbf717e15f7e6789132a63bada5ff5e513",
+    "next/t00/baseline.lock.json": "910ff15c1c3ddab085b620e30622451e5b135f4da974cbfc7b9c9fea320644ed",
+    "next/t00/build-ownership-map.mjs": "65d2037bf25d76ec7622c43313c2c8bc467b4d052bb0e19e852ce4a79d39412a",
+    "next/t00/check-ownership.mjs": "444fbbb1504a13f6a3c418a82fa16f344186ee95d0f1d3c42dd0a557eb42090d",
+    "next/t00/fixtures/ownership-rules.json": "81b115ff8e583cf42d4f2275cc54744652b6d5c34269d14a31cb9c80a53c5605",
+    "next/t00/fixtures/plan-write-scopes.json": "a22178eecb0fe1b4c6afc044e1e8cbcc6613536e27dee60fa76e046a756eaadc",
+    "next/t00/ownership-map.json": "c82cd6488a9223c4adef7ecf0b5774abde9deae61d4d7838e8ac3af96e44f96b",
+    "next/t00/ownership.mjs": "6a11e2a26a012e9bb45ef5d20941f659f640be39cfff3ca1637d7bec4e116360",
+    "next/t00/snapshot-plan.mjs": "c608d4239312bbf025cd26672979ce8c817e38baab016103196d1cbc3be09299",
+    "next/t00/verify-baseline.mjs": "537647a43baac3dbfcfa9b2cc3be9318196bbd0111681ab1aa6080b50bda2223",
+    "scripts/run-next-nested-tests.mjs": "224e72b8ef91e6d7c33ff87dc6e65be040df90dde8a8e7d8b8531aff61f14889"
+  },
+  "observed": {
+    "command": [
+      "node",
+      "--test",
+      "adapters/http/csharp-aspnet-core/target-scope.test.mjs",
+      "adapters/http/csharp-aspnet-core/target-scope-negative.test.mjs"
+    ],
+    "exit_code": 0,
+    "counts": {
+      "tests": 14,
+      "pass": 14,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    }
+  },
+  "assertions": {
+    "MET": 0,
+    "release": false,
+    "runtime_certified": false,
+    "external_runtime_equal": false,
+    "signed_attestation": false
+  },
+  "limits": "Static source-shape evidence only; BLOCKED_INFRA for pinned upstream and dotnet/Roslyn/Kestrel execution; not runtime certified and no external equality, MET, release, or attestation authority."
+}
