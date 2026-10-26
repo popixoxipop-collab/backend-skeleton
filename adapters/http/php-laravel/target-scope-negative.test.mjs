@@ -54,6 +54,30 @@ test('dynamic route and group inputs become unknowns instead of guessed routes',
   ]);
 });
 
+test('expression prefixes and dynamic match inputs cannot become confident routes', () => {
+  for (const declaration of [
+    "Route::prefix(config('app.api_prefix'))->group(function () {",
+    'Route::prefix(API_PREFIX)->group(function () {',
+    "Route::group(['prefix' => config('app.api_prefix')], function () {",
+    "Route::group(['prefix' => API_PREFIX], function () {",
+  ]) {
+    const result = leaf(['<?php', declaration, "  Route::get('/inside', fn () => null);", '});',
+      "Route::get('/outside', fn () => null);", ''].join('\n'));
+    assert.deepEqual(result.routes.map((route) => route.path), ['/outside'], declaration);
+    assert.ok(result.unknowns.length > 0, declaration);
+    assert.ok(result.unknowns.every((item) => item.code.startsWith('T07_')), declaration);
+  }
+  for (const declaration of [
+    "Route::match($methods, '/matched', fn () => null);",
+    "Route::match(['GET', $method], '/matched', fn () => null);",
+    "Route::match(['GET'], config('app.path'), fn () => null);",
+  ]) {
+    const result = leaf('<?php\n' + declaration + '\n');
+    assert.deepEqual(result.routes, [], declaration);
+    assert.ok(result.unknowns.length > 0, declaration);
+  }
+});
+
 test('Route::any and null paths stay unknown while independent literal routes survive', () => {
   const expanded = analyze([
     '<?php',

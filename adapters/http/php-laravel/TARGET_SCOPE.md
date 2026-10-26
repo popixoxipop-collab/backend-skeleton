@@ -27,7 +27,7 @@ The profile's `historical-pass-needs-leaf-rerun` marker and the baseline's `upst
 2. The upstream literal `GET /` route through both T07 expansion and the T12 leaf.
 3. Literal group-prefix composition and bounded `apiResource` action expansion.
 4. Deterministic same-input facts, candidates, routes, unknowns, and ordering.
-5. Dynamic route paths and group metadata preserved as T07-prefixed unknowns.
+5. Dynamic route paths and group metadata preserved as T07-prefixed unknowns, including function-call and constant prefixes in fluent and array group declarations; independent routes outside those groups remain available.
 6. `Route::any` preserved only as `ROUTE_METHOD_WILDCARD_UNRESOLVED`, never expanded into methods.
 7. Irregular resource parameters and unsupported resource actions preserved as unknowns.
 8. Partial/null candidate paths preserved as `ROUTE_PATH_UNKNOWN` without aborting other routes.
@@ -35,9 +35,10 @@ The profile's `historical-pass-needs-leaf-rerun` marker and the baseline's `upst
 10. Wrong contracts/framework identities rejected at the leaf boundary.
 11. Exact PHP/framework declarations and the difference between the application range and exact source tag.
 12. Unchanged T00 ownership, `baseline.lock.json`, workflow, and T12 nested-runner boundaries.
+13. Literal `Route::match` method lists preserve all declared methods and group prefixes; dynamic or mixed method lists and dynamic paths remain unknown.
 
 ## Explicit limitations and authority
 
-Multiline or generated declarations, dynamic factories, cross-file group context, facade aliases, custom macros, service-provider registrations, attribute packages, middleware/auth semantics, deployment prefixes, and runtime-installed routes may be absent rather than diagnosed. No missing route may be interpreted as proof that the runtime lacks it.
+The supported group declarations put the literal group opener on one line. Split multiline fluent/group declarations are outside this scope: context may be missed or incorrectly carried to adjacent declarations, so routes in files using those forms must not be treated as authoritative. Other multiline or generated declarations, dynamic factories, cross-file group context, facade aliases, custom macros, service-provider registrations, attribute packages, middleware/auth semantics, deployment prefixes, and runtime-installed routes may be absent rather than diagnosed. No missing route may be interpreted as proof that the runtime lacks it.
 
 Execute `node --test adapters/http/php-laravel/target-scope.test.mjs adapters/http/php-laravel/target-scope-negative.test.mjs`, then the immutable Git-source evidence replay. Existing T07/T12 sources and tests remain untouched and source-pinned. Passing creates no MET, release, runtime certification, external runtime equality, production registration, or signed-attestation claim. Official promotion still requires exact-head CI, independent review, protected merge, merged-source replay, and a T00 one-row CAS. T19/T20 authority and the global release remain BLOCKED.

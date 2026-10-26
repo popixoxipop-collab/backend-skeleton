@@ -97,8 +97,8 @@ export function replay() {
     if (!matches.length) throw new Error('missing TAP ' + key);
     counts[key] = Number(matches.at(-1)[1]);
   }
-  if (counts.tests !== 16 || counts.pass !== 16 || counts.fail || counts.skipped || counts.cancelled || counts.todo) {
-    throw new Error('not 16/16 zero-skip ' + JSON.stringify(counts));
+  if (counts.tests !== 18 || counts.pass !== 18 || counts.fail || counts.skipped || counts.cancelled || counts.todo) {
+    throw new Error('not 18/18 zero-skip ' + JSON.stringify(counts));
   }
   return { command: COMMAND, exit_code: 0, counts };
 }
@@ -186,7 +186,7 @@ if (mode === '--write' || mode === '--check') {
     } else {
       const failures = problems(JSON.parse(fs.readFileSync(RECEIPT, 'utf8')));
       if (failures.length) throw new Error(failures.join('; '));
-      console.log('SCOPE_EVIDENCE_PASS source-bound real 16/16, MET=0');
+      console.log('SCOPE_EVIDENCE_PASS source-bound real 18/18, MET=0');
     }
   } catch (error) {
     console.error('SCOPE_EVIDENCE_FAIL ' + error.message);

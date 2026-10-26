@@ -5,11 +5,11 @@ import {
   COMMAND, RECEIPT, SOURCE_FILES, UPSTREAM, SCOPE, digests, problems, replay,
 } from './scope-evidence.mjs';
 
-test('Laravel scope receipt replays a real zero-skip 16-case Node run', () => {
+test('Laravel scope receipt replays a real zero-skip 18-case Node run', () => {
   const receipt = JSON.parse(fs.readFileSync(RECEIPT, 'utf8'));
   assert.ok(SOURCE_FILES.length >= 100);
   assert.deepEqual(replay().counts, {
-    tests: 16, pass: 16, fail: 0, skipped: 0, cancelled: 0, todo: 0,
+    tests: 18, pass: 18, fail: 0, skipped: 0, cancelled: 0, todo: 0,
   });
   assert.deepEqual(problems(receipt), []);
 });
@@ -52,7 +52,7 @@ test('fabricated PASS, skip, or replay command cannot substitute for the real ru
   const receipt = JSON.parse(fs.readFileSync(RECEIPT, 'utf8'));
   const skipped = {
     ...receipt,
-    observed: { ...receipt.observed, counts: { ...receipt.observed.counts, pass: 15, skipped: 1 } },
+    observed: { ...receipt.observed, counts: { ...receipt.observed.counts, pass: 17, skipped: 1 } },
   };
   assert.ok(problems(skipped, undefined, false).some((value) => value.includes('replay mismatch')));
   assert.equal(Object.isFrozen(COMMAND), true);

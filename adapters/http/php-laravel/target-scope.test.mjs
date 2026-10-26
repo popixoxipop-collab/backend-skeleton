@@ -81,6 +81,23 @@ test('literal group prefixes and bounded apiResource actions compose without gue
   assert.deepEqual(result.unknowns, []);
 });
 
+test('literal Route::match method lists preserve every declared method and group prefix', () => {
+  const result = projectLaravelCandidates(analyze([
+    '<?php',
+    "Route::prefix('api')->group(function () {",
+    "  Route::get('/first', function () {",
+    '    return null;',
+    '  });',
+    "  Route::match(['GET', 'POST'], '/matched', fn () => null);",
+    '});',
+    '',
+  ].join('\n')));
+  assert.deepEqual(routePairs(result), [
+    ['GET', '/api/first'], ['GET', '/api/matched'], ['POST', '/api/matched'],
+  ]);
+  assert.deepEqual(result.unknowns, []);
+});
+
 test('application range and exact framework-source boundary remain distinct and truthful', () => {
   const app = JSON.parse(text(APP_COMPOSER_REL));
   const framework = JSON.parse(text(FRAMEWORK_COMPOSER_REL));
