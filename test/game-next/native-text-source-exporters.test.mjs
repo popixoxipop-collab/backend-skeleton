@@ -116,6 +116,27 @@ test('Unity duplicate file IDs and malformed reference fields fail closed', () =
   );
 });
 
+test('Unity malformed document headers cannot silently drop or contaminate documents', () => {
+  const preamble = '%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n';
+  const malformed = '--- !u!1 &6 stripped\nGameObject:\n  m_Name: Hidden\n';
+  assert.throws(
+    () => parseUnityTextScene(Buffer.from(preamble + malformed), { path: 'Assets/Main.unity' }),
+    /unsupported Unity document header on line 3/,
+  );
+  assert.throws(
+    () => parseUnityTextScene(Buffer.from(preamble +
+      '--- !u!1 &5\nGameObject:\n  m_Name: Seen\n' + malformed), { path: 'Assets/Main.unity' }),
+    /unsupported Unity document header on line 6/,
+  );
+
+  const orphan = parseUnityTextScene(Buffer.from(preamble +
+    'unmodeled preamble content\n--- !u!1 &5\nGameObject:\n  m_Name: Seen\n'),
+  { path: 'Assets/Main.unity' });
+  assert.deepEqual(orphan.diagnostics, [{ line: 3, code: 'UNITY_UNMODELED_LINE' }]);
+  assert.deepEqual(orphan.payload.documents.map(({ file_id, name }) => ({ file_id, name })),
+    [{ file_id: '5', name: 'Seen' }]);
+});
+
 test('Godot text source exports scene/node/resource/signal structure and source refs', () => {
   const raw = godotFixture();
   const built = buildGodotTextSceneExport(raw, {

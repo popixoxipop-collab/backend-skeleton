@@ -102,5 +102,5 @@ Nested shapes; the test compares each key list with the objects that real calls 
 | `lib/trust-next` | T20 | none, no import |
 | `package.json`, `scripts/run-next-nested-tests.mjs`, `.github/workflows` | coordinator | read only, never edit |
 
-`adapters/game-next` holds exactly: `BASELINE.json`, `INTEGRATION.md`, `INTERFACE_RFC.md`, `NATIVE_STRUCTURE_FORMATS.md`, `README.md`, `native-export-envelope.mjs`, `native-export-envelope.schema.json`, `native-structure-normalizer.mjs`, `native-text-source-exporters.mjs`.
+`adapters/game-next` holds exactly: `BASELINE.json`, `INTEGRATION.md`, `INTERFACE_RFC.md`, `NATIVE_STRUCTURE_FORMATS.md`, `README.md`, `T17_01_UNITY_HEADER_CORRECTION.md`, `native-export-envelope.mjs`, `native-export-envelope.schema.json`, `native-structure-normalizer.mjs`, `native-text-source-exporters.mjs`.
 `test/game-next` holds exactly: `baseline-record-lib.mjs`, `baseline-record.test.mjs`, `interface-doc.test.mjs`, `native-export-envelope-schema.test.mjs`, `native-structure-media-type.test.mjs`, `native-text-source-exporters.test.mjs`. A new file in either needs this RFC updated first.
