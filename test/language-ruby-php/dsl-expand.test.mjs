@@ -166,6 +166,115 @@ test('Laravel bounded expansion joins group prefix and expands apiResource selec
   ]);
 });
 
+test('Laravel dynamic prefixes become unknowns while unrelated literal routes remain candidates', () => {
+  const facts = extractLaravelDslFacts([
+    "Route::prefix(config('app.api_prefix'))->group(function () {",
+    "  Route::get('/from-config', fn () => null);",
+    '});',
+    'Route::prefix(API_PREFIX)->group(function () {',
+    "  Route::get('/from-constant', fn () => null);",
+    '});',
+    "Route::group(['prefix' => config('app.api_prefix')], function () {",
+    "  Route::get('/from-array', fn () => null);",
+    '});',
+    "Route::prefix('api' . '/v1')->group(function () {",
+    "  Route::get('/from-concatenation', fn () => null);",
+    '});',
+    "Route::group(['prefix' => 'api' . '/v1'], function () {",
+    "  Route::get('/from-array-concatenation', fn () => null);",
+    '});',
+    "Route::get('/outside', fn () => null);",
+    '',
+  ].join('\n'));
+  const expanded = expandDslFacts(facts);
+
+  assert.deepEqual(keys(expanded), ['GET /outside']);
+  assert.equal(expanded.unknowns.length, 5);
+  assert.ok(expanded.unknowns.every((entry) => entry.code === 'DSL_DYNAMIC_DECLARATION'));
+});
+
+test('Laravel Route::match expands only a complete supported literal method list and literal URI', () => {
+  const facts = extractLaravelDslFacts([
+    "Route::prefix('api')->group(function () {",
+    "  Route::match(['GET', 'POST'], '/matched', fn () => null);",
+    '});',
+    "Route::match($methods, '/dynamic', fn () => null);",
+    "Route::match(['GET', $method], '/mixed', fn () => null);",
+    "Route::match(['GET'], config('route.uri'), fn () => null);",
+    "Route::match(['GET', 'GET'], '/deduplicated', fn () => null);",
+    "Route::match(['GET'], \"/users/$id\", fn () => null);",
+    '',
+  ].join('\n'));
+  const expanded = expandDslFacts(facts);
+
+  assert.deepEqual(keys(expanded), [
+    'GET /api/matched', 'GET /deduplicated', 'POST /api/matched',
+  ]);
+  assert.equal(expanded.unknowns.length, 4);
+  assert.ok(expanded.unknowns.every((entry) => entry.code === 'DSL_DYNAMIC_DECLARATION'));
+});
+
+test('Laravel bounded multiline group chains never emit a stripped dynamic-prefix path', () => {
+  const facts = extractLaravelDslFacts([
+    "Route::prefix('api')",
+    "  ->middleware('auth')",
+    '  ->group(function () {',
+    "    Route::get('/literal', fn () => null);",
+    '  });',
+    'Route::group(',
+    "  ['prefix' => config('app.api_prefix')],",
+    '  function () {',
+    "    Route::get('/dynamic', fn () => null);",
+    '  });',
+    "Route::prefix('v2')->group(",
+    '  function () {',
+    "    Route::get('/split-callback', fn () => null);",
+    '  });',
+    "Route::prefix('{tenant}')",
+    "  ->middleware('auth')",
+    '  ->group(function () {',
+    "    Route::get('/parameterized-prefix', fn () => null);",
+    '  });',
+    'Route::group([',
+    "  'prefix' => config('app.other_prefix'),",
+    '], function () {',
+    "  Route::get('/split-array', fn () => null);",
+    '});',
+    "Route::get('/outside', fn () => null);",
+    '',
+  ].join('\n'));
+  const expanded = expandDslFacts(facts);
+
+  assert.deepEqual(keys(expanded), [
+    'GET /api/literal', 'GET /outside', 'GET /v2/split-callback',
+    'GET /{tenant}/parameterized-prefix',
+  ]);
+  assert.equal(expanded.unknowns.length, 2);
+});
+
+test('Laravel handler closures do not end their enclosing group scope', () => {
+  const facts = extractLaravelDslFacts([
+    "Route::prefix('api')->group(function () {",
+    "  Route::get('/first', function () {",
+    "    return 'first';",
+    '  });',
+    "  Route::prefix('v1')->group(function () {",
+    "    Route::get('/nested', function () {",
+    "      return 'nested';",
+    '    });',
+    '  });',
+    "  Route::get('/second', fn () => 'second');",
+    '});',
+    '',
+  ].join('\n'));
+
+  assert.deepEqual(keys(expandDslFacts(facts)), [
+    'GET /api/first',
+    'GET /api/second',
+    'GET /api/v1/nested',
+  ]);
+});
+
 test('Laravel irregular resource parameter is an unknown instead of a fabricated singular', () => {
   const expanded = expandDslFacts(extractLaravelDslFacts("Route::apiResource('people', PersonController::class);\n"));
   assert.equal(expanded.candidates.length, 0);
