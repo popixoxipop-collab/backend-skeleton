@@ -848,7 +848,7 @@ const MUTATIONS = [
   ['T17 is allowed to edit a path it does not own', 'rfc', (t) => t.replace('| T01 | none, no import |', '| T01 | edit |'), /cannot be allowed to edit/],
   ['a reserved path is listed as stable surface', 'rfc', (t) => t.replace('`test/webgame-contract.test.mjs` | stable surface', '`test/webgame-contract.test.mjs`, `package.json` | stable surface'), /ownership: package.json is listed as stable surface/],
   ['a path that does not exist is listed', 'rfc', (t) => t.replace('`lib/trust-next`', '`lib/trust-nxt`'), /ownership: lib\/trust-nxt does not exist/],
-  ['a directory listing loses a file', 'rfc', (t) => t.replace('`README.md`, `native-export-envelope.mjs`', '`native-export-envelope.mjs`'), /phrases: missing "`adapters\/game-next` holds exactly/],
+  ['a directory listing loses a file', 'rfc', (t) => t.replace('`README.md`, `T17_01_UNITY_HEADER_CORRECTION.md`', '`T17_01_UNITY_HEADER_CORRECTION.md`'), /phrases: missing "`adapters\/game-next` holds exactly/],
   ['the claim about other engines is dropped', 'rfc', (t) => t.replace('a project that declares only another engine package is not found', 'any engine package is found'), /phrases: missing "a project is found only when/]
 ];
 test('the checks can fail: every edit of a copy of a document is reported with a named reason', () => {
