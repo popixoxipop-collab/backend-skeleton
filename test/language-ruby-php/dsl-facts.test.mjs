@@ -149,6 +149,141 @@ test('Laravel: variable URI and Route::macro are explicit unknowns', () => {
   assert.match(macro.unknownReason, /runtime/);
 });
 
+test('Laravel: non-literal group prefixes taint descendants instead of stripping the prefix', () => {
+  const report = extractLaravelDslFacts([
+    "Route::prefix(config('app.api_prefix'))->group(function () {",
+    "  Route::get('/from-config', fn () => null);",
+    '});',
+    'Route::prefix(API_PREFIX)->group(function () {',
+    "  Route::get('/from-constant', fn () => null);",
+    '});',
+    "Route::group(['prefix' => config('app.api_prefix')], function () {",
+    "  Route::get('/from-array', fn () => null);",
+    '});',
+    "Route::prefix('api' . '/v1')->group(function () {",
+    "  Route::get('/from-concatenation', fn () => null);",
+    '});',
+    "Route::group(['prefix' => 'api' . '/v1'], function () {",
+    "  Route::get('/from-array-concatenation', fn () => null);",
+    '});',
+    "Route::middleware('auth')->group(function () {",
+    "  Route::get('/middleware-only', fn () => null);",
+    '});',
+    '',
+  ].join('\n'));
+
+  const groups = byKind(report, 'group');
+  assert.deepEqual(groups.map((fact) => fact.status), [
+    'unknown', 'unknown', 'unknown', 'unknown', 'unknown', 'literal',
+  ]);
+  assert.ok(groups.slice(0, 5).every((fact) => fact.attributes.dynamic));
+  const routes = byKind(report, 'route');
+  assert.deepEqual(routes.map((fact) => fact.status), [
+    'unknown', 'unknown', 'unknown', 'unknown', 'unknown', 'literal',
+  ]);
+  assert.equal(routes.at(-1).attributes.path, '/middleware-only');
+});
+
+test('Laravel: Route::match binds a finite literal method list to its second URI argument', () => {
+  const report = extractLaravelDslFacts([
+    "Route::match(['GET', 'POST'], '/matched', fn () => null)->name('matched');",
+    "Route::match(['get', 'post'], '/lower', fn () => null);",
+    "Route::match($methods, '/dynamic-methods', fn () => 'GET');",
+    "Route::match(['GET', $method], '/mixed-methods', fn () => null);",
+    "Route::match([], '/empty-methods', fn () => null);",
+    "Route::match(['GET', 'CONNECT'], '/unsupported-method', fn () => null);",
+    "Route::match(['GET'], config('route.uri'), fn () => null);",
+    "Route::match(['GET', 'GET'], '/deduplicated', fn () => null);",
+    "Route::match(['GET'], \"/users/$id\", fn () => null);",
+    "Route::get(\"/rock'n\", fn () => null);",
+    '',
+  ].join('\n'));
+  const routes = byKind(report, 'route');
+
+  assert.deepEqual(routes[0].attributes, {
+    methods: ['GET', 'POST'], path: '/matched', routeName: 'matched',
+  });
+  assert.deepEqual(routes[1].attributes.methods, ['GET', 'POST']);
+  assert.equal(routes[1].attributes.path, '/lower');
+  assert.ok(routes.slice(2, 7).every((fact) => fact.status === 'unknown'));
+  assert.ok(routes.slice(2, 6).every((fact) => /method/.test(fact.unknownReason)));
+  assert.match(routes[6].unknownReason, /URI/);
+  assert.deepEqual(routes[7].attributes.methods, ['GET']);
+  assert.equal(routes[7].status, 'literal');
+  assert.equal(routes[8].status, 'unknown');
+  assert.match(routes[8].unknownReason, /URI/);
+  assert.equal(routes[9].attributes.path, "/rock'n");
+  assert.equal(routes[9].status, 'literal');
+});
+
+test('Laravel: bounded multiline group chains preserve or taint their enclosing context', () => {
+  const report = extractLaravelDslFacts([
+    "Route::prefix('api')",
+    "  ->middleware('auth')",
+    '  ->group(function () {',
+    "    Route::get('/literal', fn () => null);",
+    '  });',
+    'Route::group(',
+    "  ['prefix' => config('app.api_prefix')],",
+    '  function () {',
+    "    Route::get('/dynamic', fn () => null);",
+    '  });',
+    "Route::prefix('v2')->group(",
+    '  function () {',
+    "    Route::get('/split-callback', fn () => null);",
+    '  });',
+    "Route::prefix('{tenant}')",
+    "  ->middleware('auth')",
+    '  ->group(function () {',
+    "    Route::get('/parameterized-prefix', fn () => null);",
+    '  });',
+    'Route::group([',
+    "  'prefix' => config('app.other_prefix'),",
+    '], function () {',
+    "  Route::get('/split-array', fn () => null);",
+    '});',
+    "Route::get('/outside', fn () => null);",
+    '',
+  ].join('\n'));
+  const groups = byKind(report, 'group');
+  const routes = byKind(report, 'route');
+
+  assert.deepEqual(groups.map((fact) => fact.status), [
+    'literal', 'unknown', 'literal', 'literal', 'unknown',
+  ]);
+  assert.deepEqual(routes.map((fact) => fact.status), [
+    'literal', 'unknown', 'literal', 'literal', 'unknown', 'literal',
+  ]);
+  assert.equal(routes[0].context[0].prefix, 'api');
+  assert.equal(routes[1].context[0].dynamic, true);
+  assert.equal(routes[2].context[0].prefix, 'v2');
+  assert.equal(routes[3].context[0].prefix, '{tenant}');
+  assert.equal(routes[4].context[0].dynamic, true);
+  assert.deepEqual(routes[5].context, []);
+});
+
+test('Laravel: route handler closure endings do not pop the enclosing route group', () => {
+  const report = extractLaravelDslFacts([
+    "Route::prefix('api')->group(function () {",
+    "  Route::get('/first', function () {",
+    "    return 'first';",
+    '  });',
+    "  Route::prefix('v1')->group(function () {",
+    "    Route::get('/nested', function () {",
+    "      return 'nested';",
+    '    });',
+    '  });',
+    "  Route::get('/second', fn () => 'second');",
+    '});',
+    '',
+  ].join('\n'));
+  const routes = byKind(report, 'route');
+
+  assert.deepEqual(routes.map((fact) => fact.context.map((entry) => entry.prefix)), [
+    ['api'], ['api', 'v1'], ['api'],
+  ]);
+});
+
 test('Symfony: Route attributes retain path, methods, name and the nearest declaration target', () => {
   const report = extractSymfonyRouteAttributeFacts(SYMFONY);
   assertDslFactsEnvelope(report);

@@ -470,6 +470,37 @@ function phpLiteral(input) {
   return m?.[1] ?? null;
 }
 
+function phpExactStringLiteral(input) {
+  const value = input.trim();
+  const quote = value[0];
+  if ((quote !== '"' && quote !== "'") || value.at(-1) !== quote) return null;
+  let escaped = false;
+  for (let i = 1; i < value.length - 1; i++) {
+    const ch = value[i];
+    if (escaped) { escaped = false; continue; }
+    if (ch === '\\') { escaped = true; continue; }
+    if (quote === '"' && ch === '$') return null;
+    if (ch === quote) return null;
+  }
+  if (escaped) return null;
+  return value.slice(1, -1);
+}
+
+function phpBraceDelta(input) {
+  let quote = null;
+  let escaped = false;
+  let delta = 0;
+  for (const ch of input) {
+    if (escaped) { escaped = false; continue; }
+    if (quote && ch === '\\') { escaped = true; continue; }
+    if (quote) { if (ch === quote) quote = null; continue; }
+    if (ch === '"' || ch === "'") { quote = ch; continue; }
+    if (ch === '{') delta++;
+    else if (ch === '}') delta--;
+  }
+  return delta;
+}
+
 function laravelContext(stack) {
   return stack.map((entry) => ({
     kind: 'group',
@@ -481,14 +512,61 @@ function laravelContext(stack) {
 }
 
 function parseLaravelChain(chain) {
-  const prefix = chain.match(/(?:Route::|->)prefix\(\s*["']([^"']+)["']\s*\)/)?.[1] ?? null;
+  const prefixCall = chain.match(/(?:Route::|->)prefix\s*\((.*?)\)/);
+  const prefix = prefixCall ? phpExactStringLiteral(prefixCall[1]) : null;
   const name = chain.match(/->name\(\s*["']([^"']+)["']\s*\)/)?.[1] ?? null;
   const middlewareRaw = chain.match(/(?:Route::|->)middleware\(([^)]*)\)/)?.[1] ?? null;
   const middleware = middlewareRaw
     ? [...middlewareRaw.matchAll(/["']([^"']+)["']/g)].map((m) => m[1])
     : [];
-  const dynamic = /(?:Route::|->)(?:prefix|name|middleware)\(\s*\$/.test(chain);
+  const dynamic = Boolean(prefixCall && prefix == null)
+    || /(?:Route::|->)(?:name|middleware)\(\s*\$/.test(chain);
   return { prefix, name, middleware, dynamic };
+}
+
+const LARAVEL_MATCH_METHODS = new Set([
+  'GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS',
+]);
+
+function parseLaravelMatchMethods(input) {
+  const value = input.trim();
+  let body = null;
+  if (value.startsWith('[') && value.endsWith(']')) body = value.slice(1, -1);
+  else {
+    const array = value.match(/^array\s*\(([\s\S]*)\)$/);
+    if (array) body = array[1];
+  }
+  if (body == null) return null;
+  const entries = splitAttributeArgs(body);
+  if (entries.length === 0) return null;
+  const methods = [];
+  for (const entry of entries) {
+    const literal = phpExactStringLiteral(entry);
+    const method = literal?.toUpperCase() ?? null;
+    if (!method || !LARAVEL_MATCH_METHODS.has(method)) return null;
+    if (!methods.includes(method)) methods.push(method);
+  }
+  return methods;
+}
+
+function parseLaravelArrayGroup(body) {
+  const entries = splitAttributeArgs(body);
+  const prefixEntry = entries.find((entry) => /^\s*["']prefix["']\s*=>/.test(entry));
+  const prefixValue = prefixEntry?.replace(/^\s*["']prefix["']\s*=>\s*/, '') ?? null;
+  const prefix = prefixValue == null ? null : phpExactStringLiteral(prefixValue);
+  const dynamicPrefix = prefixValue != null && prefix == null;
+  return {
+    prefix,
+    name: body.match(/["']as["']\s*=>\s*["']([^"']+)["']/)?.[1] ?? null,
+    middleware: [...body.matchAll(
+      /["']middleware["']\s*=>\s*(?:\[([^\]]*)\]|["']([^"']+)["'])/g,
+    )].flatMap((m) => (
+      m[2]
+        ? [m[2]]
+        : [...(m[1] ?? '').matchAll(/["']([^"']+)["']/g)].map((x) => x[1])
+    )),
+    dynamic: dynamicPrefix || /["'](?:as|middleware)["']\s*=>\s*\$/.test(body),
+  };
 }
 
 export function extractLaravelDslFacts(source, { file = 'routes/api.php' } = {}) {
@@ -500,6 +578,8 @@ export function extractLaravelDslFacts(source, { file = 'routes/api.php' } = {})
   const stack = [];
   const lines = clean.split(/(?<=\n)/);
   let cursor = 0;
+  let braceDepth = 0;
+  let pendingGroup = null;
 
   for (const rawLine of lines) {
     const text = rawLine.replace(/\r?\n$/, '');
@@ -509,54 +589,77 @@ export function extractLaravelDslFacts(source, { file = 'routes/api.php' } = {})
     cursor += rawLine.length;
     if (!trimmed) continue;
     if (/^\}\);?\s*$/.test(trimmed)) {
-      if (stack.length) stack.pop();
+      if (stack.at(-1)?.bodyDepth === braceDepth) stack.pop();
+      braceDepth = Math.max(0, braceDepth + phpBraceDelta(text));
       continue;
     }
+
+    let statement = trimmed;
+    let statementStart = start;
+    if (pendingGroup) {
+      pendingGroup.text += ` ${trimmed}`;
+      statement = pendingGroup.text;
+      statementStart = pendingGroup.start;
+      if (phpBraceDelta(statement) <= 0) {
+        braceDepth = Math.max(0, braceDepth + phpBraceDelta(text));
+        continue;
+      }
+      pendingGroup = null;
+    } else if (
+      (/^Route::(?:prefix|middleware|name)\b/.test(trimmed) && !/->group\s*\(/.test(trimmed))
+      || (
+        /^Route::(?:prefix|middleware|name|group)\b/.test(trimmed)
+        && (/->group\s*\(/.test(trimmed) || /^Route::group\s*\(/.test(trimmed))
+        && !trimmed.includes('{')
+      )
+    ) {
+      pendingGroup = { text: trimmed, start };
+      braceDepth = Math.max(0, braceDepth + phpBraceDelta(text));
+      continue;
+    }
+    braceDepth = Math.max(0, braceDepth + phpBraceDelta(text));
     const context = laravelContext(stack);
 
     if (
-      /^Route::(?:prefix|middleware|name|group)\b/.test(trimmed)
-      && (/->group\s*\(/.test(trimmed) || /^Route::group\s*\(/.test(trimmed))
+      /^Route::(?:prefix|middleware|name|group)\b/.test(statement)
+      && (/->group\s*\(/.test(statement) || /^Route::group\s*\(/.test(statement))
     ) {
-      let attrs = parseLaravelChain(trimmed);
-      const arrayGroup = trimmed.match(/^Route::group\s*\(\s*\[([\s\S]*?)\]\s*,/);
+      let attrs = parseLaravelChain(statement);
+      const arrayGroup = statement.match(/^Route::group\s*\(\s*\[([\s\S]*?)\]\s*,/);
       if (arrayGroup) {
-        const body = arrayGroup[1];
-        attrs = {
-          prefix: body.match(/["']prefix["']\s*=>\s*["']([^"']+)["']/)?.[1] ?? null,
-          name: body.match(/["']as["']\s*=>\s*["']([^"']+)["']/)?.[1] ?? null,
-          middleware: [...body.matchAll(
-            /["']middleware["']\s*=>\s*(?:\[([^\]]*)\]|["']([^"']+)["'])/g,
-          )].flatMap((m) => (
-            m[2]
-              ? [m[2]]
-              : [...(m[1] ?? '').matchAll(/["']([^"']+)["']/g)].map((x) => x[1])
-          )),
-          dynamic: /["'](?:prefix|as|middleware)["']\s*=>\s*\$/.test(body),
-        };
+        attrs = parseLaravelArrayGroup(arrayGroup[1]);
       }
       facts.push(makeFact({
         source, file, framework, language,
         kind: 'group', status: attrs.dynamic ? 'unknown' : 'literal',
         name: attrs.prefix ?? attrs.name,
-        start, end, context,
+        start: statementStart, end, context,
         attributes: attrs,
         ...(attrs.dynamic ? { unknownReason: 'Laravel group metadata is runtime-dependent' } : {}),
       }));
-      stack.push({ ...attrs });
+      stack.push({ ...attrs, bodyDepth: braceDepth });
       continue;
     }
 
     const route = trimmed.match(/^Route::(get|post|put|patch|delete|options|any|match)\s*\((.*)$/);
     if (route) {
-      const routePath = phpLiteral(route[2]);
+      const args = splitAttributeArgs(route[2]);
+      const isMatch = route[1] === 'match';
+      const routePath = phpExactStringLiteral(args[isMatch ? 1 : 0] ?? '');
       const chain = trimmed.slice(trimmed.indexOf(')') + 1);
       const routeName = chain.match(/->name\(\s*["']([^"']+)["']\s*\)/)?.[1] ?? null;
-      const dynamic = routePath == null || context.some((entry) => entry.dynamic);
-      const methods = route[1] === 'match'
-        ? [...route[2].matchAll(/["'](GET|POST|PUT|PATCH|DELETE|OPTIONS)["']/gi)]
-          .map((m) => m[1].toUpperCase())
+      const matchMethods = isMatch ? parseLaravelMatchMethods(args[0] ?? '') : null;
+      const dynamicMethods = isMatch && matchMethods == null;
+      const dynamicContext = context.some((entry) => entry.dynamic);
+      const dynamic = routePath == null || dynamicMethods || dynamicContext;
+      const methods = isMatch
+        ? (matchMethods ?? [])
         : [route[1].toUpperCase()];
+      const unknownReason = dynamicMethods
+        ? 'Laravel Route::match methods are not a finite supported literal list'
+        : routePath == null
+          ? 'Laravel route URI is not a supported literal'
+          : 'Laravel enclosing group metadata is dynamic';
       facts.push(makeFact({
         source, file, framework, language,
         kind: 'route',
@@ -566,7 +669,7 @@ export function extractLaravelDslFacts(source, { file = 'routes/api.php' } = {})
         name: routeName ?? route[1],
         start, end, context,
         attributes: { methods, path: routePath, routeName },
-        ...(dynamic ? { unknownReason: 'Laravel route URI or enclosing group is dynamic' } : {}),
+        ...(dynamic ? { unknownReason } : {}),
       }));
       continue;
     }
