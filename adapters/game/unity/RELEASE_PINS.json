@@ -1,0 +1,18 @@
+{
+  "schema": "sbf.game-unity-target-scope-pins/1",
+  "scope": "static-text-source-target-01-only",
+  "unity": {
+    "editor_version": "6000.0.85f1",
+    "changeset": "ee7790f1426a",
+    "released_on": "2026-10-15",
+    "release_notes_url": "https://unity.com/releases/editor/whats-new/6000.0.85f1",
+    "serialization_manual_version": "6000.0",
+    "text_scene_format_url": "https://docs.unity.com/en-us/engine/6000.0/manual/working-with-scenes/text-scene-format/format-description",
+    "prefab_serialization_url": "https://docs.unity.com/en-us/engine/6000.0/manual/working-with-scenes/text-scene-format/yaml-prefab-serialization"
+  },
+  "source": "Official Unity release notes and Unity 6.0 manual, read 2026-10-30; proprietary Editor source and binary not acquired",
+  "fixture_generated_by_pinned_editor": false,
+  "editor_executed": false,
+  "runtime_certified": false,
+  "release_authorized": false
+}
