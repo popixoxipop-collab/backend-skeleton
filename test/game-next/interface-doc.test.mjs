@@ -421,7 +421,7 @@ const EXPECT = {
     `Artifact references have the shape of ${tick(artifactOf.artifact_ref)}, copied locally: the export has family ${tick(artifactOf.family)} and media type ${tick(artifactOf.media_type)}, a source file has family ${tick(SOURCE_REF.artifact.family)}; both have version ${tick(artifactOf.version)}.`,
     `${tick('verifyNativeExportEnvelope')} reports tokens, not messages: ${ENVELOPE_TOKENS.map(tick).join(', ')}.`,
     `${tick('verifyNativeStructureInvariants')} reports ${STRUCTURE_TOKENS.map(tick).join(', ')}.`,
-    `the text exporters leave out what they do not model and still succeed, reporting ${list(DIAGNOSTIC_CODES)}`,
+    `for successfully parsed supported document structure, unmodeled text is omitted with diagnostics ${list(DIAGNOSTIC_CODES)}; a malformed Unity document header fails instead of silently omitting a document`,
     requiredOptions(),
     `a project is found only when its ${tick('package.json')} declares ${list(DETECTED)}; a project that declares only another engine package is not found`,
     holds('adapters/game-next'),
@@ -773,6 +773,46 @@ test('RFC section 5: ids of the structure are names inside one export, and a sec
   assert.deepEqual(N.verifyNativeStructureInvariants(copy).errors, ['nodes.duplicate-id', 'relations.duplicate-id']);
 });
 
+test('RFC section 5: Unity reference and Godot signal ids follow list positions, not declaration identity', () => {
+  const normalized = (engine, payload) => {
+    const bytes = JSON.stringify(payload);
+    const envelope = E.createNativeExportEnvelope(bytes, { engine, evidenceClass: 'source-export', ...COMMON, sourceInputs: [SOURCE_REF] });
+    return N.normalizeNativeStructureExport(bytes, envelope);
+  };
+  const unityPayload = {
+    schema: profileOf('unity', 'source-export'),
+    documents: [{ file_id: '10', class_id: 1, references: [{ file_id: '11500000' }, { file_id: '11500001' }] }],
+  };
+  const unityBefore = normalized('unity', unityPayload).relations.filter((relation) => relation.kind === 'serialized-reference');
+  const unityAfter = normalized('unity', {
+    ...unityPayload,
+    documents: [{ ...unityPayload.documents[0], references: [...unityPayload.documents[0].references].reverse() }],
+  }).relations.filter((relation) => relation.kind === 'serialized-reference');
+  assert.deepEqual(unityBefore.map(({ id, target_file_id }) => [id, target_file_id]), [
+    ['unity:reference:10:0', '11500000'], ['unity:reference:10:1', '11500001'],
+  ]);
+  assert.deepEqual(unityAfter.map(({ id, target_file_id }) => [id, target_file_id]), [
+    ['unity:reference:10:0', '11500001'], ['unity:reference:10:1', '11500000'],
+  ]);
+
+  const connections = [
+    { signal: 'pressed', from: 'Button', to: '.', method: '_on_pressed' },
+    { signal: 'hit', from: 'Player', to: '.', method: '_on_hit' },
+  ];
+  const godotPayload = { schema: profileOf('godot', 'source-export'), scenes: [{ path: 'Scenes/a.tscn', signal_connections: connections }] };
+  const godotBefore = normalized('godot', godotPayload).declarations.signals;
+  const godotAfter = normalized('godot', {
+    ...godotPayload,
+    scenes: [{ ...godotPayload.scenes[0], signal_connections: [...connections].reverse() }],
+  }).declarations.signals;
+  assert.deepEqual(godotBefore.map(({ id, signal }) => [id, signal]), [
+    ['godot:signal:Scenes/a.tscn:0', 'pressed'], ['godot:signal:Scenes/a.tscn:1', 'hit'],
+  ]);
+  assert.deepEqual(godotAfter.map(({ id, signal }) => [id, signal]), [
+    ['godot:signal:Scenes/a.tscn:0', 'hit'], ['godot:signal:Scenes/a.tscn:1', 'pressed'],
+  ]);
+});
+
 test('RFC section 6: a partial reading succeeds, and its diagnostics are in neither the envelope, the payload nor the structure', () => {
   for (const [engine, build, partialText, complete, file] of [['unity', X.buildUnityTextSceneExport, UNITY_PARTIAL, UNITY, 'Assets/Main.unity'], ['godot', X.buildGodotTextSceneExport, GODOT_PARTIAL, GODOT, 'scenes/main.tscn']]) {
     const partial = build(partialText, { path: file, ...COMMON });
@@ -782,6 +822,7 @@ test('RFC section 6: a partial reading succeeds, and its diagnostics are in neit
     assert.deepEqual([partial.envelope.status, structure.status, Object.keys(partial.payload)], [complete.envelope.status, STRUCT[engine].status, Object.keys(complete.payload)], `${engine}: partial and complete look alike`);
   }
   for (const diagnostic of DIAGNOSTICS) assert.equal(diagnostic.section !== undefined, /SECTION/.test(diagnostic.code), `${diagnostic.code}: the section key belongs to the section diagnostic only`);
+  refused(() => X.buildUnityTextSceneExport(UNITY_TEXT.replace('--- !u!1 &6', '--- !u!1 &6 stripped'), { path: 'Assets/Main.unity', ...COMMON }), Error, /unsupported Unity document header/, 'a malformed Unity document header is not a diagnostic-only omission');
   refused(() => X.buildUnityTextSceneExport(UNITY_TEXT, { path: 'Assets/Main.txt', ...COMMON }), TypeError, /must end in/, 'a Unity path of another kind');
   refused(() => X.buildGodotTextSceneExport(UNITY_TEXT, { path: 'scenes/main.tscn', ...COMMON }), Error, /gd_scene/, 'Unity text read as Godot');
 });

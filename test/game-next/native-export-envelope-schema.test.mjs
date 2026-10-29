@@ -126,6 +126,7 @@ const CASES = [
   ['artifact byte_sha256 deleted (identity missing)', (e) => { delete e.artifact.byte_sha256; }, false, false, 'artifact'],
   ['artifact byte_sha256 upper case', (e) => { e.artifact.byte_sha256 = e.artifact.byte_sha256.toUpperCase(); }, false, false, 'artifact'],
   ['artifact byte_sha256 too short', (e) => { e.artifact.byte_sha256 = e.artifact.byte_sha256.slice(1); }, false, false, 'artifact'],
+  ['artifact byte_sha256 array coercion', (e) => { e.artifact.byte_sha256 = [e.artifact.byte_sha256]; }, false, false, 'artifact'],
   ['artifact size negative', (e) => { e.artifact.size_bytes = -1; }, false, false, 'artifact'],
   ['artifact size fractional', (e) => { e.artifact.size_bytes = 1.5; }, false, false, 'artifact'],
   ['artifact size beyond the safe integer range', (e) => { e.artifact.size_bytes = 2 ** 53; }, false, false, 'artifact'],
@@ -150,6 +151,7 @@ const CASES = [
   ['source media type without a slash', (e) => { e.source_inputs[0].artifact.media_type = 'plain'; }, false, false, 'source_inputs'],
   ['source artifact family of an export', (e) => { e.source_inputs[0].artifact.family = 'game-native-export'; }, false, false, 'source_inputs'],
   ['source artifact digest invalid', (e) => { e.source_inputs[0].artifact.byte_sha256 = 'abc'; }, false, false, 'source_inputs'],
+  ['source artifact digest array coercion', (e) => { e.source_inputs[0].artifact.byte_sha256 = [e.source_inputs[0].artifact.byte_sha256]; }, false, false, 'source_inputs'],
   ['source input extra property', (e) => { e.source_inputs[0].extra = 1; }, false, false, 'source_inputs'],
   ['source artifact extra property', (e) => { e.source_inputs[0].artifact.extra = 1; }, false, false, 'source_inputs'],
   // The schema is stricter: the code verifier does not look at these.
