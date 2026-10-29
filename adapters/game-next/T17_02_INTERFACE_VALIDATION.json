@@ -1,8 +1,36 @@
 {
   "schema": "sbf.game-next-interface-validation/1",
-  "status": "pending-independent-replay",
+  "status": "replayed",
   "scope": "T17-02 interface and schema checks; no runtime or release certification",
-  "source_revision": null,
-  "commands": [],
-  "file_sha256": {}
+  "source_revision": "b2a6b10a13de092ed4d27a36003f267729f20943",
+  "source_parent": "feae5a08453c6e1ada7f6cba005de608fdd25435",
+  "replayed_at": "2026-10-30T02:33:03+09:00",
+  "host": "BOB.local",
+  "node_version": "v26.7.0",
+  "commands": [
+    {
+      "argv": ["node", "--test", "test/game-next/interface-doc.test.mjs", "test/game-next/native-export-envelope-schema.test.mjs"],
+      "exit_code": 0,
+      "tests": 25,
+      "pass": 25,
+      "fail": 0,
+      "skip": 0
+    },
+    {
+      "argv": ["node", "scripts/run-next-nested-tests.mjs", "T17"],
+      "exit_code": 0,
+      "tests": 59,
+      "pass": 58,
+      "fail": 0,
+      "skip": 1,
+      "skip_reason": "The historical BASELINE.json live-tree replay is deliberately skipped after the pinned base revision; its pinned-commit replay passed."
+    }
+  ],
+  "file_sha256": {
+    "adapters/game-next/INTERFACE_RFC.md": "848b60b0ad2a42f83040ddebea1ba416bf60881dfb35cc2735a0cd1573a30fea",
+    "adapters/game-next/native-export-envelope.mjs": "adb2916b9f152cc330fc16878d9c9c2429962d8f4ef52b21596db8cefe64c430",
+    "adapters/game-next/native-export-envelope.schema.json": "990c5d75f95caaef34d8ded935d2860d062dd9e6371fbeb335f674c020bca26b",
+    "test/game-next/interface-doc.test.mjs": "450757258fce97eef138aeaeae4e29526aca98b44c0c316656328f5223635d19",
+    "test/game-next/native-export-envelope-schema.test.mjs": "c47717ce5685f834e5bd203806ed68d3ba194212559d07182d07460232e29d4b"
+  }
 }
