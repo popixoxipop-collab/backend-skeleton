@@ -1,0 +1,46 @@
+{
+  "schema": "sbf.game-threejs-01-validation/1",
+  "task": "GAME-threejs-01",
+  "scope": "static source scope, fixtures, and evidence plan only",
+  "source_base": "06c2d043b6b656fff330daf465b1ddfb068c5df1",
+  "source_revision": "8f24eeab8e48f5c94c1b66366a0cafd357dcbc19",
+  "source_tree": "b13c7bef979049df4b7e8716a39e30fce032d3b1",
+  "files_sha256": {
+    "adapters/game-next/INTERFACE_RFC.md": "90e226bbbf2aa8c4c99d1a2a704f837d140a52d6e2ceae4119c39109be509c34",
+    "adapters/game/threejs/RELEASE_PINS.json": "5e5b2fdb13372f8effc37b1ddae998446ed19caf1a0d4c7f0ada57d8d3ae804b",
+    "adapters/game/threejs/SCOPE.md": "367d72b5d6fa3857e714aaa84c655cf8a4fdddde150e2bd6a1e4c3c77e85df3b",
+    "adapters/game/threejs/fixtures/counterexamples.fixture.json": "bf21934326850d1112a8fef72835177f187dd03c5f6a9859a5a5503bc3cf2514",
+    "adapters/game/threejs/fixtures/static-declaration.fixture.json": "00d2d026ad39d8cf3fae7fcbfed1a4e3e1e403d556df93826d301d65cd442c05",
+    "test/game-next/threejs-target-scope.test.mjs": "06d3ec58ecab01fefb10c384f6fc99afed82e26d03a910c7be87969de65f8b3e"
+  },
+  "upstream_pins_verified": {
+    "three_tag": "r180",
+    "three_commit": "0af9729d0c143a86a1d725d6e2c3ad83301f3f34",
+    "three_package_blob": "fb4fe9d2224cffaf922f006cbff4b4adda87ecf5",
+    "three_package_version": "0.180.0",
+    "three_gltf_exporter_blob": "2da060f940b591fa0a461a34b936d94c80a0cebd",
+    "fiber_tag": "v9.0.0",
+    "fiber_commit": "95500b437af0403a1f822388a661b15f508c5627",
+    "fiber_package_blob": "ec267b80c8b05c28504d0b1b97cf1ba63de543d1",
+    "fiber_package_version": "9.0.0"
+  },
+  "replay": {
+    "host": "BOB.local",
+    "node_version": "v26.7.0",
+    "commands": [
+      { "argv": ["node", "--test", "test/game-next/threejs-target-scope.test.mjs"], "exit_code": 0, "tests": 4, "pass": 4, "fail": 0, "skipped": 0 },
+      { "argv": ["node", "--test", "test/webgame-contract.test.mjs"], "exit_code": 0, "tests": 5, "pass": 5, "fail": 0, "skipped": 0 },
+      { "argv": ["node", "scripts/run-next-nested-tests.mjs", "T17"], "exit_code": 0, "tests": 63, "pass": 62, "fail": 0, "skipped": 1, "skip_reason": "historical baseline live-tree drift; pinned baseline commit replay passes" },
+      { "argv": ["node", "next/t00/check-ownership.mjs", "paths", "--track", "T17", "--git-diff", "06c2d043b6b656fff330daf465b1ddfb068c5df1", "8f24eeab8e48f5c94c1b66366a0cafd357dcbc19"], "exit_code": 0, "owned_paths": 6 },
+      { "argv": ["git", "diff", "--check", "06c2d043b6b656fff330daf465b1ddfb068c5df1", "8f24eeab8e48f5c94c1b66366a0cafd357dcbc19"], "exit_code": 0 }
+    ],
+    "full_receipt_sha256": "d98c2680c8be21a1da09930c61428677e7f00865c71250e520749a92f63a2347"
+  },
+  "authority": {
+    "target_01_met_awarded": false,
+    "r3f_target_credit": false,
+    "runtime_certified": false,
+    "signed_independent_attestation": false,
+    "release_authorized": false
+  }
+}

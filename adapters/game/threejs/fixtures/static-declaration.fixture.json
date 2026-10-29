@@ -1,0 +1,10 @@
+{
+  "schema": "sbf.game-threejs-target-fixture/1",
+  "package": {
+    "name": "game-threejs-01-static-fixture",
+    "private": true,
+    "dependencies": { "three": "0.180.0" }
+  },
+  "source_file": "src/game.js",
+  "source": "import * as THREE from 'three';\n\nconst scene = new THREE.Scene();\nconst actor = new THREE.Mesh();\nconst renderer = new THREE.WebGLRenderer();\nscene.add(actor);\n\nfunction animate() {\n  requestAnimationFrame(animate);\n  renderer.render(scene, camera);\n}\n\nloader.load('/assets/direct.glb');\nanimate();\n"
+}
