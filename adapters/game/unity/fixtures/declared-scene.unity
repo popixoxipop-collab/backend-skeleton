@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &10
+GameObject:
+  m_Name: Actor
+  m_IsActive: 1
+  m_Component:
+  - component: {fileID: 11}
+  - component: {fileID: 12}
+--- !u!4 &11
+Transform:
+  m_GameObject: {fileID: 10}
+  m_Father: {fileID: 0}
+--- !u!114 &12
+MonoBehaviour:
+  m_GameObject: {fileID: 10}
+  m_Script: {fileID: 11500000, guid: 9cbd8cdf99d44b58972fbc7f6f38088f, type: 3}
+  m_Enabled: 1
