@@ -1,7 +1,0 @@
-{
-  "name": "game-threejs-01-static-fixture",
-  "private": true,
-  "dependencies": {
-    "three": "0.180.0"
-  }
-}
