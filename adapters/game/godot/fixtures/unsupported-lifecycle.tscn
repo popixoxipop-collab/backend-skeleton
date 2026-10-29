@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://player.gd" id="1_player"]
+
+[node name="Main" type="Node3D"]
+
+[node name="Player" type="CharacterBody3D" parent="."]
+script = ExtResource("1_player")
+process_mode = 4
+visible = false
+
+[editable path="Player"]
+
+[connection signal="hit" from="Player" to="." method="_on_hit"]
