@@ -1,0 +1,26 @@
+{
+  "schema": "sbf.game-r3f-target-scope-pins/1",
+  "scope": "static-source-target-01-only",
+  "observed_on": "2026-10-30",
+  "three": {
+    "package": "three",
+    "version": "0.180.0",
+    "tag": "r180",
+    "tag_object_sha": "9e8635e2031c25859dc47ba07e72230dccb2682a",
+    "commit_sha": "0af9729d0c143a86a1d725d6e2c3ad83301f3f34",
+    "package_json_blob_sha": "fb4fe9d2224cffaf922f006cbff4b4adda87ecf5",
+    "gltf_exporter_blob_sha": "2da060f940b591fa0a461a34b936d94c80a0cebd"
+  },
+  "react_three_fiber": {
+    "package": "@react-three/fiber",
+    "version": "9.0.0",
+    "tag": "v9.0.0",
+    "commit_sha": "95500b437af0403a1f822388a661b15f508c5627",
+    "package_json_blob_sha": "ec267b80c8b05c28504d0b1b97cf1ba63de543d1",
+    "three_peer_range": ">=0.156",
+    "react_peer_range": "^19.0.0"
+  },
+  "threejs_target_credit": false,
+  "runtime_certified": false,
+  "release_authorized": false
+}
