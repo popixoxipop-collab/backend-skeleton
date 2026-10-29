@@ -103,6 +103,6 @@ Nested shapes; the test compares each key list with the objects that real calls 
 | `package.json`, `scripts/run-next-nested-tests.mjs`, `.github/workflows` | coordinator | read only, never edit |
 
 `adapters/game-next` holds exactly: `BASELINE.json`, `INTEGRATION.md`, `INTERFACE_RFC.md`, `NATIVE_STRUCTURE_FORMATS.md`, `README.md`, `T17_01_UNITY_HEADER_CORRECTION.md`, `T17_02_INTERFACE_VALIDATION.json`, `native-export-envelope.mjs`, `native-export-envelope.schema.json`, `native-structure-normalizer.mjs`, `native-text-source-exporters.mjs`.
-`test/game-next` holds exactly: `baseline-record-lib.mjs`, `baseline-record.test.mjs`, `interface-doc.test.mjs`, `native-export-envelope-schema.test.mjs`, `native-structure-media-type.test.mjs`, `native-text-source-exporters.test.mjs`, `r3f-target-scope.test.mjs`, `threejs-target-scope.test.mjs`. A new file in either needs this RFC updated first.
+`test/game-next` holds exactly: `baseline-record-lib.mjs`, `baseline-record.test.mjs`, `godot-target-scope.test.mjs`, `interface-doc.test.mjs`, `native-export-envelope-schema.test.mjs`, `native-structure-media-type.test.mjs`, `native-text-source-exporters.test.mjs`, `r3f-target-scope.test.mjs`, `threejs-target-scope.test.mjs`. A new file in either needs this RFC updated first.
 
 `T17_02_INTERFACE_VALIDATION.json` records the source revision, exact commands, exit codes, test counts and file hashes of the interface checks after independent replay. It is a reproducibility receipt, not an engine-runtime or release attestation.
