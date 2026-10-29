@@ -421,7 +421,7 @@ const EXPECT = {
     `Artifact references have the shape of ${tick(artifactOf.artifact_ref)}, copied locally: the export has family ${tick(artifactOf.family)} and media type ${tick(artifactOf.media_type)}, a source file has family ${tick(SOURCE_REF.artifact.family)}; both have version ${tick(artifactOf.version)}.`,
     `${tick('verifyNativeExportEnvelope')} reports tokens, not messages: ${ENVELOPE_TOKENS.map(tick).join(', ')}.`,
     `${tick('verifyNativeStructureInvariants')} reports ${STRUCTURE_TOKENS.map(tick).join(', ')}.`,
-    `the text exporters leave out what they do not model and still succeed, reporting ${list(DIAGNOSTIC_CODES)}`,
+    `for successfully parsed supported document structure, unmodeled text is omitted with diagnostics ${list(DIAGNOSTIC_CODES)}; a malformed Unity document header fails instead of silently omitting a document`,
     requiredOptions(),
     `a project is found only when its ${tick('package.json')} declares ${list(DETECTED)}; a project that declares only another engine package is not found`,
     holds('adapters/game-next'),
@@ -822,6 +822,7 @@ test('RFC section 6: a partial reading succeeds, and its diagnostics are in neit
     assert.deepEqual([partial.envelope.status, structure.status, Object.keys(partial.payload)], [complete.envelope.status, STRUCT[engine].status, Object.keys(complete.payload)], `${engine}: partial and complete look alike`);
   }
   for (const diagnostic of DIAGNOSTICS) assert.equal(diagnostic.section !== undefined, /SECTION/.test(diagnostic.code), `${diagnostic.code}: the section key belongs to the section diagnostic only`);
+  refused(() => X.buildUnityTextSceneExport(UNITY_TEXT.replace('--- !u!1 &6', '--- !u!1 &6 stripped'), { path: 'Assets/Main.unity', ...COMMON }), Error, /unsupported Unity document header/, 'a malformed Unity document header is not a diagnostic-only omission');
   refused(() => X.buildUnityTextSceneExport(UNITY_TEXT, { path: 'Assets/Main.txt', ...COMMON }), TypeError, /must end in/, 'a Unity path of another kind');
   refused(() => X.buildGodotTextSceneExport(UNITY_TEXT, { path: 'scenes/main.tscn', ...COMMON }), Error, /gd_scene/, 'Unity text read as Godot');
 });
