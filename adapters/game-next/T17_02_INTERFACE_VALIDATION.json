@@ -1,0 +1,8 @@
+{
+  "schema": "sbf.game-next-interface-validation/1",
+  "status": "pending-independent-replay",
+  "scope": "T17-02 interface and schema checks; no runtime or release certification",
+  "source_revision": null,
+  "commands": [],
+  "file_sha256": {}
+}
