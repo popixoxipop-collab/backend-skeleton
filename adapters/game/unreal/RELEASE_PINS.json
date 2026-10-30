@@ -1,0 +1,17 @@
+{
+  "schema": "sbf.game-unreal-target-scope-pins/1",
+  "scope": "declared-reflection-target-01-only",
+  "unreal": {
+    "release_series": "5.8",
+    "released_on": "2026-06-23",
+    "announcement_url": "https://www.unrealengine.com/news/unreal-engine-5-8-is-now-available",
+    "release_notes_url": "https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-5-8-release-notes",
+    "reflection_manual_url": "https://dev.epicgames.com/documentation/unreal-engine/reflection-system-in-unreal-engine"
+  },
+  "source": "Official Epic announcement, UE 5.8 release notes and reflection manual, read 2026-10-30; exact patch, changelist, engine source and binary not acquired",
+  "fixture_generated_by_pinned_engine": false,
+  "engine_executed": false,
+  "exporter_implemented": false,
+  "runtime_certified": false,
+  "release_authorized": false
+}
