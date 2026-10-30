@@ -47,11 +47,21 @@ check for a specific failure mode found the same way — see `DECISIONS.md` for 
   - [Signed gate attestations (optional)](#signed-gate-attestations-optional)
   - [Signed observe receipts (optional)](#signed-observe-receipts-optional)
 - [Compatibility](#compatibility)
+- [Bounded context packets](#bounded-context-packets)
 - [Generated-file policy](#generated-file-policy)
 - [Security model](#security-model)
 - [Troubleshooting](#troubleshooting)
 - [What ships in the package](#what-ships-in-the-package)
 - [License](#license)
+
+## Bounded context packets
+
+`bskel context pack --contract specs/001-widget/contracts/001-widget.schema.json --files src/app.mjs --out context/widget.json --json`
+packages the original feature contract and selected source files from one committed Git snapshot.
+It preserves exact bytes and unknowns, records whole-file budget omissions, and provides a compact
+human guide when `--json` is omitted. BECODER can bind its existing plan to the packet; BEVAL can
+independently verify the same Git snapshot and plan linkage. See [context packet v1](docs/context-packet-v1.md)
+for the wire schema, limits and product boundary.
 
 ## Status: 1.0.0
 
