@@ -66,6 +66,7 @@ test('NEG-GAME-01: nearby input and movement names never become a causal edge', 
 });
 
 test('NEG-GAME-02: candidate self-certification is rejected at the intake boundary', () => {
+  assert.equal(fs.existsSync(path.join(root, 'adapters/game-next/legacy-webgame-bridge.mjs')), false);
   const { raw, envelope } = bound();
   const candidate = structuredClone(envelope);
   candidate.claims.runtime_behavior_verified = true;
@@ -73,6 +74,8 @@ test('NEG-GAME-02: candidate self-certification is rejected at the intake bounda
     valid: false, errors: ['claims.runtime_behavior_verified'],
   });
   assert.throws(() => normalizeNativeStructureExport(raw, candidate), /envelope invalid/);
+  assert.throws(() => normalized({ ...base(), candidate_reported_pass: true }),
+    /unsupported fields: candidate_reported_pass/);
 });
 
 test('NEG-GAME-03: duplicate display names keep distinct local identities', () => {
