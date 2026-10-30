@@ -4,7 +4,7 @@ This is the `GAME-unreal-01` **declared-reflection scope** record. It is not Unr
 
 ## Exact upstream boundary
 
-`RELEASE_PINS.json` pins the officially announced [Unreal Engine 5.8 release series](https://www.unrealengine.com/news/unreal-engine-5-8-is-now-available) of 2026-06-23, its [release notes](https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-5-8-release-notes), and Epic's [reflection manual](https://dev.epicgames.com/documentation/unreal-engine/reflection-system-in-unreal-engine). The announcement does not establish an exact installed patch, source changelist or local executable identity. No engine source, binary or Editor-generated export was acquired. The envelope's `engineVersion` and `producer` values are caller declarations, not verified identities. Version or source drift needs new adjudication.
+`RELEASE_PINS.json` pins the officially announced [Unreal Engine 5.8 release series](https://www.unrealengine.com/news/unreal-engine-5-8-is-now-available) of 2026-06-23 and the [5.8.4 hotfix](https://forums.unrealengine.com/t/5-8-4-hotfix-released/2842775) announced 2026-10-20, along with its [release notes](https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-5-8-release-notes) and Epic's [reflection manual](https://dev.epicgames.com/documentation/unreal-engine/reflection-system-in-unreal-engine). This is an exact **published version** pin, not an installed patch, source changelist or local executable identity. No engine source, binary or Editor-generated export was acquired. The envelope's `engineVersion` and `producer` values are caller declarations, not verified identities. Version or source drift needs new adjudication.
 
 ## Fixture matrix and claim limits
 
@@ -19,6 +19,6 @@ The fixtures are authored regression samples, **not Engine-generated**. In the t
 
 ## Reproduction and later gates
 
-Run `node --test test/game-next/unreal-target-scope.test.mjs`, `node --test test/game-next/native-export-envelope-schema.test.mjs`, and `node scripts/run-next-nested-tests.mjs T17` on the exact source revision. Record commands, exits, TAP totals, release-series identity and SHA-256 of target-owned files in `GAME_UNREAL_01_VALIDATION.json`. Validate T17 ownership, exact-head required CI and independent review, then replay the protected merge on Bob before a one-row T00 adjudication.
+Run `node --test test/game-next/unreal-target-scope.test.mjs`, `node --test test/game-next/native-export-envelope-schema.test.mjs`, and `node scripts/run-next-nested-tests.mjs T17` on the exact source revision. Record commands, exits, TAP totals, pinned 5.8.4 version identity and SHA-256 of target-owned files in `GAME_UNREAL_01_VALIDATION.json`. Validate T17 ownership, exact-head required CI and independent review, then replay the protected merge on Bob before a one-row T00 adjudication.
 
 `GAME-unreal-02` needs a real bounded producer, production bridge/contract wiring, a precise patch/changelist and asset/Blueprint coverage or explicit unsupported states. `GAME-unreal-03` needs independent engine-export cross-verification and limited certification or an explicit blocked result. T00/T19/T20 gates, independent attestation and `release=BLOCKED` remain separate.

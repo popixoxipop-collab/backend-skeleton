@@ -29,7 +29,7 @@ const producer = {
 const envelope = (bytes = payloadBytes, sourceBytes = header) => createNativeExportEnvelope(bytes, {
   engine: 'unreal',
   evidenceClass: 'source-export',
-  engineVersion: pins.unreal.release_series,
+  engineVersion: pins.unreal.hotfix_version,
   platform: 'test-only',
   producer,
   sourceInputs: [createNativeSourceRef(sourceBytes, { path: headerPath })],
@@ -42,11 +42,15 @@ const normalize = (value) => {
 test('Unreal target-01 pins an official release series, never a verified engine or producer', () => {
   assert.equal(pins.schema, 'sbf.game-unreal-target-scope-pins/1');
   assert.equal(pins.scope, 'declared-reflection-target-01-only');
-  assert.deepEqual([pins.unreal.release_series, pins.unreal.released_on], ['5.8', '2026-06-23']);
+  assert.deepEqual([pins.unreal.release_series, pins.unreal.released_on,
+    pins.unreal.hotfix_version, pins.unreal.hotfix_released_on],
+  ['5.8', '2026-06-23', '5.8.4', '2026-10-20']);
   assert.equal(pins.unreal.announcement_url,
     'https://www.unrealengine.com/news/unreal-engine-5-8-is-now-available');
   assert.equal(pins.unreal.release_notes_url,
     'https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-5-8-release-notes');
+  assert.equal(pins.unreal.hotfix_announcement_url,
+    'https://forums.unrealengine.com/t/5-8-4-hotfix-released/2842775');
   for (const field of ['fixture_generated_by_pinned_engine', 'engine_executed',
     'exporter_implemented', 'runtime_certified', 'release_authorized']) assert.equal(pins[field], false);
   assert.deepEqual(fs.readdirSync(path.join(target, 'fixtures')).sort(),
@@ -63,7 +67,7 @@ test('hand-authored reflection shape binds exact bytes but emits only declared f
   assert.match(header.toString(), /UFUNCTION\(Server, Reliable\)/);
   const bound = envelope();
   assert.equal(bound.engine, 'unreal');
-  assert.equal(bound.engine_version, '5.8');
+  assert.equal(bound.engine_version, '5.8.4');
   assert.equal(bound.evidence_class, 'source-export');
   assert.equal(bound.status, 'bound-uninterpreted');
   assert.deepEqual(verifyNativeExportEnvelope(bound, {
