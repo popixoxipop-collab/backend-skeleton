@@ -1,0 +1,78 @@
+{
+  "schema": "sbf.http-target-scope/1",
+  "task": "HTTP-rust-axum-01",
+  "track": "T13",
+  "target": "rust-axum",
+  "status": "scope-only",
+  "claims": {
+    "adapter_implemented": false,
+    "static_extraction_verified": false,
+    "runtime_tested": false,
+    "supported": false,
+    "certified": false
+  },
+  "upstream_pin": {
+    "crate": "axum",
+    "version": "0.8.9",
+    "tag": "axum-v0.8.9",
+    "commit": "c59208c86fded335cd85e388030ad59347b0e5ae",
+    "rust_version_minimum": "1.80",
+    "release": "https://github.com/tokio-rs/axum/releases/tag/axum-v0.8.9",
+    "sources": [
+      { "path": "Cargo.toml", "sha256": "c5bb614b53a399d8f254dcbced18e772c53b848bbb16025cebc0be77122e5395" },
+      { "path": "axum/Cargo.toml", "sha256": "33fa07ebf37f268bfb4c0ccbf1245a80c58a92884789e358c695329772f0b9fc" },
+      { "path": "axum/src/docs/routing/route.md", "sha256": "d505aa7e5b04b67ba3f419bf02c8d1b2dc94fc3ecde54299b1b13ca7d33b856d" },
+      { "path": "axum/src/docs/routing/nest.md", "sha256": "23db0a99ad0d3f837eb7c9657cdc6ad340cfa35b8d1e116d3f1e814fb2f97dfd" },
+      { "path": "axum/src/docs/routing/route_layer.md", "sha256": "75aa29e4bd02f13f6beacb56098c8ecdbbd624267fa45edf8974bfbb3e2da36a" }
+    ]
+  },
+  "fixture_root": "test/http-wave-bc/fixtures/target-scope/axum",
+  "fixtures": [
+    { "id": "crate-pin", "path": "Cargo.toml", "sha256": "76a6a3ae1681683b8683a513dbce2e1b0b057c43757d5da1bd0e526a646b4e67", "role": "dependency-pin" },
+    { "id": "literal-nested-router", "path": "normal/src/lib.rs", "sha256": "7cd2a13a5ecbc239086c1efe5f41d457def1dab74e0f2ba0eac3a3eb06c7b1e1", "role": "normal" },
+    { "id": "dynamic-nest", "path": "counterexamples/dynamic-nest/src/lib.rs", "sha256": "7dc39d625385decc070445f31dca134ccf0cf4c040ace0f1bc25f6badb6f829d", "role": "counterexample" },
+    { "id": "nested-fallback", "path": "counterexamples/nested-fallback/src/lib.rs", "sha256": "d46af485da4d86eddc7577deb8f916e10e58dc5f9315351db6ec58b7bee34976", "role": "counterexample" },
+    { "id": "route-layer-order", "path": "counterexamples/route-layer/src/lib.rs", "sha256": "d0f935024bd0521c7c2dffb4eadd84493b827fae08edbfae1ea88890e0740712", "role": "counterexample" }
+  ],
+  "constructs": [
+    {
+      "id": "literal-route-and-nest",
+      "status": "fixture-only-unassessed",
+      "source_expectation": ["GET /health", "GET /api/users/{id}", "POST /api/users"],
+      "runtime_oracle_required": true
+    },
+    {
+      "id": "dynamic-nest",
+      "status": "unknown-until-input-binding",
+      "invariant": "A caller-supplied nest prefix is not replaced with an invented literal route."
+    },
+    {
+      "id": "nested-fallback",
+      "status": "unknown-until-request-probe",
+      "invariant": "A nested fallback may answer unmatched paths differently from the outer fallback; route facts alone do not certify response behavior."
+    },
+    {
+      "id": "route-layer-order",
+      "status": "unknown-until-request-probe",
+      "invariant": "route_layer affects only previously declared routes; an added route or an unmatched path is not presumed protected."
+    }
+  ],
+  "runtime_oracle_plan": {
+    "not_executed_in_this_scope": true,
+    "toolchain": "Pinned Rust 1.80 or later, exact rustc/cargo binaries and hashes recorded before any use",
+    "steps": [
+      "Verify the signed axum-v0.8.9 tag, source hashes, crate checksum, Cargo.lock and complete dependency graph under an approved isolated runner.",
+      "Materialize each authored fixture as a separate src/lib.rs with the pinned Cargo.toml; compile and run cargo test under a T20-approved toolchain and constrained dependency cache.",
+      "Use tower::ServiceExt::oneshot with method, path and header probes for normal routes, dynamic nest inputs, nested fallbacks and route_layer declaration order; record exact request/response observations.",
+      "Bind source bytes, toolchain profile, dependency lock and oracle outputs before T16 independent read and T19 mutation review.",
+      "Only after T00 authorizes HTTP composition, evaluate an HTTP leaf and bridge separately; do not infer support from the T08 static scanner."
+    ],
+    "promotion_dependencies": ["HTTP-rust-axum-02", "HTTP-rust-axum-03", "T16", "T19", "T20", "T00"]
+  },
+  "limits": [
+    "These Rust files are hand-authored planning fixtures, not upstream source copies or compiled evidence.",
+    "T08 Rust inline-snippet scanner results are not credited as an HTTP adapter or as this target's runtime oracle.",
+    "No Axum adapter, registry, CLI path or shared-schema projection is added; T08-05 HTTP composition remains BLOCKED.",
+    "No Rust toolchain, Axum server, request probe, independent attestation or release gate is exercised here."
+  ]
+}
