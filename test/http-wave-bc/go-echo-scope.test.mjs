@@ -6,7 +6,8 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const scopePath = path.join(root, 'adapters/http-wave-bc/scope/go-echo.SCOPE.json');
+// *.SCOPE.json is reserved for the seven existing cross-track scanner records.
+const scopePath = path.join(root, 'adapters/http-wave-bc/scope/go-echo.TARGET_SCOPE.json');
 const scope = JSON.parse(fs.readFileSync(scopePath, 'utf8'));
 const expectedFiles = [
   'go.mod',
