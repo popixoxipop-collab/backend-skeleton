@@ -1,0 +1,97 @@
+{
+  "schema": "sbf.http-target-scope/1",
+  "task": "HTTP-go-echo-01",
+  "track": "T13",
+  "target": "go-echo",
+  "status": "scope-only",
+  "claims": {
+    "adapter_implemented": false,
+    "static_extraction_verified": false,
+    "runtime_tested": false,
+    "supported": false,
+    "certified": false
+  },
+  "upstream_pin": {
+    "module": "github.com/labstack/echo/v5",
+    "version": "v5.4.0",
+    "commit": "fc410094b2f3415cf2bf5204082137b205bfd5af",
+    "go_mod_minimum": "1.25.0",
+    "release": "https://github.com/labstack/echo/releases/tag/v5.4.0",
+    "go_mod": "https://github.com/labstack/echo/blob/v5.4.0/go.mod",
+    "routing_reference": "https://echo.labstack.com/docs/routing"
+  },
+  "fixture_root": "test/http-wave-bc/fixtures/target-scope/echo",
+  "fixtures": [
+    {
+      "id": "module-pin",
+      "path": "go.mod",
+      "sha256": "7b2143a2623cf2d8260821cf0796a8a6956df8865b10f32057a3769bcb11b9ad",
+      "role": "dependency-pin"
+    },
+    {
+      "id": "normal-literal-groups",
+      "path": "normal/main.go",
+      "sha256": "aad41ab63a584dc03abea28ff0242264d54a5c6b2b8c966d7b58ae17833bb91e",
+      "role": "normal"
+    },
+    {
+      "id": "dynamic-group-prefix",
+      "path": "counterexamples/dynamic-prefix/main.go",
+      "sha256": "5db29348454cf571cbcf1cd5a336edd8e6145ac326b4ca0fe8074d440d933939",
+      "role": "counterexample"
+    },
+    {
+      "id": "group-middleware-auth",
+      "path": "counterexamples/group-middleware/main.go",
+      "sha256": "993e870756edd1abf914e2c62352282f8322e8c6981ead418a003a82fe9220c9",
+      "role": "counterexample"
+    },
+    {
+      "id": "any-match-methods",
+      "path": "counterexamples/any-match/main.go",
+      "sha256": "17acd3377bf1088194f33a75a29d64dfa237adfb540759e455cc27ead3299758",
+      "role": "counterexample"
+    }
+  ],
+  "constructs": [
+    {
+      "id": "literal-method-and-static-group",
+      "status": "fixture-only-unassessed",
+      "source_expectation": ["GET /health", "GET /api/users/:id", "POST /api/users"],
+      "runtime_oracle_required": true
+    },
+    {
+      "id": "dynamic-group-prefix",
+      "status": "unknown-until-runtime-or-input-binding",
+      "invariant": "A caller-provided prefix is not replaced with a guessed literal route."
+    },
+    {
+      "id": "group-middleware-auth",
+      "status": "unknown-until-request-probe",
+      "invariant": "A route declaration does not certify authorization behavior."
+    },
+    {
+      "id": "any-match-methods",
+      "status": "unknown-until-versioned-route-oracle",
+      "invariant": "Any is not flattened into one GET route; Match keeps its explicit method set."
+    }
+  ],
+  "runtime_oracle_plan": {
+    "not_executed_in_this_scope": true,
+    "go_toolchain": "Go 1.25.0 or later compatible with the pinned module, version and binary hash recorded before use",
+    "steps": [
+      "Verify the v5.4.0 module tag and exact dependency bytes against the upstream pin.",
+      "Build each fixture in an isolated Go module cache without target-controlled install hooks.",
+      "Record e.Router().Routes() after registration, preserving Any/Match and group-prefix semantics.",
+      "Use httptest requests for normal, dynamic-prefix, method and middleware counterexamples; bind request/response evidence to fixture bytes and runtime profile.",
+      "Have T16 independently re-read artifacts and T19 review mutations before any limited certification."
+    ],
+    "promotion_dependencies": ["HTTP-go-echo-02", "HTTP-go-echo-03", "T16", "T19", "T20", "T00"]
+  },
+  "limits": [
+    "These Go files are hand-authored scope fixtures, not upstream source copies or compiled evidence.",
+    "No Echo adapter, registry or CLI path is added; no route, authorization or middleware behavior is certified.",
+    "The routing reference is a current official guide; the immutable v5.4.0 commit governs the version pin.",
+    "No real Go toolchain, Echo server, request probe, independent attestation or release gate is exercised by this scope record."
+  ]
+}
