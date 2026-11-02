@@ -1,0 +1,8 @@
+{
+  "name": "sbf/symfony-http-scope-fixture",
+  "type": "project",
+  "require": {
+    "php": ">=8.4.1",
+    "symfony/framework-bundle": "8.1.10"
+  }
+}

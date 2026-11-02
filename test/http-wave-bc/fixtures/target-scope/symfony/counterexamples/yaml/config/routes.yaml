@@ -1,0 +1,4 @@
+yaml_only:
+  path: /yaml-only
+  controller: App\Controller\UserController::create
+  methods: [GET]
