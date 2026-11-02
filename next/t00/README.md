@@ -88,10 +88,12 @@ Which track may write which path in which repository, and the gate that checks i
 | `fixtures/plan-write-scopes.json` | Snapshot of the write scopes in the plan backlog (the plan folder is outside this checkout). |
 | `fixtures/ownership-rules.json` | The reserved hot paths and the limits the map states. |
 | `INTERFACE_RFC.md` | Inputs, rules, unknown and partial cases, codes, and how a track uses the gate. |
+| `check-path-exception.mjs`, `PATH_EXCEPTION_PROTOCOL.md`, `receipts/` | Exact-head T00 shared-file exception verification; strict map unchanged. |
 
 ```
 node next/t00/check-ownership.mjs map
 node next/t00/check-ownership.mjs paths --track T05 --git-diff <merge-base> HEAD
+node next/t00/check-path-exception.mjs --repo-dir <candidate-checkout> --repository becoder --track T15 --base <sha> --head <sha> --receipt <trusted-receipt.json> --receipt-sha256 <digest>
 node next/t00/build-ownership-map.mjs
 node next/t00/make-ownership-report.mjs --check
 node next/t00/snapshot-plan.mjs --check <backlog.json>
@@ -109,6 +111,9 @@ protocol is `LEASE_PROTOCOL.md`. Both gates, this one and the ownership gate, ar
 workflow calls `check-lease.mjs` or `check-ownership.mjs`, and no job runs a gate on the diff of a pull request or on a real
 ledger. The CI test job runs `npm test`, which includes `test/t00-lease.test.mjs` and `test/t00-ownership.test.mjs`; they run
 the gates on fixtures, on this checkout and on scaffold copies of it.
+
+The exact-head path-exception checker is operator-invoked too: its unit tests run in `npm test`, but CI does not yet
+authenticate a coordinator comment or fetch a trusted cross-repository receipt. See `PATH_EXCEPTION_PROTOCOL.md`.
 
 | File | Role |
 |---|---|

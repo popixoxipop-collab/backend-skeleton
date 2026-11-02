@@ -51,25 +51,14 @@ jobs:
   # Gradle and no network -- pure java.* stdlib, a two-file `javac` + one `java -cp` invocation,
   # sub-second -- cheap enough to run in the fast job on every push/PR, the same bar python3
   # already clears for the sibling Python codec test in this same job.
-  # W7: this job (and the 8 below it through java-integration) now run on the self-hosted
-  # `macstudio` runner for push(main)/schedule/workflow_dispatch, and stay on GitHub-hosted
-  # ubuntu-latest for pull_request -- UNCHANGED there, zero new exposure. Found live, not
-  # theoretical: during the real 2026-08-26/27 GitHub Actions billing outage, every ubuntu-latest
-  # job in this file failed with "recent account payments have failed" while the ALREADY-
-  # self-hosted `macos` job below (unaffected -- self-hosted execution isn't billed the same way)
-  # succeeded in the same run. `pull_request` is deliberately excluded from ever reaching
-  # `macstudio` here -- see the `macos` job's own SECURITY comment below for the full reasoning
-  # (a self-hosted runner reachable from `pull_request` runs the PR's own arbitrary code on the
-  # user's personal, always-on machine); this ternary keeps that exact same boundary while adding
-  # billing-outage resilience for push-to-main, which only an already-trusted pusher can trigger.
-  # `sudo apt-get install ripgrep` stays, but now gated `if: runner.os != 'macOS'` -- macstudio
-  # already has `rg` on PATH via the runner's own `.env` file (same as the `macos` job never
-  # needing this step), but `pull_request` still resolves to ubuntu-latest, which genuinely needs
-  # apt's own ripgrep install. An earlier version of this change dropped the step outright,
-  # silently breaking every pull_request run the moment it merged -- caught by a real
-  # workflow_dispatch run, not by inspection; kept as a cautionary note for the next reader.
+  # T00 resource recovery: required checks use isolated GitHub-hosted Linux on PRs and main
+  # pushes, so a stopped or resource-gated EOE listener cannot strand protected main CI.
+  # Private-repository Actions minutes are consumed; the earlier self-hosted billing-outage
+  # fallback is no longer available for required checks. The manual macOS diagnostic job
+  # below remains separate. Untrusted pull_request code never reaches a personal runner.
   test:
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -105,7 +94,8 @@ jobs:
   # fails unless scripts/run-next-nested-tests.mjs declares it expectedAbsent with a ref;
   # once a source namespace exists, missing/empty nested tests fail closed.
   nested-next:
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     # A job-level block replaces the workflow-level one; actions: read lets the T23 verify step read this repository's own CI run.
     permissions:
       contents: read
@@ -116,6 +106,9 @@ jobs:
         node: ['22.x', '24.x']
     steps:
       - uses: actions/checkout@v4
+        with:
+          # T04 pinned-source tests run concurrently and must not race while mutating .git/shallow.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
@@ -181,9 +174,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node release/next/release-policy.mjs verify --online --online-roles bskel release/next/compatibility-inventory.json release/next/release-plan.json release/next/evidence-manifest.json
-  # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
+  # T00: required PR and main-push checks use hosted Linux; see the test job note.
   package-install:
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -203,9 +197,10 @@ jobs:
   # D-fixture-corpus (P3): the first automated proof that `bskel handles emit`'s generated Java
   # actually compiles -- previously a one-time manual run, narrated in DECISIONS.md, on this one
   # machine, with a hand-symlinked JDK17 toolchain. See scripts/java-compile-smoke.mjs.
-  # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
+  # T00: required PR and main-push checks use hosted Linux; see the test job note.
   java-compile:
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -231,9 +226,10 @@ jobs:
   # network-touching check kept out of the fast `test` job's default `npm test` path) -- installs
   # fastapi+sqlmodel into a throwaway venv and imports every file `bskel handles emit` generates
   # for real, not just `ast.parse`s them. See scripts/python-import-smoke.mjs.
-  # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
+  # T00: required PR and main-push checks use hosted Linux; see the test job note.
   python-import:
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -276,9 +272,10 @@ jobs:
   # `npx tsc --noEmit` against generated code -- unlike Python (dynamically typed, where a real
   # import already proves the meaningful thing), TypeScript's whole value proposition IS its
   # compiler. See scripts/typescript-typecheck-smoke.mjs.
-  # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
+  # T00: required PR and main-push checks use hosted Linux; see the test job note.
   typescript-compile:
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -298,7 +295,7 @@ jobs:
   # local Homebrew Postgres. Same dedicated-job shape as java-compile/python-import above (a
   # real, network/service-touching check kept out of the fast `test` job's default `npm test`
   # path).
-  # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
+  # T00: required PR and main-push checks use hosted Linux; see the test job note.
   # GitHub Actions' native `services:` container -- used here through the D-fixture-corpus/A4
   # eras -- is Linux-only ("Container operations are only supported on Linux runners"); a real
   # workflow_dispatch run against macstudio failed immediately with exactly that error the first
@@ -316,7 +313,8 @@ jobs:
   # carries `DOCKER_HOST=unix:///Users/eoe/.colima/default/docker.sock` since colima's socket
   # isn't at the standard `/var/run/docker.sock` path.
   db-introspect:
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -381,7 +379,8 @@ jobs:
   # never compiles anything, only scans + a real `bskel handles emit`), own DB name so it can't
   # collide with a job running in the same container lifecycle.
   registry-coverage:
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -426,7 +425,8 @@ jobs:
   # why services: isn't used (macOS-incompatible). No ripgrep install here -- unlike
   # db-introspect-smoke.mjs, this script never calls `bskel scan`.
   ddl-apply:
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -467,7 +467,8 @@ jobs:
   # for why services: isn't used (macOS-incompatible). Ripgrep IS needed here (unlike ddl-apply) --
   # this smoke script's own establishThroughContract() calls a real `bskel scan`.
   cross-feature-fk:
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -513,7 +514,8 @@ jobs:
   # `services:` was replaced with a manual docker run/health-poll/cleanup sequence -- GitHub's
   # services: orchestration is Linux-only, not something colima's real Docker daemon can fix.
   python-integration:
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -572,9 +574,10 @@ jobs:
   # java-compile, this job's Gradle wrapper is already COMMITTED (it ships inside the npm package
   # for real consumers) -- no `gradle/actions/setup-gradle` needed for correctness, only kept for
   # its dependency-cache speedup between runs. See scripts/java-ast-smoke.mjs.
-  # W7: see the `test` job's own comment above for the full pull_request/push runs-on design.
+  # T00: required PR and main-push checks use hosted Linux; see the test job note.
   java-ast:
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -605,10 +608,11 @@ jobs:
   # W7: see the `test`/`db-introspect` jobs' own comments above for the runs-on design and why
   # `services:` was replaced with a manual docker run/health-poll/cleanup sequence -- GitHub's
   # services: orchestration is Linux-only, not something colima's real Docker daemon can fix.
-  # This job (already the heaviest -- a real `./gradlew test`) is exactly the kind of check most
-  # worth insulating from a hosted-runner billing outage.
+  # This is the heaviest required check; the 60-minute cap bounds hosted cost and a stuck
+  # Gradle run, while billing/account availability remains an explicit hosted-runner risk.
   java-integration:
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","macOS","macstudio"]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -657,6 +661,7 @@ jobs:
   # containing only Rails, so `bundle install --local` uses exactly the gems installed here.
   rails-integration:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -695,15 +700,9 @@ jobs:
   # runner service does NOT source `~/.zprofile` -- without it `rg` (this job's one real,
   # un-guarded-by-setup-* dependency, see below) would silently not be found.
   #
-  # SECURITY (caught by automated post-push review on this job's first commit, fixed same-PR
-  # before merge): a self-hosted runner must NEVER be reachable from `pull_request` -- that event
-  # (unlike `pull_request_target`) checks out and runs the PR HEAD's own workflow/test-script
-  # content, so anyone able to open a PR could run arbitrary code directly on the user's personal,
-  # always-on Mac mini (GitHub's own self-hosted-runner hardening guide flags exactly this
-  # combination as unsafe). `if: github.event_name != 'pull_request'` makes this job a no-op on
-  # PRs -- only `push`(main)/`workflow_dispatch`, i.e. only someone who can already push to main
-  # (already fully trusted), can cause anything to execute here. The job still appears (skipped,
-  # non-blocking) on PR checks so this file's own CI-workflow tests stay accurate.
+  # SECURITY/RESOURCE: this personal self-hosted runner is a manual diagnostic only. Neither
+  # untrusted PRs nor routine main pushes/schedules may queue on EOE. workflow_dispatch must
+  # be invoked by a trusted operator after a fresh resource check; it is not a required check.
   # Residual risk, accepted for now: the runner's `_work` directory is NOT wiped between jobs
   # (only actions/checkout's own `clean: true`, the default, resets the tracked repo dir) -- a
   # compromised push to main could still leave state for the next job to find. Not mitigated here
@@ -718,7 +717,7 @@ jobs:
   # indefinitely, instead of just timing out with the disposable VM at the platform default.
   macos:
     runs-on: [self-hosted, macOS, macstudio]
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -755,6 +754,7 @@ jobs:
   # Never blocks a PR: `schedule`/`workflow_dispatch` only, via the `if:` below.
   spring-initializr-canary:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
