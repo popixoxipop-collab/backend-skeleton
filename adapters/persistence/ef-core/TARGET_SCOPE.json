@@ -1,0 +1,94 @@
+{
+  "schema": "sbf.persistence-target-scope/1",
+  "task": "ORM-ef-core-01",
+  "track": "T10",
+  "target": "ef-core",
+  "status": "scope-only",
+  "catalog_state": "blocked-upstream-facts",
+  "claims": {
+    "t08_source_facts_delivered": false,
+    "adapter_implemented": false,
+    "runtime_tested": false,
+    "supported": false,
+    "certified": false
+  },
+  "upstream_pin": {
+    "repository": "dotnet/efcore",
+    "version": "10.0.12",
+    "tag": "v10.0.12",
+    "commit": "001bfac21c1910cdf1110ca256c9ea0a06f374ca",
+    "release": "https://github.com/dotnet/efcore/releases/tag/v10.0.12",
+    "documentation": [
+      "https://learn.microsoft.com/en-us/ef/core/modeling/entity-types",
+      "https://learn.microsoft.com/en-us/ef/core/modeling/keys",
+      "https://learn.microsoft.com/en-us/ef/core/modeling/relationships/foreign-and-principal-keys"
+    ],
+    "sources": [
+      { "path": "src/EFCore/Metadata/Builders/EntityTypeBuilder.cs", "sha256": "54f516f6d1ee167bc1887a17e42905147b3e2f22d1f6842b06bf17dcee0a18ee" },
+      { "path": "src/EFCore.Relational/Extensions/RelationalEntityTypeBuilderExtensions.cs", "sha256": "845aa680ba42f229d5a1177fbec85c5a32730bb063a8ad193bd2300cc9ca31df" },
+      { "path": "src/EFCore.Relational/Extensions/RelationalPropertyBuilderExtensions.cs", "sha256": "00e0991276723d473003f42f34e883b959bb62c8ccc73e1e051f2752f894c681" },
+      { "path": "src/EFCore/Metadata/Builders/ReferenceCollectionBuilder.cs", "sha256": "e5c4649002655c5498fcd990bc6745f85e61d4f6087065b58fbec477346958ce" },
+      { "path": "src/EFCore/Metadata/Conventions/KeyDiscoveryConvention.cs", "sha256": "088641fcfe536941f0554e99b15c7f1ef17084edefe55c088771316c79790254" },
+      { "path": "src/EFCore.Relational/Metadata/Conventions/RelationalTableAttributeConvention.cs", "sha256": "fe492089f8d27f06df927cd0684a6eb07e9889b47949e6ee3ed1a23b15fdde68" }
+    ],
+    "version_boundary": "EF Core 10.0.12 relational model planning only; EF Core 9, EF Core 11 preview, provider-specific conventions and later 10.x patches are excluded"
+  },
+  "fixture_root": "adapters/persistence/ef-core/fixtures",
+  "fixtures": [
+    { "id": "package-pin", "path": "Plan.csproj", "sha256": "f47a4e4086861d030e34e2b09cf3cd6c300d2edc2c11b6a731469b987e34a5fc", "role": "dependency-pin" },
+    { "id": "normal-fluent-mapping", "path": "normal/Models.cs", "sha256": "c40afd6b204c8940dcbd7735b799f6f89e7e238c78c1844926618cfa5eedb368", "role": "normal" },
+    { "id": "fluent-override", "path": "counterexamples/fluent-override/Models.cs", "sha256": "a6012e5cff2c9ba537fe1a793b0c5490cd3e88e75421fa8ae1a8ee0592910e5e", "role": "counterexample" },
+    { "id": "composite-key", "path": "counterexamples/composite-key/Models.cs", "sha256": "212003dfc3740183f659ef0bb94340cc5bbf8d6f5c28036c47c7311aa66b8e97", "role": "counterexample" },
+    { "id": "shadow-fk", "path": "counterexamples/shadow-fk/Models.cs", "sha256": "5338344b0a9e5e51bd926c0bdf5fee66c6eb4674796911a32ec42faaffd0ce6c", "role": "counterexample" },
+    { "id": "runtime-schema", "path": "counterexamples/runtime-schema/Models.cs", "sha256": "ebe3a3ca7006373311be41608a23d70b8c569c2d9a1aeb4802ed1c60ce768ed6", "role": "counterexample" }
+  ],
+  "constructs": [
+    {
+      "id": "explicit-table-column-key-and-relation",
+      "status": "fixture-only-unassessed",
+      "source_expectation": ["Account → billing.accounts(account_id)", "Invoice → billing.invoices(invoice_id, account_id)"],
+      "runtime_oracle_required": true
+    },
+    {
+      "id": "fluent-overrides-annotation",
+      "status": "unknown-until-model-probed",
+      "invariant": "Fluent ToTable may override a Table attribute; the attribute alone is not the physical table oracle."
+    },
+    {
+      "id": "composite-key",
+      "status": "unknown-until-ordered-key-probed",
+      "invariant": "HasKey over two properties must preserve physical key order; no single-id projection is allowed."
+    },
+    {
+      "id": "shadow-foreign-key",
+      "status": "unknown-until-model-probed",
+      "invariant": "HasForeignKey with a string may create an EF shadow property absent from the CLR type."
+    },
+    {
+      "id": "runtime-schema",
+      "status": "unknown-until-process-configuration-bound",
+      "invariant": "Environment-dependent ToTable schema cannot be assigned one static physical schema without runtime binding."
+    }
+  ],
+  "runtime_oracle_plan": {
+    "not_executed_in_this_scope": true,
+    "toolchain": "Pin an exact .NET 10 SDK, NuGet package/content hashes, EF Core 10.0.12 and an approved relational provider on a T20-isolated runner",
+    "steps": [
+      "Verify v10.0.12 Git tag/commit, six upstream source hashes and exact NuGet package versions and checksums before restore.",
+      "Materialize each authored fixture as a separate C# project with provider and DbContextOptions; restore with a locked dependency graph, build and retain compiler diagnostics and SDK identity.",
+      "Read DbContext.Model metadata for each case: table/schema, StoreObjectIdentifier column names, ordered FindPrimaryKey properties, foreign/principal key pairs and IsShadowProperty flags; compare with source expectations.",
+      "Bind two TENANT_SCHEMA values separately and test annotation-versus-Fluent precedence, composite key ordering and shadow FK behavior; never infer a fixed schema from source alone.",
+      "For physical migration/schema comparison use an approved provider and disposable database that supports schemas; SQLite alone cannot verify schema-qualified tables.",
+      "Require CR-T10-002/T08 C# semantic facts, T16 independent read and T19 mutation review before any T10 provider or support claim.",
+      "Check T01 projection, packed-artifact consumption and certification only after upstream facts and T00 composition approval; preserve blocked catalog state until then."
+    ],
+    "promotion_dependencies": ["CR-T10-002/T08 C# facts", "ORM-ef-core-02", "ORM-ef-core-03", "T01", "T16", "T19", "T20", "T00"]
+  },
+  "limits": [
+    "The C# files are hand-authored planning fixtures, not upstream source copies, compiled models or executed EF Core runtime evidence.",
+    "The .NET SDK, NuGet restore/lock, relational provider, model metadata and physical database comparisons are not executed in this scope.",
+    "The catalog remains blocked-upstream-facts; accepted source-facts admission is not certification or generation handoff.",
+    "No T08 C# persistence facts, T10 parser/provider, shared-contract projection, registry entry or packed-artifact path is added.",
+    "No independent attestation, target certification or release gate is exercised here."
+  ]
+}
