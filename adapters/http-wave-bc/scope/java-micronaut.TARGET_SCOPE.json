@@ -1,0 +1,94 @@
+{
+  "schema": "sbf.http-target-scope/1",
+  "task": "HTTP-java-micronaut-01",
+  "track": "T13",
+  "target": "java-micronaut",
+  "status": "scope-only",
+  "claims": {
+    "adapter_implemented": false,
+    "static_extraction_verified": false,
+    "runtime_tested": false,
+    "supported": false,
+    "certified": false
+  },
+  "upstream_pin": {
+    "platform": {
+      "repository": "micronaut-projects/micronaut-platform",
+      "version": "5.2.4",
+      "tag": "v5.2.4",
+      "tag_object": "16fffa97f08f8675e0c244698176d3bd78558cef",
+      "commit": "24098f833f9580f73b6fee648532e81406a954a8",
+      "release": "https://github.com/micronaut-projects/micronaut-platform/releases/tag/v5.2.4",
+      "sources": [
+        { "path": "gradle.properties", "sha256": "65a74bb0a6bc0fa1c90d92bd5ea0507c393a3e24267e6493dc1c757b6efb5b0a" },
+        { "path": "gradle/libs.versions.toml", "sha256": "fbf5c99867d58468e8a25c304b35519c5257aee200aeec5b1a99bf9a3aaf72c3" }
+      ]
+    },
+    "core": {
+      "repository": "micronaut-projects/micronaut-core",
+      "version": "5.2.20",
+      "tag": "v5.2.20",
+      "tag_object": "9b63ad5a3931c6b734a6813e090dda7a0e94d307",
+      "commit": "077ee7c2d728a152bed5c7aafa040e8aac27fccd",
+      "sources": [
+        { "path": "http/src/main/java/io/micronaut/http/annotation/Controller.java", "sha256": "7b74e587c81f771017318efb3b13bf698628e7078b238632addaa16a951ed1a2" },
+        { "path": "http/src/main/java/io/micronaut/http/annotation/Get.java", "sha256": "2517b2a2b885d65ff5dc8b2362cb5e7cb14dc51326561076ae23ba2229c5f862" },
+        { "path": "http/src/main/java/io/micronaut/http/annotation/Post.java", "sha256": "efb55e8ccd6a46a459708f5a9f29ede93b9606faaded96a2cc899a29df07777b" },
+        { "path": "http/src/main/java/io/micronaut/http/annotation/RouteCondition.java", "sha256": "d9086c77d3452fbf57c3b0fbfc94d872a41699359e9f333e004dbd6222dba753" },
+        { "path": "inject/src/main/java/io/micronaut/context/annotation/Requires.java", "sha256": "0651b75e3f9597483fc7efec2ebfe9467d86698851785a293c817d11f0931a04" }
+      ]
+    },
+    "jdk_minimum_from_5_announcement": "25"
+  },
+  "fixture_root": "test/http-wave-bc/fixtures/target-scope/micronaut",
+  "fixtures": [
+    { "id": "dependency-pin", "path": "pom.xml", "sha256": "01e00a5243626c50cbce5c0beedeb87cbee39a65413913cf0b7fbdbb64dfb289", "role": "dependency-pin" },
+    { "id": "application-entry", "path": "normal/src/main/java/org/sbf/fixture/Application.java", "sha256": "c3e476e1423cc5624d5aa60e9ff343c408ac9c471c992f1a7dd967bab66c514a", "role": "normal" },
+    { "id": "literal-controller-routes", "path": "normal/src/main/java/org/sbf/fixture/UserController.java", "sha256": "45281b9dfaeefff77b302e8cbd4cd5ec6545c4241ee49e9270ac4e843c727fa3", "role": "normal" },
+    { "id": "conditional-bean", "path": "counterexamples/conditional-bean/src/main/java/org/sbf/fixture/FeatureController.java", "sha256": "5e5f6b3ef9a7332c1c819232af8f773b9c78f7d1a6d479b867f824459c44f4bd", "role": "counterexample" },
+    { "id": "route-condition", "path": "counterexamples/route-condition/src/main/java/org/sbf/fixture/VersionController.java", "sha256": "d9af7864bf877dab91e6fc0030d6fe0f7cf4f58d74a2cc14c4926c7fa315f46b", "role": "counterexample" },
+    { "id": "server-context-path", "path": "counterexamples/context-path/src/main/resources/application.properties", "sha256": "58bc454d27fe6629a13e65a5862559671f0f75ce200a89f9f6254367162c64cb", "role": "counterexample" }
+  ],
+  "constructs": [
+    {
+      "id": "literal-controller-method-routes",
+      "status": "fixture-only-unassessed",
+      "source_expectation": ["GET /api/users/{id}", "POST /api/users"],
+      "runtime_oracle_required": true
+    },
+    {
+      "id": "conditional-bean",
+      "status": "unknown-until-property-bound-compile-and-run",
+      "invariant": "@Requires may omit a controller from the bean context; source annotation presence alone is not an available endpoint."
+    },
+    {
+      "id": "route-condition",
+      "status": "unknown-until-request-probe",
+      "invariant": "Two GET routes sharing a path can select different methods by a request-time expression and must not collapse to one unconditional behavior."
+    },
+    {
+      "id": "server-context-path",
+      "status": "unknown-until-config-bound-request-probe",
+      "invariant": "micronaut.server.context-path can prepend a server root that source-only controller paths do not include."
+    }
+  ],
+  "runtime_oracle_plan": {
+    "not_executed_in_this_scope": true,
+    "toolchain": "Pinned JDK 25, Maven compiler/plugin binaries and hashes, platform BOM 5.2.4 and core 5.2.20 dependency graph, isolated approved runner",
+    "steps": [
+      "Verify both annotated tags, their peeled commits, the platform-managed core 5.2.20 version and seven source hashes; resolve Maven dependencies and checksums under a T20-approved isolated runner.",
+      "Compile normal and each counterexample as separately materialized projects with Micronaut annotation processing enabled; capture generated bean and route metadata, dependency tree and effective configuration.",
+      "Use @MicronautTest or an isolated embedded server and HTTP client to probe normal GET/POST plus absent/present feature.users property, v query-parameter route conditions, context-path and unmatched routes.",
+      "Compare source expectations with actual status, body, headers and selected route; bind JDK/Maven versions, generated metadata, config and request/response evidence before T16 independent read and T19 mutation review.",
+      "Only after T00 authorizes HTTP composition, evaluate an HTTP leaf and bridge separately; do not infer support from the T05 JVM framework profile."
+    ],
+    "promotion_dependencies": ["HTTP-java-micronaut-02", "HTTP-java-micronaut-03", "T16", "T19", "T20", "T00"]
+  },
+  "limits": [
+    "These Java and properties files are hand-authored planning fixtures, not upstream source copies, compiled metadata or executed requests.",
+    "The T05 micronaut-http-java vocabulary profile is credited to T05 only; no T13 extractor consumes it here.",
+    "The platform/Core version split is explicit; Micronaut 5 requires JDK 25, so older-JDK results cannot establish this pinned runtime.",
+    "No Micronaut adapter, registry, CLI path or shared-schema projection is added; T08-05 HTTP composition remains BLOCKED.",
+    "No JDK/Maven build, annotation processing, Micronaut server, request probe, independent attestation or release gate is exercised here."
+  ]
+}
