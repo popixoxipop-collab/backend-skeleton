@@ -1,0 +1,3 @@
+# Authored planning fixture; route compiler and runtime have not been run.
+GET     /api/users/:id       controllers.Users.show(id: Long)
+POST    /api/users           controllers.Users.create()
