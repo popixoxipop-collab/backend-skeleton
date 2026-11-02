@@ -1,0 +1,9 @@
+{
+  "schema": "bskel.t00-receipt-index/1",
+  "receipts": [
+    {
+      "file": "T15-03-becoder-PR22.json",
+      "sha256": "7897042b43861e1ec1c901292ebd3b19ed14f935268ebed90e3288083ffdbf90"
+    }
+  ]
+}
