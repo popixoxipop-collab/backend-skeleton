@@ -1,0 +1,78 @@
+{
+  "schema": "sbf.track-a-negative-fixtures/2",
+  "validation": {
+    "commit": "cb6049d68ba0049a4fe7fef6975c2beaab157174",
+    "workflow_run_id": 36027868011,
+    "workflow_run_number": 300,
+    "node22_job_id": 107728957374,
+    "node24_job_id": 107728957377,
+    "conclusion": "success"
+  },
+  "cases": [
+    {
+      "fixture": "comment-only",
+      "assertion": "comments/template text do not create game-runtime evidence"
+    },
+    {
+      "fixture": "reference-only",
+      "assertion": "reference runtime remains partial; playable_runtime_claimed=false"
+    },
+    {
+      "fixture": "reference-package",
+      "assertion": "nested example package dependency/runtime evidence remains reference-only"
+    },
+    {
+      "fixture": "syntax-error",
+      "assertion": "syntax damage is reported unresolved"
+    },
+    {
+      "fixture": "dynamic-import",
+      "assertion": "non-literal dynamic import is reported unresolved"
+    },
+    {
+      "fixture": "ws-client",
+      "assertion": "WebSocket client evidence does not claim a server"
+    },
+    {
+      "fixture": "ws-http-server",
+      "assertion": "ws dependency plus unrelated http.Server does not claim WebSocket server"
+    },
+    {
+      "fixture": "http-server",
+      "assertion": "plain HTTP server is not multiplayer/WebSocket proof"
+    },
+    {
+      "fixture": "ws-dependency-only",
+      "assertion": "dependency-only network remains partial"
+    },
+    {
+      "fixture": "dependency-only",
+      "assertion": "Three.js dependency without active runtime remains partial"
+    },
+    {
+      "fixture": "generator-template",
+      "assertion": "template Three.js code cannot become playable runtime"
+    },
+    {
+      "fixture": "unrelated-render",
+      "assertion": "unrelated object render call cannot complete a Three.js runtime"
+    },
+    {
+      "fixture": "three-import-bindings",
+      "assertion": "namespace and named aliases retain Three.js provenance"
+    },
+    {
+      "fixture": "fake-three-names",
+      "assertion": "same-named local renderer/scene are not promoted as Three.js"
+    }
+  ],
+  "parser_guards": [
+    "Svelte HTML-commented fake script inert",
+    "unclosed Svelte HTML comment inert + unresolved",
+    "regex literal text inert",
+    "template interpolation uncertainty unresolved",
+    "long multiline Three.js imports retained",
+    "constructor assignment binding retained including TypeScript type annotation",
+    "import aliases/namespaces/type-only metadata retained"
+  ]
+}

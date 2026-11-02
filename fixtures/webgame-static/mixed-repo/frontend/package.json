@@ -1,0 +1,6 @@
+{
+  "name": "fixture-game-frontend",
+  "private": true,
+  "dependencies": { "three": "0.180.0", "@sveltejs/kit": "2.0.0" },
+  "scripts": { "build": "vite build" }
+}

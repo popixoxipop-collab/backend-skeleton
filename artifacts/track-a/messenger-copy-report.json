@@ -1,0 +1,7 @@
+{
+  "schema": "sbf.track-a-local-acceptance/1",
+  "target": "Messenger-copy",
+  "status": "not-run",
+  "reason": "The private/local checkout is not exposed to this session. Track A deliberately does not copy it into the public repository.",
+  "required_next_input": "local checkout or authorized remote workspace access"
+}
