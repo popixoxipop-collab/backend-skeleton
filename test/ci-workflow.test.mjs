@@ -59,6 +59,8 @@ test('all protected CI jobs use hosted Linux on both PR and main push; EOE macOS
 	}
 	assert.equal(doc.jobs.macos?.if, "github.event_name == 'workflow_dispatch'");
 	assert.deepEqual(doc.jobs.macos?.['runs-on'], ['self-hosted', 'macOS', 'macstudio']);
+	const nestedCheckout = doc.jobs['nested-next'].steps.find((step) => step.uses?.startsWith('actions/checkout@'));
+	assert.equal(nestedCheckout?.with?.['fetch-depth'], 0, 'pinned-source nested tests must not race on shallow Git fetches');
 });
 
 test('the CI Node matrix floor is never below lib/doctor.mjs\'s MIN_NODE -- the workflow and the tool\'s real requirement cannot silently desync', () => {
