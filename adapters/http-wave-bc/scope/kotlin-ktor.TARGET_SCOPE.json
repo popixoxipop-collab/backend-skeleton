@@ -1,0 +1,82 @@
+{
+  "schema": "sbf.http-target-scope/1",
+  "task": "HTTP-kotlin-ktor-01",
+  "track": "T13",
+  "target": "kotlin-ktor",
+  "status": "scope-only",
+  "claims": {
+    "adapter_implemented": false,
+    "static_extraction_verified": false,
+    "runtime_tested": false,
+    "supported": false,
+    "certified": false
+  },
+  "upstream_pin": {
+    "repository": "ktorio/ktor",
+    "version": "3.6.1",
+    "tag": "3.6.1",
+    "commit": "26cc0037c9f671bbd090633aa2880badb7045855",
+    "release": "https://github.com/ktorio/ktor/releases/tag/3.6.1",
+    "documentation": [
+      "https://ktor.io/docs/server-routing.html",
+      "https://ktor.io/docs/server-testing.html"
+    ],
+    "sources": [
+      { "path": "gradle/libs.versions.toml", "sha256": "386e8f65066a94ef1e2eddf3d7617306090271bdd435b1fb8985b2a2895f9bd8" },
+      { "path": "ktor-server/ktor-server-core/common/src/io/ktor/server/routing/RoutingBuilder.kt", "sha256": "1347f1a520ef82c0fdae617ef94b4869cf9c0964c8a72f1853daa281d752b4e4" },
+      { "path": "ktor-server/ktor-server-core/common/src/io/ktor/server/routing/RouteSelector.kt", "sha256": "b03490ee1c810d04459bf2529d741a6081613793e8c887820420cea0b06589af" },
+      { "path": "ktor-server/ktor-server-test-host/common/src/io/ktor/server/testing/TestApplication.kt", "sha256": "026d1869524611e8714950d98ad0e18aa6f641a06492d4a2aa05927ceaae7688" }
+    ],
+    "kotlin_compiler_from_upstream_catalog": "2.3.21"
+  },
+  "fixture_root": "test/http-wave-bc/fixtures/target-scope/ktor",
+  "fixtures": [
+    { "id": "dependency-pin", "path": "build.gradle.kts", "sha256": "21ea043bb4743b86e4f680ca120ef07a4a5b7b17dc26efd6205a8bd32269edce", "role": "dependency-pin" },
+    { "id": "nested-literal-routes", "path": "normal/src/main/kotlin/org/sbf/fixture/Application.kt", "sha256": "1c6b35e5bf33004d71a67d3b1773c1d69cb269658c768aa37f01080dd6acd8c2", "role": "normal" },
+    { "id": "dynamic-prefix", "path": "counterexamples/dynamic-prefix/src/main/kotlin/org/sbf/fixture/Application.kt", "sha256": "1f72b2328ac29fa36f51b659cfcc802be893b7bb04ef159f8a7ced420bd5e4e6", "role": "counterexample" },
+    { "id": "optional-parameter", "path": "counterexamples/optional-param/src/main/kotlin/org/sbf/fixture/Application.kt", "sha256": "a54bfcc035402ee3d5e3a57398664d165291b042c1c2698ed98c9d0465afdf78", "role": "counterexample" },
+    { "id": "tailcard", "path": "counterexamples/tailcard/src/main/kotlin/org/sbf/fixture/Application.kt", "sha256": "46186e00bfa323e23d96e98ab645fff4fb3f12767ebb889271dd146fb0684440", "role": "counterexample" }
+  ],
+  "constructs": [
+    {
+      "id": "nested-literal-routes",
+      "status": "fixture-only-unassessed",
+      "source_expectation": ["GET /api/users/{id}", "POST /api/users"],
+      "runtime_oracle_required": true
+    },
+    {
+      "id": "dynamic-prefix",
+      "status": "unknown-until-argument-bound-and-request-probed",
+      "invariant": "A route(prefix) expression cannot be projected to a fixed endpoint without the module argument; test at least two prefixes separately."
+    },
+    {
+      "id": "optional-parameter",
+      "status": "unknown-until-request-probed",
+      "invariant": "The terminal {id?} route can match both /items and /items/42 and must not be flattened into a mandatory segment."
+    },
+    {
+      "id": "tailcard",
+      "status": "unknown-until-request-probed",
+      "invariant": "The {parts...} tailcard can capture multiple segments and an empty remainder; single-segment assumptions are unsound."
+    }
+  ],
+  "runtime_oracle_plan": {
+    "not_executed_in_this_scope": true,
+    "toolchain": "Pinned Kotlin 2.3.21, JDK 17, Gradle wrapper/distribution checksum and Ktor 3.6.1 dependencies on a T20-approved isolated runner",
+    "steps": [
+      "Verify the 3.6.1 Git tag and commit, four upstream source hashes, Gradle distribution checksum and resolved dependency checksums before executing any fixture.",
+      "Materialize normal and each counterexample as separate Kotlin projects using the pinned build; compile each variant and retain compiler diagnostics and dependency lock evidence.",
+      "Run Ktor testApplication with application { module() } and client GET/POST requests for normal routes, unmatched methods and paths; record status, body, headers and matched route trace.",
+      "For the dynamic prefix, bind /tenant and /alternate in distinct application instances; probe both roots and negative paths. For optional and tailcard patterns, probe empty, one and multi-segment cases.",
+      "Compare source expectations with runtime responses; obtain T05-approved Kotlin language facts before any extractor claim, then seek T16 independent read and T19 mutation review.",
+      "Evaluate any HTTP leaf/bridge only after T00 authorizes composition; a scope plan does not remove the T08-05 block."
+    ],
+    "promotion_dependencies": ["T05 Kotlin language profile", "HTTP-kotlin-ktor-02", "HTTP-kotlin-ktor-03", "T16", "T19", "T20", "T00"]
+  },
+  "limits": [
+    "These Kotlin files are hand-authored planning fixtures, not upstream source copies, compiled outputs or executed requests.",
+    "T05 ktor-kotlin remains blocked-language-profile: the draft language protocol accepts Java only, and Kotlin DSL cannot be approximated by Java annotations.",
+    "No Kotlin parser, Ktor extractor, adapter, registry, CLI path or shared-schema projection is added; T08-05 HTTP composition remains BLOCKED.",
+    "No JDK/Gradle build, Ktor testApplication, request probe, independent attestation or release gate is exercised here."
+  ]
+}
