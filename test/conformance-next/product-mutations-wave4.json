@@ -1,0 +1,88 @@
+{
+  "contract": "sbf.qa-product-mutation-catalog/1",
+  "mutants": [
+    {
+      "id": "PMUT4-RED-ORIGINAL-ORACLE-IGNORED",
+      "vector_id": "NEG-RUN-02",
+      "critical": true,
+      "file": "test/conformance-next/product-mutation-runner.mjs",
+      "find": "if(baseline.exit_code!==0){",
+      "replace": "if(false){",
+      "test_files": [
+        "test/conformance-next/wave4-run.test.mjs"
+      ],
+      "timeout_ms": 90000,
+      "invariant": "Original-oracle failure blocks comparison instead of producing pass."
+    },
+    {
+      "id": "PMUT4-REQUIRED-ASSERTION-SKIPPED",
+      "vector_id": "NEG-RUN-06",
+      "critical": true,
+      "file": "test/conformance-next/harness.mjs",
+      "find": "for (const assertion of requiredAssertionsNotPassed) errors.push",
+      "replace": "for (const assertion of []) errors.push",
+      "test_files": [
+        "test/conformance-next/wave4-evidence.test.mjs"
+      ],
+      "invariant": "Missing required assertions cannot produce PASS."
+    },
+    {
+      "id": "PMUT4-REFERENCE-PROJECT-IN-DEFAULT-PLAN",
+      "vector_id": "NEG-PROJ-03",
+      "critical": false,
+      "file": "scanners/project-graph/index.mjs",
+      "find": "if (!includeNonActive && project.project_role !== 'active') continue;",
+      "replace": "if (false) continue;",
+      "test_files": [
+        "test/conformance-next/wave4-project.test.mjs"
+      ],
+      "invariant": "Vendored examples and test fixtures do not silently become the primary project."
+    },
+    {
+      "id": "PMUT4-DIAMOND-SECOND-INCOMING-DROPPED",
+      "vector_id": "NEG-ROUTE-04",
+      "critical": false,
+      "file": "scanners/adapters/typescript-express.mjs",
+      "find": "for (const edge of incoming) {",
+      "replace": "for (const edge of incoming.slice(0,1)) {",
+      "test_files": [
+        "test/conformance-next/wave4-route.test.mjs"
+      ],
+      "invariant": "Diamond mount graphs preserve each proven distinct absolute route without accidental deduplication."
+    },
+    {
+      "id": "PMUT4-ROUTER-USE-ALL-COUNTED-AS-CONCRETE",
+      "vector_id": "NEG-ROUTE-06",
+      "critical": false,
+      "file": "scanners/adapters/typescript-express.mjs",
+      "find": "const verbCallRe = routerMemberCallRe(binding.name, VERBS.join('|'), 'g');",
+      "replace": "const verbCallRe = routerMemberCallRe(binding.name, VERBS.join('|') + '|use|all', 'g');",
+      "test_files": [
+        "test/conformance-next/wave4-route.test.mjs"
+      ],
+      "invariant": "Framework method aliases or catch-all registration forms are not mislabeled as an unsupported concrete verb."
+    },
+    {
+      "id": "PMUT4-LITERAL-CASE-NORMALIZED",
+      "vector_id": "NEG-ROUTE-07",
+      "critical": true,
+      "file": "scanners/adapters/typescript-express.mjs",
+      "find": "const endpoints = localEndpoints.map((ep) => ({ ...ep, path: joinPath(prefix, ep.path) }));",
+      "replace": "const endpoints = localEndpoints.map((ep) => ({ ...ep, path: joinPath(prefix, ep.path).toLowerCase() }));",
+      "test_files": [
+        "test/conformance-next/wave4-route.test.mjs"
+      ],
+      "invariant": "Case and percent-encoding differences are not normalized into the same route without framework proof."
+    }
+  ],
+  "coverage_scope": {
+    "planned_catalog": "test/corpus-next/negative-vectors.json",
+    "planned_catalog_sha256": "829ac742786cb570d5ef4238c81bb9051123812beaffce320e211cf6a148e23e",
+    "base_head": "81a46f62b052227cfa64d7a64849c7b1be4f183b",
+    "base_vectors": 43,
+    "new_vectors": 6,
+    "candidate_vectors": 49,
+    "remaining": 30,
+    "notes": "Owned T19-only synthetic and actually executed product mutations. Never a signed holdout, real route service, authority or global gate."
+  }
+}

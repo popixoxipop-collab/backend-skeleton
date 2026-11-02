@@ -1,0 +1,130 @@
+{
+  "contract": "sbf.qa-product-mutation-catalog/1",
+  "mutants": [
+    {
+      "id": "PMUT3-ALIAS-REPAIRS-MISSING-ACTION",
+      "vector_id": "NEG-ID-02",
+      "critical": true,
+      "file": "contracts/next/identity.mjs",
+      "find": "export function readIdentity(value) {",
+      "replace": "export function readIdentity(value) {\n if(value?.action_ref && !value.operation_id && value.alias){value={...value,operation_id:value.alias};delete value.alias;}",
+      "test_files": [
+        "test/conformance-next/wave3-identity.test.mjs"
+      ],
+      "invariant": "Display aliases cannot repair a missing operation identity."
+    },
+    {
+      "id": "PMUT3-FIELD-LOCATION-ERASED",
+      "vector_id": "NEG-ID-03",
+      "critical": true,
+      "file": "contracts/next/identity.mjs",
+      "find": "${bindingJson(value)}",
+      "replace": "${bindingJson(value?.field_ref ? {...value,location:'body'} : value)}",
+      "test_files": [
+        "test/conformance-next/wave3-identity.test.mjs"
+      ],
+      "invariant": "The same field name at a different request location is not treated as the same bound field."
+    },
+    {
+      "id": "PMUT3-ACTION-PROJECT-SCOPE-ERASED",
+      "vector_id": "NEG-ID-04",
+      "critical": true,
+      "file": "contracts/next/identity.mjs",
+      "find": "${bindingJson(value)}",
+      "replace": "${bindingJson(value?.action_ref ? {action_ref:value.action_ref,operation_id:value.operation_id} : value)}",
+      "test_files": [
+        "test/conformance-next/wave3-identity.test.mjs"
+      ],
+      "invariant": "Identical operation names in different projects remain project-scoped."
+    },
+    {
+      "id": "PMUT3-UNICODE-EXACT-BYTES-NORMALIZED",
+      "vector_id": "NEG-ID-05",
+      "critical": true,
+      "file": "contracts/next/identity.mjs",
+      "find": "return crypto.createHash('sha256').update(toBytes(bytes)).digest('hex');",
+      "replace": "return crypto.createHash('sha256').update(toBytes(bytes).toString('utf8').normalize('NFC'),'utf8').digest('hex');",
+      "test_files": [
+        "test/conformance-next/wave3-identity.test.mjs"
+      ],
+      "invariant": "Unicode normalization is not silently applied to exact-byte contract identity."
+    },
+    {
+      "id": "PMUT3-NONTERMINAL-CI-INVENTORY-ACCEPTED",
+      "vector_id": "NEG-RUN-07",
+      "critical": true,
+      "file": "release/next/release-policy.mjs",
+      "find": "if (v.status !== 'completed') push(errors, 'CI_STATUS', { role: repo.role });",
+      "replace": "if (false) push(errors, 'CI_STATUS', { role: repo.role });",
+      "test_files": [
+        "test/conformance-next/wave3-policy.test.mjs"
+      ],
+      "invariant": "Queued, pending, interrupted, or outcome-unknown execution is not treated as success."
+    },
+    {
+      "id": "PMUT3-NONTERMINAL-CI-BLOCKER-DROPPED",
+      "vector_id": "NEG-RUN-07",
+      "critical": true,
+      "file": "release/next/release-policy.mjs",
+      "find": "if (v.status !== 'completed' || v.conclusion !== 'success' || !SHA40.test(v.reviewed_head_sha ?? '') || !SHA40.test(v.ci_head_sha ?? '')) {",
+      "replace": "if (v.conclusion !== 'success' || !SHA40.test(v.reviewed_head_sha ?? '') || !SHA40.test(v.ci_head_sha ?? '')) {",
+      "test_files": [
+        "test/conformance-next/wave3-policy.test.mjs"
+      ],
+      "invariant": "Queued, pending, interrupted, or outcome-unknown execution is not treated as success."
+    },
+    {
+      "id": "PMUT3-WRITER-CONSUMER-STAGING-IGNORED",
+      "vector_id": "NEG-RELEASE-04",
+      "critical": true,
+      "file": "release/next/release-policy.mjs",
+      "find": "['writer_mode', 'consumer_mode', 'promotion', 'rollback']",
+      "replace": "['consumer_mode', 'promotion', 'rollback']",
+      "test_files": [
+        "test/conformance-next/wave3-policy.test.mjs"
+      ],
+      "invariant": "Old supported consumers either read the new artifact safely or the new writer remains opt-in."
+    },
+    {
+      "id": "PMUT3-SDK-MISSING-FROM-PACKAGE",
+      "vector_id": "NEG-RELEASE-03",
+      "critical": true,
+      "file": "package.json",
+      "find": "    \"sdk/\",",
+      "replace": "    \"sdk/__not_distributed__/\",",
+      "test_files": [
+        "test/conformance-next/wave3-package.test.mjs"
+      ],
+      "invariant": "Packed release artifacts contain every declared runtime file and helper."
+    },
+    {
+      "id": "PMUT3-CONTRACT-HELPERS-MISSING-FROM-PACKAGE",
+      "vector_id": "NEG-RELEASE-03",
+      "critical": true,
+      "file": "package.json",
+      "find": "    \"contracts/\",",
+      "replace": "    \"contracts/__not_distributed__/\",",
+      "test_files": [
+        "test/conformance-next/wave3-package.test.mjs"
+      ],
+      "invariant": "Packed release artifacts contain every declared runtime file and helper."
+    },
+    {
+      "id": "PMUT3-EXPRESS-SECOND-MOUNT-DROPPED",
+      "vector_id": "NEG-ROUTE-02",
+      "critical": false,
+      "file": "scanners/adapters/typescript-express.mjs",
+      "find": "for (const edge of incoming) {",
+      "replace": "for (const edge of incoming.slice(0,1)) {",
+      "test_files": [
+        "test/conformance-next/wave3-routes.test.mjs"
+      ],
+      "invariant": "A multi-mounted router may produce distinct absolute paths."
+    }
+  ],
+  "coverage_scope": {
+    "planned_catalog": "test/corpus-next/negative-vectors.json",
+    "planned_catalog_sha256": "829ac742786cb570d5ef4238c81bb9051123812beaffce320e211cf6a148e23e",
+    "layer_note": "Identity functions, release-policy decisions, static route extraction and real package installation. Not runtime authorization enforcement, cross-repository scheduling or global certification."
+  }
+}

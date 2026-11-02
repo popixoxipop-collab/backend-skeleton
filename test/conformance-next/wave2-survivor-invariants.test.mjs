@@ -45,7 +45,10 @@ test('wave2 closeout ROUTE-03: Rust name-reuse cycle is diagnosed on a reachable
     let a = Router::new().nest("/a", b);
     let app = Router::new().nest("/api", a).route("/health", get(health));
   }`;
-  const result = analyzeRustServerSource(source, {file:'cycle.rs'});
+  let result;
+  assert.doesNotThrow(() => {
+    result = analyzeRustServerSource(source, {file:'cycle.rs'});
+  }, 'Rust cycle analysis must terminate as a diagnostic rather than throwing');
   assert.ok(result.diagnostics.some(d => d.code === 'RUST_AXUM_NEST_CYCLE'));
   assert.deepEqual(result.routes.map(r => r.path), ['/health']);
   const acyclic = analyzeRustServerSource(`fn app() {
@@ -83,7 +86,11 @@ for (const cycle of ['two-node','self']) {
     const expected = ['GET /api/a','GET /api/child/b','GET /health'];
     assert.deepEqual(endpoints(), expected, 'acyclic control must expose real routes');
     fs.writeFileSync(target, prefix+(cycle==='self'?"a.use('/self', a);":"b.use('/back', a);"));
-    assert.deepEqual(endpoints(), expected, 'cycle must terminate without invented infinite prefixes');
+    let cycleRoutes;
+    assert.doesNotThrow(() => {
+      cycleRoutes = endpoints();
+    }, 'cyclic mount traversal must terminate instead of throwing or recursing indefinitely');
+    assert.deepEqual(cycleRoutes, expected, 'cycle must terminate without invented infinite prefixes');
   });
 }
 

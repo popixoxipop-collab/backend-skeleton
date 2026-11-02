@@ -1,0 +1,99 @@
+{
+  "contract": "sbf.qa-product-mutation-catalog/1",
+  "mutants": [
+    {
+      "id": "PMUT6-PROJECT-MOVED-REUSES-ROOT-ID",
+      "vector_id": "NEG-PROJ-04",
+      "critical": true,
+      "file": "scanners/project-graph/index.mjs",
+      "find": "project_id: 'project:' + candidate.root,",
+      "replace": "project_id: 'project:.',",
+      "test_files": [
+        "test/conformance-next/wave6-project.test.mjs"
+      ],
+      "invariant": "Project move or rename requires an explicit identity migration or new project identity."
+    },
+    {
+      "id": "PMUT6-WEBGAME-INPUT-EFFECT-WARNING-DROPPED",
+      "vector_id": "NEG-GAME-01",
+      "critical": true,
+      "file": "scanners/webgame.mjs",
+      "find": "if (merged.listeners.length > 0 || merged.keys.length > 0) {",
+      "replace": "if (false) {",
+      "test_files": [
+        "test/conformance-next/wave6-game-01.test.mjs"
+      ],
+      "invariant": "Nearby input and movement declarations do not prove causality."
+    },
+    {
+      "id": "PMUT6-NATIVE-EXPORT-SELF-CERTIFIES-CAUSALITY",
+      "vector_id": "NEG-GAME-02",
+      "critical": false,
+      "file": "adapters/game-next/native-export-envelope.mjs",
+      "find": "causal_edges_verified: false,",
+      "replace": "causal_edges_verified: true,",
+      "test_files": [
+        "test/conformance-next/wave6-game-02.test.mjs"
+      ],
+      "invariant": "A candidate observation bridge cannot self-certify behavior."
+    },
+    {
+      "id": "PMUT6-GODOT-IDENTITY-DROPS-SCENE-PATH",
+      "vector_id": "NEG-GAME-03",
+      "critical": true,
+      "file": "adapters/game-next/native-structure-normalizer.mjs",
+      "find": "const id = `godot:node:${scenePath}:${nodePath}`;",
+      "replace": "const id = `godot:node:${nodePath}`;",
+      "test_files": [
+        "test/conformance-next/wave6-game-03.test.mjs"
+      ],
+      "invariant": "Duplicate entity/symbol names retain scene or object identity context."
+    },
+    {
+      "id": "PMUT6-UNREAL-BLUEPRINT-MISCLASSIFIED-AS-RUNTIME",
+      "vector_id": "NEG-GAME-06",
+      "critical": true,
+      "file": "adapters/game-next/native-structure-normalizer.mjs",
+      "find": "status: 'declared-structure-only',",
+      "replace": "status: 'runtime-verified',",
+      "test_files": [
+        "test/conformance-next/wave6-game-06.test.mjs"
+      ],
+      "invariant": "Unexported Blueprint/editor-only content remains unknown in source-only Unreal analysis."
+    },
+    {
+      "id": "PMUT6-UNITY-TARGET-GUID-DROPPED",
+      "vector_id": "NEG-GAME-07",
+      "critical": true,
+      "file": "adapters/game-next/native-structure-normalizer.mjs",
+      "find": "target_guid: guid",
+      "replace": "target_guid: null",
+      "test_files": [
+        "test/conformance-next/wave6-game-07.test.mjs"
+      ],
+      "invariant": "Asset/GUID/UID changes invalidate bindings that depend on those exact asset identities."
+    },
+    {
+      "id": "PMUT6-UNITY-GUID-SOURCE-HASH-UNCHECKED",
+      "vector_id": "NEG-GAME-07",
+      "critical": true,
+      "file": "adapters/game-next/native-export-envelope.mjs",
+      "find": "createHash('sha256').update(raw).digest('hex') !== input.artifact.byte_sha256",
+      "replace": "false",
+      "test_files": [
+        "test/conformance-next/wave6-game-07.test.mjs"
+      ],
+      "invariant": "Asset/GUID/UID changes invalidate bindings that depend on those exact asset identities."
+    }
+  ],
+  "coverage_scope": {
+    "planned_catalog": "test/corpus-next/negative-vectors.json",
+    "planned_catalog_sha256": "829ac742786cb570d5ef4238c81bb9051123812beaffce320e211cf6a148e23e",
+    "base_head": "321d9370785c7c01e7a818a0f9ab464f15e212ed",
+    "prior_stack_representation": 55,
+    "new_unique_vectors": 6,
+    "candidate_total": 61,
+    "remaining_candidate": 18,
+    "scope": "First-party synthetic project/webgame/Unity/Unreal decision and binding evidence. Not a runtime engine trace, private holdout, operational release or actual behavior certification."
+  }
+}
