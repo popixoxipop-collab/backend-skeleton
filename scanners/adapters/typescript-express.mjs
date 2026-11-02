@@ -2173,7 +2173,9 @@ function buildMountEdges(files, fileTexts) {
 				const args = splitTopLevelArgs(text.slice(openIdx + 1, closeIdx));
 				if (args.length < 2) continue;
 				const prefix = staticPathLiteral(args[0]);
-				if (prefix === null) continue;
+				// A computed prefix on a PROVEN mount target must not be discarded:
+				// otherwise the child appears unmounted and its local route
+				// becomes a false absolute path. Retain an unknown edge.
 
 				for (const candidate of args.slice(1)) {
 					const identMatch = candidate.trim().match(/^([A-Za-z_$][\w$]*)$/);
@@ -2181,7 +2183,7 @@ function buildMountEdges(files, fileTexts) {
 					const target = identMatch[1];
 					const localBinding = receiverBindingAt(text, target, m.index);
 					if (localBinding) {
-						edges.push({ from: nodeKey(file, fromBinding), to: nodeKey(file, localBinding), prefix });
+						edges.push({ from: nodeKey(file, fromBinding), to: nodeKey(file, localBinding), prefix, file, line: lineNumberAt(text, m.index) });
 						continue;
 					}
 
@@ -2192,7 +2194,7 @@ function buildMountEdges(files, fileTexts) {
 					if (!toFile || !fileSet.has(toFile)) continue;
 					const toBinding = defaultExportedReceiverBinding(fileTexts.get(toFile));
 					if (!toBinding) continue;
-					edges.push({ from: nodeKey(file, fromBinding), to: nodeKey(toFile, toBinding), prefix });
+					edges.push({ from: nodeKey(file, fromBinding), to: nodeKey(toFile, toBinding), prefix, file, line: lineNumberAt(text, m.index) });
 				}
 			}
 		}
@@ -2210,6 +2212,9 @@ function prefixChainsFor(node, edges, seen = new Set()) {
 	if (incoming.length === 0) return [''];
 	const prefixes = [];
 	for (const edge of incoming) {
+		// Unknown prefix chains are never promoted to guessed literals.
+		// Independent literal incoming mounts still retain their paths.
+		if (edge.prefix === null) continue;
 		for (const parentPrefix of prefixChainsFor(edge.from, edges, nextSeen)) {
 			prefixes.push(joinPath(parentPrefix, edge.prefix));
 		}
@@ -2271,7 +2276,7 @@ function extractTableEntities(text, file) {
 }
 
 const API_SURFACE_SOURCE = 'route paths are resolved by walking a receiver-aware Express mount-tree (.use(\'/literal\', ' +
-	'subRouter) edges through RELATIVE imports only -- a computed/dynamic mount is skipped, never guessed) -- ' +
+	'subRouter) edges through RELATIVE imports only -- a computed/dynamic mount to a proven receiver remains unresolved, never guessed) -- ' +
 	'plain Express has no operationId concept at all (weaker than FastAPI, which at least generates one at ' +
 	'runtime), so they are never statically derivable here. Pass a real OpenAPI document via ' +
 	'`bskel contract emit --openapi-file <path> --path-prefix <prefix>` for trustworthy operation identity, ' +
@@ -2287,6 +2292,11 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 	// literals are left intact, so every path/table VALUE this adapter reports is unchanged.
 	const fileTexts = new Map(files.map((f) => [f, maskJsComments(fs.readFileSync(f, 'utf8'))]));
 	const edges = buildMountEdges(files, fileTexts);
+	const scanNotes = [...new Set(edges
+		.filter((edge) => edge.prefix === null)
+		.map((edge) => path.relative(repoRoot, edge.file) + ':' + edge.line +
+			': computed mount prefix to a known Express receiver remains unresolved; child routes without a separate literal mount are omitted rather than invented'))]
+		.sort();
 
 	const modules = new Map();
 	const moduleEntry = (name) => {
@@ -2356,6 +2366,7 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 	return {
 		modules: [...modules.values()],
 		pathPrefixSignals: [],
+		scanNotes,
 		apiSurfaceSource: API_SURFACE_SOURCE,
 		filesRead: files.map((f) => path.relative(repoRoot, f)),
 	};
