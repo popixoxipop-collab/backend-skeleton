@@ -34,8 +34,8 @@ accepted, because this boundary is how the facts it waits for will arrive:
 
 - EF Core and GORM wait for T08 persistence semantic facts (CR-T10-002);
 - Drizzle and Sequelize wait for T04 declaration/call semantic facts (CR-T10-003);
-- Diesel waits for T08 Rust semantic/compiler facts, which are not available in the current
-  native-server pilot (`CHANGE_REQUESTS.md` has no CR for it).
+- Diesel waits for T08 Rust semantic/compiler facts (CR-T10-004), which are not available
+  in the current native-server pilot; the request is not an implemented fact producer.
 
 The IR of a blocked target carries a `persistence-target-blocked` warning diagnostic and
 `metadata.persistence_target_state`. Certification, generation handoff and conformance look the id

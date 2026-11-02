@@ -1,0 +1,10 @@
+[package]
+name = "diesel-target-01-planning-fixtures"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+diesel = { version = "=2.3.14", default-features = false, features = ["postgres"] }
+
+# Planning pin only. No Cargo.lock, restore, compile or database execution in this scope.

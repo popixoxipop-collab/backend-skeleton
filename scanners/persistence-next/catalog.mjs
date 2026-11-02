@@ -57,7 +57,7 @@ const TARGETS = [
 	{
 		id:'diesel', state:'blocked-upstream-facts', ingestion:'persistence-source-facts',
 		producer:'t08-rust', requires_live_verification:true,
-		blocker:'T08 Rust semantic/compiler facts are not available in the current native-server pilot',
+		blocker:'CR-T10-004: T08 Rust semantic/compiler facts are not available in the current native-server pilot',
 	},
 ].map((entry)=>Object.freeze({
 	...entry,
