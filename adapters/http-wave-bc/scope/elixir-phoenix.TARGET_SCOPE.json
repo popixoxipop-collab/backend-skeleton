@@ -1,0 +1,89 @@
+{
+  "schema": "sbf.http-target-scope/1",
+  "task": "HTTP-elixir-phoenix-01",
+  "track": "T13",
+  "target": "elixir-phoenix",
+  "status": "scope-only",
+  "claims": {
+    "adapter_implemented": false,
+    "static_extraction_verified": false,
+    "runtime_tested": false,
+    "supported": false,
+    "certified": false
+  },
+  "upstream_pin": {
+    "repository": "phoenixframework/phoenix",
+    "version": "1.8.16",
+    "tag": "v1.8.16",
+    "commit": "b5026660dc744424545e7d2e3b7547507443ab40",
+    "release": "https://github.com/phoenixframework/phoenix/releases/tag/v1.8.16",
+    "documentation": [
+      "https://hexdocs.pm/phoenix/Phoenix.Router.html",
+      "https://hexdocs.pm/phoenix/Phoenix.ConnTest.html"
+    ],
+    "sources": [
+      { "path": "mix.exs", "sha256": "f10e35c8730458bae3ede3bd7b03ec1682c24685ede8c65325d1e9ce41bd46fd" },
+      { "path": "lib/phoenix/router.ex", "sha256": "046564dae97dbd0ba58eb78e630fb226a2c8360a86b933dd9604e998c68b17bd" },
+      { "path": "lib/phoenix/router/route.ex", "sha256": "a6c54dc26a73932b90c2142e5528dc4fc4f76f87083673b88f943c3d879e950a" },
+      { "path": "lib/phoenix/router/resource.ex", "sha256": "23987d2f54161acb70d352c0b47311e39039b6134ba1e20d4d5ee492b4595079" },
+      { "path": "lib/phoenix/test/conn_test.ex", "sha256": "014981f6ed6e60f1269c733543fbe198e8b8c385b76f3f2c64ff014c6688a453" }
+    ],
+    "elixir_requirement_from_upstream_mix": "~> 1.15"
+  },
+  "fixture_root": "test/http-wave-bc/fixtures/target-scope/phoenix",
+  "fixtures": [
+    { "id": "dependency-pin", "path": "mix.exs", "sha256": "0d914e92479158f0f10db7837b61b8a9ed02e9a93d8872074aade183316b5b31", "role": "dependency-pin" },
+    { "id": "literal-scoped-routes", "path": "normal/lib/my_app_web/router.ex", "sha256": "216e909c1f492f63adfe7ba6eb39e44b76de3760c85a968e0ddae26924183eb6", "role": "normal" },
+    { "id": "resources-expansion", "path": "counterexamples/resources/lib/my_app_web/router.ex", "sha256": "f62fb396cb92b7a595ddf15ab00a2fff71877f2dd9b9f9cc7adfb915badace5d", "role": "counterexample" },
+    { "id": "host-scope", "path": "counterexamples/host-scope/lib/my_app_web/router.ex", "sha256": "b1190a79c9aca23013c51c7740c00094b395c8fa16a4a1c8f3aa015986b45a50", "role": "counterexample" },
+    { "id": "pipeline", "path": "counterexamples/pipeline/lib/my_app_web/router.ex", "sha256": "ea44dad70f67c013ea30eb4b29939f1de8dfa4e01c3e7120323bbdb566833f8d", "role": "counterexample" },
+    { "id": "forward", "path": "counterexamples/forward/lib/my_app_web/router.ex", "sha256": "4325947cfc3634dcfd1bc84bfab2ca3ed070ec7cb65178ad1c2efd1b1c571eb5", "role": "counterexample" }
+  ],
+  "constructs": [
+    {
+      "id": "literal-scoped-routes",
+      "status": "fixture-only-unassessed",
+      "source_expectation": ["GET /api/users/:id", "POST /api/users"],
+      "runtime_oracle_required": true
+    },
+    {
+      "id": "resources-expansion",
+      "status": "unknown-until-compiled-route-table",
+      "invariant": "resources with only: [:index, :show] expands to multiple method/path routes, but must not invent other REST actions."
+    },
+    {
+      "id": "host-scope",
+      "status": "unknown-until-host-request-probed",
+      "invariant": "A path under host: admin.example.test is not universally reachable by path alone."
+    },
+    {
+      "id": "pipeline",
+      "status": "unknown-until-request-probed",
+      "invariant": "A matched route can be halted by a pipeline plug; route presence is not a 200-response guarantee."
+    },
+    {
+      "id": "forward",
+      "status": "unknown-until-child-router-inspected-and-probed",
+      "invariant": "forward /admin delegates suffix routing to a child router; the parent forward is not one literal GET endpoint."
+    }
+  ],
+  "runtime_oracle_plan": {
+    "not_executed_in_this_scope": true,
+    "toolchain": "Pin exact Elixir/OTP and Mix/Hex versions, a dependency lock and checksums, and Phoenix 1.8.16 on a T20-approved isolated runner",
+    "steps": [
+      "Verify the v1.8.16 tag/commit, five upstream source hashes and the exact Phoenix dependency resolution; capture Elixir/OTP, Mix/Hex and dependency checksums before compilation.",
+      "Materialize the normal and four counterexamples as separate Mix projects with no implicit application configuration; compile each variant and retain diagnostics.",
+      "Capture Phoenix.Router.routes/1 and mix phx.routes for each compiled router, including resources expansion, host constraints, pipelines and forwarded child router information.",
+      "Use Phoenix.ConnTest through a bounded endpoint or router harness to probe normal GET/POST, resources index/show and excluded actions, matching/nonmatching Host headers, missing/present x-token, and forwarded suffixes; record method, URL, host, status, body and selected route.",
+      "Reconcile source expectations with compiled route tables and responses, then obtain T08 language-profile review, T16 independent read and T19 mutation review before any extraction or support claim.",
+      "Evaluate HTTP leaf/bridge only after T00 authorizes composition; catalog admission and this plan do not remove the T08-05 block."
+    ],
+    "promotion_dependencies": ["T08 Elixir profile review", "HTTP-elixir-phoenix-02", "HTTP-elixir-phoenix-03", "T16", "T19", "T20", "T00"]
+  },
+  "limits": [
+    "These Elixir files are hand-authored planning fixtures, not upstream source copies, compiled route tables or executed requests.",
+    "The T13 catalog admission remains DEFER_UNTIL_PROFILE_REVIEW; a registered target is not Phoenix support.",
+    "No Elixir parser, Phoenix extractor, adapter, registry, CLI path or shared-schema projection is added; T08-05 HTTP composition remains BLOCKED.",
+    "No Mix/Hex build, Phoenix.Router.routes/1, Phoenix.ConnTest, request probe, independent attestation or release gate is exercised here."
+  ]
+}
