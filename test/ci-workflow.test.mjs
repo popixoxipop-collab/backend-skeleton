@@ -44,6 +44,23 @@ test('.github/workflows/ci.yml exists and parses as valid YAML with at least one
 	assert.ok(Object.keys(ci.doc.jobs ?? {}).length > 0);
 });
 
+test('all protected CI jobs use hosted Linux on both PR and main push; EOE macOS is manual only', () => {
+	const { doc } = loadWorkflows().find((w) => w.file === 'ci.yml');
+	const required = [
+		'test', 'nested-next', 'package-install', 'java-compile', 'python-import',
+		'typescript-compile', 'db-introspect', 'registry-coverage', 'ddl-apply',
+		'cross-feature-fk', 'python-integration', 'java-ast', 'java-integration',
+		'rails-integration',
+	];
+	for (const name of required) {
+		assert.equal(doc.jobs[name]?.['runs-on'], 'ubuntu-latest', `${name} must not queue on EOE`);
+		assert.equal(doc.jobs[name]?.if, undefined, `${name} must run for both pull_request and push`);
+		assert.equal(doc.jobs[name]?.['timeout-minutes'], 60, `${name} must have a bounded hosted runtime`);
+	}
+	assert.equal(doc.jobs.macos?.if, "github.event_name == 'workflow_dispatch'");
+	assert.deepEqual(doc.jobs.macos?.['runs-on'], ['self-hosted', 'macOS', 'macstudio']);
+});
+
 test('the CI Node matrix floor is never below lib/doctor.mjs\'s MIN_NODE -- the workflow and the tool\'s real requirement cannot silently desync', () => {
 	const { doc } = loadWorkflows().find((w) => w.file === 'ci.yml');
 	const testJob = doc.jobs.test;
