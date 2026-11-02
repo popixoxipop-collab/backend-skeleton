@@ -1,0 +1,35 @@
+{
+  "contract": "sbf.qa-product-mutation-catalog/1",
+  "mutants": [
+    {
+      "id": "T13-HONO-DYNAMIC-BASEPATH-EMIT",
+      "vector_id": "NEG-T13-HONO-BASEPATH-01",
+      "critical": true,
+      "file": "adapters/http-wave-bc/node-hono/route-graph.mjs",
+      "find": "if (node.basePathUnknown) {\n          notes.push('Hono basePath()",
+      "replace": "if (false && node.basePathUnknown) {\n          notes.push('Hono basePath()",
+      "test_files": ["test/http-wave-bc/node-hono.test.mjs"],
+      "invariant": "A dynamic Hono basePath must not emit a fabricated absolute route."
+    },
+    {
+      "id": "T13-KOA-UNMOUNTED-ROUTER-EMIT",
+      "vector_id": "NEG-T13-KOA-MOUNT-01",
+      "critical": true,
+      "file": "adapters/http-wave-bc/node-koa/adapter.mjs",
+      "find": "if (!appUsesRouter(masked, apps.keys(), router.name)) {",
+      "replace": "if (false && !appUsesRouter(masked, apps.keys(), router.name)) {",
+      "test_files": ["test/http-wave-bc/node-koa.test.mjs"],
+      "invariant": "An unmounted Koa router must not create HTTP endpoints."
+    },
+    {
+      "id": "T13-NEXT-DYNAMIC-BASEPATH-EMIT",
+      "vector_id": "NEG-T13-NEXT-BASEPATH-01",
+      "critical": true,
+      "file": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+      "find": "if (basePath.unknown) {\n      if (exported.methods.length)",
+      "replace": "if (false && basePath.unknown) {\n      if (exported.methods.length)",
+      "test_files": ["test/http-wave-bc/typescript-nextjs.test.mjs"],
+      "invariant": "An unresolved Next.js basePath must withhold Route Handler paths."
+    }
+  ]
+}
