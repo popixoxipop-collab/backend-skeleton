@@ -3,7 +3,7 @@
   "task_id": "T00-03",
   "generator": "node next/t00/make-lease-report.mjs --write",
   "inputs": {
-    "ownership_map_sha256": "5684fe05c462e9286c718cd830799f97e6c1ada89c4cc8e2563f25e5b06552d9",
+    "ownership_map_sha256": "e40255b30ba90bfdb1fae5938a33706e50ea6a1424c3a07734c7595a7fa300d0",
     "lease_ledger_fixture_sha256": "2a2349045de619c6ae8d11be24c75f97e76def22ce80d20ab05e2871efa3d70c",
     "tool_sha256": {
       "check-lease.mjs": "4b8a63726825f932bf94523c69d610652ba1adbf4db1e568a40fc9af726864a6",

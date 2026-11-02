@@ -3,7 +3,7 @@
 Who may write which paths, for how long, and how a result is checked against that lease. The ownership map
 (`INTERFACE_RFC.md`) says which track owns a path; a lease says which worker holds part of that ownership for a limited
 time. `check-lease.mjs` is the gate, `lease-ledger.mjs` is the model it runs and `seal-lease-ledger.mjs` computes the
-digests of a ledger. The gates are run by hand and are not wired into CI (see Limits).
+digests of a ledger. The lease gates are run by hand and are not wired into CI (see Limits). The separate read-only MET conveyor has its own CI workflow; it does not run lease gates.
 
 ## Inputs
 

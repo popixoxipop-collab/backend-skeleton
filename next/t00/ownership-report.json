@@ -3,7 +3,7 @@
   "task_id": "T00-02",
   "generator": "node next/t00/make-ownership-report.mjs --write",
   "inputs": {
-    "ownership_map_sha256": "5684fe05c462e9286c718cd830799f97e6c1ada89c4cc8e2563f25e5b06552d9",
+    "ownership_map_sha256": "e40255b30ba90bfdb1fae5938a33706e50ea6a1424c3a07734c7595a7fa300d0",
     "plan_write_scopes_sha256": "72722ffdd44b7032220b3dad3b1e3e2ceb6b83f795c912796306b54bf3ddf2b7",
     "ownership_rules_sha256": "1ec6296b8333e320ff4a3cfc97158c3a8f2705a0842dda015d08a2dc94acb226",
     "baseline_lock_sha256": "b040fedbd343ac18d3b1982c9337e4191e388b45795fa026024244eff7f5c176",
@@ -22,8 +22,8 @@
       "command": "node next/t00/check-ownership.mjs map",
       "exit_code": 0,
       "codes": [],
-      "stdout_first_line": "OK ownership map verified: 24 tracks, 122 scopes, 13 reserved paths (checks: map shape, track ids, scope grammar, scope collisions, reserved paths exist and are unclaimed, plan scopes, nested suites, derivation from the inputs)",
-      "stdout_sha256": "b24a4a0030b2a6ca1e81f1572f9ed559b248b7852624b176f59824e3613341b1",
+      "stdout_first_line": "OK ownership map verified: 24 tracks, 123 scopes, 13 reserved paths (checks: map shape, track ids, scope grammar, scope collisions, reserved paths exist and are unclaimed, plan scopes, nested suites, derivation from the inputs)",
+      "stdout_sha256": "545a5e116ed1364716e0f8e01d72625a5959d8cb7dee5d3ba61183ab24388d6c",
       "stderr_head": ""
     },
     {
