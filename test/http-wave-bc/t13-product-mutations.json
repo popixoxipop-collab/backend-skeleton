@@ -30,6 +30,16 @@
       "replace": "if (false && basePath.unknown) {\n      if (exported.methods.length)",
       "test_files": ["test/http-wave-bc/typescript-nextjs.test.mjs"],
       "invariant": "An unresolved Next.js basePath must withhold Route Handler paths."
+    },
+    {
+      "id": "T13-HONO-LITERAL-BASEPATH-DROP",
+      "vector_id": "NEG-T13-HONO-LITERAL-BASEPATH-01",
+      "critical": false,
+      "file": "adapters/http-wave-bc/node-hono/route-graph.mjs",
+      "find": "path: joinPath(node.basePath, event.path),",
+      "replace": "path: event.path,",
+      "test_files": ["test/http-wave-bc/node-hono.test.mjs"],
+      "invariant": "A literal Hono basePath must remain part of emitted route paths."
     }
   ]
 }

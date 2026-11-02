@@ -12,15 +12,16 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../..');
 const catalog = JSON.parse(fs.readFileSync(path.join(here, 't13-product-mutations.json'), 'utf8'));
 
-test('T13-04 product mutation catalog is valid and bound to the three negative vectors', () => {
+test('T13-04 product mutation catalog is valid and bound to four adversarial vectors', () => {
   const result = validateProductMutationCatalog(catalog);
   assert.deepEqual(result.errors, []);
-  assert.equal(result.stats.mutants, 3);
-  assert.ok(catalog.mutants.every((mutant) => mutant.critical));
+  assert.equal(result.stats.mutants, 4);
+  assert.deepEqual(catalog.mutants.map((mutant) => mutant.critical), [true, true, true, false]);
   assert.deepEqual(catalog.mutants.map((mutant) => mutant.vector_id), [
     'NEG-T13-HONO-BASEPATH-01',
     'NEG-T13-KOA-MOUNT-01',
     'NEG-T13-NEXT-BASEPATH-01',
+    'NEG-T13-HONO-LITERAL-BASEPATH-01',
   ]);
 });
 
@@ -53,9 +54,9 @@ test('T13-04 Node permission boundary suppresses unreadable Hono projects', () =
   }
 });
 
-test('T13-04 critical Hono, Koa and Next.js product mutations are killed', { timeout: 240_000 }, () => {
+test('T13-04 Hono, Koa and Next.js product mutations are killed', { timeout: 240_000 }, () => {
   const report = runProductMutationCampaign({ repoRoot, catalog });
   assert.equal(report.pass, true, JSON.stringify(report.mutants, null, 2));
-  assert.deepEqual(report.mutants.map((mutant) => mutant.status), ['killed', 'killed', 'killed']);
+  assert.deepEqual(report.mutants.map((mutant) => mutant.status), ['killed', 'killed', 'killed', 'killed']);
   assert.ok(report.mutants.every((mutant) => mutant.baseline.exit_code === 0));
 });

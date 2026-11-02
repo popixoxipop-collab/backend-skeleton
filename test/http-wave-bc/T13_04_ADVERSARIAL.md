@@ -4,8 +4,8 @@ This gate covers the three implemented experimental static-scanner leaves: Hono,
 Koa + @koa/router, and Next.js App Router. It does not certify framework runtime
 behavior or claim that these leaves are registered in the production scanner.
 
-`t13-product-mutations.json` pins three critical source-code mutants to negative
-vectors already exercised by the leaf suites. The T13 nested CI suite executes
+`t13-product-mutations.json` pins three critical and one noncritical source-code
+mutant to adversarial vectors exercised by the leaf suites. The T13 nested CI suite executes
 `t13-adversarial.test.mjs` on Node 22 and 24. Its mutation test uses the shared
 T19 runner: a clean Git commit is archived, dependencies are installed with
 `npm ci --ignore-scripts`, baseline tests must pass, and each mutant must fail
