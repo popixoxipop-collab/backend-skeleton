@@ -1,0 +1,94 @@
+{
+  "schema": "sbf.http-target-scope/1",
+  "task": "HTTP-scala-play-01",
+  "track": "T13",
+  "target": "scala-play",
+  "status": "scope-only",
+  "claims": {
+    "adapter_implemented": false,
+    "static_extraction_verified": false,
+    "runtime_tested": false,
+    "supported": false,
+    "certified": false
+  },
+  "upstream_pin": {
+    "repository": "playframework/playframework",
+    "version": "3.0.12",
+    "tag": "3.0.12",
+    "tag_object": "286cee4ef7d3b5a8ab549f5ebbd7adc554bdacc9",
+    "commit": "316f494b2d1292c250c19685f21189ab077d7229",
+    "release": "https://github.com/playframework/playframework/releases/tag/3.0.12",
+    "documentation": [
+      "https://www.playframework.com/documentation/3.0.x/ScalaRouting",
+      "https://www.playframework.com/documentation/3.0.x/ScalaHttpFilters",
+      "https://www.playframework.com/documentation/3.0.x/ScalaTestingYourApplication"
+    ],
+    "sources": [
+      { "path": "documentation/manual/working/scalaGuide/main/http/ScalaRouting.md", "sha256": "fea0a5f06315fe7696ba63f37f7f2d56e63cf8bf7581ddb33ef6a1a3cc05da60" },
+      { "path": "documentation/manual/working/scalaGuide/main/application/ScalaHttpFilters.md", "sha256": "40ab6147c3ff0a68dd582d541dd44be327e53d27dee3b0ca2e4ca88e647e0fdf" },
+      { "path": "documentation/manual/working/scalaGuide/main/http/ScalaActionsComposition.md", "sha256": "1550684b6c73064e4d0a616a905b42bc41111c31e214c7932d27f79d6b083f6b" },
+      { "path": "documentation/manual/working/scalaGuide/main/tests/ScalaTestingYourApplication.md", "sha256": "52fc7c2f34e5b2a2a310075c1c332a1fd76d9103f913e2909f2549e4b49d4115" },
+      { "path": "dev-mode/play-routes-compiler/src/main/scala/play/routes/compiler/RoutesFileParser.scala", "sha256": "261a27716e93b9d58e5846de12839eb79caf5bdf7709dcc7cf696e38927e0889" },
+      { "path": "dev-mode/play-routes-compiler/src/main/scala/play/routes/compiler/RoutesCompiler.scala", "sha256": "0f4d1e1e3f1c33c677372d7d46328ed9a8c0f86af4989cbbdeeb9145bfaf0355" }
+    ],
+    "version_boundary": "Play Framework 3.0.12 Scala routes-file scope only; Play 2.9.x, Java routes, SIRD-only routers and later 3.0.x are excluded"
+  },
+  "fixture_root": "test/http-wave-bc/fixtures/target-scope/play",
+  "fixtures": [
+    { "id": "sbt-plugin-pin", "path": "project/plugins.sbt", "sha256": "28f806a80e03f1d9480b6304c1e1b5eed34a0c998a6781c49d61175c472bdb20", "role": "dependency-pin" },
+    { "id": "normal-routes", "path": "normal/conf/routes", "sha256": "febd59b0a8450c28ce95d4d3b6f9efdb94918f494f3fd826023e47758bd50012", "role": "normal" },
+    { "id": "normal-controller", "path": "normal/app/controllers/Users.scala", "sha256": "f2202fe53402007dd6d8361459a3012ba8f9a81e70f16395e76a9b1aa3b0fdca", "role": "normal" },
+    { "id": "wildcard", "path": "counterexamples/wildcard/conf/routes", "sha256": "b006ff635f4593400272ee89c379237ac11f7d9e074df2940c45610c34c5b401", "role": "counterexample" },
+    { "id": "regex", "path": "counterexamples/regex/conf/routes", "sha256": "7826bbc551aeadf390843415431c169388b9eb320cfcc42f1afaad20c0bb555b", "role": "counterexample" },
+    { "id": "modifier", "path": "counterexamples/modifier/conf/routes", "sha256": "bad75cc32eda326d82893fe20b81ab6297de8c44fb5763d4a4d7a297eb4b638b", "role": "counterexample" },
+    { "id": "mounted-router", "path": "counterexamples/mounted-router/conf/routes", "sha256": "1db880d6f40e0e3043920880c092d802a851f3b7df4ca68020a488ab31f1fc3e", "role": "counterexample" }
+  ],
+  "constructs": [
+    {
+      "id": "literal-and-single-segment-routes",
+      "status": "fixture-only-unassessed",
+      "source_expectation": ["GET /api/users/:id", "POST /api/users"],
+      "runtime_oracle_required": true
+    },
+    {
+      "id": "wildcard-capture",
+      "status": "unknown-until-route-compiler-and-request-probed",
+      "invariant": "*name spans slash-separated segments and has different decoding/reverse-routing semantics from :name."
+    },
+    {
+      "id": "regex-constrained-capture",
+      "status": "unknown-until-route-compiler-and-request-probed",
+      "invariant": "$id<[0-9]+> narrows accepted paths; source text alone is not a validated request oracle."
+    },
+    {
+      "id": "route-modifier",
+      "status": "unknown-until-filter-configuration-and-request-probed",
+      "invariant": "+ nocsrf changes CSRF handling but route presence alone does not prove response or security behavior."
+    },
+    {
+      "id": "mounted-router",
+      "status": "unknown-until-child-router-is-resolved",
+      "invariant": "A -> /api mount delegates to api.MyRouter; child paths cannot be projected from the parent routes file alone."
+    }
+  ],
+  "runtime_oracle_plan": {
+    "not_executed_in_this_scope": true,
+    "toolchain": "Pin an approved JDK, Scala, sbt and resolved Play 3.0.12 plugin/dependency graph on an isolated T20 runner before compilation",
+    "steps": [
+      "Verify annotated 3.0.12 tag object, peeled commit and six exact upstream source hashes; capture plugin artifact and resolved dependency checksums.",
+      "Materialize each authored fixture as an independent Play Scala app with complete controllers, child router and configuration as needed; compile conf/routes with the Play routes compiler and retain generated router and diagnostics.",
+      "Compare generated route metadata and source expectations for normal GET/POST, wildcard, regex, modifier and mounted-router cases; do not infer child routes from a parent mount.",
+      "Use Play test helpers with FakeRequest and route(app, ...) for matching and nonmatching methods, one/multiple wildcard segments, regex valid/invalid IDs, CSRF enabled/disabled requests and child-router registration; record method, path, status, body, filters and generated handler.",
+      "Obtain T08 Scala language-profile review, T16 independent read and T19 mutation review before any extractor or support claim.",
+      "Evaluate HTTP leaf/bridge and packed-artifact behavior only after T00 authorizes composition; catalog admission and this plan do not remove the T08-05 block."
+    ],
+    "promotion_dependencies": ["T08 Scala profile review", "HTTP-scala-play-02", "HTTP-scala-play-03", "T16", "T19", "T20", "T00"]
+  },
+  "limits": [
+    "These routes and Scala files are hand-authored planning fixtures, not copied upstream source, compiled Play routes or executed requests.",
+    "Play 3.0.12 is pinned for planning, but a complete sbt dependency lock, JDK/Scala toolchain and runtime oracle are not present.",
+    "The T13 catalog admission remains DEFER_UNTIL_PROFILE_REVIEW and is not support; T08-05 HTTP composition remains BLOCKED.",
+    "No Scala parser, Play routes extractor, adapter, registry, CLI path or shared-schema projection is added.",
+    "No independent attestation, certification, promotion or release gate is exercised here."
+  ]
+}

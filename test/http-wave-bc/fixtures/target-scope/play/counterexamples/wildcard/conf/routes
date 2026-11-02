@@ -1,0 +1,2 @@
+# Wildcard capture may span slashes; it is not equivalent to :name.
+GET     /files/*name         controllers.Files.show(name: String)
