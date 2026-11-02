@@ -32,3 +32,24 @@ Add EF Core/GORM semantic facts conforming to, or explicitly superseding,
 Add source-backed declaration/call facts sufficient for Drizzle/Sequelize physical table, key,
 column and relation extraction. T10 will consume those facts instead of creating a second JS/TS
 parser.
+
+## CR-T10-004 — T08 Rust/Diesel persistence semantic and compiler facts
+
+**Owner requested:** T08 Rust semantic/compiler analysis. **Status:** requested, not delivered.
+
+T10 must not build a second Rust parser. T08 should emit source-backed facts conforming to,
+or explicitly superseding, `bskel.internal.persistence-source-facts/0` for exact Diesel
+`v2.3.14` before the catalog's `diesel` entry can leave `blocked-upstream-facts`.
+
+**Requested minimum:** pin the Cargo feature/dependency graph and `table!` expansion;
+retain source/provenance for physical schema/table, `#[sql_name]` columns, ordered
+composite primary keys, `#[diesel(table_name)]` and `#[diesel(primary_key)]` derives,
+and `joinable!` / association pairs. Distinguish explicit/default/unknown basis and
+compiler-conditional branches. Report diagnostics rather than inventing facts when
+macro expansion fails, migrations/schema.rs drift, a composite FK cannot be represented
+by `joinable!`, or a connection's `search_path` makes the physical schema runtime-bound.
+
+**Acceptance:** T08 provides an exact-version fixture and compile/provenance receipts
+for normal and negative cases, and T10 can consume them without parsing Rust source
+or changing the Diesel catalog state before T16/T19/T20 and live-DB checks. This CR
+does not claim T08 delivery, a Diesel provider, certification, or release approval.
