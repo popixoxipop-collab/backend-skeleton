@@ -9,7 +9,7 @@ The stable scanner stays authoritative: its `sbf.scan-report/2` output is the on
 
 ## 2. Adapters in scope
 
-Exactly the five rows below. `legacyHttpBaseline` returns `{fixture, descriptor, inventory}` for them and `null` for every other string that is not an inherited property name (`generic-grep` included). It is a plain property read, not a membership test: every inherited name of `Object.prototype` (`constructor`, `toString`, `hasOwnProperty`, `valueOf`, `__proto__`, ...) returns the inherited value, and a key that coerces to an id (an array holding one id) returns that entry. This is a known limit of the unmodified code that T11-03 must fix with an own lookup; until then check an id against `LEGACY_HTTP_ADAPTER_IDS`. `snapshotLegacyHttpAdapter` and `bridgeLegacyHttpScan` compare the id exactly, without coercion, and throw for every other value. The `adapter` argument is the registry's legacy `sbf.adapter/2` record; T11 never copies its `detect`, `scan`, `introspectRoutes`, `listReadSet` or `diagnostics` (section 3 lists the keys it does copy). The four capability columns are legacy booleans (section 5).
+Exactly the five rows below. `legacyHttpBaseline` accepts only an exact primitive string id and an own key of the pinned table. It returns the unchanged `{fixture, descriptor, inventory}` entry for those ids and `null` for every other value (`generic-grep` included). Inherited names of `Object.prototype` (`constructor`, `toString`, `hasOwnProperty`, `valueOf`, `__proto__`, ...) are rejected. Arrays, boxed strings, objects, functions and Proxies are rejected without coercion or invoking input hooks. This completes the T11-03 own-key lookup repair; it does not change the pinned descriptor data, historical baseline or any scanner support claim. `LEGACY_HTTP_ADAPTER_IDS` remains the exact five-id list. `snapshotLegacyHttpAdapter` and `bridgeLegacyHttpScan` compare the id exactly, without coercion, and throw for every other value. The `adapter` argument is the registry's legacy `sbf.adapter/2` record; T11 never copies its `detect`, `scan`, `introspectRoutes`, `listReadSet` or `diagnostics` (section 3 lists the keys it does copy). The four capability columns are legacy booleans (section 5).
 
 | adapter | specificity | confidence | verificationBasis | api.operations | api.request-shape | resource.fetch | codegen.handles |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -23,7 +23,7 @@ Exactly the five rows below. `legacyHttpBaseline` returns `{fixture, descriptor,
 
 | module | function | input | output |
 | --- | --- | --- | --- |
-| `baselines.mjs` | `legacyHttpBaseline` | adapter id | entry, `null`, or an inherited value (section 2) |
+| `baselines.mjs` | `legacyHttpBaseline` | exact primitive string adapter id | unchanged entry or `null` (section 2) |
 | `bridge.mjs` | `snapshotLegacyHttpAdapter` | registry record | `{contract, id, title, specificity, confidence, verificationBasis, capabilities}`, a detached copy |
 | `bridge.mjs` | `bridgeLegacyHttpScan` | `{adapter, report}` | `{schema, mode, source_adapter, source_scan_schema, legacy_report}` |
 | `bridge.mjs` | `summarizeLegacyHttpReport` | `report` | `{modules, moduleCount, controllerCount, entityCount, enumCount, dtoCount, endpointCount, filesReadCount}` |

@@ -8,9 +8,12 @@ Provenance: ported from the draft PR 77 branch `scale/t11-http-legacy-modernizat
 `5d328f906dd81fde508c1cd652a6ab159e22a29e`. The stage began as a byte-identical port of the modules
 listed below. Fixes that followed read-only review by substitute agent reviewers (not an independent
 attestation) changed `parity.mjs`, `shadow-projection.mjs`, `cutover-readiness.mjs`,
-`checkout-completeness.mjs` and their tests, and added `bridge.test.mjs`. `baselines.mjs`,
-`bridge.mjs` and `baseline.test.mjs` are still byte-identical to that head. This document is
-rewritten to describe what this stage ships. Numbers that PR 77 recorded from the producer machine
+`checkout-completeness.mjs` and their tests, and added `bridge.test.mjs`. The later T11-03 repair
+changes only the lookup guard in `baselines.mjs`: it requires a primitive string and an own table key,
+without coercing caller input. Its five-adapter descriptor and inventory data remain unchanged.
+`bridge.mjs` and `baseline.test.mjs` are still byte-identical to the PR 77 head. The historical
+`BASELINE.json` and its pinned revision remain unchanged; the current RFC/tests and interface receipt
+record the lookup repair separately. This document is rewritten to describe what this stage ships. Numbers that PR 77 recorded from the producer machine
 are PR 77 evidence and were not re-run here.
 
 ## Owned implementation

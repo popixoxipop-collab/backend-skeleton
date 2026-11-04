@@ -49,9 +49,9 @@ A positive `reported_fields_only` status does **not** mean the scanner found eve
 
 Legacy `sbf.scan-report/2` consumers remain unchanged and authoritative. This is opt-in, additive evidence for a future T00/T01/T02/T03 cross-project projection; it **does not** become a new default `scan` output, and it cannot activate a T11 cutover.
 
-Normal fixtures must prove reported empty versus omitted hashes/states differ and normal legacy inputs do not mutate. Negative fixtures must check null/undefined, inherited properties, accessors with throwing getters, wrong container type, malformed schema and count bounds. The `test/t11-observation-v1.test.mjs` product file will exercise those cases independently, while the historical T11 test directory remains frozen.
+Normal fixtures must prove reported empty versus omitted hashes/states differ and normal legacy inputs do not mutate. Negative fixtures must check null/undefined, inherited properties, accessors with throwing getters, wrong container type, malformed schema and count bounds. The `test/t11-observation-v1.test.mjs` product file exercises those cases independently. The historical T11-01 baseline and its pinned tests remain available unchanged at their recorded Git revision; the current legacy RFC/tests separately record the later T11-03 own-key lookup repair.
 
-**Strict 291-task MET rule**: this local RFC and positive/negative checks are only a **T11-02 acceptance candidate**. Dependency, main-merge, independently reviewed exact-head CI and final T00 audit judgement are required before official MET count moves. The historical T11 baseline and RFC remain readable unchanged.
+**Strict 291-task MET rule**: this local RFC and positive/negative checks are only a **T11-02 acceptance candidate**. Dependency, main-merge, independently reviewed exact-head CI and final T00 audit judgement are required before official MET count moves. The historical T11 baseline remains unchanged, and the original RFC remains readable at its pinned revision. The current legacy RFC describes the T11-03 own-key lookup repair without changing this observation interface or awarding task completion.
 
 ## Opt-in legacy bridge consumer (product wiring)
 
