@@ -311,6 +311,83 @@
       "codes": [],
       "stdout_first_line": "",
       "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "remote-error-dirty-state",
+      "mutation": "observation: bskel dirty is the string ERROR, remote mode must not forgive it",
+      "command": "node next/t00/verify-baseline.mjs --remote <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "DIRTY_STATE_UNKNOWN"
+      ],
+      "stdout_first_line": "FAIL DIRTY_STATE_UNKNOWN bskel dirty state is \"ERROR\", not false",
+      "stdout_sha256": "c79a15ce2b8cee2b7abae59a02b6185eaa7d6d72a8946da49667a350731cbae4"
+    },
+    {
+      "id": "remote-missing-dirty-state",
+      "mutation": "observation: bskel dirty field removed, remote mode requires explicit null or false",
+      "command": "node next/t00/verify-baseline.mjs --remote <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "DIRTY_STATE_UNKNOWN"
+      ],
+      "stdout_first_line": "FAIL DIRTY_STATE_UNKNOWN bskel dirty state is null, not false",
+      "stdout_sha256": "8d56aa1b18eaf7152db31daca1e377da5e3e0367d8fc3fd21644066320c16517"
+    },
+    {
+      "id": "unknown-ci-status-rederived",
+      "mutation": "observation: a run status is ERROR with success conclusion; lock and hash rederived",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "MALFORMED_RECORD"
+      ],
+      "stdout_first_line": "FAIL MALFORMED_RECORD bskel observation: run 37086190872 lacks a field the CI summary reads",
+      "stdout_sha256": "d35b6d5022d6f3309e60e0327407f23975429fec6bcc70912c75cd1fa277f5f5"
+    },
+    {
+      "id": "queued-success-rederived",
+      "mutation": "observation: queued run claims success; lock and hash rederived",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "MALFORMED_RECORD"
+      ],
+      "stdout_first_line": "FAIL MALFORMED_RECORD bskel observation: run 37086190872 lacks a field the CI summary reads",
+      "stdout_sha256": "d35b6d5022d6f3309e60e0327407f23975429fec6bcc70912c75cd1fa277f5f5"
+    },
+    {
+      "id": "completed-null-conclusion-rederived",
+      "mutation": "observation: completed run has null conclusion; lock and hash rederived",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "MALFORMED_RECORD"
+      ],
+      "stdout_first_line": "FAIL MALFORMED_RECORD bskel observation: run 37086190872 lacks a field the CI summary reads",
+      "stdout_sha256": "d35b6d5022d6f3309e60e0327407f23975429fec6bcc70912c75cd1fa277f5f5"
+    },
+    {
+      "id": "inventory-source-repository-rederived",
+      "mutation": "observation: inventory source repo redirected; lock and hash rederived",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "MALFORMED_RECORD"
+      ],
+      "stdout_first_line": "FAIL MALFORMED_RECORD bskel lock inventory: source must identify the canonical inventory path and the recorded bskel head",
+      "stdout_sha256": "f891efcb63f6247ac53c943735881e34a23acbb9471e65c3561aabdbfe57977e"
+    },
+    {
+      "id": "inventory-source-revision-rederived",
+      "mutation": "observation: inventory source ref changed away from bskel head; lock and hash rederived",
+      "command": "node next/t00/verify-baseline.mjs --remote --record <lock.json> <observation.json>",
+      "exit_code": 2,
+      "codes": [
+        "MALFORMED_RECORD"
+      ],
+      "stdout_first_line": "FAIL MALFORMED_RECORD bskel lock inventory: source must identify the canonical inventory path and the recorded bskel head",
+      "stdout_sha256": "f891efcb63f6247ac53c943735881e34a23acbb9471e65c3561aabdbfe57977e"
     }
   ]
 }

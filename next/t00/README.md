@@ -34,7 +34,7 @@ fails with `DIRTY_STATE_UNKNOWN`, because a GitHub observation has no work tree.
 | `REPOSITORY_SET_MISMATCH` | the set is fixed by the verifier, not by the files: the lock must pin bskel, becoder and beval once each under their repository names, the observation must not hold a repeated, renamed or unknown repository, and the inventory pins of the lock and of the observation must hold each of the three roles exactly once |
 | `MALFORMED_RECORD` | a lock or observation entry lacks a field the comparison reads or holds it in the wrong shape: a missing or non-list `required_artifacts` or artifact list, an entry that is not an object, an artifact set that is not exactly package.json, package-lock.json and .github/workflows/ci.yml, an observation without the schema `bskel.t00-observation/1` or with a timestamp that is not UTC, a run, package or inventory pin of the wrong shape, `limits` that is not a list of statements |
 | `DIRTY_CHECKOUT` | the work tree has uncommitted or untracked changes |
-| `DIRTY_STATE_UNKNOWN` | cleanliness was not observed (null) and `--remote` is not given |
+| `DIRTY_STATE_UNKNOWN` | cleanliness is neither false nor explicit null in remote mode; checkout mode requires false. Missing fields and error strings are not remote observations |
 | `DEFAULT_BRANCH_MISMATCH` | the observed branch is not the locked default branch |
 | `HEAD_SHA_MISMATCH` | the observed head is not the locked head |
 | `MISSING_ARTIFACT` | a locked artifact (package.json, package-lock.json, ci.yml) is absent |
@@ -53,6 +53,10 @@ still reports the same facts: a lock committed to main is always behind the main
 beval facts can only be re-checked by running the capture again from a session that can read those repositories.
 The recorded run count and page number catch an observation that lost runs after the capture. An observation edited consistently (runs, count, pages, observation hash and lock all together) cannot be told from a real one offline; only a new capture from GitHub refutes it.
 The `limits` in the lock state what else is not covered, including the exact-head CI failures of bskel and beval.
+
+Recorded dirty state must be boolean or explicit null. CI success requires both a completed status and a success conclusion.
+Record validation accepts the six workflow statuses and nine conclusions modeled by the [GitHub CLI run implementation](https://github.com/cli/cli/blob/trunk/pkg/cmd/run/shared/shared.go), including `startup_failure` as a non-success result. A nonterminal run needs a null conclusion; a completed run needs a recognized conclusion. Unknown or contradictory states are `MALFORMED_RECORD`, even if the lock and observation hash were regenerated together.
+The historical inventory source must name the canonical BSKEL repository, inventory path, pin field and the BSKEL head recorded in the same document. This binds historical metadata, not a future inventory carrier, current-main freshness, authenticated CI, signatures or freeze authority. The coordinated-forgery limit above remains.
 
 ## Re-baselining
 

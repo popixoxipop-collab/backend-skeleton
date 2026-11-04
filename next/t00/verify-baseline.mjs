@@ -22,6 +22,8 @@ export const BASELINE_CODES = [
   'DEFAULT_BRANCH_MISMATCH', 'HEAD_SHA_MISMATCH', 'MISSING_ARTIFACT', 'ARTIFACT_BLOB_MISMATCH',
 ];
 export const RECORD_CODES = ['OBSERVATION_HASH_MISMATCH', 'DERIVED_FACT_MISMATCH', 'CI_RUNS_INCOMPLETE'];
+export const CI_STATUSES = Object.freeze(['queued', 'in_progress', 'completed', 'requested', 'waiting', 'pending']);
+export const CI_CONCLUSIONS = Object.freeze(['action_required', 'cancelled', 'failure', 'neutral', 'skipped', 'stale', 'success', 'timed_out', 'startup_failure']);
 
 export function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
@@ -35,7 +37,7 @@ export const canonicalSha256 = (value) => createHash('sha256').update(canonicalJ
 // A repository with no workflow run on its exact head is not "all success": absence is unknown, not success.
 export function summarizeCi(runs) {
   const notSuccess = runs
-    .filter((r) => r.conclusion !== 'success')
+    .filter((r) => r.status !== 'completed' || r.conclusion !== 'success')
     .map(({ run_id, workflow, event, status, conclusion, created_at, failed_jobs }) => ({ run_id, workflow, event, status, conclusion, created_at, failed_jobs }));
   return { runs_total: runs.length, all_success: runs.length > 0 && notSuccess.length === 0, not_success: notSuccess };
 }
@@ -147,7 +149,7 @@ export function verifyBaseline(lock, observation, { remote = false } = {}) {
     const o = find(observation.repositories, 'role', repo.role);
     if (!o) { errors.push(err('MISSING_REPOSITORY_OBSERVATION', repo.role, `no observation for ${repo.repo}`)); continue; }
     if (o.dirty === true) errors.push(err('DIRTY_CHECKOUT', repo.role, 'work tree has uncommitted or untracked changes'));
-    else if (o.dirty !== false && !remote) errors.push(err('DIRTY_STATE_UNKNOWN', repo.role, `dirty state is ${JSON.stringify(o.dirty ?? null)}, not false`));
+    else if (o.dirty !== false && !(remote && o.dirty === null)) errors.push(err('DIRTY_STATE_UNKNOWN', repo.role, `dirty state is ${JSON.stringify(o.dirty ?? null)}, not false`));
     if (o.default_branch !== repo.default_branch) errors.push(err('DEFAULT_BRANCH_MISMATCH', repo.role, `locked ${repo.default_branch}, observed ${o.default_branch}`));
     if (o.head_sha !== repo.head_sha) errors.push(err('HEAD_SHA_MISMATCH', repo.role, `locked ${repo.head_sha}, observed ${o.head_sha}`));
     for (const want of objects(repo.required_artifacts)) { // a list that is not a list was reported by shapeErrors
@@ -166,6 +168,7 @@ function observationErrors(observation) {
   if (observation.schema !== OBSERVATION_SCHEMA) bad('-', `schema is ${JSON.stringify(observation.schema ?? null)}, expected ${OBSERVATION_SCHEMA}`);
   if (!matches(UTC, observation.observed_at)) bad('-', 'observed_at is not a UTC timestamp');
   for (const r of observation.repositories) {
+    if (r.dirty !== null && typeof r.dirty !== 'boolean') bad(r.role, 'dirty must be a boolean or explicit null');
     if (!['public', 'private'].includes(r.visibility)) bad(r.role, 'visibility is neither public nor private');
     if (!matches(UTC, r.head_committed_at)) bad(r.role, 'head_committed_at is not a UTC timestamp');
     const p = r.package;
@@ -175,7 +178,9 @@ function observationErrors(observation) {
     if (!Array.isArray(r.ci_runs_on_exact_head)) { bad(r.role, 'ci_runs_on_exact_head is not a list'); continue; }
     for (const run of r.ci_runs_on_exact_head) {
       const jobsOk = plain(run) && Array.isArray(run.failed_jobs) && run.failed_jobs.every((j) => plain(j) && text(j.name) && text(j.conclusion) && textList(j.failed_steps) && textList(j.unfinished_steps));
-      if (!jobsOk || !count(run.run_id) || !text(run.workflow) || !text(run.event) || !text(run.status) || !(run.conclusion === null || text(run.conclusion)) || !matches(UTC, run.created_at)) {
+      const stateOk = plain(run) && CI_STATUSES.includes(run.status) &&
+        (run.status === 'completed' ? CI_CONCLUSIONS.includes(run.conclusion) : run.conclusion === null);
+      if (!jobsOk || !count(run.run_id) || !text(run.workflow) || !text(run.event) || !stateOk || !matches(UTC, run.created_at)) {
         bad(r.role, `run ${JSON.stringify(run?.run_id ?? null)} lacks a field the CI summary reads`);
       }
     }
@@ -185,12 +190,17 @@ function observationErrors(observation) {
 
 // The pins say how far each repository moved since the release inventory last pinned it; the baseline has one per role.
 const PIN_STATUS = ['identical', 'ahead', 'behind', 'diverged'];
-function inventoryErrors(what, inventory) {
+function inventoryErrors(what, inventory, repositories) {
   const errors = [];
   const bad = (role, detail) => errors.push(err('MALFORMED_RECORD', role, `${what} inventory: ${detail}`));
   if (!plain(inventory) || !plain(inventory.source) || !Array.isArray(inventory.pins)) return [err('MALFORMED_RECORD', '-', `${what} inventory needs a source object and a pins list`)];
   const s = inventory.source;
   if (!text(s.repo) || !text(s.path) || !matches(SHA, s.ref) || !matches(SHA, s.git_blob_sha) || !text(s.pin_field)) bad('-', 'source needs repo, path, a 40-hex ref, a 40-hex git_blob_sha and pin_field');
+  const bskel = find(repositories, 'role', 'bskel');
+  if (s.repo !== REQUIRED_REPOSITORIES[0].repo || s.path !== 'release/next/compatibility-inventory.json' ||
+      s.pin_field !== 'coordination_baseline.repositories.<role>' || (bskel && s.ref !== bskel.head_sha)) {
+    bad('bskel', 'source must identify the canonical inventory path and the recorded bskel head');
+  }
   for (const want of REQUIRED_REPOSITORIES) {
     const n = inventory.pins.filter((p) => plain(p) && p.role === want.role).length;
     if (n !== 1) errors.push(err('REPOSITORY_SET_MISMATCH', want.role, `the ${what} inventory pins ${want.role} ${n} times, expected once`));
@@ -212,7 +222,7 @@ export function verifyLockRecord(lock, observation) {
     errors.push(err('OBSERVATION_HASH_MISMATCH', '-', 'lock.capture.observation_sha256 is not the canonical sha256 of the observation'));
   }
   const malformed = observationErrors(observation);
-  errors.push(...malformed, ...inventoryErrors('lock', lock.inventory_pins), ...inventoryErrors('observation', observation.inventory), ...limitsErrors(lock.limits));
+  errors.push(...malformed, ...inventoryErrors('lock', lock.inventory_pins, lock.repositories), ...inventoryErrors('observation', observation.inventory, observation.repositories), ...limitsErrors(lock.limits));
   if (malformed.length > 0) return { ok: false, errors }; // facts derived from an observation that lacks fields would mean nothing
   const roles = (doc) => doc.repositories.map((r) => r.role).sort();
   if (canonicalJson(roles(lock)) !== canonicalJson(roles(observation))) {

@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { canonicalSha256, deriveLockRepository } from './verify-baseline.mjs';
+import { canonicalSha256, deriveLock, deriveLockRepository } from './verify-baseline.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const CLI = path.join(here, 'verify-baseline.mjs');
@@ -16,6 +16,7 @@ const flip = (hex) => `${hex[0] === '0' ? '1' : '0'}${hex.slice(1)}`;
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 const pick = (doc, role) => doc.repositories.find((r) => r.role === role);
 const RECORD = ['--remote', '--record'];
+const rebuild = (l, o, mutate) => { mutate(o); Object.assign(l, deriveLock(o, l.limits)); };
 
 export const CASES = [
   { id: 'accept-recorded-observation', mutation: 'none (control)', flags: RECORD, exit: 0, codes: [], mutate() {} },
@@ -46,6 +47,13 @@ export const CASES = [
   { id: 'lock-required-artifacts-deleted', mutation: 'lock: bskel required_artifacts removed', flags: ['--remote'], exit: 2, codes: ['MALFORMED_RECORD'], mutate: (l) => { delete pick(l, 'bskel').required_artifacts; } },
   { id: 'lock-required-artifacts-is-a-string', mutation: 'lock: bskel required_artifacts set to the string package.json', flags: ['--remote'], exit: 2, codes: ['MALFORMED_RECORD'], mutate: (l) => { pick(l, 'bskel').required_artifacts = 'package.json'; } },
   { id: 'usage-error', mutation: 'no arguments', flags: [], noFiles: true, exit: 1, codes: [], mutate() {} },
+  { id: 'remote-error-dirty-state', mutation: 'observation: bskel dirty is the string ERROR, remote mode must not forgive it', flags: ['--remote'], exit: 2, codes: ['DIRTY_STATE_UNKNOWN'], mutate: (l, o) => { pick(o, 'bskel').dirty = 'ERROR'; } },
+  { id: 'remote-missing-dirty-state', mutation: 'observation: bskel dirty field removed, remote mode requires explicit null or false', flags: ['--remote'], exit: 2, codes: ['DIRTY_STATE_UNKNOWN'], mutate: (l, o) => { delete pick(o, 'bskel').dirty; } },
+  { id: 'unknown-ci-status-rederived', mutation: 'observation: a run status is ERROR with success conclusion; lock and hash rederived', flags: RECORD, exit: 2, codes: ['MALFORMED_RECORD'], mutate: (l, o) => rebuild(l, o, (x) => { Object.assign(pick(x, 'bskel').ci_runs_on_exact_head[0], { status: 'ERROR', conclusion: 'success' }); }) },
+  { id: 'queued-success-rederived', mutation: 'observation: queued run claims success; lock and hash rederived', flags: RECORD, exit: 2, codes: ['MALFORMED_RECORD'], mutate: (l, o) => rebuild(l, o, (x) => { Object.assign(pick(x, 'bskel').ci_runs_on_exact_head[0], { status: 'queued', conclusion: 'success' }); }) },
+  { id: 'completed-null-conclusion-rederived', mutation: 'observation: completed run has null conclusion; lock and hash rederived', flags: RECORD, exit: 2, codes: ['MALFORMED_RECORD'], mutate: (l, o) => rebuild(l, o, (x) => { Object.assign(pick(x, 'bskel').ci_runs_on_exact_head[0], { status: 'completed', conclusion: null }); }) },
+  { id: 'inventory-source-repository-rederived', mutation: 'observation: inventory source repo redirected; lock and hash rederived', flags: RECORD, exit: 2, codes: ['MALFORMED_RECORD'], mutate: (l, o) => rebuild(l, o, (x) => { x.inventory.source.repo = 'other/repo'; }) },
+  { id: 'inventory-source-revision-rederived', mutation: 'observation: inventory source ref changed away from bskel head; lock and hash rederived', flags: RECORD, exit: 2, codes: ['MALFORMED_RECORD'], mutate: (l, o) => rebuild(l, o, (x) => { x.inventory.source.ref = '0'.repeat(40); }) },
 ];
 
 function runCase(c, lock0, obs0, dir) {
