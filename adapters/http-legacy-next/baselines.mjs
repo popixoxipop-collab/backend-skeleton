@@ -108,5 +108,6 @@ export const LEGACY_HTTP_BASELINES = freeze({
 });
 
 export function legacyHttpBaseline(adapterId) {
-	return LEGACY_HTTP_BASELINES[adapterId] ?? null;
+	if (typeof adapterId !== 'string' || !Object.hasOwn(LEGACY_HTTP_BASELINES, adapterId)) return null;
+	return LEGACY_HTTP_BASELINES[adapterId];
 }
