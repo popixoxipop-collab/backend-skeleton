@@ -144,3 +144,7 @@ whether the head was pinned. After a change to the ownership map, to the fixture
 Node: `package.json` allows Node `>=18` and the CI test job runs `npm test` on Node 22.x and 24.x, so no job runs Node 18. The T00
 tests therefore scan every `next/t00/*.mjs` file and every `test/t00-*.test.mjs` file for the names of APIs that Node 18 lacks.
 That is a list of known names, not a proof, and Node 18 itself was not run.
+
+## Optional strict v1 candidate
+
+The historical commands and report above retain their historical semantics and byte identity. They are not the strict validation entry point. See [BASELINE_STRICT_V1.md](BASELINE_STRICT_V1.md) for the isolated strict CLI, derivation, report and tests. The new inventory-alignment and cross-repository preconditions consume that strict module. This does not establish release-workflow adoption, current inventory alignment, all-writer enforcement, freeze or MET.
