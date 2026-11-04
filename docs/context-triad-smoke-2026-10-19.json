@@ -1,0 +1,50 @@
+{
+  "schema": "triad.context-smoke/1",
+  "scope": "context-and-plan-traceability",
+  "fixture": {
+    "adapter": "python-fastapi",
+    "operation_count": 2,
+    "commit": "f81100423623b4b0a335dc3afa90174622852efc",
+    "selected_files": 6,
+    "selected_utf8_bytes": 4502,
+    "contract_warnings": 2
+  },
+  "checks": [
+    {
+      "name": "actual scanner -> packet -> existing planner -> independent verifier",
+      "passed": true
+    },
+    {
+      "name": "legacy planning remains identical; explicit empty security stays distinct from missing",
+      "passed": true
+    },
+    {
+      "name": "working-tree edits cannot replace the pinned Git evidence",
+      "passed": true
+    },
+    {
+      "name": "different expected commit is rejected even with identical tree",
+      "passed": true
+    },
+    {
+      "name": "rehashed packet and replanned forged contract fail independent Git verification",
+      "passed": true
+    },
+    {
+      "name": "lost operation remains invalid after handoff and plan checksums are recomputed",
+      "passed": true
+    },
+    {
+      "name": "weakened security projection is rejected after all consumer checksums are recomputed",
+      "passed": true
+    },
+    {
+      "name": "budget omissions are valid evidence but yield incomplete, never verified",
+      "passed": true
+    }
+  ],
+  "passed": 8,
+  "failed": 0,
+  "implementation_quality_evaluated": false,
+  "model_performance_evaluated": false
+}
