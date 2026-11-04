@@ -6,8 +6,8 @@
     "T11-01",
     "T11-02"
   ],
-  "revision": "1404418f52f3ab23190484af4bd5063836732daf",
-  "tree": "e0bcd8dfd8dbfc62516a0d0e09f69fc86ad4badc",
+  "revision": "00b9fe367ef2fe07355c0fe771729e0a046d6002",
+  "tree": "ac0ce7a2304c068cc3e2666f44cb8cb33ea277b3",
   "node_version": "v24.22.1",
   "commands": [
     {
@@ -65,9 +65,9 @@
     },
     {
       "path": "adapters/http-legacy-next/INTEGRATION.md",
-      "bytes": 24198,
-      "git_blob_sha1": "2b474fd289bb84ad6e2850884d64c0afacf03431",
-      "sha256": "ac7b8799beefb4c3da8de125b4209cb5223bc5f8254ee5e6c08a6c0449155032"
+      "bytes": 24563,
+      "git_blob_sha1": "b1328d738fd610e9ce19a455876cac47bbf20262",
+      "sha256": "83e3c73f04f9288baca1dc4cb2801cf491573b1b07fca566e0c60fee91ea7557"
     },
     {
       "path": "adapters/http-legacy-next/INTERFACE_RFC.md",
@@ -163,5 +163,5 @@
     "scope of the hashes: the counts cover every test file of the T11 suite at the revision but only the listed files are hashed; the other test files, the nested runner script, the scanner and the fixtures are covered by the revision alone.",
     "replay without history: the replayed nested run has no git history, so the pinned-commit checks of the record test run there under BASELINE_ALLOW_UNVERIFIED=1 and are reported as not run, and it uses the node_modules of the checkout that replays it; the generator's own run had the history."
   ],
-  "receipt_digest": "ebc0e52c756a8f53f691e7947f02eb0198c99fa15c50f45b8f7906125414c5a5"
+  "receipt_digest": "68f421a60fecee1d68fa676291a3b502a7e1c7cda2a5d1a801a4504ab4005d7c"
 }
