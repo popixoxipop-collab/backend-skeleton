@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { TextDecoder } from 'node:util';
-import { REQUIRED_REPOSITORIES, verifyBaseline, verifyLockRecord } from './verify-baseline.mjs';
+import { REQUIRED_REPOSITORIES, verifyBaseline, verifyLockRecord } from './verify-baseline-strict-v1.mjs';
 
 export const MAX_INPUT_BYTES = 2 * 1024 * 1024;
 export const INVENTORY_SCHEMA = 'bskel.scale-release-compatibility/3';

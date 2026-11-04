@@ -45,3 +45,5 @@ by the existing root T00 baseline test, so root npm test discovers it without
 changing package scripts or workflow files. Regression transport replies are
 synthetic; the permission test separately checks whether mode 000 causes real
 EACCES and reports a skip if the execution identity bypasses permissions.
+
+Inventory alignment consumes the isolated [strict v1 baseline](BASELINE_STRICT_V1.md). Historical baseline CLI and receipt bytes are unchanged.

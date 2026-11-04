@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { TextDecoder } from 'node:util';
-import { REQUIRED_REPOSITORIES } from './verify-baseline.mjs';
+import { REQUIRED_REPOSITORIES } from './verify-baseline-strict-v1.mjs';
 import { MAX_INPUT_BYTES, readInput, verifyInventoryAlignment } from './verify-inventory-alignment.mjs';
 import { verifyOnline } from '../../release/next/release-policy.mjs';
 import { createGithubFetchRun, redactSecrets, secretsFromEnv } from '../../release/next/release-policy-github.mjs';
