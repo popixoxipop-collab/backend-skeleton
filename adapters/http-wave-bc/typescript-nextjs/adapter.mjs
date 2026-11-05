@@ -186,7 +186,11 @@ function readBasePath(projectRoot) {
   let unknown = false;
   for (const file of files) {
     let raw;
-    try { raw = fs.readFileSync(file, 'utf8'); } catch { continue; }
+    try { raw = fs.readFileSync(file, 'utf8'); } catch {
+      unknown = true;
+      notes.push('Next.js config is unreadable; absolute Route Handler paths are unknown');
+      continue;
+    }
     const masked = maskComments(raw);
     const any = firstCodeMatch(masked, /\bbasePath\s*:/g);
     const literal = firstCodeMatch(masked, /\bbasePath\s*:\s*(['"`])([^'"`]+)\1/g);
