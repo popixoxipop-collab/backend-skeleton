@@ -1,0 +1,21 @@
+{
+  "schema": "bskel.t12.nest-all-runtime/1",
+  "framework": "@nestjs/core 12.0.1",
+  "path": "/edge/anything",
+  "probes": [
+    { "method": "GET", "authorized": true, "status": 200 },
+    { "method": "GET", "authorized": false, "status": 403 },
+    { "method": "POST", "authorized": true, "status": 200 },
+    { "method": "POST", "authorized": false, "status": 403 },
+    { "method": "PUT", "authorized": true, "status": 200 },
+    { "method": "PUT", "authorized": false, "status": 403 },
+    { "method": "PATCH", "authorized": true, "status": 200 },
+    { "method": "PATCH", "authorized": false, "status": 403 },
+    { "method": "DELETE", "authorized": true, "status": 200 },
+    { "method": "DELETE", "authorized": false, "status": 403 },
+    { "method": "OPTIONS", "authorized": true, "status": 200 },
+    { "method": "OPTIONS", "authorized": false, "status": 403 },
+    { "method": "HEAD", "authorized": true, "status": 200 },
+    { "method": "HEAD", "authorized": false, "status": 403 }
+  ]
+}
