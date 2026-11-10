@@ -1,0 +1,39 @@
+{
+  "schema": "bskel.http-python-flask-limited-certificate/1",
+  "status": "LIMITED_CONFORMANCE",
+  "basis_commit": "1b4a8e94dd48f3f67a4f9015ffbddb87490453fb",
+  "execution_host": "bob",
+  "result_sha256": "12940cd89925072bbcf70d2fdfd4864346db9b0bda5f7325a3fe62d59d42774c",
+  "framework": {"name": "flask", "version": "3.1.3"},
+  "python": {"implementation": "cpython", "machine": "arm64", "system": "Darwin", "version": "3.11.15"},
+  "fixture_count": 8,
+  "http_probe_count": 15,
+  "supported": [
+    {"fixture": "counterexamples/middleware-auth", "method": "GET", "path": "/public"},
+    {"fixture": "normal", "method": "GET", "path": "/health"}
+  ],
+  "excluded_negative_controls": {
+    "counterexamples/dynamic-route-factory": "/alpha",
+    "counterexamples/imperative-registration": "/ping",
+    "counterexamples/router-prefix": "/v2/ping"
+  },
+  "oracle_sha256": "2fd1d573c19b3641a322fcc57d360177d62a1cb97590736f254671ba5781de3b",
+  "static_sha256": "04a43f17c1ff4e41af8a2d68bb1fde51a923645b904020554baf6773bf0e22cd",
+  "source_sha256": {
+    "adapters/http-wave-a/flask.mjs": "1696452ed788b725c8842c8c44ace62bf28dcb5a50aebf9e6bbf78c5b343b9bc",
+    "adapters/http-wave-a/python-flask/SCOPE.json": "a8a67055ca312708be83c4263d4fb27855de8ba8018890fe3ba5a9d1ecf936bf",
+    "adapters/http-wave-a/python-scope/oracle.py": "8b92d4f59f922afc97ad113205df27083d757730045e45ce9a42e0a843808ded",
+    "adapters/http-wave-a/python-scope/static-runner.mjs": "a084dce820f3642fdb0c5357fb45c89eb48aa52f50717a6c9c2d08f1a915ec3a",
+    "adapters/http/python-flask/runtime-cert.py": "bf56203440ff87513e53c06f5ca510d5532565ffff5476d58e47d2416f93c817",
+    "scanners/language/python/flask-shadow.mjs": "785ff3ff4ebbe8a7cafe4a12674003b8441a3630a039ee58a02d464c92bc3169"
+  },
+  "runtime_tested": true,
+  "production_registered": false,
+  "t19_review": "NOT_REVIEWED",
+  "limitations": [
+    "Only two literal GET paths are certified; all other routes are excluded.",
+    "Flask test_client is in-process; no bound network server or deployment proxy is tested.",
+    "Middleware authorization, generated and dynamic routes are not certified as scanner support.",
+    "T12 leaf remains candidate/unregistered and does not become a release claim."
+  ]
+}
