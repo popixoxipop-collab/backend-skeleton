@@ -1,0 +1,45 @@
+{
+  "contract": "sbf.qa-product-mutation-catalog/1",
+  "mutants": [
+    {
+      "id": "T06-UNSAFE-INTEGER-COERCION",
+      "vector_id": "T06-NEG-NUMERIC-RANGE",
+      "critical": true,
+      "file": "scanners/language/python/ast-helper.py",
+      "find": "if -JS_SAFE_INTEGER <= v <= JS_SAFE_INTEGER:",
+      "replace": "if True:",
+      "test_files": ["test/language-python/python-numeric-semantics.test.mjs"],
+      "invariant": "Python integers outside the JavaScript safe range retain exact decimal strings."
+    },
+    {
+      "id": "T06-LOSSY-SOURCE-DECODE",
+      "vector_id": "T06-NEG-SOURCE-ENCODING",
+      "critical": true,
+      "file": "scanners/language/python/ast-helper.py",
+      "find": "source = raw.decode(encoding, errors=\"strict\")",
+      "replace": "source = raw.decode(encoding, errors=\"replace\")",
+      "test_files": ["test/language-python/python-analyzer-limits.test.mjs"],
+      "invariant": "Invalid source bytes fail closed instead of being silently replaced."
+    },
+    {
+      "id": "T06-SOURCE-SIZE-BYPASS",
+      "vector_id": "T06-NEG-SOURCE-SIZE",
+      "critical": true,
+      "file": "scanners/language/python/analyzer.mjs",
+      "find": "if (sourceStat.size > maxSourceBytes) {",
+      "replace": "if (false && sourceStat.size > maxSourceBytes) {",
+      "test_files": ["test/language-python/python-analyzer-limits.test.mjs"],
+      "invariant": "Oversized source is refused before its bytes enter the Python helper."
+    },
+    {
+      "id": "T06-SYMLINK-ROOT-ESCAPE",
+      "vector_id": "T06-NEG-ROOT-ESCAPE",
+      "critical": false,
+      "file": "scanners/language/python/analyzer.mjs",
+      "find": "if (!inside(rootReal, fileReal) || fileReal === rootReal) {",
+      "replace": "if (false && (!inside(rootReal, fileReal) || fileReal === rootReal)) {",
+      "test_files": ["test/language-python/t06-adversarial.test.mjs"],
+      "invariant": "A symlink whose real path leaves the project root cannot be analyzed."
+    }
+  ]
+}
