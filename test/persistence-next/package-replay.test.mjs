@@ -30,8 +30,9 @@ test('T10 package replay: build pinned fixtures and pass all 24 scenarios', { ti
   env.GIT_CONFIG_GLOBAL = process.platform === 'win32' ? 'NUL' : '/dev/null';
   env.npm_config_cache = path.join(scratch, 'npm-cache');
   env.npm_config_registry = 'https://registry.npmjs.org/';
-  env.npm_config_userconfig = process.platform === 'win32' ? 'NUL' : '/dev/null';
-  env.npm_config_globalconfig = process.platform === 'win32' ? 'NUL' : '/dev/null';
+  env.npm_config_userconfig = path.join(scratch, 'empty-user.npmrc');
+  fs.writeFileSync(env.npm_config_userconfig, '');
+  env.npm_config_globalconfig = '/dev/null';
   env.npm_config_audit = 'false';
   env.npm_config_fund = 'false';
   env.npm_config_update_notifier = 'false';
