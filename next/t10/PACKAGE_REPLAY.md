@@ -62,7 +62,11 @@ This is networked prerequisite preparation, not an offline claim. Both package
 build and all installs then use `--offline` with that cache. A missing lock pin,
 registry fetch, or required historical Git object fails the test rather than
 being skipped. The standalone CLI still requires callers to prepare their own
-cache before invoking it.
+cache before invoking it. The disposable consumer also pins every transitive
+version through `overrides` derived from the same SHA-bound historical lock;
+otherwise npm may resolve a newer package even when the old tarball is cached.
+Both historical Git revisions must contain that exact lock. Version 2 bundles
+record its digest and reject a replay harness with a different lock.
 
 ## What runs
 

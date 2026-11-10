@@ -8,13 +8,15 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { resolveNpmInvocation, materializePinnedSource } from '../../scripts/t22-distribution-report.mjs';
 
-export const SCHEMA = 'bskel.t10-package-replay/1';
+export const SCHEMA = 'bskel.t10-package-replay/2';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROBE = path.join(HERE, 'installed-persistence-probe.mjs');
 const SELF = fileURLToPath(import.meta.url);
 const HEX = /^[0-9a-f]{64}$/;
 const OID = /^[0-9a-f]{40}$/;
 const MAX_TARBALL = 32 * 1024 * 1024;
+const LOCK_SHA256 = 'c5d31a4bcef1168f6fd07db2544efca0f95d2dad841d108f608a1e23e59e83e0';
+const LOCK_FILE = path.resolve(HERE, '../../package-lock.json');
 const NO_AUTHORITY = Object.freeze({ release_authorized: false, runtime_certified: false, publication_performed: false });
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const jsonBytes = object => Buffer.from(JSON.stringify(object, null, 2) + '\n');
@@ -72,6 +74,21 @@ function npmCommand(identity, args) {
   requireValue(sha256(regularBytes(identity.executable, 1024 * 1024)) === identity.sha256, 'npm executable changed');
   return [process.execPath, identity.executable, ...args];
 }
+function lockedOverrides() {
+  const bytes = regularBytes(LOCK_FILE, 1024 * 1024);
+  requireValue(sha256(bytes) === LOCK_SHA256, 'historical replay dependency lock changed');
+  const lock = JSON.parse(bytes.toString('utf8'));
+  const entries = Object.entries(lock.packages ?? {}).filter(([name]) => name.startsWith('node_modules/'));
+  requireValue(entries.length === 21, 'historical replay dependency set changed');
+  const overrides = {};
+  for (const [name, entry] of entries) {
+    const packageName = name.slice('node_modules/'.length);
+    requireValue(/^[a-z0-9][a-z0-9._-]*$/.test(packageName) && /^\d+\.\d+\.\d+$/.test(entry.version) &&
+      !Object.hasOwn(overrides, packageName), 'invalid historical dependency lock entry');
+    overrides[packageName] = entry.version;
+  }
+  return overrides;
+}
 function newOutput(output) {
   requireValue(path.isAbsolute(output), 'output must be absolute');
   fs.mkdirSync(output, { mode: 0o700 }); // Deliberately never overwrites existing evidence.
@@ -95,6 +112,7 @@ function inventoryAt(repo, revision, metadata) {
 }
 function harnessIdentity() {
   return { module_sha256: sha256(regularBytes(SELF, 1024 * 1024)),
+    dependency_lock_sha256: LOCK_SHA256,
     probe_sha256: sha256(regularBytes(PROBE, 1024 * 1024)),
     fixture_sha256: sha256(regularBytes(path.join(HERE, 'persistence-fixtures.mjs'), 1024 * 1024)),
     distribution_helper_sha256: sha256(regularBytes(path.resolve(HERE, '../../scripts/t22-distribution-report.mjs'), 1024 * 1024)),
@@ -108,7 +126,10 @@ export function buildReplayBundle({ repoRoot, previous, candidate, output }) {
   for (const revision of [previous, candidate]) {
     requireValue(gitBytes(repoRoot, ['cat-file', '-t', revision]).toString().trim() === 'commit',
       'exact commit object required');
+    requireValue(sha256(gitBytes(repoRoot, ['cat-file', 'blob', revision + ':package-lock.json'])) === LOCK_SHA256,
+      'historical package lock differs from replay harness');
   }
+  lockedOverrides();
   const npm = resolveNpmInvocation();
   newOutput(output);
   const commands = [], packages = {};
@@ -140,6 +161,7 @@ export function buildReplayBundle({ repoRoot, previous, candidate, output }) {
     requireValue(packages.previous.sha256 !== packages.candidate.sha256, 'package bytes must differ');
     const manifest = { schema: SCHEMA, scope: 'disposable-package-rehearsal',
       ...NO_AUTHORITY, harness: harnessIdentity(),
+      dependency_lock_sha256: LOCK_SHA256,
       packages, preconditions: ['trusted Git/Node/npm/host', 'prewarmed npm dependency cache',
         'package-level reinstall, not zero-downtime service rollback'] };
     const bytes = jsonBytes(manifest), digest = sha256(bytes);
@@ -160,6 +182,7 @@ export function verifyReplayBundle(directory, expectedManifestSha256) {
   requireValue(sha256(bytes) === expectedManifestSha256, 'manifest SHA-256 mismatch');
   const manifest = JSON.parse(bytes.toString('utf8'));
   requireValue(manifest.schema === SCHEMA && manifest.scope === 'disposable-package-rehearsal', 'unsupported bundle');
+  requireValue(manifest.dependency_lock_sha256 === LOCK_SHA256, 'replay dependency lock mismatch');
   for (const key of Object.keys(NO_AUTHORITY)) requireValue(manifest[key] === false, 'bundle cannot grant authority');
   requireValue(JSON.stringify(manifest.harness) === JSON.stringify(harnessIdentity()), 'replay harness identity mismatch');
   exactKeys(manifest.packages, ['previous', 'candidate'], 'packages');
@@ -213,6 +236,10 @@ export function replayBundle({ directory, expectedManifestSha256, output, fault 
   newOutput(output);
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 't10-package-replay-'));
   const consumer = path.join(scratch, 'consumer'); fs.mkdirSync(consumer);
+  fs.writeFileSync(path.join(consumer, 'package.json'), jsonBytes({
+    name: 't10-replay-consumer', version: '0.0.0', private: true,
+    overrides: lockedOverrides(),
+  }));
   const commands = [], stages = [], failures = [];
   let baselineReady = false, restored = false;
   for (const slot of ['previous', 'candidate']) fs.writeFileSync(path.join(scratch, slot + '.tgz'), tarballs[slot]);
