@@ -1,0 +1,19 @@
+{
+  "schema": "bskel.t00-path-exception/2",
+  "repository": "becoder",
+  "track": "T15",
+  "base": "fef9c88ee2f5344824f0356f295b7f89905846fb",
+  "head": "b9afdc5f43c8eb408de16c48c1c6612c3502356d",
+  "approval": {
+    "login": "popixoxipop-collab",
+    "url": "https://github.com/popixoxipop-collab/backend-skeleton/issues/357#issuecomment-6765013337",
+    "body_sha256": "15b6f4f92460dc39b6a4da6d27c7060236902e7e5d6e0de9fd64ba5d33a36af0"
+  },
+  "exceptions": [
+    {
+      "path": "test/next/t15-security-differential.test.mjs",
+      "code": "PATH_UNOWNED",
+      "reason": "Shared test surface for T15-04 consumer, harness and renderer differential/security checks; no runtime or ownership-map exception."
+    }
+  ]
+}
