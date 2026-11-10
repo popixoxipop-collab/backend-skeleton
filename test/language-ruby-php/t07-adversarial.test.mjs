@@ -13,6 +13,14 @@ import {
 import { scanT07CorpusCheckout } from '../../scanners/language/ruby-php/corpus.mjs';
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
+const rubyBinaries = ['/usr/bin/ruby', '/opt/homebrew/bin/ruby'];
+const rubyVersions = rubyBinaries.map((binary) => {
+  if (!fs.existsSync(binary)) return null;
+  const result = spawnSync(binary, ['-v'], { encoding: 'utf8' });
+  return result.status === 0 ? result.stdout.trim() : null;
+});
+const rubyMatrixReady = /^ruby 2\.6\./.test(rubyVersions[0] ?? '')
+  && /^ruby 4\.0\./.test(rubyVersions[1] ?? '');
 
 test('T07 source identities are byte-bound and repository-relative for Ruby and PHP', () => {
   const cases = [
@@ -95,20 +103,17 @@ test('T07 corpus source permission denial fails closed before a route result is 
   });
 
 test('T07 Rails fixture syntax is accepted by distinct Ruby 2.6 and 4.0 interpreters',
-  { skip: !fs.existsSync('/usr/bin/ruby') || !fs.existsSync('/opt/homebrew/bin/ruby')
-    ? 'two Ruby interpreter lines are not installed on this host' : false }, () => {
+  { skip: rubyMatrixReady ? false : 'Ruby 2.6 and 4.0 interpreters are not both installed on this host' }, () => {
     const source = 'Rails.application.routes.draw do\n  resources :accounts\nend\n';
-    const versions = [];
-    for (const binary of ['/usr/bin/ruby', '/opt/homebrew/bin/ruby']) {
+    for (const binary of rubyBinaries) {
       const version = spawnSync(binary, ['-v'], { encoding: 'utf8' });
       assert.equal(version.status, 0, binary);
-      versions.push(version.stdout.trim());
       const syntax = spawnSync(binary, ['-c'], { input: source, encoding: 'utf8' });
       assert.equal(syntax.status, 0, `${binary}: ${syntax.stderr}`);
       assert.match(syntax.stdout, /Syntax OK/);
     }
-    assert.match(versions[0], /ruby 2\.6\./);
-    assert.match(versions[1], /ruby 4\.0\./);
+    assert.match(rubyVersions[0], /ruby 2\.6\./);
+    assert.match(rubyVersions[1], /ruby 4\.0\./);
     const facts = extractRailsDslFacts(source);
     assert.equal(facts.facts.find((fact) => fact.kind === 'resource').status, 'literal');
   });
