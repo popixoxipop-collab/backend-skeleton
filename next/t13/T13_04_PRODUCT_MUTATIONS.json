@@ -1,0 +1,35 @@
+{
+  "contract": "sbf.qa-product-mutation-catalog/1",
+  "mutants": [
+    {
+      "id": "T13-HONO-DYNAMIC-BASE-LEAK",
+      "vector_id": "T13-NEG-HONO-BASE",
+      "critical": true,
+      "file": "adapters/http-wave-bc/node-hono/route-graph.mjs",
+      "find": "if (event.type === 'route') {\n        if (node.basePathUnknown) {",
+      "replace": "if (event.type === 'route') {\n        if (false && node.basePathUnknown) {",
+      "test_files": ["test/http-wave-bc/node-hono.test.mjs"],
+      "invariant": "Hono routes with a non-literal basePath stay unknown rather than leaking a fabricated absolute path."
+    },
+    {
+      "id": "T13-KOA-UNMOUNTED-LEAK",
+      "vector_id": "T13-NEG-KOA-MOUNT",
+      "critical": true,
+      "file": "adapters/http-wave-bc/node-koa/adapter.mjs",
+      "find": "if (!appUsesRouter(masked, apps.keys(), router.name)) {",
+      "replace": "if (false && !appUsesRouter(masked, apps.keys(), router.name)) {",
+      "test_files": ["test/http-wave-bc/node-koa.test.mjs"],
+      "invariant": "An unmounted Koa router cannot be promoted to live application routes."
+    },
+    {
+      "id": "T13-NEXT-DYNAMIC-BASE-LEAK",
+      "vector_id": "T13-NEG-NEXT-BASE",
+      "critical": true,
+      "file": "adapters/http-wave-bc/typescript-nextjs/adapter.mjs",
+      "find": "if (basePath.unknown) {",
+      "replace": "if (false && basePath.unknown) {",
+      "test_files": ["test/http-wave-bc/typescript-nextjs.test.mjs"],
+      "invariant": "Next.js routes under a dynamic basePath stay unknown rather than emitting wrong absolute paths."
+    }
+  ]
+}
