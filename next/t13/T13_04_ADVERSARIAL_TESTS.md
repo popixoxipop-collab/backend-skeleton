@@ -23,5 +23,7 @@ source, mutated input cannot invent endpoints, and actual unreadable package
 or source bytes do not produce routes under a non-root reader. They do not
 execute the Hono, Koa or Next.js frameworks, establish runtime equivalence,
 T19 acceptance, independent attestation, certification or release readiness.
-The shared test path needs its own exact-head T00 exception; this document
-does not grant one. T00-04 remains PARTIAL.
+Cross-version evidence is the hosted Node 22/24 replay of the same pinned
+static framework fixtures; this does not prove behavior on other framework
+releases. The exact-head T00 ownership check must pass for every changed path;
+no exception is inferred from this document. T00-04 remains PARTIAL.
