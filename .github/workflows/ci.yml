@@ -166,6 +166,7 @@ jobs:
           name: t22-distribution-node-${{ matrix.node }}
           path: ${{ runner.temp }}/t22-distribution
           if-no-files-found: error
+          retention-days: 21
       - name: T23 release-next
         run: node scripts/run-next-nested-tests.mjs T23
       # Checks only the bskel run online: backend-decoder and Backend-evaluation are private and this token gets 404 for their
