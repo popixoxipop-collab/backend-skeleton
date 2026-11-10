@@ -122,11 +122,11 @@ test('NestJS @All imported from @nestjs/common is an explicit unknown, never a s
   });
   const result = projectNestJsFacts(input);
   assert.deepEqual(result.routes.map((route) => [route.method, route.path]), [['GET', '/users/:id']]);
-  assert.ok(result.unknowns.some((item) => item.code === 'NESTJS_ALL_METHODS_UNKNOWN' && item.method === 'catchAll'));
+  assert.ok(result.unknowns.some((item) => item.code === 'NESTJS_UPSTREAM_FACTS_INCOMPLETE' && item.reason === '@All method set is not projected' && item.method === 'catchAll'));
 
   input.moduleFacts.moduleEdges[0].bindings.pop();
   const unrelated = projectNestJsFacts(input);
-  assert.equal(unrelated.unknowns.some((item) => item.code === 'NESTJS_ALL_METHODS_UNKNOWN'), false);
+  assert.equal(unrelated.unknowns.some((item) => item.reason === '@All method set is not projected'), false);
 });
 
 test('NestJS imported guards preserve authorization uncertainty at class and route level', () => {
@@ -137,10 +137,10 @@ test('NestJS imported guards preserve authorization uncertainty at class and rou
   const result = projectNestJsFacts(input);
   assert.equal(result.routes.length, 1);
   assert.equal(result.routes[0].path, '/users/:id');
-  assert.deepEqual(result.unknowns.filter((item) => item.code === 'NESTJS_GUARD_SEMANTICS_UNKNOWN').map((item) => item.method ?? null).sort(), [null, 'show'].sort());
+  assert.deepEqual(result.unknowns.filter((item) => item.reason === '@UseGuards authorization semantics are not evaluated').map((item) => item.method ?? null).sort(), [null, 'show'].sort());
   assert.equal(Object.hasOwn(result.routes[0], 'authorization'), false);
 
   input.moduleFacts.moduleEdges[0].bindings.pop();
   const unrelated = projectNestJsFacts(input);
-  assert.equal(unrelated.unknowns.some((item) => item.code === 'NESTJS_GUARD_SEMANTICS_UNKNOWN'), false);
+  assert.equal(unrelated.unknowns.some((item) => item.reason === '@UseGuards authorization semantics are not evaluated'), false);
 });

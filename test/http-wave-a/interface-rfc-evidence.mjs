@@ -7,8 +7,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-export const RECEIPT = path.join(ROOT, 'next/t12/INTERFACE_RFC_EVIDENCE.json');
-export const RECEIPT_REL = 'next/t12/INTERFACE_RFC_EVIDENCE.json';
+// Every T12-owned source evolution publishes a fresh receipt. The original
+// INTERFACE_RFC_EVIDENCE.json remains an immutable historical T12-02 record.
+export const RECEIPT_REL = 'next/t12/INTERFACE_RFC_EVIDENCE_2026-11-11.json';
+export const RECEIPT = path.join(ROOT, RECEIPT_REL);
 export const SOURCE_FILES = Object.freeze([
   'adapters/http-wave-a/BASELINE.json',
   'adapters/http-wave-a/INTERFACE_RFC.md',

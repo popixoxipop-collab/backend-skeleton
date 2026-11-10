@@ -47,8 +47,8 @@ function summary(project) {
   const result = project(facts());
   return {
     routes: result.routes.map((route) => [route.method, route.path]),
-    allUnknown: result.unknowns.filter((item) => item.code === 'NESTJS_ALL_METHODS_UNKNOWN').length,
-    guardUnknown: result.unknowns.filter((item) => item.code === 'NESTJS_GUARD_SEMANTICS_UNKNOWN').length,
+    allUnknown: result.unknowns.filter((item) => item.code === 'NESTJS_UPSTREAM_FACTS_INCOMPLETE' && item.reason === '@All method set is not projected').length,
+    guardUnknown: result.unknowns.filter((item) => item.code === 'NESTJS_UPSTREAM_FACTS_INCOMPLETE' && item.reason === '@UseGuards authorization semantics are not evaluated').length,
     runtimeValidated: result.evidence?.runtimeValidated,
   };
 }

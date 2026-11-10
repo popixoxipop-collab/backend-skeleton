@@ -78,17 +78,17 @@ export function projectNestJsFacts({ moduleFacts, structureFacts }) {
     }
 
     if ((cls.decorators ?? []).some((d) => hasName(imported.get('UseGuards'), d))) {
-      unknowns.push({ code: 'NESTJS_GUARD_SEMANTICS_UNKNOWN', className: cls.name, source: cls.source ?? null });
+      unknowns.push({ code: 'NESTJS_UPSTREAM_FACTS_INCOMPLETE', reason: '@UseGuards authorization semantics are not evaluated', className: cls.name, source: cls.source ?? null });
     }
 
     for (const member of cls.members ?? []) {
       if (member.kind !== 'method' || member.computed) continue;
       if ((member.decorators ?? []).some((d) => hasName(imported.get('UseGuards'), d))) {
-        unknowns.push({ code: 'NESTJS_GUARD_SEMANTICS_UNKNOWN', className: cls.name, method: member.name, source: member.source ?? null });
+        unknowns.push({ code: 'NESTJS_UPSTREAM_FACTS_INCOMPLETE', reason: '@UseGuards authorization semantics are not evaluated', className: cls.name, method: member.name, source: member.source ?? null });
       }
       const allDecorator = (member.decorators ?? []).find((d) => hasName(imported.get('All'), d));
       if (allDecorator) {
-        unknowns.push({ code: 'NESTJS_ALL_METHODS_UNKNOWN', className: cls.name, method: member.name, source: allDecorator.source ?? member.source ?? null });
+        unknowns.push({ code: 'NESTJS_UPSTREAM_FACTS_INCOMPLETE', reason: '@All method set is not projected', className: cls.name, method: member.name, source: allDecorator.source ?? member.source ?? null });
       }
       for (const [decoratorName, verb] of VERB_DECORATORS) {
         const routeDecorator = (member.decorators ?? []).find((d) => hasName(imported.get(decoratorName), d));

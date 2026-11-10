@@ -25,7 +25,7 @@ The normal nested T12 test pins the oracle source and stored result, and tests
 the real projection plus five source-level mutants. The heavy framework install
 and live oracle are opt-in, not part of the ordinary CI lane.
 
-This demonstrates a negative boundary: the leaf emits an explicit `@All` unknown
-and guard unknowns; it does not resolve the full method set or authorization
+This demonstrates a negative boundary: the leaf emits `NESTJS_UPSTREAM_FACTS_INCOMPLETE`
+with distinct `@All` and `@UseGuards` reasons; it does not resolve the full method set or authorization
 policy. T04 still lacks a real structure-facts producer for this leaf. No Wave A
 framework, registry, capability or release certification follows from this run.
