@@ -18,7 +18,7 @@
       "file": "scanners/language/python/ast-helper.py",
       "find": "source = raw.decode(encoding, errors=\"strict\")",
       "replace": "source = raw.decode(encoding, errors=\"replace\")",
-      "test_files": ["test/language-python/python-analyzer-limits.test.mjs"],
+      "test_files": ["test/language-python/t06-adversarial.test.mjs"],
       "invariant": "Invalid source bytes fail closed instead of being silently replaced."
     },
     {

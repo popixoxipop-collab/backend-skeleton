@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -72,6 +73,21 @@ test('T06 denies source symlinks whose real path leaves the project root', { ski
       /Python source escapes project root/);
   } finally { fs.rmSync(parent, { recursive: true, force: true }); }
 });
+
+test('T06 rejects a late invalid UTF-8 byte after the encoding-detection lines',
+  { skip: !defaultRuntime }, () => {
+    const bytes = Buffer.concat([
+      Buffer.from('# coding: utf-8\nname = "ok"\nmessage = "'),
+      Buffer.from([0xff]),
+      Buffer.from('"\n'),
+    ]);
+    withSource(bytes, (root) => {
+      const result = analyzePythonFile({ repoRoot: root, file: 'module.py' });
+      assert.equal(result.ok, false);
+      assert.equal(result.error.code, 'PYTHON_SOURCE_ENCODING_UNSUPPORTED');
+      assert.equal(result.source.sha256, createHash('sha256').update(bytes).digest('hex'));
+    });
+  });
 
 test('T06 unreadable source bytes fail with EACCES before AST facts are returned',
   { skip: !defaultRuntime || process.getuid?.() === 0 }, () => {
