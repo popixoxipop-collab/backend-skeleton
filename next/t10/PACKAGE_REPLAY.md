@@ -12,18 +12,25 @@ Use trusted, reviewed Git objects and a reviewed harness. Build performs no fetc
 The recorded rehearsal uses actual previous commit
 `0ed446344c36ec500d54a59c41ecd8ca72cfc842` (tree
 `92ce05bb6c6a291bdd18c6d9ea5a2b1538d29bf9`), the parent of the genuine T10-05
-consumer introduction, and current main
+consumer introduction, and the later historical candidate snapshot
 `9117a6f3f5dd03fdbb5dbd6221f5315971e66af7` (tree
 `71a934fac01ef05835d235e36fcbc71c671a4919`). The previous is an ancestor of
 current main. Both identify package version 1.9.0 but different actual bytes.
 They are exact existing repository snapshots, not manufactured release history
 or proof that either archive was publicly published.
 
-The previous archive SHA-256 is
+In the original author environment, the previous archive SHA-256 was
 `11937358d56ba43cf298796d94444edca3296d65139bc185bffa9da52b631f98`.
-The current archive SHA-256 is
+The original candidate archive SHA-256 was
 `e9ca7fddd795a0bc7d86d42d4e8a4d826ea67dd584ef6095cb80c1cdc18c7b95`.
-The latter equals the independently retained current main package.
+These are observations from that packer, not portable byte pins: Bob's Node
+26.7.0/npm 11.19.0 produced a candidate archive hash of
+`f1969d2e528bdd3fbecc8ecb051b76e8d5e0411fa4770e38fc0f42698d04025a`
+while the pinned Git-derived member inventory and installed 416/418/416
+path/byte/mode comparison passed. Every replay still requires an external pin
+for its own complete bundle manifest and checks each retained archive against
+that manifest before installation. A different compressed archive hash alone
+does not establish a source or installed-package difference.
 
 ## Reproduce
 
