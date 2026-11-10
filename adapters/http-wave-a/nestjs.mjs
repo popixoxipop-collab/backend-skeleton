@@ -59,7 +59,7 @@ export function projectNestJsFacts({ moduleFacts, structureFacts }) {
   const imported = localDecoratorNamesFromModuleFacts(
     moduleFacts,
     '@nestjs/common',
-    ['Controller', ...VERB_DECORATORS.keys()],
+    ['Controller', 'All', 'UseGuards', ...VERB_DECORATORS.keys()],
   );
   const routes = [];
   const unknowns = [];
@@ -77,8 +77,19 @@ export function projectNestJsFacts({ moduleFacts, structureFacts }) {
       continue;
     }
 
+    if ((cls.decorators ?? []).some((d) => hasName(imported.get('UseGuards'), d))) {
+      unknowns.push({ code: 'NESTJS_GUARD_SEMANTICS_UNKNOWN', className: cls.name, source: cls.source ?? null });
+    }
+
     for (const member of cls.members ?? []) {
       if (member.kind !== 'method' || member.computed) continue;
+      if ((member.decorators ?? []).some((d) => hasName(imported.get('UseGuards'), d))) {
+        unknowns.push({ code: 'NESTJS_GUARD_SEMANTICS_UNKNOWN', className: cls.name, method: member.name, source: member.source ?? null });
+      }
+      const allDecorator = (member.decorators ?? []).find((d) => hasName(imported.get('All'), d));
+      if (allDecorator) {
+        unknowns.push({ code: 'NESTJS_ALL_METHODS_UNKNOWN', className: cls.name, method: member.name, source: allDecorator.source ?? member.source ?? null });
+      }
       for (const [decoratorName, verb] of VERB_DECORATORS) {
         const routeDecorator = (member.decorators ?? []).find((d) => hasName(imported.get(decoratorName), d));
         if (!routeDecorator) continue;

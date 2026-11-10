@@ -112,3 +112,35 @@ test('NestJS profile remains unregistered and non-runtime-tested', () => {
   assert.equal(NESTJS_PROFILE.t19Review, 'NOT_REVIEWED');
   assert.equal(NESTJS_PROFILE.versionPin.framework, '12.0.1');
 });
+
+test('NestJS @All imported from @nestjs/common is an explicit unknown, never a silent omission', () => {
+  const input = facts({ dynamic: false });
+  input.moduleFacts.moduleEdges[0].bindings.push({ imported: 'All', local: 'A', bindingKind: 'named', typeOnly: false });
+  input.structureFacts.decoratedClasses[0].members.push({
+    kind: 'method', name: 'catchAll', computed: false, source: { line: 12 },
+    decorators: [{ name: 'A', called: true, arguments: [{ kind: 'literal', value: 'all' }], source: { line: 11 } }],
+  });
+  const result = projectNestJsFacts(input);
+  assert.deepEqual(result.routes.map((route) => [route.method, route.path]), [['GET', '/users/:id']]);
+  assert.ok(result.unknowns.some((item) => item.code === 'NESTJS_ALL_METHODS_UNKNOWN' && item.method === 'catchAll'));
+
+  input.moduleFacts.moduleEdges[0].bindings.pop();
+  const unrelated = projectNestJsFacts(input);
+  assert.equal(unrelated.unknowns.some((item) => item.code === 'NESTJS_ALL_METHODS_UNKNOWN'), false);
+});
+
+test('NestJS imported guards preserve authorization uncertainty at class and route level', () => {
+  const input = facts({ dynamic: false });
+  input.moduleFacts.moduleEdges[0].bindings.push({ imported: 'UseGuards', local: 'Guarded', bindingKind: 'named', typeOnly: false });
+  input.structureFacts.decoratedClasses[0].decorators.push({ name: 'Guarded', called: true, arguments: [{ kind: 'expression', text: 'ClassGuard' }] });
+  input.structureFacts.decoratedClasses[0].members[0].decorators.push({ name: 'Guarded', called: true, arguments: [{ kind: 'expression', text: 'MethodGuard' }] });
+  const result = projectNestJsFacts(input);
+  assert.equal(result.routes.length, 1);
+  assert.equal(result.routes[0].path, '/users/:id');
+  assert.deepEqual(result.unknowns.filter((item) => item.code === 'NESTJS_GUARD_SEMANTICS_UNKNOWN').map((item) => item.method ?? null).sort(), [null, 'show'].sort());
+  assert.equal(Object.hasOwn(result.routes[0], 'authorization'), false);
+
+  input.moduleFacts.moduleEdges[0].bindings.pop();
+  const unrelated = projectNestJsFacts(input);
+  assert.equal(unrelated.unknowns.some((item) => item.code === 'NESTJS_GUARD_SEMANTICS_UNKNOWN'), false);
+});
