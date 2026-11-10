@@ -41,15 +41,25 @@ const APIs = [
   [detectHonoRoot, scanHono], [detectKoaRouterRoot, scanKoaRouter], [detectNextRoot, scanNext],
 ];
 
+function makePublicDirectory(target, boundary) {
+  fs.mkdirSync(target, { recursive: true });
+  for (let current = target; ; current = path.dirname(current)) {
+    fs.chmodSync(current, 0o755);
+    if (current === boundary) break;
+  }
+}
+
 function withFixture(sample, run) {
   const fixtureParent = process.getuid?.() === 0 ? '/tmp' : os.tmpdir();
   const root = fs.mkdtempSync(path.join(fixtureParent, 'bskel-t13-adversarial-'));
   try {
     fs.chmodSync(root, 0o755);
     const source = path.join(root, sample.source);
-    fs.mkdirSync(path.dirname(source), { recursive: true, mode: 0o755 });
+    makePublicDirectory(path.dirname(source), root);
     fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify(sample.package), { mode: 0o644 });
     fs.writeFileSync(source, sample.code, { mode: 0o644 });
+    fs.chmodSync(path.join(root, 'package.json'), 0o644);
+    fs.chmodSync(source, 0o644);
     return run(root);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 }
@@ -99,7 +109,7 @@ test('T13 unreadable package and source bytes cannot become discovered routes', 
     fs.chmodSync(publicRoot, 0o755);
     const runtime = path.join(publicRoot, 'bin/node');
     if (rootIdentity) {
-      fs.mkdirSync(path.dirname(runtime), { mode: 0o755 });
+      makePublicDirectory(path.dirname(runtime), publicRoot);
       fs.copyFileSync(process.execPath, runtime);
       fs.chmodSync(runtime, 0o755);
       // Homebrew's macOS Node loads libnode from @loader_path/../lib.
@@ -107,7 +117,7 @@ test('T13 unreadable package and source bytes cannot become discovered routes', 
         const sourceLib = path.resolve(path.dirname(process.execPath), '../lib');
         for (const name of fs.readdirSync(sourceLib).filter((name) => /^libnode\..*\.dylib$/.test(name))) {
           const target = path.join(publicRoot, 'lib', name);
-          fs.mkdirSync(path.dirname(target), { mode: 0o755 });
+          makePublicDirectory(path.dirname(target), publicRoot);
           fs.copyFileSync(path.join(sourceLib, name), target);
           fs.chmodSync(target, 0o644);
         }
@@ -123,7 +133,7 @@ test('T13 unreadable package and source bytes cannot become discovered routes', 
     ];
     for (const relative of dependencies) {
       const target = path.join(publicRoot, relative);
-      fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o755 });
+      makePublicDirectory(path.dirname(target), publicRoot);
       fs.copyFileSync(path.join(repoRoot, relative), target);
       fs.chmodSync(target, 0o644);
     }
