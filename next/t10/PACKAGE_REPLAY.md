@@ -55,6 +55,15 @@ that file as a development fixture; it is not an approval mechanism. Existing
 output directories are refused, and command stdout/stderr, exits and signals are
 retained. Build/replay failures exit 2; failing node tests exit 1.
 
+In the required T10 CI suite, the bridge test creates a fresh isolated npm
+cache and explicitly fetches the 21 exact dependency versions in the pinned
+`package-lock.json` from the public registry before starting the rehearsal.
+This is networked prerequisite preparation, not an offline claim. Both package
+build and all installs then use `--offline` with that cache. A missing lock pin,
+registry fetch, or required historical Git object fails the test rather than
+being skipped. The standalone CLI still requires callers to prepare their own
+cache before invoking it.
+
 ## What runs
 
 All npm operations use offline and ignore-scripts. Every source package member
