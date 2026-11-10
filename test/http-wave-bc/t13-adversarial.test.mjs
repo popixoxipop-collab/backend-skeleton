@@ -42,7 +42,8 @@ const APIs = [
 ];
 
 function withFixture(sample, run) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t13-adversarial-'));
+  const fixtureParent = process.getuid?.() === 0 ? '/tmp' : os.tmpdir();
+  const root = fs.mkdtempSync(path.join(fixtureParent, 'bskel-t13-adversarial-'));
   try {
     fs.chmodSync(root, 0o755);
     const source = path.join(root, sample.source);
@@ -90,20 +91,57 @@ test('T13 unreadable package and source bytes cannot become discovered routes', 
     const detection = api[detectName](root);
     const report = api[scanName](root, detection);
     console.log(JSON.stringify({ detected: Boolean(detection), routes: report.modules.length }));`;
-  samples.forEach((sample) => withFixture(sample, (root) => {
-    const moduleUrl = pathToFileURL(path.join(repoRoot, `adapters/http-wave-bc/${sample.module}/adapter.mjs`)).href;
-    const identity = process.getuid?.() === 0 ? { uid: 65534, gid: 65534 } : {};
-    for (const file of [path.join(root, 'package.json'), path.join(root, sample.source)]) {
-      fs.chmodSync(file, 0);
-      try {
-        const result = spawnSync(process.execPath,
-          ['--input-type=module', '-e', child, moduleUrl, root, file, sample.detect, sample.scan],
-          { cwd: repoRoot, encoding: 'utf8', ...identity });
-        assert.equal(result.status, 0, `${sample.name}: ${result.stderr}`);
-        const observed = JSON.parse(result.stdout);
-        assert.equal(observed.routes, 0, sample.name);
-        if (path.basename(file) === 'package.json') assert.equal(observed.detected, false, sample.name);
-      } finally { fs.chmodSync(file, 0o644); }
+  // A root-owned CI checkout (or Node under /root/.nvm) is not traversable by nobody.
+  // Stage only the executable and adapter imports in a public, task-owned directory.
+  const rootIdentity = process.getuid?.() === 0;
+  const publicRoot = fs.mkdtempSync(path.join(rootIdentity ? '/tmp' : os.tmpdir(), 'bskel-t13-permission-runtime-'));
+  try {
+    fs.chmodSync(publicRoot, 0o755);
+    const runtime = path.join(publicRoot, 'bin/node');
+    if (rootIdentity) {
+      fs.mkdirSync(path.dirname(runtime), { mode: 0o755 });
+      fs.copyFileSync(process.execPath, runtime);
+      fs.chmodSync(runtime, 0o755);
+      // Homebrew's macOS Node loads libnode from @loader_path/../lib.
+      if (process.platform === 'darwin') {
+        const sourceLib = path.resolve(path.dirname(process.execPath), '../lib');
+        for (const name of fs.readdirSync(sourceLib).filter((name) => /^libnode\..*\.dylib$/.test(name))) {
+          const target = path.join(publicRoot, 'lib', name);
+          fs.mkdirSync(path.dirname(target), { mode: 0o755 });
+          fs.copyFileSync(path.join(sourceLib, name), target);
+          fs.chmodSync(target, 0o644);
+        }
+      }
     }
-  }));
+    const dependencies = [
+      'adapters/http-wave-bc/node-hono/adapter.mjs',
+      'adapters/http-wave-bc/node-hono/route-graph.mjs',
+      'adapters/http-wave-bc/node-koa/adapter.mjs',
+      'adapters/http-wave-bc/typescript-nextjs/adapter.mjs',
+      'scanners/adapters/_express-shared.mjs',
+      'scanners/text-util.mjs',
+    ];
+    for (const relative of dependencies) {
+      const target = path.join(publicRoot, relative);
+      fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o755 });
+      fs.copyFileSync(path.join(repoRoot, relative), target);
+      fs.chmodSync(target, 0o644);
+    }
+    samples.forEach((sample) => withFixture(sample, (root) => {
+      const moduleUrl = pathToFileURL(path.join(publicRoot, `adapters/http-wave-bc/${sample.module}/adapter.mjs`)).href;
+      const identity = rootIdentity ? { uid: 65534, gid: 65534 } : {};
+      for (const file of [path.join(root, 'package.json'), path.join(root, sample.source)]) {
+        fs.chmodSync(file, 0);
+        try {
+          const result = spawnSync(rootIdentity ? runtime : process.execPath,
+            ['--input-type=module', '-e', child, moduleUrl, root, file, sample.detect, sample.scan],
+            { cwd: publicRoot, encoding: 'utf8', ...identity });
+          assert.equal(result.status, 0, `${sample.name}: ${result.error ?? result.stderr}`);
+          const observed = JSON.parse(result.stdout);
+          assert.equal(observed.routes, 0, sample.name);
+          if (path.basename(file) === 'package.json') assert.equal(observed.detected, false, sample.name);
+        } finally { fs.chmodSync(file, 0o644); }
+      }
+    }));
+  } finally { fs.rmSync(publicRoot, { recursive: true, force: true }); }
 });
