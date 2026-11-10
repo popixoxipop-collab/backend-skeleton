@@ -55,7 +55,7 @@ function withFixture(sample, run) {
 
 test('T13 product-mutation catalog names unique exact source anchors and runnable tests', () => {
   assert.deepEqual(validateProductMutationCatalog(catalog).errors, []);
-  assert.equal(catalog.mutants.length, 3);
+  assert.equal(catalog.mutants.length, 4);
   for (const mutant of catalog.mutants) {
     const source = fs.readFileSync(path.join(repoRoot, mutant.file), 'utf8');
     assert.equal(source.split(mutant.find).length, 2, mutant.id);

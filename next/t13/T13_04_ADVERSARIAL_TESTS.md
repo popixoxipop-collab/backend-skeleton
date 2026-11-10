@@ -1,11 +1,11 @@
 # T13-04 bounded adversarial tests
 
 The T13 Wave B/C first slice remains a static, experimental Hono, Koa and
-Next.js route projection. This slice adds explicit product-source mutants in
+Next.js route projection. This slice adds four explicit product-source mutants in
 `T13_04_PRODUCT_MUTATIONS.json`, plus normal, input-negative and filesystem
 permission tests in `test/http-wave-bc/t13-adversarial.test.mjs`. The three
-mutants target a Hono dynamic `basePath`, an unmounted Koa router and a Next.js
-dynamic `basePath`; each must be killed by its existing leaf test on an exact
+critical mutants target a Hono dynamic `basePath`, an unmounted Koa router and a Next.js
+dynamic `basePath`; one noncritical mutant targets a missing Koa dependency. Each must be killed by its existing leaf test on an exact
 Git source commit. A mere JSON catalog-validity pass is not mutation evidence.
 
 Run `node --test test/http-wave-bc/t13-adversarial.test.mjs` and
