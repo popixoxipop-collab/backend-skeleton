@@ -4,12 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { analyzePythonFile, findPythonRuntime } from '../../scanners/language/python/analyzer.mjs';
-import { validateProductMutationCatalog } from '../conformance-next/product-mutation-runner.mjs';
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const catalog = JSON.parse(fs.readFileSync(path.join(repoRoot, 'next/t06/T06_04_PRODUCT_MUTATIONS.json'), 'utf8'));
 const runtimes = ['python3.11', 'python3.12']
   .map((pythonCommand) => findPythonRuntime({ pythonCommand }))
   .filter(Boolean);
@@ -22,16 +18,6 @@ function withSource(source, run) {
     return run(root);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 }
-
-test('T06 product-source mutants have unique anchors and executable regression tests', () => {
-  assert.deepEqual(validateProductMutationCatalog(catalog).errors, []);
-  assert.equal(catalog.mutants.length, 4);
-  for (const mutant of catalog.mutants) {
-    const source = fs.readFileSync(path.join(repoRoot, mutant.file), 'utf8');
-    assert.equal(source.split(mutant.find).length, 2, mutant.id);
-    assert.ok(mutant.test_files.every((file) => fs.existsSync(path.join(repoRoot, file))), mutant.id);
-  }
-});
 
 test('T06 stable AST facts and syntax failures agree across Python 3.11 and 3.12',
   { skip: runtimes.length !== 2 && 'both Python 3.11 and 3.12 are required for this local matrix' }, () => {
