@@ -40,6 +40,16 @@
       "replace": "const dynamicContext = false;",
       "test_files": ["test/language-ruby-php/t07-adversarial.test.mjs"],
       "invariant": "A literal route nested under dynamic Laravel group metadata remains unknown."
+    },
+    {
+      "id": "T07-SYMFONY-METHOD-OMISSION",
+      "vector_id": "T07-NEG-SYMFONY-METHOD-OMISSION",
+      "critical": false,
+      "file": "scanners/language/ruby-php/dsl-facts.mjs",
+      "find": "const methods = [...methodsArg.matchAll(/[\"']([A-Z]+)[\"']/g)].map((x) => x[1]);",
+      "replace": "const methods = [];",
+      "test_files": ["test/language-ruby-php/t07-adversarial.test.mjs"],
+      "invariant": "Finite explicit Symfony attribute methods are not silently omitted."
     }
   ]
 }

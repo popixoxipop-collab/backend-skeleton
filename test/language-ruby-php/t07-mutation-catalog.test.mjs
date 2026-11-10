@@ -11,7 +11,7 @@ const catalog = JSON.parse(fs.readFileSync(path.join(root, 'next/t07/T07_04_PROD
 // Anchor checks must not count as behavioral mutation kills.
 test('T07 mutation catalog binds unique product anchors to behavioral tests', () => {
   assert.deepEqual(validateProductMutationCatalog(catalog).errors, []);
-  assert.equal(catalog.mutants.length, 4);
+  assert.equal(catalog.mutants.length, 5);
   for (const mutant of catalog.mutants) {
     const source = fs.readFileSync(path.join(root, mutant.file), 'utf8');
     assert.equal(source.split(mutant.find).length, 2, mutant.id);

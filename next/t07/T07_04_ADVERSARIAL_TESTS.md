@@ -15,9 +15,9 @@ node test/conformance-next/product-mutation-runner.mjs --repo-root . --catalog n
 The mutation runner requires a clean committed checkout and runs each mutant
 against the behavioral test file. Its separate catalog-anchor test is absent
 from every `test_files` entry so a textual mismatch cannot count as a kill.
-The four product-source mutants exercise repository-relative source paths,
+Four critical product-source mutants exercise repository-relative source paths,
 fact-span provenance, Rails dynamic-parent taint, and Laravel dynamic-group
-taint. The normal/negative fixtures also cover finite Symfony HTTP methods,
+taint. A fifth noncritical mutant checks finite Symfony HTTP methods. The normal/negative fixtures also cover those methods,
 dynamic PHP attribute paths, and a real non-root `EACCES` on a mode-000 route
 file. Permission denial is skipped when running as root because that mode
 does not enforce a denial there.
