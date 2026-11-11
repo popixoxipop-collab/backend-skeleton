@@ -38,8 +38,8 @@ function git(args, encoding = null) {
     env: env(), encoding, timeout: 30000, maxBuffer: 64 * 1024 * 1024,
   });
 }
-function command(program, args, cwd, timeout = 90000, input) {
-  const result = spawnSync(program, args, { cwd, env: env(), input,
+function command(program, args, cwd, timeout = 90000, input, extraEnv = {}) {
+  const result = spawnSync(program, args, { cwd, env: { ...env(), ...extraEnv }, input,
     encoding: 'utf8', timeout, maxBuffer: 8 * 1024 * 1024 });
   assert.equal(result.error, undefined, String(result.error));
   assert.equal(result.signal, null, `${program} signal ${result.signal}`);
@@ -146,18 +146,22 @@ function replay(identity, scratch, manifestBytes, pin, packages, overrides, inje
       '--no-save', '--package-lock=false', '--prefix', consumer, packages[slot].archive], scratch);
     const inventory = installedInventory(path.join(consumer, 'node_modules', 'backend-skeleton'));
     assert.deepEqual(inventory, packages[slot].inventory, `${stage} installed/source inventory differs`);
+    const stageRecord = { stage, slot, file_count: inventory.length,
+      inventory_sha256: sha256(json(inventory)), probe: null };
+    stages.push(stageRecord);
     const probe = JSON.parse(command(process.execPath,
-      [PROBE, consumer, ROOT, slot === 'previous' ? 'absent' : 'present'], scratch));
+      [PROBE, consumer, ROOT, slot === 'previous' ? 'absent' : 'present'], scratch,
+      90000, undefined, injectFailure && slot === 'candidate' ?
+        { T11_TEST_FAULT_DURING_CANDIDATE_PROBE: '1' } : {}));
     assert.equal(probe.adapters.length, 5);
-    stages.push({ stage, slot, file_count: inventory.length,
-      inventory_sha256: sha256(json(inventory)), probe });
+    stageRecord.probe = probe;
   }
   try {
     install('previous', 'baseline'); baselineReady = true;
     install('candidate', 'candidate');
-    if (injectFailure) throw new Error('T11_TEST_FAULT_AFTER_CANDIDATE_PROBE');
   } catch (error) {
-    failures.push(error.message);
+    failures.push(injectFailure && error.message.includes('signal SIGTERM') ?
+      'T11_CANDIDATE_PROBE_SIGTERM' : error.message);
   } finally {
     if (baselineReady) {
       try { install('previous', 'rollback'); }
@@ -198,8 +202,9 @@ test('T11-06 authentic package promotion, rollback and controlled-failure replay
       assert.deepEqual(normal.stages.map(stage => stage.slot), ['previous', 'candidate', 'previous']);
       const fault = replay(identity, scratch, manifestBytes, pin, packages, overrides, true);
       assert.equal(fault.status, 'fail');
-      assert.deepEqual(fault.failures, ['T11_TEST_FAULT_AFTER_CANDIDATE_PROBE']);
+      assert.deepEqual(fault.failures, ['T11_CANDIDATE_PROBE_SIGTERM']);
       assert.equal(fault.rollback_restored, true);
+      assert.equal(fault.stages[1].probe, null);
       assert.equal(fault.stages[0].inventory_sha256, fault.stages[2].inventory_sha256);
       for (const receipt of [normal, fault])
         for (const key of ['release_authorized', 'runtime_certified', 'publication_performed'])

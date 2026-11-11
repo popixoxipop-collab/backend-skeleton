@@ -26,9 +26,9 @@ source-derived inventory. npm's executable-mode change for declared bins is
 accounted for. The installed scanner runs the five committed legacy adapter
 fixtures. The candidate's installed observation CLI is exercised on each
 report, with baseline, semantic-digest and fail-closed authority assertions.
-The CLI must be absent again after rollback. A second run injects a controlled
-failure after the candidate probe and verifies that the live parent reinstalls
-the previous package. The injected failure is deliberately retained as a
+The CLI must be absent again after rollback. A second run sends `SIGTERM` to
+the candidate probe after its first adapter and verifies that the surviving
+parent reinstalls the previous package. The injected failure is retained as a
 failed receipt, not passed off as a successful promotion.
 
 To retain the exact rehearsal artifacts, choose a **new** absolute directory:

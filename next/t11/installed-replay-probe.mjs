@@ -58,6 +58,9 @@ for (const id of ids) {
     entry.legacy_semantic_sha256 = output.legacy_semantic_sha256;
   }
   observed.push(entry);
+  if (expected === 'present' && observed.length === 1 &&
+      process.env.T11_TEST_FAULT_DURING_CANDIDATE_PROBE === '1')
+    process.kill(process.pid, 'SIGTERM');
 }
 console.log(JSON.stringify({ schema: 'bskel.t11-installed-replay-probe/1',
   consumer: expected, adapters: observed, authorized: false }));
