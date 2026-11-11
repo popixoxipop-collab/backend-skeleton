@@ -1,5 +1,7 @@
 // T02-05: exercise the real registry and T21 consumer from an installed package.
 // This is a disposable package-level shadow check, not live routing or activation.
+// Packaging is offline; installation prefers the local npm cache but may fetch
+// declared dependencies when a clean consumer has no registry metadata.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -64,7 +66,7 @@ test('T02-05 packed registry graph feeds a T21 cache plan across all five first-
       for (const rel of required) assert.ok(listed.has(rel), `not packed: ${rel}`);
       const consumer = path.join(scratch, 'consumer');
       fs.mkdirSync(consumer);
-      npm(['install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund',
+      npm(['install', '--prefer-offline', '--ignore-scripts', '--no-audit', '--no-fund',
         '--no-save', '--package-lock=false', '--prefix', consumer, tarball], scratch);
       const installed = path.join(consumer, 'node_modules', 'backend-skeleton');
       assert.equal(fs.realpathSync(installed).startsWith(fs.realpathSync(ROOT) + path.sep), false);

@@ -25,10 +25,11 @@ Tests and reproducible evidence live in `test/project-graph/`:
   options and caller-supplied values (RFC section 2.5).
 - `interface-rfc.record.json` holds the recorded commands, exit codes, hashes and vocabulary lists;
   `interface-rfc.test.mjs` checks them against the code, the schema and the RFC.
-- `packed-cross-integration.test.mjs` installs the actual npm package offline into a disposable
+- `packed-cross-integration.test.mjs` packs the actual npm package offline and installs it into a disposable
   consumer, verifies installed T02/T21 module bytes, then runs the registered Spring, FastAPI,
   TypeScript Express, JavaScript Express and Rails project graph through T21's cache plan and shadow scanner with cache
-  off, miss and hit parity. This does not activate project-graph routing in production.
+  off, miss and hit parity. The install prefers cached dependencies but may fetch missing registry
+  metadata; lifecycle scripts are disabled. This does not activate project-graph routing in production.
 
 The packed cross-integration covers all five currently registered first-party HTTP adapters.
 Express+Prisma, Nest+TypeORM and Three+R3F combinations remain future adapter work, not evidence
