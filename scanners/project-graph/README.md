@@ -30,6 +30,10 @@ Tests and reproducible evidence live in `test/project-graph/`:
   TypeScript Express, JavaScript Express and Rails project graph through T21's cache plan and shadow scanner with cache
   off, miss and hit parity. The install prefers cached dependencies but may fetch missing registry
   metadata; lifecycle scripts are disabled. This does not activate project-graph routing in production.
+- `package-replay.test.mjs` verifies pinned historical installed-package previous → candidate →
+  previous restoration, including an interrupted candidate probe. See
+  [PROMOTION_ROLLBACK.md](PROMOTION_ROLLBACK.md) for exact commits, receipts,
+  stop conditions and limits. It is not a live-service promotion.
 
 The packed cross-integration covers all five currently registered first-party HTTP adapters.
 Express+Prisma, Nest+TypeORM and Three+R3F combinations remain future adapter work, not evidence
