@@ -34,6 +34,8 @@ function fixture(root) {
     'services/express/package.json': '{"type":"module","dependencies":{"express":"^5.0.0"}}',
     'services/express/src/routes.ts': "import { Router } from 'express';\nconst router = Router();\nrouter.get('/x', handler);\n",
     'services/express/src/routes.js': "import express from 'express';\nconst route = express.Router();\nroute.get('/y', handler);\n",
+    'services/express-js/package.json': '{"type":"module","dependencies":{"express":"^5.0.0"}}',
+    'services/express-js/src/routes.js': "import express from 'express';\nconst route = express.Router();\nroute.get('/z', handler);\n",
     'services/rails/Gemfile': 'gem "rails", "~> 8.0"\n',
     'services/rails/config/application.rb': 'class Demo < Rails::Application\nend\n',
     'services/rails/config/routes.rb': 'Rails.application.routes.draw do\n  get "/health", to: "health#show"\nend\n',
@@ -45,7 +47,7 @@ function fixture(root) {
   }
 }
 
-test('T02-05 packed registry graph feeds a T21 cache plan across four first-party adapters',
+test('T02-05 packed registry graph feeds a T21 cache plan across all five first-party HTTP adapters',
   { timeout: 180000 }, async () => {
     const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'bskel-t02-packed-cross-'));
     try {
@@ -87,6 +89,7 @@ test('T02-05 packed registry graph feeds a T21 cache plan across four first-part
       assert.deepEqual(graph.registry_load_errors, []);
       const selected = [
         ['services/express', 'typescript-express'],
+        ['services/express-js', 'javascript-express'],
         ['services/fastapi', 'python-fastapi'],
         ['services/rails', 'ruby-rails'],
         ['services/spring', 'java-spring'],
@@ -114,7 +117,7 @@ test('T02-05 packed registry graph feeds a T21 cache plan across four first-part
       assert.equal(shadow.schema, 'sbf.project-scan-cache-shadow/draft-1');
       for (const run of [shadow, miss, hit]) assert.equal(run.metrics.passed, selected.length);
       assert.deepEqual(shadow.results.map(item => [item.value.project_root, item.value.adapter_id])
-        .sort((a, b) => a[0].localeCompare(b[0])), selected);
+        .sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0), selected);
       assert.ok(shadow.results.every(item => item.value.cache_hit === false && item.value.report));
       const values = run => new Map(run.results.map(item => [item.id, item.value]));
       const offValues = values(shadow), missValues = values(miss), hitValues = values(hit);
