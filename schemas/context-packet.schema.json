@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sbf:context-packet:1",
+  "title": "BSKEL immutable context packet v1",
+  "description": "Structural wire contract. Consumers must also validate canonical checksum, raw UTF-8 byte/hash identity, unique paths, selection coverage/order and budget arithmetic as specified in docs/context-packet-v1.md. This packet is context evidence, not authentication, execution evidence or approval.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "repository", "contract", "sources", "selection", "budget", "packet_sha256"],
+  "properties": {
+    "schema": { "const": "sbf.context-packet/1" },
+    "repository": {
+      "type": "object", "additionalProperties": false, "required": ["commit", "tree"],
+      "properties": { "commit": { "$ref": "#/$defs/oid" }, "tree": { "$ref": "#/$defs/oid" } }
+    },
+    "contract": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "blob_oid", "sha256", "bytes", "content"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" }, "blob_oid": { "$ref": "#/$defs/oid" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "bytes": { "type": "integer", "minimum": 1, "maximum": 1048576 },
+        "content": { "type": "string" }
+      }
+    },
+    "sources": {
+      "type": "array", "maxItems": 127,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["path", "role", "blob_oid", "sha256", "bytes", "content"],
+        "properties": {
+          "path": { "$ref": "#/$defs/path" },
+          "role": { "enum": ["source", "test", "manifest", "documentation", "instructions"] },
+          "blob_oid": { "$ref": "#/$defs/oid" }, "sha256": { "$ref": "#/$defs/sha256" },
+          "bytes": { "type": "integer", "minimum": 0, "maximum": 1048576 },
+          "content": { "type": "string" }
+        }
+      }
+    },
+    "selection": {
+      "type": "object", "additionalProperties": false,
+      "required": ["requested_paths", "omitted", "complete"],
+      "properties": {
+        "requested_paths": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
+        "omitted": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["path", "reason"],
+            "properties": {
+              "path": { "$ref": "#/$defs/path" },
+              "reason": { "enum": ["not_in_snapshot", "not_regular_file", "non_utf8", "file_budget", "byte_budget"] }
+            }
+          }
+        },
+        "complete": { "type": "boolean" }
+      }
+    },
+    "budget": {
+      "type": "object", "additionalProperties": false,
+      "required": ["max_files", "max_bytes", "used_files", "used_bytes"],
+      "properties": {
+        "max_files": { "type": "integer", "minimum": 1, "maximum": 128 },
+        "max_bytes": { "type": "integer", "minimum": 1, "maximum": 1048576 },
+        "used_files": { "type": "integer", "minimum": 1, "maximum": 128 },
+        "used_bytes": { "type": "integer", "minimum": 1, "maximum": 1048576 }
+      }
+    },
+    "packet_sha256": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "oid": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "path": {
+      "type": "string",
+      "pattern": "^(?![A-Za-z]:)(?!\\.{1,2}(?:/|$))[^/\\\\\u0000]+(?:/(?!\\.{1,2}(?:/|$))[^/\\\\\u0000]+)*$"
+    }
+  }
+}
