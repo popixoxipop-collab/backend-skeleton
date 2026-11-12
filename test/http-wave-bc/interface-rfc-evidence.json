@@ -1,0 +1,33 @@
+{
+  "schema": "bskel.t13-interface-rfc-evidence/1",
+  "task_id": "T13-02",
+  "verified_source_commit": "8638994ca0074e7089b54692f753ea9d10ea3bcb",
+  "source_files": {
+    "adapters/http-wave-bc/INTERFACE_RFC.md": "d22a41b0ab865d6b073f2ecc375b3ef895fd24551a59ed1978f7cf0d8c7bdb90",
+    "test/http-wave-bc/interface-rfc.vocabulary.json": "85637e15e3947e64c2d00c030d96d507d17f2fe76ebe19be983d990d35988302",
+    "test/http-wave-bc/interface-rfc.test.mjs": "e9f72c19cb908d8bfaec29091e3a4ff0e653e39ddbb6ce228b796322479a542b"
+  },
+  "observed_run": {
+    "command": [
+      "node",
+      "--test",
+      "test/http-wave-bc/interface-rfc.test.mjs"
+    ],
+    "exit_code": 0,
+    "counts": {
+      "tests": 155,
+      "pass": 155,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    }
+  },
+  "assertions": {
+    "MET_delta": 0,
+    "release_activation": false,
+    "independent_review_completed": false,
+    "runtime_certified": false
+  },
+  "limits": "T13 interface and recorded unit checks only; no runtime certification or release. Nested-suite CI, independent review and authorized T00 CAS remain separate gates."
+}

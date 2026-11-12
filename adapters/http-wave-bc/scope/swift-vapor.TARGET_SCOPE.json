@@ -1,0 +1,91 @@
+{
+  "schema": "sbf.http-target-scope/1",
+  "task": "HTTP-swift-vapor-01",
+  "track": "T13",
+  "target": "swift-vapor",
+  "status": "scope-only",
+  "claims": {
+    "adapter_implemented": false,
+    "static_extraction_verified": false,
+    "runtime_tested": false,
+    "supported": false,
+    "certified": false
+  },
+  "upstream_pin": {
+    "repository": "vapor/vapor",
+    "version": "4.122.3",
+    "tag": "4.122.3",
+    "commit": "48852309b11230e62a89b41a9c578c93f4d2d916",
+    "release": "https://github.com/vapor/vapor/releases/tag/4.122.3",
+    "documentation": [
+      "https://docs.vapor.codes/routing/",
+      "https://docs.vapor.codes/advanced/testing/"
+    ],
+    "sources": [
+      { "path": "Package.swift", "sha256": "1b1b557fbcd1bfb61399101af52e00da18ca66fcb55e404431d63826379a0736" },
+      { "path": "Sources/Vapor/Routing/RoutesBuilder+Method.swift", "sha256": "528d71f491ab4cc7fabce7c912cd0ac05ee4ee9f87c69db4dd61cea30d8e7b48" },
+      { "path": "Sources/Vapor/Routing/RoutesBuilder+Group.swift", "sha256": "4d008b71d7def3c78038a81555030d7ddf8ebd5b39d6563ccbaab6793122ec2d" },
+      { "path": "Sources/Vapor/Routing/RoutesBuilder+Middleware.swift", "sha256": "07ae75f4e4c9dc6ac4901c8919b9b39098c64cdd1b14efd6a0b1db230e4a8651" },
+      { "path": "Sources/Vapor/Routing/RouteCollection.swift", "sha256": "d788695c5352ddf3d3b7b839ca6e5358fa5c49bcdcdad5735cc4b72fd7fa2827" },
+      { "path": "Sources/VaporTesting/TestingApplicationTester.swift", "sha256": "45e1f67b63795fce02fe57c1981d94019a5da12fe712b5732980ae8eda9fc308" }
+    ],
+    "swift_tools_version_from_upstream_package": "6.0",
+    "version_boundary": "Vapor 4 stable only; Vapor 5 beta is excluded from this plan"
+  },
+  "fixture_root": "test/http-wave-bc/fixtures/target-scope/vapor",
+  "fixtures": [
+    { "id": "dependency-pin", "path": "Package.swift", "sha256": "5710c1bca85228dc5a3c15212caf0800ad120bfc2cb2326d6d1a9e0bf1bc3795", "role": "dependency-pin" },
+    { "id": "grouped-literal-routes", "path": "normal/Sources/App/routes.swift", "sha256": "69f8b566968eb5086bd79a15346f7c3e1614a204f3e572580db7d4420643727e", "role": "normal" },
+    { "id": "dynamic-prefix", "path": "counterexamples/dynamic-prefix/Sources/App/routes.swift", "sha256": "6ee4cc286f2f1c82eb72e1f269fe00941d3c2ebe1eb3fcc8a91434391262a7d0", "role": "counterexample" },
+    { "id": "middleware-gate", "path": "counterexamples/middleware/Sources/App/routes.swift", "sha256": "9f0eeaf8e55c76cd819a06b2091c2bb54a25feaa3ce2f75d1786e9f76849accd", "role": "counterexample" },
+    { "id": "route-collection", "path": "counterexamples/route-collection/Sources/App/routes.swift", "sha256": "ae49e71e078da16eab74307ea1f290e0375da55d8c38481b515a601b69feb02a", "role": "counterexample" },
+    { "id": "catchall", "path": "counterexamples/catchall/Sources/App/routes.swift", "sha256": "ff44b7d6d3194ab00cfc00167091bc14cdab740357d60801bc130624a055b84f", "role": "counterexample" }
+  ],
+  "constructs": [
+    {
+      "id": "grouped-literal-routes",
+      "status": "fixture-only-unassessed",
+      "source_expectation": ["GET /api/users/:id", "POST /api/users"],
+      "runtime_oracle_required": true
+    },
+    {
+      "id": "dynamic-prefix",
+      "status": "unknown-until-environment-bound-and-request-probed",
+      "invariant": "A PathComponent built from API_PREFIX cannot be projected to a single path without environment binding."
+    },
+    {
+      "id": "middleware-gate",
+      "status": "unknown-until-request-probed",
+      "invariant": "A route can be registered yet return unauthorized through route-group middleware; route existence is not successful response evidence."
+    },
+    {
+      "id": "route-collection",
+      "status": "unknown-until-registration-and-route-table-checked",
+      "invariant": "RouteCollection.boot routes exist only after the collection is registered with the application."
+    },
+    {
+      "id": "catchall",
+      "status": "unknown-until-request-probed",
+      "invariant": "The ** catchall consumes one or more remaining components and cannot be reduced to one :parameter segment."
+    }
+  ],
+  "runtime_oracle_plan": {
+    "not_executed_in_this_scope": true,
+    "toolchain": "Pin exact Swift 6 toolchain, SwiftPM resolved graph/checksums and Vapor 4.122.3 on a T20-approved isolated runner",
+    "steps": [
+      "Verify the 4.122.3 Git tag/commit, six upstream source hashes, Swift tools 6.0 declaration and exact SwiftPM dependency resolution before building.",
+      "Materialize the normal and four counterexamples as separate Swift packages; run swift package resolve and swift test in an isolated, resource-approved runner, retaining Package.resolved, compiler diagnostics and toolchain identity.",
+      "Capture app.routes.all and the Vapor routes command after each configuration, including collection registration and middleware grouping; compare with source expectations.",
+      "Use VaporTesting with in-memory requests for normal GET/POST and unmatched methods, two API_PREFIX values, missing/present x-token, collection paths and catchall zero/one/multiple suffixes; capture method, path, status, body and route evidence.",
+      "Obtain T08 Swift language-profile review, T16 independent read and T19 mutation review before any static extractor or support claim.",
+      "Evaluate an HTTP leaf/bridge only after T00 authorizes composition; catalog admission and this plan do not remove the T08-05 block."
+    ],
+    "promotion_dependencies": ["T08 Swift profile review", "HTTP-swift-vapor-02", "HTTP-swift-vapor-03", "T16", "T19", "T20", "T00"]
+  },
+  "limits": [
+    "These Swift files are hand-authored planning fixtures, not upstream source copies, compiled routes or executed requests.",
+    "Vapor 5 beta is outside the pinned 4.122.3 scope; the T13 catalog admission remains DEFER_UNTIL_PROFILE_REVIEW and is not support.",
+    "No Swift parser, Vapor extractor, adapter, registry, CLI path or shared-schema projection is added; T08-05 HTTP composition remains BLOCKED.",
+    "No SwiftPM build, VaporTesting request probe, independent attestation or release gate is exercised here."
+  ]
+}

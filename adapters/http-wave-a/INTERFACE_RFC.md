@@ -2,11 +2,11 @@
 
 Status: draft, provisional, shadow only. T12 is not declared complete; nothing here is registered, runtime tested or active by default. Scope: the shared module, the seven leaf modules and the tooling in `adapters/http-wave-a` (T12-02).
 Companions: `BASELINE.json` (behaviour pinned by T12-01), `leaf-contract.schema.json` (section 3), `test/http-wave-a/interface-rfc.vocabulary.json` (every identifier used here) and
-`test/http-wave-a/interface-rfc.test.mjs`, which fails when the compared parts of this text, the vocabulary, the code, the schema or the ownership checker of T00 drift apart. It compares the tables, the bullet lines of sections 3 and 4 and the last line of section 7 with the vocabulary; elsewhere a backticked word only has to be a word of the vocabulary. Headings and other prose are not compared (limit `interface-rfc-prose-is-not-compared` in `BASELINE.json`).
+`test/http-wave-a/interface-rfc.test.mjs`, which fails when the compared parts of this text, the vocabulary, the code, the schema or the ownership checker of T00 drift apart. It compares the tables, the bullet lines of sections 3 and 4 and the last line of section 7 with the vocabulary; elsewhere a backticked word only has to be a word of the vocabulary. Headings and other prose are not compared by the original interface test (limit `interface-rfc-prose-is-not-compared` in `BASELINE.json`); the source-backed counterexample test checks the lossy and blocked-order claims. The separate evidence receipt at next/t12/INTERFACE_RFC_EVIDENCE.json pins the exact source revision and successful command but does not certify runtime support.
 
 ## 1. Purpose and non-goals
 
-The scanners of T04, T06, T07 and T08 stay authoritative. T12 turns their facts into one internal leaf output per HTTP framework (section 3): the routes it can prove, and everything else as an unknown. It emits no contracts/next artifact, imports no code of T01 or T03, registers no adapter, claims no runtime test and changes no upstream behaviour.
+The scanners of T04, T06, T07 and T08 stay authoritative. T12 turns their facts into one internal leaf output per HTTP framework (section 3): the routes it can prove and the unresolved facts that the leaf explicitly reports as unknowns. Upstream facts can disappear without either a route or an unknown; unknowns are not exhaustive. It emits no contracts/next artifact, imports no code of T01 or T03, registers no adapter, claims no runtime test and changes no upstream behaviour.
 No bridge to `contracts/next` or to the capability vocabulary of `scanners/capability-next` exists: a leaf `status` is not a capability value. The missing bridge, the blocked leaves and the string-only real repository comparisons are the promotion gates of section 6.
 
 ## 2. Modules in scope
@@ -58,8 +58,8 @@ Unusable input is each of `undefined`, `null`, a number, a string, `{}` and `[]`
 
 ## 5. Unknown, withheld and partial
 
-A leaf output has `status` `candidate`, or `blocked` when its profile state is `blocked-upstream-fact-gap`: a blocked output is withheld (no route, and its first unknown is of the blocked group). A candidate is partial: `routes` holds what is proven, `unknowns` the rest, and nothing is guessed.
-Groups: route, from `routeOrUnknown`; blocked; leaf; wrapped, the default code of an upstream unknown that has none; prefix, an upstream code behind the prefix. Silent drops of upstream facts are limits in `BASELINE.json`, not codes.
+A leaf output has `status` `candidate`, or `blocked` when its profile state is `blocked-upstream-fact-gap`: a blocked output is withheld (no routes and at least one unknown of the blocked group). The first unknown need not be blocked: a wrapped upstream unknown can sort before it. A candidate is partial: `routes` holds reported routes, but `unknowns` does not cover all dropped upstream facts or unresolved mount context; silent omissions are possible.
+Groups: route, from `routeOrUnknown`; blocked; leaf; wrapped, the default code of an upstream unknown that has none; prefix, an upstream code behind the prefix. Silent drops of upstream facts are limits in `BASELINE.json`, not codes: the recorded NestJS computed/undecorated member example emits neither route nor unknown, and Flask can report a route without a separate unknown for a Blueprint mount-prefix limitation.
 
 | code | group | leaf | reason | witness fixture |
 | --- | --- | --- | --- | --- |

@@ -158,7 +158,7 @@
    },
    {
     "id": "id-class-name",
-    "text": "`className` is Hono(file relative to the project root:variable), KoaRouter(file basename:variable) or NextRoute(file relative to the project root). Two Koa router files of one basename in different folders get equal `className` values; the Hono and Next forms differ for them."
+    "text": "`className` is Hono(file relative to the project root:variable), KoaRouter(file basename:variable) or NextRoute(file relative to the project root). Two Koa router files of one basename in different folders get equal `className` values only when their router variable names also match; changing the variable changes `className`. The Hono and Next forms include relative paths."
    },
    {
     "id": "id-duplicate",

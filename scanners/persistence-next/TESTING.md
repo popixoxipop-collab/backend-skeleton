@@ -20,3 +20,12 @@ exercised with isolated branch-source checks, and was still waiting for a real N
 before that draft was promoted. The suite now reaches CI through PR #147 and the nested-next job.
 
 T10 deliberately does not edit the shared root package/CI files. See `CHANGE_REQUESTS.md`.
+
+## Differential/security expansion
+
+`differential-security.test.mjs` adds nine focused cases: source/live physical
+name and tenant-schema negatives, the read-only permission boundary, a pinned
+Prisma 6.19.0/7.0.0 model-fact comparison, and four executable product-source
+mutants. See `T10_04_EVIDENCE.md` for the Bob CLI syntax-validation receipt and
+the explicitly untested runtime/OS boundaries. The existing required
+`nested-next` T10 CI command picks up this file without changing root CI.

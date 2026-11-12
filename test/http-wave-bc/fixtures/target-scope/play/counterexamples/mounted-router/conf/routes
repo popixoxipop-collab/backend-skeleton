@@ -1,0 +1,2 @@
+# A mount delegates to another router; no child routes are asserted here.
+->      /api                 api.MyRouter

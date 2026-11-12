@@ -100,7 +100,9 @@ function assertArtifact(ref, { family, version, mediaType } = {}) {
   if (version && ref.version !== version) throw new TypeError(`ArtifactRef.version must be ${version}`);
   if (mediaType && ref.media_type !== mediaType) throw new TypeError(`ArtifactRef.media_type must be ${mediaType}`);
   requireMediaType(ref.media_type);
-  if (!SHA256_RE.test(ref.byte_sha256 ?? '')) throw new TypeError('ArtifactRef.byte_sha256 is invalid');
+  if (typeof ref.byte_sha256 !== 'string' || !SHA256_RE.test(ref.byte_sha256)) {
+    throw new TypeError('ArtifactRef.byte_sha256 is invalid');
+  }
   if (!Number.isSafeInteger(ref.size_bytes) || ref.size_bytes < 0) throw new TypeError('ArtifactRef.size_bytes is invalid');
   return ref;
 }

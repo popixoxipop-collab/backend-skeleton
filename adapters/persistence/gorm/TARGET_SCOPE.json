@@ -1,0 +1,93 @@
+{
+  "schema": "sbf.persistence-target-scope/1",
+  "task": "ORM-gorm-01",
+  "track": "T10",
+  "target": "gorm",
+  "status": "scope-only",
+  "catalog_state": "blocked-upstream-facts",
+  "claims": {
+    "t08_source_facts_delivered": false,
+    "adapter_implemented": false,
+    "runtime_tested": false,
+    "supported": false,
+    "certified": false
+  },
+  "upstream_pin": {
+    "repository": "go-gorm/gorm",
+    "version": "v1.31.2",
+    "tag": "v1.31.2",
+    "commit": "1d6ce99528060be18a42be09aca8d39efcb47f28",
+    "release": "https://github.com/go-gorm/gorm/releases/tag/v1.31.2",
+    "documentation": [
+      "https://gorm.io/docs/models.html",
+      "https://gorm.io/docs/conventions.html",
+      "https://gorm.io/docs/gorm_config.html"
+    ],
+    "sources": [
+      { "path": "go.mod", "sha256": "7c77c394881a9f981a15f6a072a0850e002c0fa07dfef3ff9cfc7dfd8b535f72" },
+      { "path": "schema/schema.go", "sha256": "e318e5eed40ccc456b68b7ef2a2efa2b755a12679ca9eba6d9dc6e42035a4e14" },
+      { "path": "schema/field.go", "sha256": "18e7a6401e8cc61e3beecf563f06a2b6a92790dc858c636f3c6d9c897d091411" },
+      { "path": "schema/relationship.go", "sha256": "6d711c47ed86d4af184165a7ad3fdd7b08332bbc9f0fa5cb6663264b754620e5" },
+      { "path": "schema/naming.go", "sha256": "d82ff9bcfc7ab8e9e77eeba9359d9867502bfa4b22a1d934dd209200e5426930" },
+      { "path": "gorm.go", "sha256": "1a78162a0235d9f1fcd8a49de83bca1a81d3d5a45ab977e1287e83e3e0d9b818" }
+    ],
+    "version_boundary": "GORM v2 API at exact v1.31.2 module release only; GORM v1, plugins, dialect-specific conventions and later tags are excluded"
+  },
+  "fixture_root": "adapters/persistence/gorm/fixtures",
+  "fixtures": [
+    { "id": "module-pin", "path": "go.mod", "sha256": "e4281b9f96e81080ea4ef569bcf47bd6aa6b9054281ca94abeda25a0d7e6890e", "role": "dependency-pin" },
+    { "id": "normal-explicit-mapping", "path": "normal/models.go", "sha256": "f5dc19f5863c7af36484722e4292be62c9288762b5859664e54ecdf6eb48da14", "role": "normal" },
+    { "id": "naming-strategy", "path": "counterexamples/naming-strategy/config.go", "sha256": "d54ad8185cccfc134bbd1ec78596babc23b9ebeb82e10996e44393928cd3c88e", "role": "counterexample" },
+    { "id": "embedded-fields", "path": "counterexamples/embedded/model.go", "sha256": "fc13b1cdc7b130d7d5f12d6642a0744292daed3b26a4a89f80059f466c936c75", "role": "counterexample" },
+    { "id": "dynamic-table", "path": "counterexamples/dynamic-table/query.go", "sha256": "e2835d2b471d2514f867708a56119aba67ece7c26aaea63cdad5c7d019b1127e", "role": "counterexample" },
+    { "id": "composite-key", "path": "counterexamples/composite-key/model.go", "sha256": "6d9aaf69d5c525b64e60806096a4ab71ed607cd590c1997a338908227a3a9a24", "role": "counterexample" }
+  ],
+  "constructs": [
+    {
+      "id": "explicit-table-column-key-and-relation",
+      "status": "fixture-only-unassessed",
+      "source_expectation": ["Account → accounts(account_id)", "Invoice → invoices(invoice_id, account_id)"],
+      "runtime_oracle_required": true
+    },
+    {
+      "id": "naming-strategy",
+      "status": "unknown-until-config-bound-and-schema-probed",
+      "invariant": "TablePrefix and SingularTable alter physical names; a struct alone does not fix them."
+    },
+    {
+      "id": "embedded-fields",
+      "status": "unknown-until-schema-probed",
+      "invariant": "embeddedPrefix changes physical columns and provenance must not be discarded."
+    },
+    {
+      "id": "dynamic-table",
+      "status": "unknown-until-runtime-bound",
+      "invariant": "db.Table(tableName) can override the model table at runtime; no single static physical table is justified."
+    },
+    {
+      "id": "composite-key",
+      "status": "unknown-until-ordered-key-and-migration-probed",
+      "invariant": "Two primaryKey tags require an ordered physical-key oracle; no single-id projection is allowed."
+    }
+  ],
+  "runtime_oracle_plan": {
+    "not_executed_in_this_scope": true,
+    "toolchain": "Pin exact Go toolchain, go.sum/module checksums, GORM v1.31.2 and database driver/dialect on a T20-approved isolated runner",
+    "steps": [
+      "Verify v1.31.2 tag/commit, six upstream source hashes and the exact module dependency graph before running any Go command.",
+      "Materialize each authored fixture as an independent Go module; run go mod download, go test and record toolchain, go.sum, compiler diagnostics and package checksums.",
+      "Use GORM schema parsing with both default and explicitly configured NamingStrategy to record table, physical columns, ordered primary fields, embedded provenance and relationship/FK pairs.",
+      "Use a pinned database driver and disposable database to compare AutoMigrate/migrator metadata with source-derived expectations; test dynamic db.Table values, composite-key order and relation mapping as separate cases.",
+      "Require T08 Go semantic/source facts under CR-T10-002, T16 independent read and T19 mutation review before any T10 provider or support claim.",
+      "Check T01 contract projection, packed-artifact consumer and certification only after the upstream facts and T00 composition gate are available; preserve the blocked catalog state until then."
+    ],
+    "promotion_dependencies": ["CR-T10-002/T08 Go facts", "ORM-gorm-02", "ORM-gorm-03", "T01", "T16", "T19", "T20", "T00"]
+  },
+  "limits": [
+    "The Go files are hand-authored planning fixtures, not upstream source copies, compiled models or executed GORM runtime evidence.",
+    "No Go toolchain or database driver is installed for this plan; go.sum, schema parse, migration and live database comparisons remain unexecuted.",
+    "The catalog remains blocked-upstream-facts and source-facts admission is not certification or generation handoff.",
+    "No T08 Go persistence facts, T10 parser/provider, shared-contract projection, registry entry or packed-artifact path is added.",
+    "No independent attestation, target certification or release gate is exercised here."
+  ]
+}

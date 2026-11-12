@@ -20,7 +20,10 @@ export const TRACK = {
 		'test/provider-composition-next/baseline-record.test.mjs',
 		'test/provider-composition-next/baseline-record-lib.mjs',
 		'test/provider-composition-next/interface-rfc.test.mjs',
-		'test/provider-composition-next/interface-rfc.vocabulary.json'
+		'test/provider-composition-next/interface-rfc.vocabulary.json',
+		'test/provider-composition-next/interface-rfc-coercion.test.mjs',
+		'test/provider-composition-next/interface-rfc-evidence.mjs',
+		'test/provider-composition-next/interface-rfc-evidence.test.mjs'
 	]
 };
 //@@TRACK-END

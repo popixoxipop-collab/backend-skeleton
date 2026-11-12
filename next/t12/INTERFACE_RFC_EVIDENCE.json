@@ -1,0 +1,52 @@
+{
+  "schema": "bskel.t12-interface-rfc-evidence/1",
+  "task_id": "T12-02",
+  "verified_source_commit": "a886c0ab17274914cae105b568c06d202e6ace5b",
+  "source_files": {
+    "adapters/http-wave-a/BASELINE.json": "94520c6a2996b746ae7498e033300d6830403232a24f7ee0db6cacdfadddad60",
+    "adapters/http-wave-a/INTERFACE_RFC.md": "ab7cd0ba77070a46a9b5dddc00527a152315fde34d22567751a1207721f6b22a",
+    "adapters/http-wave-a/leaf-contract.schema.json": "c6300d1f48c55ae18b9acb45925a8ca1b8f3928623f6c81a4992f0ce412eb051",
+    "adapters/http-wave-a/_shared.mjs": "a0aa1a42126a5143e7589b1f281f37b4bc0912110eb98070f40398ef1a8323fc",
+    "adapters/http-wave-a/aspnet-core.mjs": "743177b28d6e5dc077c0c7dac1e9f48315e80f6a8fbfb42548939ceccd048a68",
+    "adapters/http-wave-a/django-drf.mjs": "0d90bfe0540245016357d9661f370b5a856b3910e9906c473e7905dc26ebc788",
+    "adapters/http-wave-a/fastify.mjs": "429c415ae6211d0a82319738fb9e9cfbc501a9e6524a832f01951a0db16e0667",
+    "adapters/http-wave-a/flask.mjs": "1696452ed788b725c8842c8c44ace62bf28dcb5a50aebf9e6bbf78c5b343b9bc",
+    "adapters/http-wave-a/gin.mjs": "5fc90cbcc1611258b41943d669681fcc9636e2445f4bde1b8e16358aa9f17b1a",
+    "adapters/http-wave-a/laravel.mjs": "aa9cd5ebab7fee92ef716de060721d5bf74046d4e20f509fd1e0514a8fc111d0",
+    "adapters/http-wave-a/nestjs.mjs": "3b09bd43bbaa26c79ad9ab5ef6c97a6b3e217cfb46473eab6f6f72fba6c75bec",
+    "adapters/http-wave-a/python-scope/static-runner.mjs": "a084dce820f3642fdb0c5357fb45c89eb48aa52f50717a6c9c2d08f1a915ec3a",
+    "adapters/http-wave-a/python-scope/verify.mjs": "a90186e06a3e4adeb9df9bd06d87c37039de9a2a6b19fc433e012da71240bcfe",
+    "adapters/http-wave-a/python-django/results/static.json": "af3e24c663115ec1d52990d6a3940ed31274681a5d6e16cc9b9297e0031d191b",
+    "test/http-wave-a/baseline-record-lib.mjs": "5b15aa5c0b0913434c41965e0d12a1134157cd82465a974c78b21f30411d3d00",
+    "test/http-wave-a/interface-rfc.test.mjs": "d37295ef0d15f3758acd5832ea11c468169ee0ec48b7e915bf5ccdd9000c9403",
+    "test/http-wave-a/interface-rfc.vocabulary.json": "60a466e87cf1a824fb1c94ee20c18176735420c64b31a4ec76b6019469c56a17",
+    "test/http-wave-a/rfc-boundaries.test.mjs": "4161fa04387351343a26688d0867f727a5771af6b39de455048d5e3cf305e00e",
+    "test/http-wave-a/interface-rfc-evidence.mjs": "80afa0dd369c904560e15542f9d49378cd490b82171be4776c730effadd6a5ce",
+    "test/http-wave-a/interface-rfc-evidence.test.mjs": "0aa1fe5d11d83df424da43cfc3300496fd5d7c0a958dac24e1b4785e9c1567f5"
+  },
+  "observed_run": {
+    "command": [
+      "node",
+      "--test",
+      "test/http-wave-a/interface-rfc.test.mjs",
+      "test/http-wave-a/rfc-boundaries.test.mjs"
+    ],
+    "exit_code": 0,
+    "counts": {
+      "tests": 16,
+      "pass": 16,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    }
+  },
+  "assertions": {
+    "official_MET_delta": 0,
+    "automatic_promotion": false,
+    "release_activation": false,
+    "signed_independent_attestation": false,
+    "runtime_certified": false
+  },
+  "limits": "Source-pinned T12-02 RFC and counterexample replay only: not runtime-certified or product-supported. The historical T12-01 baseline and upstream analysis limitations remain separate and unchanged."
+}

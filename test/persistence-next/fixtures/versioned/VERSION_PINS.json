@@ -1,0 +1,32 @@
+{
+  "schema": "sbf.t10-version-differential-fixtures/1",
+  "purpose": "Prisma model-to-physical-name compatibility across a documented datasource configuration change; no Prisma runtime, Client or database claim",
+  "official_configuration_reference": "https://www.prisma.io/docs/guides/upgrade-prisma-orm/v7",
+  "cases": [
+    {
+      "version": "6.19.0",
+      "tag": "6.19.0",
+      "tag_object": "f7050711d4b6a261fda50fc0602cb58ecb184817",
+      "commit": "d4ec055ee9e13e62351bf72643fc978b3d315ae3",
+      "schema_path": "prisma-6.19.0/schema.prisma",
+      "schema_sha256": "5e64c31a286fd7c585a7232b81b1ffd25af760d4c0081249123cd220772ffccb",
+      "connection_config": "datasource-url-in-schema"
+    },
+    {
+      "version": "7.0.0",
+      "tag": "7.0.0",
+      "tag_object": "6843af9e3ab0d03357e064d9c96d579d3c6f6d97",
+      "commit": "177882704271b747b3618b0cf6790e46f2432b7a",
+      "schema_path": "prisma-7.0.0/schema.prisma",
+      "schema_sha256": "2e3941f6493889b1aab2066faf46b482e80b4ef55f2d801ccdc7122918349f07",
+      "config_path": "prisma-7.0.0/prisma.config.ts",
+      "config_sha256": "d841283f381bcc5b8d7d79474b184c64e0b4dfef221bd4128c4fa1157c730050",
+      "connection_config": "datasource-url-in-prisma-config"
+    }
+  ],
+  "limits": [
+    "Fixtures are hand-authored from documented syntax and are not copies of the upstream tags.",
+    "T10 parses only schema.prisma model declarations; it does not execute prisma.config.ts, resolve env(), generate Prisma Client, or open a database.",
+    "Tag/version pins are reviewable provenance; this fixture test alone is not a Prisma CLI validation or framework-runtime differential."
+  ]
+}

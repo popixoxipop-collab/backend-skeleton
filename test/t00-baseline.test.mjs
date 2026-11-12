@@ -1,3 +1,7 @@
+// Explicit discovery of T00-owned candidate suites; historical assertions below are unchanged.
+import '../next/t00/baseline-strict-v1.test.mjs';
+import '../next/t00/inventory-alignment.test.mjs';
+import '../next/t00/cross-repo-ci.test.mjs';
 // T00-01: every fact in next/t00/baseline.lock.json is recomputed here from the committed files, from real git
 // repositories, or from git objects of the locked bskel head. A commit this checkout lacks is fetched; if it cannot be
 // obtained the test fails, it never skips.

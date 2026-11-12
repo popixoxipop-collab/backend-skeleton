@@ -1,0 +1,32 @@
+{
+  "schema": "bskel.laravel-upstream-pin/1",
+  "application": {
+    "repository": "laravel/laravel",
+    "commit": "aa0cf127fc365a56ee016867144ddffabc2290ae",
+    "declared_php": "^8.3",
+    "declared_framework_range": "^13.17",
+    "files": {
+      "composer.json": {
+        "git_blob_sha1": "9b8fbd5d4dcf8535e1342196f5619187bf17bbed",
+        "sha256": "dc30862e917de4ddf6866056c83eeabcac72c078e5ed604ddcecc73147a1ceaa"
+      },
+      "routes/web.php": {
+        "git_blob_sha1": "86a06c53eb430eeef17e0fe90f7ba997952a96c6",
+        "sha256": "248c7eeeb43bb61ee4fb6603e52b44843c64f72a841d671bcd41871aab23f970"
+      }
+    }
+  },
+  "framework": {
+    "repository": "laravel/framework",
+    "tag": "v13.17.0",
+    "commit": "0802b7a81f3252d78200b8037ac183a686a529f0",
+    "files": {
+      "composer.json": {
+        "git_blob_sha1": "46e87b55f44f2b92bd544cddd36f644a70ea6733",
+        "sha256": "637d730f938f8bae6f098f8a96de4c4c9fa4777697598181eab3d52b00331c17"
+      }
+    }
+  },
+  "runtime_executed": false,
+  "external_runtime_equal": false
+}

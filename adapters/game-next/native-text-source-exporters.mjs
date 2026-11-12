@@ -124,7 +124,16 @@ export function parseUnityTextScene(sourceBytes, { path, maxBytes = MAX_SOURCE_B
       if (known) current.type = known;
       continue;
     }
-    if (!current) continue;
+    // A malformed document marker must not let the following body disappear or
+    // be read as fields of the preceding document.
+    if (line.startsWith('---')) throw new Error(`unsupported Unity document header on line ${i + 1}`);
+    if (!current) {
+      if (line.trim() && !line.trimStart().startsWith('#') &&
+          !line.startsWith('%YAML ') && !line.startsWith('%TAG !u!')) {
+        diagnostics.push({ line: i + 1, code: 'UNITY_UNMODELED_LINE' });
+      }
+      continue;
+    }
 
     if (currentBodyType === null) {
       const body = line.match(/^([A-Za-z_][A-Za-z0-9_]*):\s*$/);

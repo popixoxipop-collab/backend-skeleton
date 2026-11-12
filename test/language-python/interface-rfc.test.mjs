@@ -325,9 +325,10 @@ function typeShapes(t, add) {
 }
 
 // A stand-in interpreter (POSIX shell script): it answers the version probe with `probe`, then runs `body` for any other call.
-const makeFake = (dir, name, body, probe = '3.12.0') => {
+const makeFake = (dir, name, body, probe = '3.12.0', consumeInput = true) => {
 	const file = path.join(dir, name);
-	fs.writeFileSync(file, `#!/bin/sh\nfor a in "$@"; do if [ "$a" = "-c" ]; then echo ${probe}; exit 0; fi; done\n${body}\n`);
+	const consume = consumeInput ? '/bin/cat >/dev/null\n' : '';
+	fs.writeFileSync(file, `#!/bin/sh\nfor a in "$@"; do if [ "$a" = "-c" ]; then echo ${probe}; exit 0; fi; done\n${consume}${body}\n`);
 	fs.chmodSync(file, 0o755);
 	return file;
 };
@@ -1035,7 +1036,7 @@ check('helper-is-started-isolated', 'posix', (c) => {
 	fs.mkdirSync(dir);
 	const root = writeTree({ 'a.py': SOURCE_A });
 	const body = ['d="${0%/*}"', 'for a in "$@"; do printf \'%s\\n\' "$a"; done > "$d/args.txt"', '/bin/cat > "$d/stdin.txt"', '/usr/bin/env > "$d/env.txt"'].join('\n');
-	const fake = makeFake(dir, 'record', body);
+	const fake = makeFake(dir, 'record', body, '3.12.0', false);
 	withEnv({ T06_RFC_SENTINEL: 'present' }, () => one(root, 'a.py', { pythonCommand: fake }));
 	const args = fs.readFileSync(path.join(dir, 'args.txt'), 'utf8').split('\n').filter(Boolean);
 	c.eq('arguments', ['-I', '-S', '-B', '-X', 'utf8'], args.slice(0, 5));

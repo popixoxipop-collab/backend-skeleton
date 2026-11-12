@@ -1,0 +1,18 @@
+{
+  "schema": "sbf.game-threejs-target-fixture/1",
+  "package": {
+    "name": "game-threejs-01-counterexample-fixture",
+    "private": true,
+    "dependencies": { "three": "0.180.0" }
+  },
+  "source_file": "src/game.js",
+  "source": "import * as THREE from 'three';\n\nconst scene = new THREE.Scene();\nconst actor = new THREE.Mesh();\nscene.add(actor);\nscene.remove(actor);\nactor.geometry.dispose();\n\nconst assetUri = `/assets/${name}.gltf`;\nloader.load(assetUri);\n\nfunction animate() {\n  requestAnimationFrame(animate);\n}\nanimate();\n",
+  "asset_file": "assets/model.gltf",
+  "asset": {
+    "asset": {
+      "version": "2.0",
+      "generator": "synthetic counterexample: exporter release unknown"
+    },
+    "scenes": []
+  }
+}

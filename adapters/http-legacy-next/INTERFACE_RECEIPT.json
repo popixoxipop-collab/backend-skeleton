@@ -6,9 +6,9 @@
     "T11-01",
     "T11-02"
   ],
-  "revision": "cdf1d35ad3aeb24f381f0dd42688e6b0d68080be",
-  "tree": "54b41e1ddd03ac5953951b0179ba0f5ad6e301e5",
-  "node_version": "v24.19.0",
+  "revision": "00b9fe367ef2fe07355c0fe771729e0a046d6002",
+  "tree": "ac0ce7a2304c068cc3e2666f44cb8cb33ea277b3",
+  "node_version": "v24.22.1",
   "commands": [
     {
       "id": "interface-test",
@@ -19,14 +19,14 @@
         "test/http-legacy-next/interface-rfc.test.mjs"
       ],
       "exit_code": 0,
-      "tests": 7,
-      "pass": 7,
+      "tests": 13,
+      "pass": 13,
       "fail": 0,
       "skipped": 0,
       "pass_text": [
-        "# tests 7",
+        "# tests 13",
         "# suites 0",
-        "# pass 7",
+        "# pass 13",
         "# fail 0",
         "# cancelled 0",
         "# skipped 0",
@@ -41,14 +41,14 @@
         "T11"
       ],
       "exit_code": 0,
-      "tests": 181,
-      "pass": 181,
+      "tests": 205,
+      "pass": 205,
       "fail": 0,
       "skipped": 0,
       "pass_text": [
-        "ℹ tests 181",
+        "ℹ tests 205",
         "ℹ suites 0",
-        "ℹ pass 181",
+        "ℹ pass 205",
         "ℹ fail 0",
         "ℹ cancelled 0",
         "ℹ skipped 0",
@@ -65,21 +65,21 @@
     },
     {
       "path": "adapters/http-legacy-next/INTEGRATION.md",
-      "bytes": 24198,
-      "git_blob_sha1": "2b474fd289bb84ad6e2850884d64c0afacf03431",
-      "sha256": "ac7b8799beefb4c3da8de125b4209cb5223bc5f8254ee5e6c08a6c0449155032"
+      "bytes": 24563,
+      "git_blob_sha1": "b1328d738fd610e9ce19a455876cac47bbf20262",
+      "sha256": "83e3c73f04f9288baca1dc4cb2801cf491573b1b07fca566e0c60fee91ea7557"
     },
     {
       "path": "adapters/http-legacy-next/INTERFACE_RFC.md",
-      "bytes": 18394,
-      "git_blob_sha1": "e6086ca1813f49ec5924fcc7e20cb8cefe7977f8",
-      "sha256": "1e84926c2a11bf1f2709e31223d275ac8d61e12f865d6dcc64591372275a5730"
+      "bytes": 18491,
+      "git_blob_sha1": "3c975017761fa004689827ef4c426de8aa7dc6d2",
+      "sha256": "5e9849f70836910737e39621f7d623b192f27555f20bd4ac30e01e956d980c5c"
     },
     {
       "path": "adapters/http-legacy-next/baselines.mjs",
-      "bytes": 3881,
-      "git_blob_sha1": "5f1b32f243ec13de42272d211966607f5373a69f",
-      "sha256": "09fbf687add0dc3e6c5e3c033e9ff45eb7bb4dc85dab639ec8f7ee7d31fe0932"
+      "bytes": 3974,
+      "git_blob_sha1": "b5f3598eac5d6493a4173ea08f6b1706aa31922e",
+      "sha256": "2abb46b16fa970494f21262fbea0b97d52464740fcfe2a559f0543bc66a82110"
     },
     {
       "path": "adapters/http-legacy-next/bridge.mjs",
@@ -143,9 +143,9 @@
     },
     {
       "path": "test/http-legacy-next/interface-rfc.test.mjs",
-      "bytes": 60583,
-      "git_blob_sha1": "dcfbcef1bce062c3de278eab1ac43cc7fc8969b9",
-      "sha256": "fa7e56e51f855b696907e82867556212f10695fb79f1fb9c6ed283722564a7da"
+      "bytes": 62773,
+      "git_blob_sha1": "9d46c5465e960d9dc673c6512c7d2668b5d96e04",
+      "sha256": "66d0cc806b384db2a61e39e57508b8ae1bdfc08e8d3419babdfb71416332fdcf"
     },
     {
       "path": "test/http-legacy-next/interface-rfc.vocabulary.json",
@@ -163,5 +163,5 @@
     "scope of the hashes: the counts cover every test file of the T11 suite at the revision but only the listed files are hashed; the other test files, the nested runner script, the scanner and the fixtures are covered by the revision alone.",
     "replay without history: the replayed nested run has no git history, so the pinned-commit checks of the record test run there under BASELINE_ALLOW_UNVERIFIED=1 and are reported as not run, and it uses the node_modules of the checkout that replays it; the generator's own run had the history."
   ],
-  "receipt_digest": "b7d83e6f0156083befd55a80ad583a87d4077c409c34bf00d977dcb2e6950539"
+  "receipt_digest": "68f421a60fecee1d68fa676291a3b502a7e1c7cda2a5d1a801a4504ab4005d7c"
 }

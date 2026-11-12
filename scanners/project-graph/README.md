@@ -25,6 +25,20 @@ Tests and reproducible evidence live in `test/project-graph/`:
   options and caller-supplied values (RFC section 2.5).
 - `interface-rfc.record.json` holds the recorded commands, exit codes, hashes and vocabulary lists;
   `interface-rfc.test.mjs` checks them against the code, the schema and the RFC.
+- `packed-cross-integration.test.mjs` packs the actual npm package offline and installs it into a disposable
+  consumer, verifies installed T02/T21 module bytes, then runs the registered Spring, FastAPI,
+  TypeScript Express, JavaScript Express and Rails project graph through T21's cache plan and shadow scanner with cache
+  off, miss and hit parity. The install prefers cached dependencies but may fetch missing registry
+  metadata; lifecycle scripts are disabled. This does not activate project-graph routing in production.
+- `package-replay.test.mjs` verifies pinned historical installed-package previous → candidate →
+  previous restoration, including an interrupted candidate probe. See
+  [PROMOTION_ROLLBACK.md](PROMOTION_ROLLBACK.md) for exact commits, receipts,
+  stop conditions and limits. It is not a live-service promotion.
+
+The packed cross-integration covers all five currently registered first-party HTTP adapters.
+Express+Prisma, Nest+TypeORM and Three+R3F combinations remain future adapter work, not evidence
+of current support. Real-cohort observations remain manual and are not represented by this
+synthetic disposable-consumer test.
 
 Not here: CLI or contract wiring (T00/T23), router-internal mount graphs (adapter-owned), cache and
 invalidation policy (T21), and any service facet other than `http`. An absent facet means unknown, not none.

@@ -97,6 +97,10 @@ The packet explicitly says it is **not runtime evidence**. T16/beval must still 
 
 Passing this corpus is static/contract evidence only. It does not confer Runtime-tested or production certification.
 
+`docs/T18_04_ADVERSARIAL_SCOPE.md` defines a separate owned mutation, permission,
+and dialect-boundary matrix for the shadow importers. It leaves T19's fixed
+79-vector certification catalog and real protocol-runtime claims untouched.
+
 ## T18 task status on this Draft branch
 
 | Task | Branch coverage | Program status |

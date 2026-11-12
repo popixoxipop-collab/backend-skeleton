@@ -1,0 +1,43 @@
+{
+  "schema": "sbf.game-unity-01-validation/1",
+  "task": "GAME-unity-01",
+  "source_base": "669b3396daa300e639da91a7ea5ce7ccb8e09bf9",
+  "source_revision": "1be2f6b8396c27ca1f011a1cd2290cee021ab164",
+  "source_tree": "04e3bcaf097eb71308535d691340563bcd80e6b9",
+  "files_sha256": {
+    "adapters/game-next/INTERFACE_RFC.md": "6db2ac70a20f80ebeb65f39dee78ebf781745ad616d09db8e9de7e5330785a11",
+    "adapters/game/unity/RELEASE_PINS.json": "43a23030aa90ec1b3af67494235ab48892318a8ec2906011d063e4ae88dacb90",
+    "adapters/game/unity/SCOPE.md": "8bcc5cdb92d1d868ae462c75490db2c8e0465c243e8640be39b4f6c80f68290e",
+    "adapters/game/unity/fixtures/ToggleActor.cs": "e437ffeaa071fef0959a1fefbb92055e96f459c359c455aa55f62309848b271c",
+    "adapters/game/unity/fixtures/declared-scene.unity": "40f19813a8bf7403af24f86624f7654960f34c239cc27ff6ddb3cc4e6eecde24",
+    "adapters/game/unity/fixtures/prefab-override.unity": "33345af7e1cbaeb97ff6215a99e7150ab32df9870b29bff3e4631266e7678aaf",
+    "test/game-next/unity-target-scope.test.mjs": "34b786ce05432d3a3284958d7ba0b6e9f9a86dc7ce24465f1b6e89337eba4547"
+  },
+  "upstream_pins_verified": {
+    "release_url": "https://unity.com/releases/editor/whats-new/6000.0.85f1",
+    "editor_version": "6000.0.85f1",
+    "changeset": "ee7790f1426a",
+    "released_on": "2026-10-15",
+    "release_page_sha256": "12fb10e42920806addd6dd53d3468383540c069472a57db8c5187260bffaf974"
+  },
+  "replay": {
+    "host": "BOB.local",
+    "node_version": "v26.7.0",
+    "commands": [
+      {"argv": ["node", "--test", "test/game-next/unity-target-scope.test.mjs"], "exit_code": 0, "tests": 6, "pass": 6, "fail": 0, "skipped": 0},
+      {"argv": ["node", "--test", "test/game-next/native-text-source-exporters.test.mjs"], "exit_code": 0, "tests": 11, "pass": 11, "fail": 0, "skipped": 0},
+      {"argv": ["node", "scripts/run-next-nested-tests.mjs", "T17"], "exit_code": 0, "tests": 78, "pass": 77, "fail": 0, "skipped": 1, "skip_reason": "historical baseline live-tree drift; pinned baseline commit replay passes"},
+      {"argv": ["node", "next/t00/check-ownership.mjs", "paths", "--track", "T17", "--git-diff", "669b3396daa300e639da91a7ea5ce7ccb8e09bf9", "1be2f6b8396c27ca1f011a1cd2290cee021ab164"], "exit_code": 0, "owned_paths": 7},
+      {"argv": ["git", "diff", "--check", "669b3396daa300e639da91a7ea5ce7ccb8e09bf9", "1be2f6b8396c27ca1f011a1cd2290cee021ab164"], "exit_code": 0}
+    ],
+    "full_receipt_sha256": "f62e2614463fe9d54ae64d1ab1a21cfd9047c423b77759c05e1dc2489574e2ca"
+  },
+  "scope": "Unity static text-scene structure, prefab override limits and lifecycle evidence plan only",
+  "authority": {
+    "target_01_met_awarded": false,
+    "editor_executed": false,
+    "runtime_certified": false,
+    "signed_independent_attestation": false,
+    "release_authorized": false
+  }
+}

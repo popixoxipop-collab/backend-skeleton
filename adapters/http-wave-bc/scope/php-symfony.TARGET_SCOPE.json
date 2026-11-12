@@ -1,0 +1,82 @@
+{
+  "schema": "sbf.http-target-scope/1",
+  "task": "HTTP-php-symfony-01",
+  "track": "T13",
+  "target": "php-symfony",
+  "status": "scope-only",
+  "claims": {
+    "adapter_implemented": false,
+    "static_extraction_verified": false,
+    "runtime_tested": false,
+    "supported": false,
+    "certified": false
+  },
+  "upstream_pin": {
+    "repository": "symfony/symfony",
+    "version": "8.1.10",
+    "tag": "v8.1.10",
+    "tag_object": "ba4f4496d42ae25c8de891925249d66f2b67489a",
+    "commit": "34a08ab1b25dac1ebbdca78927f27cf353993625",
+    "php_constraint_from_source": ">=8.4.1",
+    "release": "https://github.com/symfony/symfony/releases/tag/v8.1.10",
+    "sources": [
+      { "path": "composer.json", "sha256": "63735b3b12aadb560a05da5464388d422617c2e12a4412fe02f03b7c178fdc68" },
+      { "path": "src/Symfony/Component/Routing/Attribute/Route.php", "sha256": "ce357e865995d0e10f2f591d004cc1e46f0a51958de90fab2b0ff8081cc97af6" },
+      { "path": "src/Symfony/Component/Routing/Loader/AttributeClassLoader.php", "sha256": "e9986d68426a4152d536ca3dc3e8e75661c921d0410bd7f61b64ebb68b79c043" },
+      { "path": "src/Symfony/Component/Routing/Loader/YamlFileLoader.php", "sha256": "b15f38426ee40bbf8e003f48fa3bd80946e9568cb291a7c7dade4d53b03895e1" },
+      { "path": "src/Symfony/Component/Routing/Loader/PhpFileLoader.php", "sha256": "9a2ed437e49d7fbc08742fdfa993dd94d4dfdcbe72468b2daefff40822265dd6" }
+    ]
+  },
+  "fixture_root": "test/http-wave-bc/fixtures/target-scope/symfony",
+  "fixtures": [
+    { "id": "dependency-pin", "path": "composer.json", "sha256": "ff87a43133a5176cd22243a93612c4e306f46398e0a20224703f0fc3bb4428bb", "role": "dependency-pin" },
+    { "id": "literal-attribute-routes", "path": "normal/src/Controller/UserController.php", "sha256": "763130955d4606f7999c4bb5b4d41cf777a9b315fac2a0024f81d129dc92a96f", "role": "normal" },
+    { "id": "yaml-config", "path": "counterexamples/yaml/config/routes.yaml", "sha256": "4b1c53bc5e7a26c4df4301f74a952ed1942ff4a7341dd7d01036b563dec4c9a4", "role": "counterexample" },
+    { "id": "php-config", "path": "counterexamples/php-config/config/routes.php", "sha256": "ec2bdb393b0fb6524a25f4cf0b1a267f9f6e6962cc356c43a012115434db797d", "role": "counterexample" },
+    { "id": "legacy-xml", "path": "counterexamples/xml-legacy/config/routes.xml", "sha256": "89cd5a8cefae52e2c0d7fd38f04f26ca7f677867a8b4d00b55ae6bd6e5541ae5", "role": "historical-unsupported-profile" },
+    { "id": "dynamic-prefix-condition", "path": "counterexamples/dynamic-prefix/src/Controller/DynamicController.php", "sha256": "a725a97cbcc18d6cbd6f25a03d8fd519824dd50dba026cde7f3ce8e5606b3ddd", "role": "counterexample" }
+  ],
+  "constructs": [
+    {
+      "id": "literal-class-and-method-attributes",
+      "status": "fixture-only-unassessed",
+      "source_expectation": ["GET /api/users/{id}", "POST /api/users"],
+      "runtime_oracle_required": true
+    },
+    {
+      "id": "yaml-and-php-config",
+      "status": "unknown-until-config-load-and-request-probe",
+      "invariant": "Attribute-only extraction must not silently certify routes declared in YAML or PHP configuration."
+    },
+    {
+      "id": "legacy-xml",
+      "status": "unsupported-at-pin-unassessed",
+      "invariant": "The historical XML syntax is recorded as a catalog boundary, not as executable Symfony 8.1.10 support; the pinned Routing Loader tree has no XmlFileLoader.php."
+    },
+    {
+      "id": "dynamic-prefix-condition",
+      "status": "unknown-until-request-probe",
+      "invariant": "A tenant path variable and expression condition cannot be reduced to one unconditional literal GET route."
+    }
+  ],
+  "runtime_oracle_plan": {
+    "not_executed_in_this_scope": true,
+    "toolchain": "Pinned PHP >=8.4.1, Composer binary/hash, exact dependency lock and isolated Symfony kernel recorded before use",
+    "steps": [
+      "Verify the annotated v8.1.10 tag resolves to the pinned commit and source hashes; resolve a Composer lock and full dependency graph under a T20-approved isolated runner.",
+      "Compile and load the authored attribute, YAML and PHP-config fixtures separately under an isolated Symfony kernel, recording debug:router output and route-collection metadata.",
+      "Probe GET/POST/other methods, path variables, X-Feature header and unmatched paths with Symfony's test client; compare actual status, route name and controller against source expectations.",
+      "Treat XML as a historical unsupported profile unless a separately pinned framework version and loader are proven; never infer support from the XML fixture's presence.",
+      "Bind source bytes, PHP/Composer profile, dependency lock and oracle outputs before T16 independent read and T19 mutation review.",
+      "Only after T00 authorizes HTTP composition, evaluate an HTTP leaf and bridge separately; do not infer T13 support from the T07 Symfony language scanner."
+    ],
+    "promotion_dependencies": ["HTTP-php-symfony-02", "HTTP-php-symfony-03", "T16", "T19", "T20", "T00"]
+  },
+  "limits": [
+    "These files are hand-authored planning fixtures, not upstream source copies, installed dependencies or runtime evidence.",
+    "T07 Symfony attribute-stack tests are credited to T07 only, not as an HTTP adapter or T13 runtime oracle.",
+    "XML is historical and unproven for the pinned 8.1.10 runtime; it must not be counted as a supported configuration format.",
+    "No Symfony adapter, registry, CLI path or shared-schema projection is added; T08-05 HTTP composition remains BLOCKED.",
+    "No PHP runtime, Composer installation, Symfony kernel, request probe, independent attestation or release gate is exercised here."
+  ]
+}

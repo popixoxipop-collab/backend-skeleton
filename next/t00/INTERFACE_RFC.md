@@ -100,8 +100,8 @@ as `\xNN`, so a name cannot add a line. Exit 1: usage error or unreadable input,
 ## 8. How a track uses the gate
 
 1. Before the push run `paths --track Tnn --git-diff <merge-base> HEAD`. Exit 0 means every changed path is the track's own.
-2. A change that has to touch a reserved path or another track's path is a stated exception. Name the path and the reason
-   in the pull request body and leave the edit to the coordinator. The gate has no override.
+2. A reserved or foreign path is a stated coordinator exception, named with a reason in the PR; the gate has no override.
+   For hot/unowned paths T00 can pin an exact-head receipt via `check-path-exception.mjs`; `paths` still fails (see `PATH_EXCEPTION_PROTOCOL.md`).
 3. A change to `SUITES` (a hot file), to a plan write scope or to `test/t00-*.test.mjs` makes the committed map stale: run
    `build-ownership-map.mjs` and `make-ownership-report.mjs --write` and commit both; `test/t00-ownership.test.mjs` fails until then.
 

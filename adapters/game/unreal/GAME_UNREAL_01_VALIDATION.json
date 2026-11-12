@@ -1,0 +1,42 @@
+{
+  "schema": "sbf.game-unreal-01-validation/1",
+  "task": "GAME-unreal-01",
+  "source_base": "1d2b1f12bebf9072248372946f3c9715fb8f0e81",
+  "source_revision": "07ed99dbb76364ddb8ec36d3fac7db60c77d23ee",
+  "source_tree": "6f4ecc3100201f502326174c979939038d6117da",
+  "files_sha256": {
+    "adapters/game-next/INTERFACE_RFC.md": "d92bd3c7a5150f500208a7b8092bb60296beb5a09cb07b572e323a827d0c37cb",
+    "adapters/game/unreal/RELEASE_PINS.json": "03a552b6d533cb31110322faf0bc04633a5200959ef4f24a8818b550f2277273",
+    "adapters/game/unreal/SCOPE.md": "5e4a2daeda7ee18515e238b087714fe48171dd6eb709244ea115a8baed5a8d37",
+    "adapters/game/unreal/fixtures/ProbeActor.h": "5fc720d99480d288f712e9a2a65d896a6a7df817eaa52552d76f5ffe9f3c6315",
+    "adapters/game/unreal/fixtures/declared-reflection.json": "b871c29ee1908e874a45f7032eb2dba083a2cfc56bdc88be1d1dc068502beb1e",
+    "test/game-next/unreal-target-scope.test.mjs": "6ec68f479a22127dee2017a9853fba18851f46b8090458665cae001416ec4312"
+  },
+  "upstream_pins_verified": {
+    "hotfix_announcement_url": "https://forums.unrealengine.com/t/5-8-4-hotfix-released/2842775",
+    "hotfix_version": "5.8.4",
+    "hotfix_released_on": "2026-10-20",
+    "hotfix_page_sha256": "e150ba90d02d997b5ca6aa4f1b728e3e7c5b144138e5206f6336c75b3496f1e6"
+  },
+  "replay": {
+    "host": "BOB.local",
+    "node_version": "v26.7.0",
+    "commands": [
+      {"argv": ["node", "--test", "test/game-next/unreal-target-scope.test.mjs"], "exit_code": 0, "tests": 5, "pass": 5, "fail": 0, "skipped": 0},
+      {"argv": ["node", "--test", "test/game-next/native-export-envelope-schema.test.mjs"], "exit_code": 0, "tests": 8, "pass": 8, "fail": 0, "skipped": 0},
+      {"argv": ["node", "scripts/run-next-nested-tests.mjs", "T17"], "exit_code": 0, "tests": 83, "pass": 82, "fail": 0, "skipped": 1, "skip_reason": "historical baseline live-tree drift; pinned baseline commit replay passes"},
+      {"argv": ["node", "next/t00/check-ownership.mjs", "paths", "--track", "T17", "--git-diff", "1d2b1f12bebf9072248372946f3c9715fb8f0e81", "07ed99dbb76364ddb8ec36d3fac7db60c77d23ee"], "exit_code": 0, "owned_paths": 6},
+      {"argv": ["git", "diff", "--check", "1d2b1f12bebf9072248372946f3c9715fb8f0e81", "07ed99dbb76364ddb8ec36d3fac7db60c77d23ee"], "exit_code": 0}
+    ],
+    "full_receipt_sha256": "6fd5bcf97064903c7aa8cf18e2fce44f7e2dff429f3a48434ea82c4acb059fdb"
+  },
+  "scope": "Unreal 5.8.4 reflection declarations, Blueprint/asset identity limits and evidence plan only",
+  "authority": {
+    "target_01_met_awarded": false,
+    "engine_executed": false,
+    "exporter_implemented": false,
+    "runtime_certified": false,
+    "signed_independent_attestation": false,
+    "release_authorized": false
+  }
+}

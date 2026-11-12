@@ -1,0 +1,113 @@
+{
+  "schema": "sbf.http-target-scope/1",
+  "task": "HTTP-go-fiber-01",
+  "track": "T13",
+  "target": "go-fiber",
+  "status": "scope-only",
+  "claims": {
+    "adapter_implemented": false,
+    "static_extraction_verified": false,
+    "runtime_tested": false,
+    "supported": false,
+    "certified": false
+  },
+  "upstream_pin": {
+    "module": "github.com/gofiber/fiber/v3",
+    "version": "v3.6.1",
+    "commit": "e09ba687733538c74765c8f691772f328b62f670",
+    "go_mod_minimum": "1.26.0",
+    "release": "https://github.com/gofiber/fiber/releases/tag/v3.6.1",
+    "sources": [
+      {
+        "path": "go.mod",
+        "sha256": "8025f9515b6f843c39985e57b8416cde74c6dbe8ed84a972db75536b352b9261"
+      },
+      {
+        "path": "docs/guide/routing.md",
+        "sha256": "e7fba3fc3138e13fc8b5a6bac728fe2706aa95330929324d947ce45ebc3561ea"
+      },
+      {
+        "path": "docs/guide/grouping.md",
+        "sha256": "eba0d9f85c229df6276f7c827f3318be1c4079023820712cfd2499be220a8934"
+      },
+      {
+        "path": "docs/api/app.md",
+        "sha256": "a58bb0f7e29d07f8082f19d82f6100a92da881a71720e63786f4815b1b5fbdbc"
+      }
+    ]
+  },
+  "fixture_root": "test/http-wave-bc/fixtures/target-scope/fiber",
+  "fixtures": [
+    {
+      "id": "module-pin",
+      "path": "go.mod",
+      "sha256": "cafaedb53d1ccff6e72709f0bcd34e2bace784c8b0c221787a7f130ea5cf4017",
+      "role": "dependency-pin"
+    },
+    {
+      "id": "normal-literal-groups",
+      "path": "normal/main.go",
+      "sha256": "735271ba92d2ea2e6d66c74587eb014be1fc2e2813d63e4a4d35d598c2af7cc9",
+      "role": "normal"
+    },
+    {
+      "id": "all-vs-use",
+      "path": "counterexamples/all-vs-use/main.go",
+      "sha256": "d68bd64b10d5a73653f0d961198885b8bb33750959d66e5ffeb160969d5a0309",
+      "role": "counterexample"
+    },
+    {
+      "id": "dynamic-group-prefix",
+      "path": "counterexamples/dynamic-prefix/main.go",
+      "sha256": "06e87aa87f5900197034c15df70ece82eb4031fbf71b5c6cc5cdb30284f63be0",
+      "role": "counterexample"
+    },
+    {
+      "id": "middleware-order-auth",
+      "path": "counterexamples/middleware-order/main.go",
+      "sha256": "093a93f07a883e3365cd574677ee992163af38d69c27ff3454c6aaa6c5eea816",
+      "role": "counterexample"
+    }
+  ],
+  "constructs": [
+    {
+      "id": "literal-method-and-static-group",
+      "status": "fixture-only-unassessed",
+      "source_expectation": ["GET /health", "GET /api/users/:id", "POST /api/users"],
+      "runtime_oracle_required": true
+    },
+    {
+      "id": "all-vs-use",
+      "status": "unknown-until-method-and-prefix-probes",
+      "invariant": "App.All is exact-path and every-method; App.Use is prefix-matched middleware in declaration order. Neither is flattened into one GET endpoint."
+    },
+    {
+      "id": "dynamic-group-prefix",
+      "status": "unknown-until-runtime-or-input-binding",
+      "invariant": "A caller-provided group prefix is not replaced with a guessed literal route."
+    },
+    {
+      "id": "middleware-order-auth",
+      "status": "unknown-until-request-probe",
+      "invariant": "A declared route does not certify header-based authorization or middleware continuation."
+    }
+  ],
+  "runtime_oracle_plan": {
+    "not_executed_in_this_scope": true,
+    "go_toolchain": "Go 1.26.0 or later compatible with the pinned module, version and binary hash recorded before use",
+    "steps": [
+      "Verify the v3.6.1 tag, module bytes and exact transitive dependency graph against the upstream pin.",
+      "Build each fixture in an isolated Go module cache with network and install behavior constrained by the runner policy.",
+      "Call app.RebuildTree() and record app.Stack() after registration; preserve Group, All, Use and declaration-order semantics.",
+      "Use app.Test(req) with method, prefix and header probes for normal and counterexample fixtures; bind request/response observations to source bytes and runtime profile.",
+      "Have T16 independently read the artifacts and T19 review mutations before any limited certification."
+    ],
+    "promotion_dependencies": ["HTTP-go-fiber-02", "HTTP-go-fiber-03", "T16", "T19", "T20", "T00"]
+  },
+  "limits": [
+    "These Go files are hand-authored scope fixtures, not upstream source copies or compiled evidence.",
+    "No Fiber adapter, registry or CLI path is added; the new-framework fan-out hold stays in place.",
+    "No route, authorization, middleware or method behavior is certified by this static record.",
+    "No Go toolchain, Fiber server, request probe, independent attestation or release gate is exercised here."
+  ]
+}

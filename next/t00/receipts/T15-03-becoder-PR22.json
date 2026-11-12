@@ -1,0 +1,19 @@
+{
+  "schema": "bskel.t00-path-exception/1",
+  "repository": "becoder",
+  "track": "T15",
+  "base": "7adef687a89a903ebc009db8d19d717c9a9a1da8",
+  "head": "331114f1f1f51f931a9e4967cceebf9f136f2be7",
+  "approval": {
+    "actor": "popixoxipop-collab (T00 coordinator)",
+    "url": "https://github.com/popixoxipop-collab/backend-skeleton/issues/355#issuecomment-6586056748",
+    "earlier_url": "https://github.com/popixoxipop-collab/backend-skeleton/issues/355#issuecomment-6585294197"
+  },
+  "exceptions": [
+    { "path": ".github/workflows/ci.yml", "code": "PATH_RESERVED_HOT", "reason": "Owner-approved hosted CI route during the EOE resource gate" },
+    { "path": "bin/becoder.mjs", "code": "PATH_UNOWNED", "reason": "Opt-in next observe CLI entrypoint" },
+    { "path": "package.json", "code": "PATH_RESERVED_HOT", "reason": "Include bounded next-plane modules in the installable package" },
+    { "path": "scripts/package-install-smoke.mjs", "code": "PATH_UNOWNED", "reason": "Verify the installed CLI across all three planes" },
+    { "path": "test/next/t15-cli.test.mjs", "code": "PATH_UNOWNED", "reason": "Normal, negative and provenance-limit CLI tests" }
+  ]
+}

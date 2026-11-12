@@ -1,9 +1,9 @@
 {
   "contract": "sbf.t07-ruby-php-corpus-observation/1",
-  "observed_at": "2026-09-26T13:10:53+09:00",
+  "observed_at": "2026-10-26T14:07:47.704Z",
   "analyzer_binding": {
-    "analyzer_commit": "a2497dfcef062b168eb31e2d3bcdd28bbb93e2f2",
-    "analyzer_source_digest_sha256": "b1941a4d05647a953a3f8686a18dd8705bfc9c7324c92740bd065066be05f866",
+    "analyzer_commit": "eb527c8fb476820470822b9bcea1a84126b0aab7",
+    "analyzer_source_digest_sha256": "e9fcf14016ea7e5a5a66a3364b0e5014afa81fd60e4acdfb0f14b394c7d1999a",
     "manifest_sha256": "5b93f2e3f46431df2d48fc3981d41f25f382d98d1af52231976e9dd028a0fc6c",
     "analyzer_sources": [
       {
@@ -28,8 +28,8 @@
       },
       {
         "path": "scanners/language/ruby-php/dsl-facts.mjs",
-        "sha256": "d2b7151853c79a2811737221405b616c0ec7a35bc27821b29522825467ae30a6",
-        "size_bytes": 29430
+        "sha256": "6b9419ae1ab55a85aacdaac44adda5ba7ee198260d6c01bd5b8fd4d1a253bc2b",
+        "size_bytes": 33096
       },
       {
         "path": "scanners/language/ruby-php/expand-laravel.mjs",
@@ -62,7 +62,7 @@
       "scanners/language/ruby-php/conformance.mjs": "8c5c67375520a9b4e4c42034b162d971be2cd8c4",
       "scanners/language/ruby-php/corpus.mjs": "56ffdf77e23cb757446b83e5b0ffcfb4da9ee42f",
       "scanners/language/ruby-php/dsl-expand.mjs": "6cc2a5ff0388d7bb92f2a67d1b5763999e76a4b7",
-      "scanners/language/ruby-php/dsl-facts.mjs": "82759e32d3173ef00bab6c7d605b7b905a175c98",
+      "scanners/language/ruby-php/dsl-facts.mjs": "8df162c9c3fdfd6c0839825f0199ea02ab191bb7",
       "scanners/language/ruby-php/expand-laravel.mjs": "a3e4b266889ca5925ff21394c6826301c9fc189c",
       "scanners/language/ruby-php/expand-rails.mjs": "a1174425c7628fed18dd5f9d1b5bfd006940e872",
       "scanners/language/ruby-php/expand-symfony.mjs": "fbd33c33a1b99788c1ea6efbae02f3d10a186569",
@@ -71,7 +71,7 @@
     }
   },
   "environment": {
-    "host": "EOE.local",
+    "host": "BOB.local",
     "execution": "exact-SHA sparse checkout; source bytes read only",
     "target_applications_executed": false
   },
@@ -186,8 +186,8 @@
       "framework": "laravel",
       "repository": "koel/koel",
       "ref": "918406d3b3257e61ea5bb77bd227389878192e43",
-      "route_facts": 149,
-      "literal": 148,
+      "route_facts": 153,
+      "literal": 152,
       "partial": 0,
       "unknown": 1,
       "route_candidates": 170,
@@ -214,8 +214,8 @@
       "framework": "laravel",
       "repository": "monicahq/monica",
       "ref": "6e6ec217457e946e330ba7cd3b28107f4332c7b1",
-      "route_facts": 350,
-      "literal": 349,
+      "route_facts": 351,
+      "literal": 350,
       "partial": 0,
       "unknown": 1,
       "route_candidates": 333,
@@ -305,8 +305,8 @@
   ],
   "aggregate": {
     "repositories": 9,
-    "route_facts": 2751,
-    "literal": 2198,
+    "route_facts": 2756,
+    "literal": 2203,
     "partial": 311,
     "unknown": 242,
     "route_candidates": 3181,

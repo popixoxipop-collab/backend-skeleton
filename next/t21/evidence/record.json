@@ -1,0 +1,104 @@
+{
+  "schema": "t21.gc-exact-baseline-record/1",
+  "source_commit": "5d6766234142cf7be6dbf4b0baf704c7c2e9ea2a",
+  "source_tree": "8237a3a9a36485efdc4681941064d060faccbedd",
+  "observed_at": "2026-10-20T20:35:57.138017+00:00",
+  "environment": {
+    "node_version": "v24.19.0",
+    "node_executable": "/Users/eoe/.nvm/versions/node/v24.19.0/bin/node",
+    "platform": "darwin"
+  },
+  "source_files": [
+    {
+      "path": "lib/artifact-store-next/gc.mjs",
+      "size": 3617,
+      "sha256": "6b099e425fecf56aa22b7eea0898a8be3b17e5d69384a0af40c68e9c96da4f64",
+      "git_blob_sha1": "2c42810c088f6ded15486bec38c62224af497b3c"
+    },
+    {
+      "path": "lib/artifact-store-next/store.mjs",
+      "size": 2904,
+      "sha256": "2e8423dcdddc74ce790a6e8c998b86ba6e16e9345ab19db22629602c3299aae3",
+      "git_blob_sha1": "ca199a07c84d24b48bc82f4e51b46d0e94492fe4"
+    },
+    {
+      "path": "lib/scan-scheduler-next/BASELINE.json",
+      "size": 168659,
+      "sha256": "9636b2e94ab5d282b386f07b7086f017a293df4d3e2e9f290104a0efe9797093",
+      "git_blob_sha1": "2eda24b2b9eaec98b4317ff5d7e1b8bb1862eb12"
+    },
+    {
+      "path": "next/t21/GC_BASELINE_SUPPLEMENT.md",
+      "size": 5389,
+      "sha256": "83dce52e80672ecd44bc7d12ddbf71adce7a87ba2dc1df440d71d0f4e7ca86f8",
+      "git_blob_sha1": "a67f2ea553077c610df8db98252a792f6df9bd53"
+    },
+    {
+      "path": "next/t21/gc-baseline-probe.mjs",
+      "size": 3836,
+      "sha256": "b946cb0e57820e85084bcfb3880c115594f2195c98e0d7decaf0a9add3579d21",
+      "git_blob_sha1": "ba93b7b70160b722234521c421a1ad4e61c92de3"
+    },
+    {
+      "path": "next/t21/gc-plan.mjs",
+      "size": 5475,
+      "sha256": "2064507d53c52441adb5ea37425713060cc8402c42ab7d9f3acca7560025a388",
+      "git_blob_sha1": "5bb202c702c797be72bedf68f9b4930b356d9197"
+    },
+    {
+      "path": "next/t21/gc-plan.test.mjs",
+      "size": 7746,
+      "sha256": "2cf4f4899a5a33a905852423f0774f48d93fa65e469ea79504c5537ca6973fbc",
+      "git_blob_sha1": "ea009f03506019860ba7f6681e7cfb21e1b8a691"
+    },
+    {
+      "path": "test/t21-gc-plan.test.mjs",
+      "size": 114,
+      "sha256": "c11f4fc2b55c3633cb4e167192e81f9896d3ab6b6a15feef2028e2641fb512a0",
+      "git_blob_sha1": "72a7c6ef45bb781368c75b9586e1323e4d771ce3"
+    }
+  ],
+  "commands": [
+    {
+      "name": "probe",
+      "argv": [
+        "/Users/eoe/.nvm/versions/node/v24.19.0/bin/node",
+        "next/t21/gc-baseline-probe.mjs"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "5a62cdca5e5e61b9801ae7b07441e75e784b5186215572093d96163540df9eee",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "counts": {}
+    },
+    {
+      "name": "tests",
+      "argv": [
+        "/Users/eoe/.nvm/versions/node/v24.19.0/bin/node",
+        "--test",
+        "--test-concurrency=1",
+        "--test-reporter=tap",
+        "test/t21-gc-plan.test.mjs"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "53ebf299f3ce3b9aa2e57caa7d4dd05263f183185ae35ffeaa8df1655f341a11",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "counts": {
+        "tests": 35,
+        "pass": 35,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    }
+  ],
+  "limits": [
+    "Development fixtures only, not a holdout or signed attestation.",
+    "Historical collector and original BASELINE.json unchanged; capped v1 is a prefix with no completeness marker.",
+    "Opt-in observer is read-only, selection limits do not bound traversal, requires quiescent trusted caller-owned store.",
+    "No default scan wiring, runtime cleanup, packed-artifact certification, cross-platform certification or release authority.",
+    "This measurement precedes its record/validator commit; the later fixed validator checks these pinned source bytes and reruns the fixed probe."
+  ],
+  "deletion_performed": false,
+  "release_authorized": false
+}

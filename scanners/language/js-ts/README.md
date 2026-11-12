@@ -2,6 +2,8 @@
 
 This directory is the first T04 language-analysis boundary. Its `bskel.internal.js-ts-source-facts/0` shape is provisional and intentionally not an SBF cross-tool contract; T01 owns any future stable shared vocabulary. It is intentionally below framework adapters and intentionally **does not** execute target code.
 
+The bounded T04-02 interface snapshot is specified in `INTERFACE_RFC.md`. It names the four currently implemented internal `/0` contracts, normal and refusal cases, source identity, incomplete/resolution/syntax limits, and T01/T20/T23 ownership without promoting them to stable or production contracts. `next/t04/INTERFACE_RFC_EVIDENCE.json` is its separate, exact-source Git SHA-256 and observed zero-skip test receipt, verified with `node test/language-js-ts/interface-rfc-evidence.mjs --check`. This new evidence does **not** rewrite T04-01 `BASELINE.json`.
+
 ## Shipped in this slice
 
 `source-facts.mjs` extracts only source-backed literal module edges from JavaScript/TypeScript/JSX/TSX text. `module-resolver.mjs` consumes those facts plus an explicit repository file inventory; its `bskel.internal.js-ts-resolution/0` output is also provisional and T04-internal:

@@ -1,0 +1,15 @@
+{
+  "schema": "sbf.game-r3f-target-fixture/1",
+  "name": "counterexamples",
+  "package": {
+    "private": true,
+    "dependencies": {
+      "three": "0.180.0",
+      "@react-three/fiber": "9.0.0"
+    }
+  },
+  "source_file": "src/scene.jsx",
+  "source": "import { Canvas, useFrame, useLoader } from '@react-three/fiber';\nimport { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';\n\nfunction Actor({ mounted, slug }) {\n  const assetUri = `/assets/${slug}.glb`;\n  const model = useLoader(GLTFLoader, assetUri);\n  useFrame((_state, _delta) => { /* runtime callback is not resolved */ });\n  return mounted && <mesh name=\"conditional-actor\" dispose={null}><primitive object={model.scene} /></mesh>;\n}\n\nexport function World({ mounted, slug }) {\n  return <Canvas><Actor mounted={mounted} slug={slug} /></Canvas>;\n}\n",
+  "asset_file": "assets/model.gltf",
+  "asset": "synthetic glTF fixture; exporter release unknown"
+}

@@ -83,9 +83,9 @@ function sourceProblems(v, extraSources = [], from = emitted) {
   })));
   for (const e of all) for (const f of v.open_fields) if (e.snapshot[f] !== null && typeof e.snapshot[f] !== 'string') out.push(`open field ${f} is neither a string nor null`);
   eq('open fields', sorted(v.open_fields), sorted(Object.entries(first.snapshot).filter(([k, x]) => !['schema', 'adapter'].includes(k) && !Array.isArray(x)).map(([k]) => k)));
-  const proto = Object.getOwnPropertyNames(Object.prototype); // RFC section 2: names that are no key of the table but that legacyHttpBaseline answers
+  const proto = Object.getOwnPropertyNames(Object.prototype); // RFC section 2: inherited names that are not own keys and must be rejected
   const listed = Array.isArray(v.inherited_names) ? v.inherited_names : [];
-  eq('inherited_names (not empty; each an Object.prototype property, no own key of the table, answered by legacyHttpBaseline)', [true, listed], [listed.length > 0, listed.filter((n) => proto.includes(n) && !Object.hasOwn(BASELINES, n) && legacyHttpBaseline(n) !== null)]);
+  eq('inherited_names (not empty; each an Object.prototype property, no own key of the table, rejected by legacyHttpBaseline)', [true, listed], [listed.length > 0, listed.filter((n) => proto.includes(n) && !Object.hasOwn(BASELINES, n) && legacyHttpBaseline(n) === null)]);
   eq('bridge mode', v.modes.bridge, first.bridge.mode); eq('shadow mode', v.modes.shadow, first.shadow.mode); eq('diff kinds', sorted(v.diff_kinds), sorted(new Set(cmp.diffs.map((d) => d.kind))));
   eq('diff kinds in parity.mjs', sorted(v.diff_kinds), sorted(new Set([...read(`${DIR}/parity.mjs`).matchAll(/kind: '([a-z-]+)'/g)].map((m) => m[1]))));
   eq('input_keys (the options object of every exported function that takes one)', v.input_keys, Object.fromEntries(srcs.flatMap((t) => [...t.matchAll(/export function (\w+)\(\{([^}]*)\}/g)].map((m) => [m[1], m[2].split(',').map((k) => k.replace(/=.*/s, '').trim()).filter(Boolean)]))));
@@ -239,15 +239,15 @@ test('T11-02 the identity, unknown and partial rules stated in the RFC hold on r
   assert.throws(() => shadowOf('java-spring', { ...answer(snapshot), projector_contract: 'other/0' }), /projector contract mismatch/);
 });
 
-test('T11-02 the lookups the RFC documents hold for hostile keys, and the inherited baseline names are pinned as a known limit', () => {
+test('T11-03 the lookups the RFC documents reject inherited and coerced baseline keys', () => {
   const { report, root } = emitted['java-spring']; const adapter = adapterOf('java-spring'); const bare = { schema: report.schema };
   const names = Object.getOwnPropertyNames(Object.prototype); const asId = { toString: () => 'java-spring' };
   const odd = [...names, '', 5, null, undefined, [], {}, ['java-spring'], asId, 'JAVA-SPRING', 'java-spring ', 'generic-grep'];
   const checks = ten(vocab, true).checks; const gated = (c) => () => evaluate({ adapterId: 'ruby-rails', checks: c });
-  // Section 2: legacyHttpBaseline is a plain property read. The inherited names answer; that is a known limit, and the T11-03 fix (an own lookup) has to change this block and section 2 together.
+  // Section 2: only primitive strings that are own table keys are accepted; input objects are not coerced.
   assert.deepEqual(IDS.map((id) => [Object.hasOwn(BASELINES, id), legacyHttpBaseline(id) === BASELINES[id]]), IDS.map(() => [true, true]));
-  assert.deepEqual(names.map((n) => [Object.hasOwn(BASELINES, n), legacyHttpBaseline(n) === BASELINES[n], legacyHttpBaseline(n) === null]), names.map(() => [false, true, false]));
-  assert.deepEqual([['java-spring'], asId].map((k) => legacyHttpBaseline(k) === BASELINES['java-spring']), [true, true]);
+  assert.deepEqual(names.map((n) => [Object.hasOwn(BASELINES, n), legacyHttpBaseline(n) === null]), names.map(() => [false, true]));
+  assert.deepEqual([['java-spring'], asId].map((k) => legacyHttpBaseline(k)), [null, null]);
   assert.deepEqual(['', 5, null, undefined, [], {}, Symbol('x'), 'JAVA-SPRING', 'java-spring ', 'generic-grep'].map((k) => legacyHttpBaseline(k)), Array(10).fill(null));
   // Sections 2, 4 and 6: the other id checks compare exactly, with no inherited name and no coercion; the Symbol fails while the message is built.
   for (const x of odd) for (const call of [() => snapshotLegacyHttpAdapter({ ...adapter, id: x }), () => bridgeLegacyHttpScan({ adapter: { ...adapter, id: x }, report })]) assert.throws(call, /is not one of T11's five legacy HTTP adapters/, String(x));
@@ -453,4 +453,58 @@ test('T11-02 negative: edited copies of the RFC and the vocabulary make the same
   assert.deepEqual(lib.importsOf("// import 'a';\n/* import 'b' */ const s = 1; // import 'c'").specs, [], 'comments are ignored');
   assert.match(sourceProblems(vocab, ["import '../../contracts/next/identity.mjs';"]).join('\n'), /imports/);
   assert.match(sourceProblems(vocab, ['await import(name);']).join('\n'), /cannot be listed/);
+});
+
+
+// T11-03 own-key repair. These checks exercise the exported helper directly, independently of the bridge's existing membership guard.
+test('T11-03 baseline lookup preserves every exact known entry by reference and remains frozen', () => {
+  for (const id of IDS) {
+    assert.strictEqual(legacyHttpBaseline(id), BASELINES[id]);
+    assert.ok(Object.isFrozen(legacyHttpBaseline(id)));
+    assert.ok(Object.isFrozen(legacyHttpBaseline(id).descriptor));
+    assert.ok(Object.isFrozen(legacyHttpBaseline(id).inventory));
+  }
+});
+
+test('T11-03 baseline lookup rejects all inherited names and near-match strings', () => {
+  for (const value of [...Object.getOwnPropertyNames(Object.prototype), '', 'prototype', 'length', 'generic-grep', ...IDS.flatMap(id => [id.toUpperCase(), ` ${id}`, `${id} `, `${id}\0`])]) {
+    assert.equal(legacyHttpBaseline(value), null);
+  }
+});
+
+test('T11-03 baseline lookup rejects non-string primitives without conversion', () => {
+  for (const value of [undefined, null, true, false, 0, -1, NaN, Infinity, 0n, Symbol('java-spring')]) {
+    assert.equal(legacyHttpBaseline(value), null);
+  }
+});
+
+test('T11-03 baseline lookup rejects arrays and boxed strings for every known id', () => {
+  for (const id of IDS) for (const value of [[id], new String(id), Object.assign(() => {}, { toString: () => id })]) {
+    assert.equal(legacyHttpBaseline(value), null);
+  }
+});
+
+test('T11-03 baseline lookup never reads or invokes hostile coercion hooks', () => {
+  let calls = 0;
+  const trap = () => { calls++; throw new Error('input hook must not run'); };
+  const value = Object.create(null, {
+    toString: { get: trap },
+    valueOf: { get: trap },
+    [Symbol.toPrimitive]: { get: trap }
+  });
+  assert.equal(legacyHttpBaseline(value), null);
+  assert.equal(calls, 0);
+});
+
+test('T11-03 baseline lookup rejects live and revoked object/function Proxies without traps', () => {
+  let calls = 0;
+  const trap = () => { calls++; throw new Error('proxy trap must not run'); };
+  const handler = { get: trap, has: trap, ownKeys: trap, getOwnPropertyDescriptor: trap, getPrototypeOf: trap, apply: trap };
+  for (const target of [{}, () => {}]) {
+    assert.equal(legacyHttpBaseline(new Proxy(target, handler)), null);
+    const revocable = Proxy.revocable(target, handler);
+    revocable.revoke();
+    assert.equal(legacyHttpBaseline(revocable.proxy), null);
+  }
+  assert.equal(calls, 0);
 });
