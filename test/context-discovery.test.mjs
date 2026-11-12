@@ -109,6 +109,32 @@ test('CLI discover and auto-pack verify original packet schema, no instruction e
   assert.equal(packet.contract.content,fs.readFileSync(path.join(f.root,CONTRACT),'utf8'));
   assert.equal(a.stdout.includes('DO_NOT_INCLUDE'),false);
 });
+test('Go func and Rust fn handler declarations provide confirmed evidence, not just references',t=>{
+  for(const [file,content] of [
+    ['app/routes/ping.go','package routes\nfunc readPing(w http.ResponseWriter, r *http.Request) {}\n'],
+    ['app/routes/ping-receiver.go','package routes\nfunc (s *Server) readPing(w http.ResponseWriter, r *http.Request) {}\n'],
+    ['app/routes/ping.rs','pub async fn readPing() { let route = "/ping"; }\n'],
+    ['app/routes/ping-generic.rs','pub fn readPing<T>(input: T) {}\n']
+  ]){
+    const f=fixture(t,{'app/routes/ping.py':'# no Python handler here\n',[file]:content});
+    const result=discover(f);
+    assert.equal(result.selection.selected[0].path,file);
+    assert.equal(result.selection.confidence,'high');
+    assert.equal(result.selection.complete,true);
+    assert.ok(result.selection.selected[0].signals.includes('handler_declaration'));
+  }
+});
+
+test('oversized routes and excessive route tokens fail before scanning source files',t=>{
+  for(const [route,reason] of [
+    ['/'+ 'x'.repeat(2050),/operation route exceeds bounded 2048 UTF-8 bytes/],
+    ['/'+Array.from({length:65},(_,i)=>'term'+i).join('/'),/operation route exceeds bounded lexical terms/]
+  ]){
+    const modified={...doc,operations:{readPing:{...doc.operations.readPing,path:route}}};
+    const f=fixture(t,{[CONTRACT]:JSON.stringify(modified)+'\n'});
+    assert.throws(()=>discover(f),reason);
+  }
+});
 test('legacy pack path remains identical byte for byte and conflicting flags rejected',t=>{
   const f=fixture(t);
   const args=['pack','--contract',CONTRACT,'--revision',f.commit,'--files','app/routes/ping.py','--json'];
