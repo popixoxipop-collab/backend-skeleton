@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { CONTEXT_ROOT_FILES, contextPacketHash } from '../lib/context-packet.mjs';
+import { CONTEXT_ROOT_FILES, CONTEXT_MAX_REQUEST_PATHS, CONTEXT_MAX_REQUEST_PATH_BYTES, CONTEXT_MAX_SINGLE_PATH_BYTES, createContextPacket, contextPacketHash } from '../lib/context-packet.mjs';
 import { validateAgainstSchema } from '../lib/schema-validate.mjs';
 
 const cli = fileURLToPath(new URL('../bin/bskel.mjs', import.meta.url));
@@ -176,6 +176,30 @@ test('path and budget errors are explicit; literal metacharacters are never exec
 	const packet = ok(run(root, ['--files', literal]));
 	assert.equal(packet.sources[0].path, literal);
 	assert.equal(fs.existsSync(path.join(root, 'sentinel')), false);
+});
+
+test('explicit source path count fails before any Git lookup, including duplicates', (t) => {
+	const { root } = fixture(t);
+	const missing = Array.from({ length: CONTEXT_MAX_REQUEST_PATHS + 1 }, (_, i) => `absent/file-${i}.mjs`);
+	const result = run(root, ['--files', missing.join(',')]);
+	assert.equal(result.status, 14);
+	assert.equal(result.document.schema, 'sbf.cli-diagnostic/1');
+	assert.match(result.stderr, /at most 256 explicit source paths/);
+	assert.throws(() => createContextPacket({
+		repoRoot: '/not-a-git-repository', contractPath, files: Array(CONTEXT_MAX_REQUEST_PATHS + 1).fill('src/missing.mjs'),
+	}), /at most 256 explicit source paths/);
+});
+
+test('explicit path byte and single-path limits fail before snapshot access', () => {
+	const longPath = `src/${'x'.repeat(CONTEXT_MAX_SINGLE_PATH_BYTES)}`;
+	assert.throws(() => createContextPacket({
+		repoRoot: '/not-a-git-repository', contractPath, files: [longPath],
+	}), /source path exceeds 4096 UTF-8 bytes/);
+	const longFiles = Array.from({ length: 70 }, (_, i) => `src/${'x'.repeat(1000)}-${i}`);
+	assert.ok(longFiles.reduce((n, f) => n + Buffer.byteLength(f), Buffer.byteLength(contractPath)) > CONTEXT_MAX_REQUEST_PATH_BYTES);
+	assert.throws(() => createContextPacket({
+		repoRoot: '/not-a-git-repository', contractPath, files: longFiles,
+	}), /aggregate requested path bytes exceed 65536/);
 });
 
 test('out writes only JSON; human output is a guide; help is integrated without requiring a repo', (t) => {
