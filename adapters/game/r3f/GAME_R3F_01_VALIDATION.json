@@ -1,0 +1,49 @@
+{
+  "schema": "sbf.game-r3f-01-validation/1",
+  "task": "GAME-r3f-01",
+  "source_base": "3c12e008ba0cc419d1e45c75e88c8d4104969f17",
+  "source_revision": "fb7852bd9ae6770fff1c24a648ca94fecd32933d",
+  "source_tree": "400cbd67fbdf0cacd018bd91f243abc1edf35306",
+  "files_sha256": {
+    "adapters/game-next/INTERFACE_RFC.md": "d8cc6cf13e134fa6deda9dbc3e78b77867f8f73246a96a16cd35ce4b0e8e931b",
+    "adapters/game/r3f/RELEASE_PINS.json": "4df06e48452c663277a4c3bf364ff064c93d24ff9049dd3d3967f81f3a8e47b4",
+    "adapters/game/r3f/SCOPE.md": "a60a8d1152bd81501ce3c3c28cf137d1ea8d44b98b1e47cacf0651af9c7d8ac6",
+    "adapters/game/r3f/fixtures/counterexamples.fixture.json": "c94fba9aa6a2bd55d91d7b8137a105863f6ccdf17b7e1cfade415daf3da7d81b",
+    "adapters/game/r3f/fixtures/static-declaration.fixture.json": "a623607c1f6893b1a61fd3fc442515569d63a76611f9a62305a6252adff5c89e",
+    "test/game-next/r3f-target-scope.test.mjs": "2b43494737f95bcfe79554d605346fa9886740c69b1bd11e17e2f98c490d5367"
+  },
+  "upstream_pins_verified": {
+    "three_tag": "r180",
+    "three_tag_object": "9e8635e2031c25859dc47ba07e72230dccb2682a",
+    "three_commit": "0af9729d0c143a86a1d725d6e2c3ad83301f3f34",
+    "three_package_blob": "fb4fe9d2224cffaf922f006cbff4b4adda87ecf5",
+    "three_package_version": "0.180.0",
+    "three_gltf_exporter_blob": "2da060f940b591fa0a461a34b936d94c80a0cebd",
+    "fiber_tag": "v9.0.0",
+    "fiber_commit": "95500b437af0403a1f822388a661b15f508c5627",
+    "fiber_package_blob": "ec267b80c8b05c28504d0b1b97cf1ba63de543d1",
+    "fiber_package_version": "9.0.0",
+    "fiber_three_peer_range": ">=0.156",
+    "fiber_react_peer_range": "^19.0.0"
+  },
+  "replay": {
+    "host": "BOB.local",
+    "node_version": "v26.7.0",
+    "commands": [
+      {"argv": ["node", "--test", "test/game-next/r3f-target-scope.test.mjs"], "exit_code": 0, "tests": 4, "pass": 4, "fail": 0, "skipped": 0},
+      {"argv": ["node", "--test", "test/webgame-contract.test.mjs"], "exit_code": 0, "tests": 5, "pass": 5, "fail": 0, "skipped": 0},
+      {"argv": ["node", "scripts/run-next-nested-tests.mjs", "T17"], "exit_code": 0, "tests": 67, "pass": 66, "fail": 0, "skipped": 1, "skip_reason": "historical baseline live-tree drift; pinned baseline commit replay passes"},
+      {"argv": ["node", "next/t00/check-ownership.mjs", "paths", "--track", "T17", "--git-diff", "3c12e008ba0cc419d1e45c75e88c8d4104969f17", "fb7852bd9ae6770fff1c24a648ca94fecd32933d"], "exit_code": 0, "owned_paths": 6},
+      {"argv": ["git", "diff", "--check", "3c12e008ba0cc419d1e45c75e88c8d4104969f17", "fb7852bd9ae6770fff1c24a648ca94fecd32933d"], "exit_code": 0}
+    ],
+    "full_receipt_sha256": "34f239f8b2dbb9d29a87fc3b64307de53942a950ea7699da6cfa757b2ede0295"
+  },
+  "scope": "React Three Fiber static source scope, fixtures, and evidence plan only",
+  "authority": {
+    "target_01_met_awarded": false,
+    "threejs_target_credit": false,
+    "runtime_certified": false,
+    "signed_independent_attestation": false,
+    "release_authorized": false
+  }
+}

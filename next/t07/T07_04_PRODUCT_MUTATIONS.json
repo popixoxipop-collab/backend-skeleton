@@ -1,0 +1,55 @@
+{
+  "contract": "sbf.qa-product-mutation-catalog/1",
+  "mutants": [
+    {
+      "id": "T07-ROOT-RELATIVE-PATH-BYPASS",
+      "vector_id": "T07-NEG-ROOT-ESCAPE",
+      "critical": true,
+      "file": "scanners/language/ruby-php/dsl-facts.mjs",
+      "find": "if (parts.some((part) => part === '..' || part === '')) {",
+      "replace": "if (false && parts.some((part) => part === '..' || part === '')) {",
+      "test_files": ["test/language-ruby-php/t07-adversarial.test.mjs"],
+      "invariant": "Ruby and PHP fact source paths cannot escape their repository."
+    },
+    {
+      "id": "T07-FACT-SOURCE-HASH-BYPASS",
+      "vector_id": "T07-NEG-SOURCE-PROVENANCE",
+      "critical": true,
+      "file": "scanners/language/ruby-php/dsl-facts.mjs",
+      "find": "file, start, end, line: loc.line, column: loc.column, sha256: sha256(text),",
+      "replace": "file, start, end, line: loc.line, column: loc.column, sha256: sha256(source),",
+      "test_files": ["test/language-ruby-php/t07-adversarial.test.mjs"],
+      "invariant": "Each fact hash binds the exact byte slice reported in its source span."
+    },
+    {
+      "id": "T07-RAILS-DYNAMIC-PARENT-BYPASS",
+      "vector_id": "T07-NEG-RAILS-DYNAMIC-PARENT",
+      "critical": true,
+      "file": "scanners/language/ruby-php/dsl-facts.mjs",
+      "find": "const dynamic = !name || name.includes('#{') || context.some((entry) => entry.dynamic);",
+      "replace": "const dynamic = !name || name.includes('#{') || false;",
+      "test_files": ["test/language-ruby-php/t07-adversarial.test.mjs"],
+      "invariant": "A literal resource nested under a dynamic Rails parent remains unknown."
+    },
+    {
+      "id": "T07-LARAVEL-DYNAMIC-GROUP-BYPASS",
+      "vector_id": "T07-NEG-LARAVEL-DYNAMIC-GROUP",
+      "critical": true,
+      "file": "scanners/language/ruby-php/dsl-facts.mjs",
+      "find": "const dynamicContext = context.some((entry) => entry.dynamic);",
+      "replace": "const dynamicContext = false;",
+      "test_files": ["test/language-ruby-php/t07-adversarial.test.mjs"],
+      "invariant": "A literal route nested under dynamic Laravel group metadata remains unknown."
+    },
+    {
+      "id": "T07-SYMFONY-METHOD-OMISSION",
+      "vector_id": "T07-NEG-SYMFONY-METHOD-OMISSION",
+      "critical": false,
+      "file": "scanners/language/ruby-php/dsl-facts.mjs",
+      "find": "const methods = [...methodsArg.matchAll(/[\"']([A-Z]+)[\"']/g)].map((x) => x[1]);",
+      "replace": "const methods = [];",
+      "test_files": ["test/language-ruby-php/t07-adversarial.test.mjs"],
+      "invariant": "Finite explicit Symfony attribute methods are not silently omitted."
+    }
+  ]
+}

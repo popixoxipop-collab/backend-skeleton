@@ -3,11 +3,11 @@
   "task_id": "T00-02",
   "generator": "node next/t00/make-ownership-report.mjs --write",
   "inputs": {
-    "ownership_map_sha256": "6632c33007257c228e1a4404e3478578ba9f83350888f30ff98398e74e1a1b5b",
+    "ownership_map_sha256": "5684fe05c462e9286c718cd830799f97e6c1ada89c4cc8e2563f25e5b06552d9",
     "plan_write_scopes_sha256": "72722ffdd44b7032220b3dad3b1e3e2ceb6b83f795c912796306b54bf3ddf2b7",
     "ownership_rules_sha256": "1ec6296b8333e320ff4a3cfc97158c3a8f2705a0842dda015d08a2dc94acb226",
     "baseline_lock_sha256": "b040fedbd343ac18d3b1982c9337e4191e388b45795fa026024244eff7f5c176",
-    "nested_suites_sha256": "166f3c180ab0efc764a429dd7e859e4dfbe504c4320e168f5e5daab48c53f4dc",
+    "nested_suites_sha256": "176a6f06884e63c9bceea8f335de457c4e69f6ddbc942c8b57bd350abf93a7e5",
     "tool_sha256": {
       "check-ownership.mjs": "444fbbb1504a13f6a3c418a82fa16f344186ee95d0f1d3c42dd0a557eb42090d",
       "ownership.mjs": "6a11e2a26a012e9bb45ef5d20941f659f640be39cfff3ca1637d7bec4e116360",
@@ -22,8 +22,8 @@
       "command": "node next/t00/check-ownership.mjs map",
       "exit_code": 0,
       "codes": [],
-      "stdout_first_line": "OK ownership map verified: 24 tracks, 121 scopes, 13 reserved paths (checks: map shape, track ids, scope grammar, scope collisions, reserved paths exist and are unclaimed, plan scopes, nested suites, derivation from the inputs)",
-      "stdout_sha256": "2acc735b59df3eaae527409d414ff9df1fc543f6914bb43731ae41a74e5219f0",
+      "stdout_first_line": "OK ownership map verified: 24 tracks, 122 scopes, 13 reserved paths (checks: map shape, track ids, scope grammar, scope collisions, reserved paths exist and are unclaimed, plan scopes, nested suites, derivation from the inputs)",
+      "stdout_sha256": "b24a4a0030b2a6ca1e81f1572f9ed559b248b7852624b176f59824e3613341b1",
       "stderr_head": ""
     },
     {

@@ -1,0 +1,43 @@
+{
+  "schema": "sbf.game-godot-01-validation/1",
+  "task": "GAME-godot-01",
+  "source_base": "6f31ce1cbbb8b207623aad8a77ed7b0a103e21f1",
+  "source_revision": "5dbbc5c57363a8809828eef4330160cd7fbc57b0",
+  "source_tree": "1443ebd2d9382203b4bf7aa3383dc18bcde732bb",
+  "files_sha256": {
+    "adapters/game-next/INTERFACE_RFC.md": "c96f077a1aec014e73a803ccf70b89221f707d5d1d4319e9db1ad7317a26bcab",
+    "adapters/game/godot/RELEASE_PINS.json": "80808deca5147bce14fd3e52b25ebe3ce1b4c4ae1674577f377ee714aef01280",
+    "adapters/game/godot/SCOPE.md": "2cd64fcffec69ef68fa5a0740a26dc516855faf88053173030f1f2305c97209a",
+    "adapters/game/godot/fixtures/declared-scene.tscn": "63de1f8055a85d136874ca29ac3603dd17cfcc1b9b791ada499868ea427ed026",
+    "adapters/game/godot/fixtures/unsupported-lifecycle.tscn": "a4eab99ce73add000d5f60ee83f95f82e413cb04814844675550b2df60c049b3",
+    "test/game-next/godot-target-scope.test.mjs": "fffa50ff8bc2372149fabebdacc09bb1c57d290e3fc1483bf3df98c80d1d333e"
+  },
+  "upstream_pins_verified": {
+    "tag": "4.7.2-stable",
+    "commit_sha": "ed1daf0bf001b61586d9930840f2f1394092c079",
+    "version_py_blob_sha": "4b0e55c61b87f2962329eaec53764727177bedde",
+    "node_cpp_blob_sha": "748a8563ce83ec58583def7af535095d7f7b47c9",
+    "packed_scene_cpp_blob_sha": "49a72488173626c9d779242fa215061216cefa43",
+    "version_py_values": "4.7.2-stable"
+  },
+  "replay": {
+    "host": "BOB.local",
+    "node_version": "v26.7.0",
+    "commands": [
+      {"argv": ["node", "--test", "test/game-next/godot-target-scope.test.mjs"], "exit_code": 0, "tests": 5, "pass": 5, "fail": 0, "skipped": 0},
+      {"argv": ["node", "--test", "test/game-next/native-text-source-exporters.test.mjs"], "exit_code": 0, "tests": 11, "pass": 11, "fail": 0, "skipped": 0},
+      {"argv": ["node", "scripts/run-next-nested-tests.mjs", "T17"], "exit_code": 0, "tests": 72, "pass": 71, "fail": 0, "skipped": 1, "skip_reason": "historical baseline live-tree drift; pinned baseline commit replay passes"},
+      {"argv": ["node", "next/t00/check-ownership.mjs", "paths", "--track", "T17", "--git-diff", "6f31ce1cbbb8b207623aad8a77ed7b0a103e21f1", "5dbbc5c57363a8809828eef4330160cd7fbc57b0"], "exit_code": 0, "owned_paths": 6},
+      {"argv": ["git", "diff", "--check", "6f31ce1cbbb8b207623aad8a77ed7b0a103e21f1", "5dbbc5c57363a8809828eef4330160cd7fbc57b0"], "exit_code": 0}
+    ],
+    "full_receipt_sha256": "539771fdac91c7686a269c17b012db0455f8ece9e2b4e65c5a3b27cec71e9009"
+  },
+  "scope": "Godot static text-scene structure, fixtures, and evidence plan only",
+  "authority": {
+    "target_01_met_awarded": false,
+    "engine_executed": false,
+    "runtime_certified": false,
+    "signed_independent_attestation": false,
+    "release_authorized": false
+  }
+}

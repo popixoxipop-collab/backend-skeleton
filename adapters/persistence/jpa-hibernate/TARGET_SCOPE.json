@@ -1,0 +1,157 @@
+{
+  "schema": "sbf.persistence-target-scope/1",
+  "task": "ORM-jpa-hibernate-01",
+  "track": "T10",
+  "target": "jpa-hibernate",
+  "status": "scope-only",
+  "catalog_state": "implemented-draft",
+  "existing_bridge": {
+    "ingestion": "legacy-adapter-bridge",
+    "producer": "java-spring",
+    "requires_live_verification": true,
+    "boundary": "Only facts already emitted by the current Spring scanner are bridged. A jpa-hibernate persistence id is not a verified Hibernate physical model."
+  },
+  "claims": {
+    "new_adapter_implemented": false,
+    "naming_strategy_extracted": false,
+    "tenant_scope_extracted": false,
+    "runtime_tested": false,
+    "supported": false,
+    "certified": false
+  },
+  "upstream_pin": {
+    "repository": "hibernate/hibernate-orm",
+    "version": "7.4.15.Final",
+    "tag": "7.4.15",
+    "tag_object": "7fd0b166d0f6a53fd0e7c9b3cdb4f05acdeccfdf",
+    "commit": "b690b0c9fcd724813b1e7579f8073b536deadb3a",
+    "release": "https://github.com/hibernate/hibernate-orm/releases/tag/7.4.15",
+    "documentation": [
+      "https://docs.hibernate.org/orm/7.4/userguide/html_single/",
+      "https://hibernate.org/orm/releases/7.4/"
+    ],
+    "sources": [
+      {
+        "path": "hibernate-core/src/main/java/org/hibernate/boot/model/naming/PhysicalNamingStrategy.java",
+        "sha256": "79190a6fbcf7d16ad86dd13423ac32a2387ba71c35cababd00fdbf9877771403"
+      },
+      {
+        "path": "hibernate-core/src/main/java/org/hibernate/boot/model/naming/ImplicitNamingStrategy.java",
+        "sha256": "81edf396ab5ce0c9434124ed72d078c13ffcfbff87f526dfa32f36a0872c1dbf"
+      },
+      {
+        "path": "hibernate-core/src/main/java/org/hibernate/boot/model/naming/PhysicalNamingStrategyStandardImpl.java",
+        "sha256": "589093c0f976710b2b71779c23209e32e4c2ddaed5987dcc37ba997ad26ee647"
+      },
+      {
+        "path": "hibernate-core/src/main/java/org/hibernate/context/spi/CurrentTenantIdentifierResolver.java",
+        "sha256": "d4e8b8f871a16b920b7a360f409f1a2d78a706fd887879df9f3a2098b48f0aba"
+      },
+      {
+        "path": "hibernate-core/src/main/java/org/hibernate/engine/jdbc/connections/spi/MultiTenantConnectionProvider.java",
+        "sha256": "54b13004990f69fe44617d07ab590f1e28252c44f98b45b6ce4a59267e898549"
+      },
+      {
+        "path": "hibernate-core/src/main/java/org/hibernate/boot/model/relational/Namespace.java",
+        "sha256": "2af666a2926bcf44827a4c30419cb7159398d89d8f377ca86efa5dcee259fb94"
+      }
+    ],
+    "runtime": {
+      "vendor": "Eclipse Temurin",
+      "version": "21.0.13+9",
+      "artifact": "OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.13_9.tar.gz",
+      "artifact_sha256": "bf036b35b071bfb2f54f2c0af8ee8d88afa95ee6eb3dce02c0f94cfc2524d04a",
+      "release": "https://github.com/adoptium/temurin21-binaries/releases/tag/jdk-21.0.13%2B9",
+      "installed_or_executed": false
+    },
+    "jakarta_persistence": "3.2",
+    "version_boundary": "Hibernate ORM 7.4.15.Final with Jakarta Persistence 3.2 and planned Temurin 21.0.13+9 only; Hibernate 6.x/8.0 beta, other 7.4 patches, XML mappings, provider-specific dialects and unbound Spring Boot profiles are excluded"
+  },
+  "fixture_root": "adapters/persistence/jpa-hibernate/fixtures",
+  "fixtures": [
+    {
+      "id": "dependency-pin",
+      "path": "pom.xml",
+      "sha256": "c3fa4aa11772695531280e664777216358512f9f757900c790539cb775a2d2ae",
+      "role": "dependency-pin"
+    },
+    {
+      "id": "normal-explicit-mapping",
+      "path": "normal/Models.java",
+      "sha256": "81f1e300752d959c39317ff7ff2d8abc08ccc5f10882ebe1f786edd3e3a08468",
+      "role": "normal"
+    },
+    {
+      "id": "physical-naming-strategy",
+      "path": "counterexamples/naming-strategy/NamingStrategy.java",
+      "sha256": "47efe6872a455f3b5b7e565ce15b4185d009a88015ada6d21602cbe8469381af",
+      "role": "counterexample"
+    },
+    {
+      "id": "runtime-tenant-scope",
+      "path": "counterexamples/tenant-scope/TenantSessions.java",
+      "sha256": "a07e9de74ca4e05c47226adface798ed689c42e8736b2931da62fc2e123331d7",
+      "role": "counterexample"
+    },
+    {
+      "id": "property-access",
+      "path": "counterexamples/property-access/PropertyAccessRecord.java",
+      "sha256": "9f45b103e45718704d856b2e6f80fecfb13cdc6ef6538c4ecffec727f9ceb9a9",
+      "role": "counterexample"
+    },
+    {
+      "id": "composite-key",
+      "path": "counterexamples/composite-key/CompositeInvoice.java",
+      "sha256": "3b281bd14e91133b90b750b4e43d3909c7756f295ad4cfc5b04f5099680b39c1",
+      "role": "counterexample"
+    }
+  ],
+  "constructs": [
+    {
+      "id": "explicit-table-column-key-and-relation",
+      "status": "fixture-only-unassessed",
+      "source_expectation": ["Account → billing.accounts(account_id)", "Invoice → billing.invoices(invoice_id, account_id)"],
+      "runtime_oracle_required": true
+    },
+    {
+      "id": "physical-naming-strategy",
+      "status": "unknown-until-runtime-configuration-bound",
+      "invariant": "PhysicalNamingStrategy can transform an explicitly annotated logical table name; source annotations alone do not establish the physical table."
+    },
+    {
+      "id": "tenant-scope",
+      "status": "unknown-until-tenant-and-connection-provider-bound",
+      "invariant": "CurrentTenantIdentifierResolver selects a tenant identity, not a schema by itself; the provider and connection state must prove the physical schema for each tenant."
+    },
+    {
+      "id": "property-access",
+      "status": "unknown-until-access-mode-probed",
+      "invariant": "An @Id on a getter selects property access; field-only scanning cannot assert the full persistent model."
+    },
+    {
+      "id": "composite-key",
+      "status": "unknown-until-ordered-key-probed",
+      "invariant": "@EmbeddedId has multiple physical key columns; the legacy single idField is insufficient for an ordered-key claim."
+    }
+  ],
+  "runtime_oracle_plan": {
+    "not_executed_in_this_scope": true,
+    "toolchain": "Verify and install the byte-pinned Temurin 21.0.13+9 artifact in an isolated runner; pin Maven version, plugin versions, full dependency lock/checksums, Hibernate 7.4.15.Final, Jakarta Persistence 3.2 and a relational JDBC dialect/provider before compiling fixtures",
+    "steps": [
+      "Verify annotated Git tag object, resolved commit, six upstream source hashes, JDK artifact digest and Maven dependency graph before compilation.",
+      "Materialize each authored Java fixture as a separate Maven module; compile with pinned JDK/Maven and capture compiler diagnostics rather than treating source text as executable evidence.",
+      "Boot Hibernate metadata under default and custom PhysicalNamingStrategy configurations; compare logical @Table/@Column names with physical table, column, ordered key and FK metadata.",
+      "Bind two explicit tenant identifiers to a pinned MultiTenantConnectionProvider and disposable schema-capable database; inspect the Session tenant and physical connection schema independently. Do not infer a schema from CurrentTenantIdentifierResolver or @Table alone.",
+      "Probe property versus field access and @EmbeddedId ordered columns under the exact runtime; preserve unknown or unsupported when legacy Spring scanner facts cannot represent them.",
+      "Require T16 independent read, T19 mutation review, T01 contract projection, packed-artifact consumption and T20 isolation before any ORM-jpa-hibernate-02/-03 support or certification claim."
+    ],
+    "promotion_dependencies": ["ORM-jpa-hibernate-02", "ORM-jpa-hibernate-03", "T01", "T16", "T19", "T20", "T00"]
+  },
+  "limits": [
+    "The Java files are hand-authored planning fixtures, not upstream source copies, compiled models or Hibernate runtime evidence.",
+    "No JDK or Maven is available on Bob in this scope; no Java compile, dependency restore, SessionFactory boot, JDBC connection, schema or migration oracle was executed.",
+    "The existing java-spring legacy bridge remains implemented-draft and requires live verification; this scope does not change the catalog, producer, shared contract or generation handoff.",
+    "An explicit @Table is only a logical mapping until the physical naming strategy, dialect and tenant connection configuration are bound and verified.",
+    "No independent attestation, target certification, supported ingestion or release gate is exercised here."
+  ]
+}

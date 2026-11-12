@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -23,8 +24,8 @@ const FORBIDDEN = /#\d|\/pull\/\d|\/issues\/\d|GH-\d|refs\/pull|\bPR\s*\d/;
 const SCHEMA_RE = /'((?:sbf|bskel)\.[a-z0-9.-]+\/(?:draft-)?\d+)'/g;
 const CODE_RE = /'([A-Z][A-Z0-9]*_[A-Z0-9_]+)'/g;
 const TAG_RE = /'(t21-[a-z-]+\/\d+)'/g;
-const IMPORT_RE = /\b(?:import|export)\b[^'"`;()]*?\bfrom\s*(['"])([^'"\n]+)\1|\bimport\s*(['"])([^'"\n]+)\3|\bimport\s*\(\s*(['"])([^'"\n]+)\5\s*\)/g;
-const OPAQUE_RE = /\bimport\s*\((?!\s*['"][^'"\n]+['"]\s*\))|\brequire\s*\(|\bcreateRequire\b/g;
+const IMPORT_RE = /\b(?:import|export)\b[^'"`;()]*?\bfrom\s*(['"])([^'"\n]+)\1|\bimport\s*(['"])([^'"\n]+)\3/g;
+const OPAQUE_RE = /\bimport\s*\(|\brequire\s*\(|\bcreateRequire\b/g;
 const NAMED_RE = /\bimport\s*\{([^}]*)\}\s*from\s*(['"])([^'"\n]+)\2/g;
 const LINE_CAP = 520;
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -81,7 +82,7 @@ function methodParameters(fn) {
 }
 function importsOf(source) {
 	const text = lib.withoutComments(source);
-	return { specs: [...text.matchAll(IMPORT_RE)].map((m) => m[2] ?? m[4] ?? m[6]), opaque: [...text.matchAll(OPAQUE_RE)].map((m) => m[0]) };
+	return { specs: [...text.matchAll(IMPORT_RE)].map((m) => m[2] ?? m[4]), opaque: [...text.matchAll(OPAQUE_RE)].map((m) => m[0]) };
 }
 const resolveSpec = (rel, spec) => (spec.startsWith('.') ? path.posix.normalize(path.posix.join(path.posix.dirname(rel), spec)) : spec);
 function importMap(rel, source) { // resolved specifier -> the names imported with braces
@@ -427,6 +428,9 @@ function readmeProblems(text) {
 }
 // What claims F2 and F6 must say about their scope, and the broad sentences they replaced, which must not come back in the RFC or the README.
 const SCOPE = {
+	U2: { says: ['content of exactly that size is accepted'], never: ['content of exactly that size is rejected'] },
+	F3: { says: ['capped list is a digest-ordered prefix', 'historical result lacks a partial marker'], never: ['the complete eligible inventory'] },
+	F4: { says: ['stop at the first over-budget blob', 'empty capped list can conceal eligible candidates'], never: ['the entire eligible list'] },
 	F2: { says: ['only when they use the same repository root and the same lockName', 'must agree on lockName'], never: ['share one lock per repository', 'exclude each other through one lock', 'to a blob under one lock'] },
 	F6: { says: ['whose normalized destination lies outside the repository is refused'], never: ['A path with a parent segment is refused'] },
 	F8: { says: ['does not remove the entry of an older key', 'Two entries can name one blob', 'only when no entry refers to it'], limitSays: ['for its fixed input', 'is not a blob count', 'name the same blob'], never: ['the only collection candidate', 'a new blob', 'every distinct source state', 'stores a new entry'] },
@@ -1092,6 +1096,7 @@ test('negative: source text the vocabulary does not know fails, including an opa
 		['an unlisted contract tag', { store: "const added = 't21-other-tag/1';" }, /^literals\.tags:/],
 		['an unlisted import', { store: "import { added } from 'node:os';" }, /^modules\.store:/],
 		['a dynamic import by name', { store: 'const added = await import(name);' }, /^opaque imports/],
+		['a dynamic import with a literal', { store: "const added = await import('./other.mjs');" }, /^opaque imports/],
 		['a require call', { store: 'const added = require(name);' }, /^opaque imports/],
 		['a foreign schema string', { store: `const added = '${vocabulary.foreign_schemas[0]}';` }, /^foreign_schemas: .* appears in the code/],
 	];
@@ -1206,4 +1211,65 @@ test('negative: the claims fail when the RFC and the registered tests disagree',
 
 test('every claim of the RFC has a registered test and every registered test has a claim', () => {
 	assert.deepEqual(claimProblems(read(lib.TRACK.docs.rfc)), []);
+});
+
+test('T21-02 protected RFC claims and dynamic-import classification are fail-closed', () => {
+ const text = read(lib.TRACK.docs.rfc);
+ const readme = read('lib/artifact-store-next/README.md');
+ for (const id of ['U2','F3','F4']) assert.deepEqual(scopeProblems(id,text,readme), []);
+ assert.ok(scopeProblems('U2', text.replace('content of exactly that size is accepted', 'content of exactly that size is rejected'), readme).length);
+ assert.ok(scopeProblems('F3', text.replace('capped list is a digest-ordered prefix', 'capped list is complete'), readme).length);
+ assert.ok(scopeProblems('F4', text.replace('stop at the first over-budget blob', 'scan everything'), readme).length);
+ assert.deepEqual(importsOf("import { x } from './x.mjs';").specs, ['./x.mjs']);
+ for (const source of ["import('./x.mjs')", 'import(variable)']) {
+  const result=importsOf(source);
+  assert.deepEqual(result.specs, []);
+  assert.ok(result.opaque.some(x=>x.includes('import')));
+ }
+});
+
+test('T21-02 actual digest-ordered GC prefix can hide smaller eligible blobs', (t) => {
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'t21-02-gc-bound-'));
+ t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const store=createArtifactStore(root);
+ const refs=[
+  store.put(Buffer.alloc(20,1)),
+  store.put(Buffer.alloc(5,3)),
+  store.put(Buffer.alloc(7,1)),
+ ];
+ assert.deepEqual(refs.map(x=>x.digest), sorted(refs.map(x=>x.digest)));
+ const now=Date.now()+120000;
+ const full=collectArtifactGarbage(root,{maxDeleteCount:10,maxDeleteBytes:64,nowMs:now});
+ assert.deepEqual(full.candidates.map(x=>x.size),[20,5,7]);
+ assert.equal(full.candidate_bytes,32);
+ const capped=collectArtifactGarbage(root,{maxDeleteBytes:6,nowMs:now});
+ assert.equal(capped.candidates.length,0);
+ assert.equal(capped.candidate_bytes,0);
+ assert.equal(capped.total_blobs,3);
+ assert.equal(Object.hasOwn(capped,'partial'),false,'legacy result has no completeness marker');
+ assert.ok(refs.every(x=>store.has(x)), 'dry run must not delete blobs');
+});
+
+test('T21-02 wrapper-sensitive identity recipe follows actual source expressions', () => {
+ const source=read('lib/scan-scheduler-next/legacy-cache.mjs');
+ const i=vocabulary.identity.legacy;
+ assert.ok(i.configDigest.includes('digestJson({ terms })'));
+ assert.ok(i.schemaDigest.includes("digestJson({ scan_schema: 'sbf.scan-report/2' })"));
+ for(const fragment of [
+  'cache_namespace: cacheNamespace,',
+  'adapter_id: descriptor.id,',
+  'rg_available: Boolean(rgAvailable),',
+  'configDigest: digestJson({ terms }),',
+  'adapterDigest: digestJson({ implementation_digest: implementationDigest, descriptor }),',
+  "schemaDigest: digestJson({ scan_schema: 'sbf.scan-report/2' }),",
+  'external_policy_fingerprint: policyFingerprint,',
+  "cache_contract: 't21-legacy-scan-shadow/1',",
+ ]) assert.ok(source.includes(fragment), 'source recipe missing '+fragment);
+ for(const token of [
+  'cache_namespace=cacheNamespace','adapter_id=descriptor.id','rg_available=Boolean(rgAvailable)',
+  'implementation_digest=implementationDigest','descriptor=adapterSnapshot(adapter)',
+  'external_policy_fingerprint=policyFingerprint','cache_contract=',
+ ]) assert.ok(Object.values(i).some(x=>x.includes(token)), 'RFC lacks recipe '+token);
+ assert.notEqual(digestJson(['one']),digestJson({terms:['one']}));
+ assert.notEqual(digestJson('sbf.scan-report/2'),digestJson({scan_schema:'sbf.scan-report/2'}));
 });

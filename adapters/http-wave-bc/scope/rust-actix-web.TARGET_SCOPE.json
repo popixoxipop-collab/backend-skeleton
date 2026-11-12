@@ -1,0 +1,79 @@
+{
+  "schema": "sbf.http-target-scope/1",
+  "task": "HTTP-rust-actix-web-01",
+  "track": "T13",
+  "target": "rust-actix-web",
+  "status": "scope-only",
+  "claims": {
+    "adapter_implemented": false,
+    "static_extraction_verified": false,
+    "runtime_tested": false,
+    "supported": false,
+    "certified": false
+  },
+  "upstream_pin": {
+    "crate": "actix-web",
+    "version": "4.17.0",
+    "tag": "actix-web-v4.17.0",
+    "commit": "15fd3ff31f6fa8c03b34099558ff3079b537b1f8",
+    "rust_version_minimum": "1.88",
+    "release": "https://github.com/actix/actix-web/releases/tag/actix-web-v4.17.0",
+    "sources": [
+      { "path": "Cargo.toml", "sha256": "f04a249e53067760a2a672891f5ab93ebefb5342a9b52d337db7773d5c92d24b" },
+      { "path": "actix-web/Cargo.toml", "sha256": "824d94afe5315a4d7375acb597f517ad4d468b8c24da506578e2cf9d90f164ad" },
+      { "path": "actix-web/src/app.rs", "sha256": "bd9cb9c2f7105e5ccd47ee66f5892a3cf0c6fd46f1199fdfbc3bf7a9bd2ba3e2" },
+      { "path": "actix-web/src/scope.rs", "sha256": "09b751cc4d9a3101a53db3d8b6d5a3ca32e7560b783f6d15504cd4f219ab23cf" },
+      { "path": "actix-web/src/route.rs", "sha256": "e41fb0d93810ba372cb09c1041423f394467adb55d5711e07713b35b5596b3e4" },
+      { "path": "actix-web/src/web.rs", "sha256": "63a364b99faebde4e8cad6ec61bedb0ea4b1fc4327c7fe01a083c813ef5ad87b" }
+    ]
+  },
+  "fixture_root": "test/http-wave-bc/fixtures/target-scope/actix-web",
+  "fixtures": [
+    { "id": "crate-pin", "path": "Cargo.toml", "sha256": "7a6b9f77554850e1058f25bce45aadb424f8b16314c389763843e549f003fcff", "role": "dependency-pin" },
+    { "id": "literal-scope-routes", "path": "normal/src/lib.rs", "sha256": "d9ded7f7de9a102418abe9c7e086a84cd16d04d36db1d34baab71428b2e41692", "role": "normal" },
+    { "id": "dynamic-scope", "path": "counterexamples/dynamic-scope/src/lib.rs", "sha256": "11b622d4de668117ad80111ac9ca22098c46765f7abb642c842dac75cd27b0b4", "role": "counterexample" },
+    { "id": "configure-factory", "path": "counterexamples/configure-factory/src/lib.rs", "sha256": "3365e46b418e579b931a4600909e49151ead3eeeee43bffb329bb16a2b24e89f", "role": "counterexample" },
+    { "id": "guarded-resource", "path": "counterexamples/guarded-resource/src/lib.rs", "sha256": "7f72643384511d5375c28129b8e5f164acf0a990ef362f7994fd380020d61a30", "role": "counterexample" }
+  ],
+  "constructs": [
+    {
+      "id": "literal-app-route-and-scope",
+      "status": "fixture-only-unassessed",
+      "source_expectation": ["GET /health", "GET /api/users/{id}", "POST /api/users"],
+      "runtime_oracle_required": true
+    },
+    {
+      "id": "dynamic-scope",
+      "status": "unknown-until-input-binding",
+      "invariant": "A caller-supplied scope prefix is not replaced with an invented literal route."
+    },
+    {
+      "id": "configure-factory",
+      "status": "unknown-until-factory-expansion",
+      "invariant": "App.configure can register routes through a function; an inline App.route-only inventory is incomplete."
+    },
+    {
+      "id": "guarded-resource",
+      "status": "unknown-until-request-probe",
+      "invariant": "A route guard and ordered fallback cannot be collapsed into one unconditional GET behavior."
+    }
+  ],
+  "runtime_oracle_plan": {
+    "not_executed_in_this_scope": true,
+    "toolchain": "Pinned Rust 1.88 or later, exact rustc/cargo binaries and hashes recorded before any use",
+    "steps": [
+      "Verify the actix-web-v4.17.0 tag, source hashes, crate checksum, generated Cargo.lock and complete dependency graph under a T20-approved isolated runner.",
+      "Materialize each authored fixture as a separate src/lib.rs with the pinned Cargo.toml; compile under the approved toolchain and constrained dependency cache.",
+      "Use actix_web::test::init_service, TestRequest and call_service with method, path and header probes for literal, caller-bound scope, configure-factory and guarded-resource cases.",
+      "Bind source bytes, toolchain profile, dependency lock and request/response oracle outputs before T16 independent read and T19 mutation review.",
+      "Only after T00 authorizes HTTP composition, evaluate an HTTP leaf and bridge separately; do not infer support from the T08 static scanner."
+    ],
+    "promotion_dependencies": ["HTTP-rust-actix-web-02", "HTTP-rust-actix-web-03", "T16", "T19", "T20", "T00"]
+  },
+  "limits": [
+    "These Rust files are hand-authored planning fixtures, not upstream source copies or compiled evidence.",
+    "T08 Rust inline-snippet scanner results are not credited as an HTTP adapter or as this target's runtime oracle.",
+    "No Actix Web adapter, registry, CLI path or shared-schema projection is added; T08-05 HTTP composition remains BLOCKED.",
+    "No Rust toolchain, Actix Web server, request probe, independent attestation or release gate is exercised here."
+  ]
+}

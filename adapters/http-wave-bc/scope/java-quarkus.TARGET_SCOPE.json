@@ -1,0 +1,88 @@
+{
+  "schema": "sbf.http-target-scope/1",
+  "task": "HTTP-java-quarkus-01",
+  "track": "T13",
+  "target": "java-quarkus",
+  "status": "scope-only",
+  "claims": {
+    "adapter_implemented": false,
+    "static_extraction_verified": false,
+    "runtime_tested": false,
+    "supported": false,
+    "certified": false
+  },
+  "upstream_pin": {
+    "repository": "quarkusio/quarkus",
+    "version": "3.40.1.1",
+    "tag": "3.40.1.1",
+    "commit": "ab576ecfc88f94a2acfe73968fb2e82b116c307e",
+    "jdk_minimum_from_3_40_guide": "17",
+    "rest_profile": "Quarkus REST (quarkus-rest); classic RESTEasy is out of this target-01 fixture scope",
+    "release": "https://github.com/quarkusio/quarkus/releases/tag/3.40.1.1",
+    "sources": [
+      { "path": "pom.xml", "sha256": "0bb7b45923994b748216ad49a352717b5480272f7f089d5960f2353a57d83f08" },
+      { "path": "extensions/resteasy-reactive/rest/runtime/pom.xml", "sha256": "d4f1a55c73062595128ded8327350f013d94396245bceee9d34229f21b0dd4c8" },
+      { "path": "extensions/resteasy-reactive/rest/deployment/pom.xml", "sha256": "ee68d800f7b7d69b68b56a3732179197cab7befa2659db32681f36f7c5ad17ef" },
+      { "path": "docs/src/main/asciidoc/rest.adoc", "sha256": "a0c57d1ed0db53acdb37ddffbbd7d82ea342d89238b9198b21f2d2b584f1d9d3" },
+      { "path": "docs/src/main/asciidoc/getting-started-testing.adoc", "sha256": "5f0752568528f32a817652438d690abc2a7667c789dd30498eac0da31dcf60e0" }
+    ]
+  },
+  "fixture_root": "test/http-wave-bc/fixtures/target-scope/quarkus",
+  "fixtures": [
+    { "id": "dependency-pin", "path": "pom.xml", "sha256": "8de9347d5c4531cea739bbe81847e879efcc6bed38a7c1bf1f1460e348e90939", "role": "dependency-pin" },
+    { "id": "literal-rest-routes", "path": "normal/src/main/java/org/sbf/fixture/UserResource.java", "sha256": "fe0bedffa7115a1e09b9715cb9a2d5b519ed37bddff37e4764c18c9aba673e8e", "role": "normal" },
+    { "id": "application-path", "path": "counterexamples/application-path/src/main/java/org/sbf/fixture/ApiApplication.java", "sha256": "a7855385d189d6094335e3f99d2b813267f5faea58501044f3af588d634931ec", "role": "counterexample" },
+    { "id": "build-profile", "path": "counterexamples/build-profile/src/main/java/org/sbf/fixture/ProfileOnlyResource.java", "sha256": "b07f461510d6b222fc8e6866934c706f7ceda30e67eeb1daff0c18dc874d128d", "role": "counterexample" },
+    { "id": "runtime-disabled", "path": "counterexamples/runtime-disabled/src/main/java/org/sbf/fixture/ToggleResource.java", "sha256": "a8c168d61f64e85e1789b8034267d6d3651daa05a6a1dab1472b76b2f9d4d2e3", "role": "counterexample" },
+    { "id": "duplicate-first", "path": "counterexamples/duplicate/src/main/java/org/sbf/fixture/FirstResource.java", "sha256": "8865759f120d8f22c2f29dbe83db4c400ac0c327d95625767819cf0fd7d96178", "role": "counterexample" },
+    { "id": "duplicate-second", "path": "counterexamples/duplicate/src/main/java/org/sbf/fixture/SecondResource.java", "sha256": "7d49b5ca25ff95e73f2fa9e307b6c6cc12557893c183eeb02253bf1ef66dc3bd", "role": "counterexample" }
+  ],
+  "constructs": [
+    {
+      "id": "literal-class-and-method-jaxrs",
+      "status": "fixture-only-unassessed",
+      "source_expectation": ["GET /api/users/{id}", "POST /api/users"],
+      "runtime_oracle_required": true
+    },
+    {
+      "id": "application-path",
+      "status": "unknown-until-build-and-request-probe",
+      "invariant": "@ApplicationPath changes the root of JAX-RS resources; a class/method-only path inventory is incomplete."
+    },
+    {
+      "id": "build-profile",
+      "status": "unknown-until-profile-bound-build",
+      "invariant": "@IfBuildProfile conditions may remove a resource during Quarkus augmentation; source presence is not endpoint availability."
+    },
+    {
+      "id": "runtime-disabled",
+      "status": "unknown-until-property-bound-request-probe",
+      "invariant": "@EndpointDisabled can exclude a resource at runtime in JVM mode; native mode must be separately assessed."
+    },
+    {
+      "id": "duplicate-endpoint",
+      "status": "expected-build-rejection-unverified",
+      "invariant": "Duplicate method/path/content-type endpoints are not two certified routes; default Quarkus REST behavior requires a build-time failure oracle."
+    }
+  ],
+  "runtime_oracle_plan": {
+    "not_executed_in_this_scope": true,
+    "toolchain": "Pinned JDK 17 or later and Maven binaries/hashes, resolved Quarkus platform BOM and dependency graph, isolated approved runner",
+    "steps": [
+      "Verify Quarkus 3.40.1.1 tag/commit and source hashes; resolve Maven dependency tree and checksums under a T20-approved isolated runner.",
+      "Build normal and each counterexample as separate projects with the pinned pom.xml; record Quarkus augmentation output, effective configuration, artifacts and startup diagnostics.",
+      "Use @QuarkusTest and REST Assured requests for normal GET/POST, @ApplicationPath root, build-profile present/absent and runtime property enabled/disabled cases; record status, body, headers and route evidence.",
+      "Require a controlled build-failure oracle for duplicate endpoints; keep the duplicate pair isolated from the normal fixture.",
+      "Bind source bytes, JDK/Maven profiles, dependency lock, build output and request/response oracle evidence before T16 independent read and T19 mutation review.",
+      "Only after T00 authorizes HTTP composition, evaluate an HTTP leaf and bridge separately; do not infer support from the T05 JVM framework profile."
+    ],
+    "promotion_dependencies": ["HTTP-java-quarkus-02", "HTTP-java-quarkus-03", "T16", "T19", "T20", "T00"]
+  },
+  "limits": [
+    "These Java files are hand-authored planning fixtures, not upstream source copies, compiled code or executed requests.",
+    "The T05 quarkus-jaxrs-java vocabulary profile is credited to T05 only; no T13 extractor consumes it here.",
+    "Classic RESTEasy, generated endpoints, custom Jakarta REST Application class lists, native-mode EndpointDisabled behavior and conditional configuration remain outside this target-01 fixture scope.",
+    "No Quarkus adapter, registry, CLI path or shared-schema projection is added; T08-05 HTTP composition remains BLOCKED.",
+    "No JDK/Maven build, Quarkus augmentation, server, request probe, independent attestation or release gate is exercised here."
+  ]
+}

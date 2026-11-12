@@ -85,3 +85,14 @@ A leaf may move toward production registration only when its claimed capability 
 7. integration-owner approval for the shared registry / project-composition layer.
 
 A target can remain Discovery/Contract-only. Lack of runtime evidence must not be converted into a stronger support label.
+
+## T13-02 interface evidence receipt
+
+The source-bound receipt at `test/http-wave-bc/interface-rfc-evidence.json` pins the exact
+reviewed commit and SHA-256 of the RFC, vocabulary and executable interface test.
+It records a real zero-skip test command, exit code and counts. Reproduce its result with
+`node test/http-wave-bc/interface-rfc-evidence.mjs --check`; this reruns the pinned
+interface test and rejects changes to any pinned file or a forged MET/release claim.
+The historical T13-01 baseline stays unchanged; the current nested T13 CI suite
+provides separate full-track results. An independent reviewer and authorized T00
+CAS audit remain required before any official MET change.

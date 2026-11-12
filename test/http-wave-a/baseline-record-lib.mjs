@@ -20,7 +20,10 @@ export const TRACK = {
 		'test/http-wave-a/baseline-record.test.mjs',
 		'test/http-wave-a/baseline-record-lib.mjs',
 		'test/http-wave-a/interface-rfc.test.mjs',
-		'test/http-wave-a/interface-rfc.vocabulary.json'
+		'test/http-wave-a/interface-rfc.vocabulary.json',
+		'test/http-wave-a/rfc-boundaries.test.mjs',
+		'test/http-wave-a/interface-rfc-evidence.mjs',
+		'test/http-wave-a/interface-rfc-evidence.test.mjs'
 	]
 };
 //@@TRACK-END

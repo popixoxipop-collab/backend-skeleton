@@ -1,0 +1,33 @@
+{
+  "schema": "sbf.t17-04-adversarial-validation/1",
+  "task": "T17-04",
+  "source_base": "7974ab87435ba44857e547c5dac6584bfcd8a89d",
+  "source_revision": "2274f4f246351b053d20b0af2638caf2cbad589e",
+  "source_tree": "efc105de296c9a2a70f9cb8ab94f835b81e1da52",
+  "files_sha256": {
+    "adapters/game-next/INTERFACE_RFC.md": "a155d006efc0ca904507e49448a40c22d1721b7ed8092c03ff50fcd1923b760a",
+    "adapters/game-next/T17_04_ADVERSARIAL_SCOPE.md": "43e8f2255fbae19ded9559a5cc62c329b2dc6edf985b14c79c085309a3d0c4d5",
+    "test/game-next/t17-adversarial-matrix.test.mjs": "6c8bafe56974d69ee76470a33eff618f51f3335fb637037d58abadb4810576b3"
+  },
+  "replay": {
+    "host": "BOB.local",
+    "node_version": "v26.7.0",
+    "commands": [
+      {"argv": ["node", "--test", "test/game-next/t17-adversarial-matrix.test.mjs"], "exit_code": 0, "tests": 12, "pass": 12, "fail": 0, "skipped": 0},
+      {"argv": ["node", "--test", "test/game-next/native-export-envelope-schema.test.mjs"], "exit_code": 0, "tests": 8, "pass": 8, "fail": 0, "skipped": 0},
+      {"argv": ["node", "scripts/run-next-nested-tests.mjs", "T17"], "exit_code": 0, "tests": 95, "pass": 94, "fail": 0, "skipped": 1, "skip_reason": "historical baseline live-tree drift; pinned baseline commit replay passes"},
+      {"argv": ["node", "next/t00/check-ownership.mjs", "paths", "--track", "T17", "--git-diff", "7974ab87435ba44857e547c5dac6584bfcd8a89d", "2274f4f246351b053d20b0af2638caf2cbad589e"], "exit_code": 0, "owned_paths": 3},
+      {"argv": ["git", "diff", "--check", "7974ab87435ba44857e547c5dac6584bfcd8a89d", "2274f4f246351b053d20b0af2638caf2cbad589e"], "exit_code": 0}
+    ],
+    "full_receipt_sha256": "6c4c745b473cc9e2a4285bfceb42adffaeb6c2411f59c4fdc453348355ec0795"
+  },
+  "scope": "Shadow game-intake T19 negative-vector mapping, mutations, Node permissions and version-label limits only",
+  "authority": {
+    "target_04_met_awarded": false,
+    "real_engine_export_verified": false,
+    "bridge_executed": false,
+    "runtime_certified": false,
+    "signed_independent_attestation": false,
+    "release_authorized": false
+  }
+}

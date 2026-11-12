@@ -1,0 +1,2 @@
+# The accepted path set depends on the route compiler's regex constraint.
+GET     /items/$id<[0-9]+>   controllers.Items.show(id: Long)

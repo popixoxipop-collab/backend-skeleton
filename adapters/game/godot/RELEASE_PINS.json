@@ -1,0 +1,17 @@
+{
+  "schema": "sbf.game-godot-target-scope-pins/1",
+  "scope": "static-text-source-target-01-only",
+  "godot": {
+    "version": "4.7.2-stable",
+    "tag": "4.7.2-stable",
+    "commit_sha": "ed1daf0bf001b61586d9930840f2f1394092c079",
+    "version_py_blob_sha": "4b0e55c61b87f2962329eaec53764727177bedde",
+    "node_cpp_blob_sha": "748a8563ce83ec58583def7af535095d7f7b47c9",
+    "packed_scene_cpp_blob_sha": "49a72488173626c9d779242fa215061216cefa43"
+  },
+  "source": "Official godotengine/godot GitHub tag and contents API, read 2026-10-30",
+  "fixture_generated_by_pinned_engine": false,
+  "engine_executed": false,
+  "runtime_certified": false,
+  "release_authorized": false
+}

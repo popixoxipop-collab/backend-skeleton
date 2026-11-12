@@ -1,0 +1,20 @@
+{
+  "schema": "sbf.game-unreal-structure-export/draft-1",
+  "types": [
+    {
+      "id": "AProbeActor",
+      "kind": "class",
+      "name": "AProbeActor",
+      "base": "AActor",
+      "specifiers": [],
+      "properties": [
+        { "name": "Health", "type": "float", "specifiers": ["ReplicatedUsing=OnRep_Health"] },
+        { "name": "VisualAsset", "type": "TSoftObjectPtr<UStaticMesh>", "specifiers": ["EditDefaultsOnly"] }
+      ],
+      "functions": [
+        { "name": "OnRep_Health", "specifiers": [] },
+        { "name": "ServerFire", "specifiers": ["Server", "Reliable"] }
+      ]
+    }
+  ]
+}

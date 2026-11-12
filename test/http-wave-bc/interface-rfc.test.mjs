@@ -86,6 +86,7 @@ const PACKAGE = {
 const lines = (rows) => (rows.length ? `${rows.join('\n')}\n` : '');
 const hono = (...rows) => `import { Hono } from 'hono';\nconst app = new Hono();\n${lines(rows)}export default app;\n`;
 const koa = (...rows) => `import Koa from 'koa';\nimport Router from '@koa/router';\nconst app = new Koa();\nconst router = new Router();\n${lines(rows)}app.use(router.routes());\n`;
+const koaNamed = (name, ...rows) => `import Koa from 'koa';\nimport Router from '@koa/router';\nconst app = new Koa();\nconst ${name} = new Router();\n${lines(rows)}app.use(${name}.routes());\n`;
 const exporting = (...names) => names.map((n) => `export async function ${n}() {}\n`).join('');
 const HONO_MOUNTS = "import { Hono } from 'hono';\nimport a from './a/routes';\nimport b from './b/routes';\nconst app = new Hono();\napp.route('/a', a);\napp.route('/b', b);\nexport default app;\n";
 const TREES = {
@@ -95,6 +96,7 @@ const TREES = {
 	'hono-inline': ['node-hono', { 'src/index.ts': hono("app.get('/b', (c) => c.text('x'));") }],
 	'hono-empty': ['node-hono', { 'src/index.ts': hono() }],
 	'koa-twin': ['node-koa', { 'src/a/routes.js': koa("router.get('/a', h);"), 'src/b/routes.js': koa("router.get('/b', h);") }],
+	'koa-mixed-vars': ['node-koa', { 'src/a/routes.js': koa("router.get('/a', h);"), 'src/b/routes.js': koaNamed('api', "api.get('/b', h);") }],
 	'koa-dup': ['node-koa', { 'src/app.js': koa("router.get('/a', h1);", "router.get('/a', h2);") }],
 	'koa-same-line': ['node-koa', { 'src/app.js': koa("router.get('/a', h1); router.get('/a', h2);") }],
 	'koa-empty': ['node-koa', { 'src/app.js': koa() }],
@@ -734,6 +736,8 @@ const CHECKS = {
 		const files = controllersOf(runOf(x, 'koa-twin')).map((c) => rel(runOf(x, 'koa-twin').root, c.file));
 		const koa = names('koa-twin');
 		if (koa.length !== 2 || koa[0] !== koa[1] || new Set(files).size !== 2 || new Set(files.map((f) => path.posix.basename(f))).size !== 1) p.push('koa-twin: two router files of one basename do not give two equal classNames');
+		const mixed = controllersOf(runOf(x, 'koa-mixed-vars'));
+		if (mixed.length !== 2 || mixed[0].className === mixed[1].className || new Set(mixed.map((c) => path.posix.basename(c.file))).size !== 1) p.push('koa-mixed-vars: the router variable must distinguish same-basename controllers');
 		for (const id of ['hono-twin', 'next-three']) {
 			const list = names(id);
 			if (list.length < 2 || new Set(list).size !== list.length) p.push(`${id}: classNames are not pairwise different`);

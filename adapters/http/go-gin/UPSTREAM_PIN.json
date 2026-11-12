@@ -1,0 +1,19 @@
+{
+  "schema": "bskel.gin-upstream-source/1",
+  "repository": "gin-gonic/examples",
+  "commit": "c2f7a0b158e7c8a60336f9ca5e97a517740234dc",
+  "path": "realtime-chat",
+  "declared_go": "1.26.0",
+  "declared_gin": "v1.12.0",
+  "runtime_executed": false,
+  "files": {
+    "realtime-chat/go.mod": {
+      "git_blob_sha1": "f6bc2e7debdc217370a7c885177c5b7ed8537101",
+      "sha256": "436a1a319623b0594bec37fbc428d4628878b770e39b48ba45f47707017f59d4"
+    },
+    "realtime-chat/main.go": {
+      "git_blob_sha1": "5ab04887c7c3543510bac9e4a2b0723f06ee3a3f",
+      "sha256": "5a052c4403fcb1b3a0dde42b57bd4326131930911f93679d95bc8c607d2f2ebd"
+    }
+  }
+}

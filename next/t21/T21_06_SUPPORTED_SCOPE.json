@@ -1,0 +1,45 @@
+{
+  "authorization": {
+    "live_data": false,
+    "production_gc": false,
+    "rehearsal": true,
+    "release": false
+  },
+  "baseline_provider": "T02.executeProjectScanPlan",
+  "candidate_provider": "T21.executeT21ShadowProvider",
+  "excluded_operations": [
+    "production_enable",
+    "stable_cli_cutover",
+    "external_beval_becoder_provider_cutover",
+    "live_gc_deletion",
+    "npm_publish",
+    "database_rollback",
+    "service_rollback"
+  ],
+  "feature_switch_default": false,
+  "nonnegotiable_gates": {
+    "collector_writer_exclusion": "NOT_VERIFIED",
+    "production_release": "BLOCKED",
+    "provider_schema_freeze": "DRAFT",
+    "scheduler_cancellation": "NOT_VERIFIED",
+    "signed_independent_attestation": "MISSING",
+    "timing_slo": "NOT_APPROVED"
+  },
+  "permitted_adapters": [
+    "java-spring",
+    "javascript-express",
+    "python-fastapi"
+  ],
+  "project_graph_schema": "sbf.project-graph/draft-1",
+  "release_intent": "shadow-rehearsal-only",
+  "rollback_semantics": "Disable opt-in shadow comparison; re-run unchanged T02 direct-provider, byte-compare output, discard only disposable shadow cache. Not a production software rollback.",
+  "schema": "t21-06.supported-scope/1",
+  "supported_operations": [
+    "shadow_compare",
+    "shadow_disabled_fallback",
+    "disposable_cache_rollback",
+    "fail_closed_integrity",
+    "source_bound_replay"
+  ],
+  "task": "T21-06"
+}

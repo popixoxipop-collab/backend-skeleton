@@ -1,0 +1,75 @@
+{
+  "schema": "sbf.persistence-target-scope/1",
+  "task": "ORM-diesel-01",
+  "track": "T10",
+  "target": "diesel",
+  "status": "scope-only",
+  "catalog_state": "blocked-upstream-facts",
+  "change_request": {
+    "id": "CR-T10-004",
+    "owner_requested": "T08",
+    "status": "requested-not-delivered"
+  },
+  "claims": {
+    "t08_facts_delivered": false,
+    "rust_compiled": false,
+    "new_adapter_implemented": false,
+    "runtime_tested": false,
+    "supported": false,
+    "certified": false
+  },
+  "upstream_pin": {
+    "repository": "diesel-rs/diesel",
+    "version": "2.3.14",
+    "tag": "v2.3.14",
+    "tag_object": "af754893304faaf7ae7cf094df0930d3807e2897",
+    "commit": "4007d771b1e808839f771a693f6bae9f821f0e64",
+    "release": "https://github.com/diesel-rs/diesel/releases/tag/v2.3.14",
+    "documentation": [
+      "https://docs.diesel.rs/2.3.x/diesel/",
+      "https://docs.diesel.rs/2.3.x/diesel/macro.joinable.html"
+    ],
+    "rust_minimum_version": "1.86.0",
+    "sources": [
+      { "path": "diesel/Cargo.toml", "sha256": "530d00eae4fef5d9e02e847af5afa5206bb804760bfc9d5974110784bbcb0e40" },
+      { "path": "diesel/src/macros/mod.rs", "sha256": "c92e501796d87deebaeaf0fa1adb7813ca67a59f7cb15658fb53fde39387447a" },
+      { "path": "diesel_derives/src/table.rs", "sha256": "9a5b27da01e2769f6f4ab5aef0104e65fc81093775f9da9d53e45cebdb8a1231" },
+      { "path": "diesel_derives/src/model.rs", "sha256": "b6d34c8a1f2d69b0ce4d25e9ca3f3826fdf3fced71e3cf782333219d7c122f74" },
+      { "path": "diesel_derives/src/identifiable.rs", "sha256": "528f465b25a01c2ccdf4771bc88440c01cfd7a9255760705c2dc9478afab8f6f" },
+      { "path": "diesel_derives/src/associations.rs", "sha256": "66130654ebebfcb63b4c1229c7e40ad0ae94407ef30207feea3fd4f7cc93a1b5" }
+    ],
+    "version_boundary": "Only Diesel v2.3.14 with the planned PostgreSQL feature and Rust 1.86.0 fixture is scoped; other Diesel versions, backends, feature graphs, migration state and runtime schemas are excluded."
+  },
+  "fixture_root": "adapters/persistence/diesel/fixtures",
+  "fixtures": [
+    { "id": "dependency-pin", "path": "Cargo.toml", "sha256": "6acb0c994c8113d4b8b0fd89b944e8ca40855021679609db9d81d73f0ec42fd2", "role": "dependency-pin" },
+    { "id": "toolchain-pin", "path": "rust-toolchain.toml", "sha256": "5136d67279b3fb93066bf841b171db2c5697b36d833837031033a6e0535fb1cb", "role": "toolchain-pin" },
+    { "id": "normal-schema", "path": "normal/schema.rs", "sha256": "585414f8084dc75a8295aa92123d76eb762b139ad4a25b3231dd745f3109c591", "role": "normal" },
+    { "id": "normal-models", "path": "normal/models.rs", "sha256": "663e1fa4707d73a72571219dc9d79c21041a9bd6287e7d31388d4c358305d56f", "role": "normal" },
+    { "id": "physical-sql-name", "path": "counterexamples/physical-name/schema.rs", "sha256": "ff5b0069a28196e4a62f405911056af45a3875d416bf02113114bf3dc78c9b01", "role": "counterexample" },
+    { "id": "composite-key", "path": "counterexamples/composite-key/schema.rs", "sha256": "b22091ecc74c222edd0592010ae82945bb8e3465ceeb295ab7ffa2d1a69d3ddb", "role": "counterexample" },
+    { "id": "tenant-search-path", "path": "counterexamples/tenant-search-path/connection.rs", "sha256": "50b1465a287ab7c624bd1779c6450ae1ca404740ef1bdc899c87493f1bbe94cb", "role": "counterexample" }
+  ],
+  "constructs": [
+    { "id": "table-column-key-and-joinable", "status": "fixture-only-unassessed", "invariant": "The normal table! and joinable! declarations are source expectations until T08 compiler facts and a database oracle agree." },
+    { "id": "physical-sql-name", "status": "unknown-until-macro-expansion", "invariant": "Rust identifiers differ from SQL identifiers when #[sql_name] is present; do not infer physical names from tokens alone." },
+    { "id": "composite-key", "status": "unknown-until-ordered-key-probed", "invariant": "An ordered composite primary key cannot be reduced to a single id field; do not fabricate joinable! for composite foreign keys." },
+    { "id": "tenant-search-path", "status": "unknown-until-connection-bound", "invariant": "An unqualified table! may resolve to different physical schemas per PostgreSQL connection search_path." }
+  ],
+  "runtime_oracle_plan": {
+    "not_executed_in_this_scope": true,
+    "steps": [
+      "Verify the annotated v2.3.14 tag, resolved commit, six source digests, Rust toolchain and locked Cargo dependency graph before compiling fixtures.",
+      "Have T08 compile and expand each normal and counterexample Rust fixture under exact features; capture diagnostics and source provenance, including #[sql_name], key order and association references.",
+      "Compare T08 facts with a disposable PostgreSQL catalog and explicit tenant_a/tenant_b connections; test schema.rs versus migration drift and search_path resolution without inferring a runtime schema from source alone.",
+      "Require T16 independent read, T19 mutation review, T01 contract projection, packed-artifact consumption and T20 isolation before any support or certification claim."
+    ],
+    "promotion_dependencies": ["CR-T10-004", "ORM-diesel-02", "ORM-diesel-03", "T01", "T16", "T19", "T20", "T00"]
+  },
+  "limits": [
+    "These Rust files are hand-authored planning fixtures, not upstream source copies, compiled models or runtime evidence.",
+    "No Rust compiler, Cargo restore, macro expansion, Diesel connection or PostgreSQL oracle was run in this scope.",
+    "T08 Rust semantic/compiler facts are requested but not delivered; the Diesel catalog stays blocked-upstream-facts and no provider is added.",
+    "No independent attestation, target certification, supported ingestion or release gate is exercised here."
+  ]
+}

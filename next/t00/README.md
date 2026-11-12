@@ -88,10 +88,12 @@ Which track may write which path in which repository, and the gate that checks i
 | `fixtures/plan-write-scopes.json` | Snapshot of the write scopes in the plan backlog (the plan folder is outside this checkout). |
 | `fixtures/ownership-rules.json` | The reserved hot paths and the limits the map states. |
 | `INTERFACE_RFC.md` | Inputs, rules, unknown and partial cases, codes, and how a track uses the gate. |
+| `check-path-exception.mjs`, `PATH_EXCEPTION_PROTOCOL.md`, `receipts/` | Exact-head T00 shared-file exception verification; strict map unchanged. |
 
 ```
 node next/t00/check-ownership.mjs map
 node next/t00/check-ownership.mjs paths --track T05 --git-diff <merge-base> HEAD
+node next/t00/check-path-exception.mjs --repo-dir <candidate-checkout> --repository becoder --track T15 --base <sha> --head <sha> --receipt <trusted-receipt.json> --receipt-sha256 <digest>
 node next/t00/build-ownership-map.mjs
 node next/t00/make-ownership-report.mjs --check
 node next/t00/snapshot-plan.mjs --check <backlog.json>
@@ -109,6 +111,9 @@ protocol is `LEASE_PROTOCOL.md`. Both gates, this one and the ownership gate, ar
 workflow calls `check-lease.mjs` or `check-ownership.mjs`, and no job runs a gate on the diff of a pull request or on a real
 ledger. The CI test job runs `npm test`, which includes `test/t00-lease.test.mjs` and `test/t00-ownership.test.mjs`; they run
 the gates on fixtures, on this checkout and on scaffold copies of it.
+
+The exact-head path-exception checker is operator-invoked too: its unit tests run in `npm test`, but CI does not yet
+authenticate a coordinator comment or fetch a trusted cross-repository receipt. See `PATH_EXCEPTION_PROTOCOL.md`.
 
 | File | Role |
 |---|---|
@@ -139,3 +144,7 @@ whether the head was pinned. After a change to the ownership map, to the fixture
 Node: `package.json` allows Node `>=18` and the CI test job runs `npm test` on Node 22.x and 24.x, so no job runs Node 18. The T00
 tests therefore scan every `next/t00/*.mjs` file and every `test/t00-*.test.mjs` file for the names of APIs that Node 18 lacks.
 That is a list of known names, not a proof, and Node 18 itself was not run.
+
+## Optional strict v1 candidate
+
+The historical commands and report above retain their historical semantics and byte identity. They are not the strict validation entry point. See [BASELINE_STRICT_V1.md](BASELINE_STRICT_V1.md) for the isolated strict CLI, derivation, report and tests. The new inventory-alignment and cross-repository preconditions consume that strict module. This does not establish release-workflow adoption, current inventory alignment, all-writer enforcement, freeze or MET.
