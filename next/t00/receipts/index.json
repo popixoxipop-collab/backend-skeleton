@@ -8,6 +8,10 @@
     {
       "file": "T15-04-becoder-20261110.json",
       "sha256": "eb3992cd03ae2d6776e20d15d3d39d586a85e6967e7ec1f0c75ff1ef58f2d842"
+    },
+    {
+      "file": "T15-ECC-becoder-PR19-54d6a89b.json",
+      "sha256": "a8657d1aa2491efb5b387513875d707a4b9e3ef7e3d05db8b3b644f1bdb84720"
     }
   ]
 }
