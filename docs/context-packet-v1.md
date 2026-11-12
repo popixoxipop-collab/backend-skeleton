@@ -36,7 +36,7 @@ pom.xml, build.gradle, build.gradle.kts, Gemfile, Cargo.toml, go.mod, README.md
 
 Absent optional root files are not requested. An explicitly requested absent path receives an omission. There is no automatic recursive repository scan and no claim that the selected files describe the entire architecture. The user chooses relevant source and test paths. Roles (`source`, `test`, `manifest`, `documentation`, `instructions`) are filename navigation hints, not semantic or execution evidence.
 
-The default budget is 16 files and 65,536 raw UTF-8 bytes; allowed limits are 1–128 files and 1–1,048,576 bytes. A contract exceeding the byte budget is an error. Each source either fits whole or is omitted whole. A source omitted for size does not prevent a smaller later source from fitting. No model token counts are estimated.
+The default budget is 16 files and 65,536 raw UTF-8 bytes; allowed limits are 1–128 files and 1–1,048,576 bytes. A contract exceeding the byte budget is an error. Independently of those output budgets, input enumeration is limited to **256 explicit source path entries (including duplicates)**, **4,096 UTF-8 bytes per individual path**, and **65,536 UTF-8 bytes total across the contract and raw explicit source paths**. These limits are checked before reading the Git snapshot or doing any per-path Git lookup; overly large inputs fail closed rather than producing an incomplete packet. Each source either fits whole or is omitted whole. A source omitted for size does not prevent a smaller later source from fitting. No model token counts are estimated.
 
 | Omission reason | Meaning |
 | --- | --- |
