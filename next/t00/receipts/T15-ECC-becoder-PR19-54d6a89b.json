@@ -1,0 +1,74 @@
+{
+  "schema": "bskel.t00-path-exception/2",
+  "repository": "becoder",
+  "track": "T15",
+  "base": "2a6bb9285fdad674361ac0adff7a965656f38c11",
+  "head": "54d6a89bed6e6c0c9c87d53d53f46a959af8b18c",
+  "approval": {
+    "login": "popixoxipop-collab",
+    "url": "https://github.com/popixoxipop-collab/backend-skeleton/issues/375#issuecomment-6827570148",
+    "body_sha256": "b8777d2dc6f70bf309bdcf4f7dae7ed9daa893e1ec4804f4f0835fd7aea31e59"
+  },
+  "exceptions": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "code": "PATH_RESERVED_HOT",
+      "reason": "CI cache isolation, real evidence preservation/upload ordering; all required jobs retained"
+    },
+    {
+      "path": "README.md",
+      "code": "PATH_UNOWNED",
+      "reason": "Opt-in context-handoff documentation and trust boundaries"
+    },
+    {
+      "path": "bin/becoder.mjs",
+      "code": "PATH_UNOWNED",
+      "reason": "Opt-in packet CLI without legacy planner replacement"
+    },
+    {
+      "path": "docs/context-handoff-v1.md",
+      "code": "PATH_UNOWNED",
+      "reason": "Versioned traceable handoff contract"
+    },
+    {
+      "path": "docs/ecc-ci-evidence-retention.md",
+      "code": "PATH_UNOWNED",
+      "reason": "Explicit CI evidence retention and provenance guarantees"
+    },
+    {
+      "path": "lib/context-packet.mjs",
+      "code": "PATH_UNOWNED",
+      "reason": "Versioned bounded input validation and deterministic handoff"
+    },
+    {
+      "path": "lib/read-contract.mjs",
+      "code": "PATH_UNOWNED",
+      "reason": "Preserve parser semantics for raw contract text"
+    },
+    {
+      "path": "schemas/context-packet.schema.json",
+      "code": "PATH_UNOWNED",
+      "reason": "Versioned input shape/limits"
+    },
+    {
+      "path": "scripts/preserve-ci-evidence.mjs",
+      "code": "PATH_UNOWNED",
+      "reason": "Immutable CI evidence backup; does not replace artifact upload"
+    },
+    {
+      "path": "scripts/validate-ci-evidence.mjs",
+      "code": "PATH_UNOWNED",
+      "reason": "Validate backup manifest without mutating evidence"
+    },
+    {
+      "path": "test/context-packet.test.mjs",
+      "code": "PATH_UNOWNED",
+      "reason": "Negative and compatibility regression coverage"
+    },
+    {
+      "path": "test/preserve-ci-evidence.test.mjs",
+      "code": "PATH_UNOWNED",
+      "reason": "Preservation/integrity negative tests"
+    }
+  ]
+}
