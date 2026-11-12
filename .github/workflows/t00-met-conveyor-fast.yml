@@ -1,0 +1,39 @@
+name: T00 MET conveyor fast checks
+
+# Advisory fast feedback. The existing full CI, owner review, independent
+# adjudication and T23 release gates are not waived.
+on:
+  pull_request:
+    paths:
+      - 'next/t00/met_conveyor.py'
+      - 'test/t00-met-conveyor.test.mjs'
+      - 'docs/t00-met-conveyor.md'
+      - '.github/workflows/t00-met-conveyor-fast.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-source-pinned-triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20.x', '22.x']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Python version
+        run: python3 --version
+      - name: Syntax and adversarial tests
+        run: |
+          python3 -m py_compile next/t00/met_conveyor.py
+          node --test test/t00-met-conveyor.test.mjs
+      - name: No official authority in this checkout
+        run: |
+          test ! -e T00_TASK_AUDIT_2026-10-22_POST_PR309_R206.json
+          echo 'Read-only T00 planning checks passed.'
