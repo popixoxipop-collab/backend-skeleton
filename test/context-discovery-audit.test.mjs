@@ -184,3 +184,40 @@ test('quoted comment delimiters do not swallow a later real handler',t=>{
   assert.equal(r.selection.selected[0].path,'src/real.js');
   assert.ok(r.selection.selected[0].signals.includes('handler_declaration'));
 });
+
+test('calls and parenthesized values cannot certify a handler or produce an automatic packet', t => {
+  for (const [file, source] of [
+    ['src/client.py', 'from service import readPing\nreadPing()\n'],
+    ['src/client.js', 'import { readPing } from "./service.js";\nreadPing();\n'],
+    ['src/config.js', 'const readPing = (getSetting());\n'],
+    ['src/Config.java', 'class Config {\n  private final Result value = readPing();\n}\n'],
+  ]) {
+    const f = fixture(t, { [file]: source });
+    const result = discover(f);
+    assert.equal(result.selection.selected[0].signals.includes('handler_declaration'), false, file);
+    assert.ok(result.selection.incomplete_reasons.includes('no_confirmed_handler_declaration'), file);
+    assert.equal(result.selection.complete, false, file);
+    const cli = new URL('../bin/bskel.mjs', import.meta.url).pathname;
+    const pack = requireSpawn([process.execPath, cli, 'context', 'pack', '--contract', CONTRACT,
+      '--auto-select', '--operation', 'readPing', '--json'], f.root);
+    assert.notEqual(pack.status, 0, file);
+    assert.match(pack.stderr, /no_confirmed_handler_declaration/, file);
+    assert.equal(JSON.parse(pack.stdout).schema, 'sbf.cli-diagnostic/1', file);
+  }
+});
+
+test('class methods and arrow function declarations still certify handlers', t => {
+  for (const source of [
+    'class Service {\n  async readPing(request) { return request; }\n}\n',
+    'const readPing = async (request) => request;\n',
+    'const readPing = async(request) => request;\n',
+    'const readPing = (request = makeRequest()) => request;\n',
+    'const readPing = async request => request;\n',
+    'const readPing = function(request) { return request; };\n',
+  ]) {
+    const f = fixture(t, { 'src/service.js': source });
+    const result = discover(f);
+    assert.ok(result.selection.selected[0].signals.includes('handler_declaration'), source);
+    assert.equal(result.selection.complete, true, source);
+  }
+});
