@@ -110,7 +110,14 @@ function overrides() {
   return Object.fromEntries(Object.entries(deps(locks.candidate)).map(([name, entry]) =>
     [name.slice('node_modules/'.length), entry.version]));
 }
-function rehearse(identity, scratch, packages, pins, injectFailure) {
+function verifyManifest(manifest, manifestSha, packages) {
+  assert.match(manifestSha, /^[a-f0-9]{64}$/);
+  assert.equal(sha(manifest), manifestSha, 'manifest pin mismatch');
+  for (const slot of ['previous', 'candidate'])
+    assert.equal(sha(fs.readFileSync(packages[slot].archive)), packages[slot].archive_sha256);
+}
+function rehearse(identity, scratch, packages, pins, manifest, manifestSha, injectFailure) {
+  verifyManifest(manifest, manifestSha, packages);
   const consumer = fs.mkdtempSync(path.join(scratch, injectFailure ? 'fault-' : 'normal-'));
   fs.writeFileSync(path.join(consumer, 'package.json'), json({ name: 't01-disposable-consumer',
     version: '0.0.0', private: true, overrides: pins }));
@@ -176,12 +183,12 @@ test('T01-06 installed package rollback survives interrupted candidate probe',
         scope: 'candidate pre-freeze installed package', release_authorized: false });
       const manifestSha = sha(manifest);
       assert.notEqual(packages.previous.archive_sha256, packages.candidate.archive_sha256);
-      assert.notEqual(manifestSha, '0'.repeat(64));
-      const normal = rehearse(identity, scratch, packages, pins, false);
+      assert.throws(() => verifyManifest(manifest, '0'.repeat(64), packages), /pin mismatch/);
+      const normal = rehearse(identity, scratch, packages, pins, manifest, manifestSha, false);
       assert.equal(normal.status, 'pass', normal.failures.join('; '));
       assert.equal(normal.rollback_restored, true);
       assert.ok(normal.stages[1].probe.vectors > 0);
-      const fault = rehearse(identity, scratch, packages, pins, true);
+      const fault = rehearse(identity, scratch, packages, pins, manifest, manifestSha, true);
       assert.deepEqual(fault.failures, ['T01_CANDIDATE_PROBE_SIGTERM']);
       assert.equal(fault.rollback_restored, true);
       assert.deepEqual(fault.stages.map(stage => stage.slot), ['previous', 'candidate', 'previous']);
