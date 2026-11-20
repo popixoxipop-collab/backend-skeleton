@@ -1,0 +1,56 @@
+{
+  "schema": "bskel.t06-package-replay/1",
+  "marker": "DOT-T00-CONTINUE-20261120",
+  "status": "pass",
+  "injected_failure": false,
+  "stages": [
+    {
+      "slot": "previous",
+      "inventory_sha256": "39592a138c86b2760b60067bf38c3110692f18b585cd1f872faec069048068d8",
+      "count": 217,
+      "probe_exit_code": 0,
+      "probe_signal": null,
+      "probe_stdout_sha256": "b1c23a054058d5e7cb78ebf54959b88d2c37ea2bba0a046199bfdf535225c5bd",
+      "probe_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe": {
+        "expected": "previous",
+        "vectors": 1,
+        "release_authorized": false
+      }
+    },
+    {
+      "slot": "candidate",
+      "inventory_sha256": "e975f9496cda713e933e5f3bebf7d80ab8c1d5fe80e679528acb1c849e82170a",
+      "count": 363,
+      "probe_exit_code": 0,
+      "probe_signal": null,
+      "probe_stdout_sha256": "df17adb6b39ea5390c73c5e80db8e5c54ffa3292afa5ba0dc4570ab6ee552feb",
+      "probe_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe": {
+        "expected": "candidate",
+        "vectors": 6,
+        "python_version": "3.12.14",
+        "python_executable_sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+        "release_authorized": false
+      }
+    },
+    {
+      "slot": "previous",
+      "inventory_sha256": "39592a138c86b2760b60067bf38c3110692f18b585cd1f872faec069048068d8",
+      "count": 217,
+      "probe_exit_code": 0,
+      "probe_signal": null,
+      "probe_stdout_sha256": "b1c23a054058d5e7cb78ebf54959b88d2c37ea2bba0a046199bfdf535225c5bd",
+      "probe_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe": {
+        "expected": "previous",
+        "vectors": 1,
+        "release_authorized": false
+      }
+    }
+  ],
+  "failures": [],
+  "rollback_restored": true,
+  "release_authorized": false,
+  "independent_attestation": false
+}
