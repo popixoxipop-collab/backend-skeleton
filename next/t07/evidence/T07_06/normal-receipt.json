@@ -1,0 +1,66 @@
+{
+  "schema": "bskel.t07-package-replay/1",
+  "marker": "DOT-T00-R262-T07-06-20261121",
+  "status": "pass",
+  "injected_failure": false,
+  "stages": [
+    {
+      "slot": "previous",
+      "inventory_sha256": "23a79f2f67b01f95211de786c10e7e188150537f549820c48f4254709e8fbc4b",
+      "count": 217,
+      "probe_exit_code": 0,
+      "probe_signal": null,
+      "probe_stdout_sha256": "5e4d419d39c65f9eec852f1ebd1ff382391de3a0abf7b46b0b3fc3014fcbda2a",
+      "probe_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe": {
+        "expected": "previous",
+        "vectors": 1,
+        "runtime_certified": false,
+        "release_authorized": false
+      }
+    },
+    {
+      "slot": "candidate",
+      "inventory_sha256": "71395c605f3c98a5439e3c9bcae81c9c5a2d2dfeb9cc225695744c5e7064dcab",
+      "count": 423,
+      "probe_exit_code": 0,
+      "probe_signal": null,
+      "probe_stdout_sha256": "19d76e83f9ade5d31fb6d215a33543759376214ff8c36a723de8379acb3ed309",
+      "probe_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe": {
+        "expected": "candidate",
+        "vectors": 8,
+        "frameworks": [
+          "rails",
+          "laravel",
+          "symfony"
+        ],
+        "runtime_certified": false,
+        "release_authorized": false
+      }
+    },
+    {
+      "slot": "previous",
+      "inventory_sha256": "23a79f2f67b01f95211de786c10e7e188150537f549820c48f4254709e8fbc4b",
+      "count": 217,
+      "probe_exit_code": 0,
+      "probe_signal": null,
+      "probe_stdout_sha256": "5e4d419d39c65f9eec852f1ebd1ff382391de3a0abf7b46b0b3fc3014fcbda2a",
+      "probe_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe": {
+        "expected": "previous",
+        "vectors": 1,
+        "runtime_certified": false,
+        "release_authorized": false
+      }
+    }
+  ],
+  "failures": [],
+  "falsification_controls": [
+    "installed-byte-change-rejected",
+    "installed-mode-change-rejected"
+  ],
+  "rollback_restored": true,
+  "release_authorized": false,
+  "independent_attestation": false
+}
