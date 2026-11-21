@@ -2156,8 +2156,10 @@ function defaultImportSourceForBinding(text, name) {
 	return null;
 }
 
-function buildMountEdges(files, fileTexts) {
+function buildMountEdges(files, fileTexts, repoRoot) {
 	const edges = [];
+	const unresolvedTargets = new Set();
+	const computedSignals = [];
 	const fileSet = new Set(files);
 	for (const file of files) {
 		const text = fileTexts.get(file);
@@ -2173,15 +2175,28 @@ function buildMountEdges(files, fileTexts) {
 				const args = splitTopLevelArgs(text.slice(openIdx + 1, closeIdx));
 				if (args.length < 2) continue;
 				const prefix = staticPathLiteral(args[0]);
-				if (prefix === null) continue;
-
+				const append = (to) => {
+					if (prefix !== null) {
+						edges.push({ from: nodeKey(file, fromBinding), to, prefix });
+					} else {
+						// The receiving router exists but its absolute mount path
+						// does not. Never reinterpret its local '/ping' as a root '/ping'.
+						unresolvedTargets.add(to);
+						computedSignals.push({
+							kind: 'computed-express-mount-prefix',
+							file: path.relative(repoRoot, file).split(path.sep).join('/'),
+							pattern: 'nonliteral expression',
+							line: lineNumberAt(text, m.index),
+						});
+					}
+				};
 				for (const candidate of args.slice(1)) {
 					const identMatch = candidate.trim().match(/^([A-Za-z_$][\w$]*)$/);
 					if (!identMatch) continue;
 					const target = identMatch[1];
 					const localBinding = receiverBindingAt(text, target, m.index);
 					if (localBinding) {
-						edges.push({ from: nodeKey(file, fromBinding), to: nodeKey(file, localBinding), prefix });
+						append(nodeKey(file, localBinding));
 						continue;
 					}
 
@@ -2192,25 +2207,25 @@ function buildMountEdges(files, fileTexts) {
 					if (!toFile || !fileSet.has(toFile)) continue;
 					const toBinding = defaultExportedReceiverBinding(fileTexts.get(toFile));
 					if (!toBinding) continue;
-					edges.push({ from: nodeKey(file, fromBinding), to: nodeKey(toFile, toBinding), prefix });
+					append(nodeKey(toFile, toBinding));
 				}
 			}
 		}
 	}
-	return edges;
+	return { edges, unresolvedTargets, computedSignals };
 }
 
 // Prefixes belong to receiver nodes, not whole files: one file may contain both an application
 // root and a Router mounted beneath it. Cycles are bounded rather than recursively guessed through.
-function prefixChainsFor(node, edges, seen = new Set()) {
+function prefixChainsFor(node, edges, unresolvedTargets, seen = new Set()) {
 	if (seen.has(node)) return [];
 	const nextSeen = new Set(seen);
 	nextSeen.add(node);
 	const incoming = edges.filter((edge) => edge.to === node);
-	if (incoming.length === 0) return [''];
+	if (incoming.length === 0) return unresolvedTargets.has(node) ? [] : [''];
 	const prefixes = [];
 	for (const edge of incoming) {
-		for (const parentPrefix of prefixChainsFor(edge.from, edges, nextSeen)) {
+		for (const parentPrefix of prefixChainsFor(edge.from, edges, unresolvedTargets, nextSeen)) {
 			prefixes.push(joinPath(parentPrefix, edge.prefix));
 		}
 	}
@@ -2286,7 +2301,7 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 	// adapter, where a fixture's own header comment collapsed the entire mount graph. String
 	// literals are left intact, so every path/table VALUE this adapter reports is unchanged.
 	const fileTexts = new Map(files.map((f) => [f, maskJsComments(fs.readFileSync(f, 'utf8'))]));
-	const edges = buildMountEdges(files, fileTexts);
+	const mountGraph = buildMountEdges(files, fileTexts, repoRoot);
 
 	const modules = new Map();
 	const moduleEntry = (name) => {
@@ -2309,7 +2324,7 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 		for (const binding of bindings) {
 			const localEndpoints = extractEndpoints(text, binding);
 			if (localEndpoints.length === 0) continue;
-			const prefixes = prefixChainsFor(nodeKey(file, binding), edges);
+			const prefixes = prefixChainsFor(nodeKey(file, binding), mountGraph.edges, mountGraph.unresolvedTargets);
 			const receiverSuffix = `${binding.name.charAt(0).toUpperCase()}${binding.name.slice(1)}`;
 			const duplicateSuffix = (nameCounts.get(binding.name) ?? 0) > 1
 				? `L${lineNumberAt(text, binding.declarationIndex)}`
@@ -2355,7 +2370,7 @@ export function scanTypeScriptExpress(repoRoot, projectRoot) {
 
 	return {
 		modules: [...modules.values()],
-		pathPrefixSignals: [],
+		pathPrefixSignals: mountGraph.computedSignals,
 		apiSurfaceSource: API_SURFACE_SOURCE,
 		filesRead: files.map((f) => path.relative(repoRoot, f)),
 	};
