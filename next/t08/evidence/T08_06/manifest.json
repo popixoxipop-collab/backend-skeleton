@@ -1,0 +1,35 @@
+{
+  "schema": "bskel.t08-static-package-replay-manifest/1",
+  "marker": "DOT-T00-T08-06-20261122",
+  "source": {
+    "previous": "271d5d747d7ef99fb7ce990a95db32fbdf4e46bd",
+    "candidate": "0ecc6a27d026f8e5efbfdae36637534fd5d08a2d",
+    "locks": {
+      "previous": "f53dc054a10dafadcb217a17f3805253bdafc123b0943026ee453dee20210087",
+      "candidate": "c5d31a4bcef1168f6fd07db2544efca0f95d2dad841d108f608a1e23e59e83e0"
+    }
+  },
+  "packages": {
+    "previous": {
+      "revision": "271d5d747d7ef99fb7ce990a95db32fbdf4e46bd",
+      "tree": "c5f1da277f3858cc93cefa8b6c3c0d5956b23e07",
+      "archive_sha256": "72efda536e010294d35941b70f056e435239ba3853f10243c3ec53e3b3766d5b",
+      "member_count": 217,
+      "inventory_sha256": "23a79f2f67b01f95211de786c10e7e188150537f549820c48f4254709e8fbc4b"
+    },
+    "candidate": {
+      "revision": "0ecc6a27d026f8e5efbfdae36637534fd5d08a2d",
+      "tree": "49da0382f0a49a1cca69577a4b33268d0a111f32",
+      "archive_sha256": "2051c8cda0fa2cda077863fce4b3e32be2e8eefc4837c459c1853aad06863c3a",
+      "member_count": 423,
+      "inventory_sha256": "71395c605f3c98a5439e3c9bcae81c9c5a2d2dfeb9cc225695744c5e7064dcab"
+    }
+  },
+  "toolchain": {
+    "node": "v24.19.0",
+    "npm_cli_sha256": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7",
+    "umask": "022"
+  },
+  "compiler_certified": false,
+  "release_authorized": false
+}

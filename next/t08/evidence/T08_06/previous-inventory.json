@@ -1,0 +1,1304 @@
+[
+  {
+    "path": "action.yml",
+    "size": 3382,
+    "mode": 420,
+    "sha256": "55178812c5e5da7585f0bd1aaaef94a74ed0191e0b94df0c2d18d7446ca940bc"
+  },
+  {
+    "path": "bin/bskel.mjs",
+    "size": 291758,
+    "mode": 493,
+    "sha256": "6796557a366050b2c72e55e92e4f04f1b8f54a01ea0bdff53323c7e49aadaff8"
+  },
+  {
+    "path": "COMMERCIAL-LICENSE-AGREEMENT.md",
+    "size": 18004,
+    "mode": 420,
+    "sha256": "b2b973bb803e1aeb91c9edae28a52170e1b320eb2c68ef62ac02c696c488a441"
+  },
+  {
+    "path": "COMMERCIAL-LICENSE.md",
+    "size": 2164,
+    "mode": 420,
+    "sha256": "a45893ef740ca0b46adfb2be985b7cb032fb2dc3a1aae34925b4c7cc625b95c4"
+  },
+  {
+    "path": "contracts/completeness.mjs",
+    "size": 18009,
+    "mode": 420,
+    "sha256": "d6e018a6cafe4552c820ee287e56633c69230ccf229fa5d1ad420bfe55f2bf9a"
+  },
+  {
+    "path": "contracts/csv.mjs",
+    "size": 5218,
+    "mode": 420,
+    "sha256": "e7fd2a800ef982c2c34e0678db87ef7fb57b773b0d0fb6cc2909946213eee63f"
+  },
+  {
+    "path": "contracts/emit.mjs",
+    "size": 29728,
+    "mode": 420,
+    "sha256": "75ea6c46add0fe8afecb72d38db44b486ef9ecb4c85077a443bca376069eea42"
+  },
+  {
+    "path": "contracts/export.mjs",
+    "size": 50539,
+    "mode": 420,
+    "sha256": "c1d57dcf47138a4b7d41453841bbbb02c25661abb1ea7c36b9f4cf8a57f777d7"
+  },
+  {
+    "path": "contracts/openapi.mjs",
+    "size": 126747,
+    "mode": 420,
+    "sha256": "1e80eb1429a73ed70a5135d688bb3442019529beb8ff7698a6cd15ea42e8c1c0"
+  },
+  {
+    "path": "contracts/validate.mjs",
+    "size": 9457,
+    "mode": 420,
+    "sha256": "56115c2b8ecaadb0f4668f93d6f9dae2f6bccbb143365aedfeb9c63f9e3056e8"
+  },
+  {
+    "path": "contracts/webgame.mjs",
+    "size": 5448,
+    "mode": 420,
+    "sha256": "36c84c37a798613017e704e814b534c9a7c1b5cb539949b4ec8212a481e30c88"
+  },
+  {
+    "path": "handles/_engine.mjs",
+    "size": 21226,
+    "mode": 420,
+    "sha256": "6b8d812c8b74368fedf95539a258678832e56b5eed9e32e9034e822a9a3118b0"
+  },
+  {
+    "path": "handles/audit.mjs",
+    "size": 3673,
+    "mode": 420,
+    "sha256": "2c4192d645551f54b45353af723a918ec0641d3b6a0ac256920cc9e268377a23"
+  },
+  {
+    "path": "handles/capability-codec.mjs",
+    "size": 6380,
+    "mode": 420,
+    "sha256": "f4caaee9e6f9b74cdb721f327f55160424a230d25e205d619150c351903e3b66"
+  },
+  {
+    "path": "handles/codec.mjs",
+    "size": 7694,
+    "mode": 420,
+    "sha256": "569ed47755d60d81392c543e7588a43af21cd93b31e4bc9e22599d7f9c958292"
+  },
+  {
+    "path": "handles/conformance.mjs",
+    "size": 3795,
+    "mode": 420,
+    "sha256": "d2da531a619c7c4bbce77b1a9c29ccddc6add30fb0faf81746eb68c08d73da76"
+  },
+  {
+    "path": "handles/observe-schema-projection.mjs",
+    "size": 5466,
+    "mode": 420,
+    "sha256": "2fce6c80bcf1c2b16e689eb7918910d45505635d43b1b1db2c316a6883f70a70"
+  },
+  {
+    "path": "handles/providers/java-spring.mjs",
+    "size": 1963,
+    "mode": 420,
+    "sha256": "a2ad63349a257d2f12e1aa312a3f8f7289653d4edd2fe44b050d18db0886ef06"
+  },
+  {
+    "path": "handles/providers/java-spring/ast-bridge.mjs",
+    "size": 6654,
+    "mode": 420,
+    "sha256": "7c65e3300199668c076cdf0a3f5130c2847a7dc2d0535ae6fcfc8d0f5c3b8deb"
+  },
+  {
+    "path": "handles/providers/java-spring/ast-helper/build.gradle",
+    "size": 914,
+    "mode": 420,
+    "sha256": "d0714df7413a55fe7911aa08a6407c6164b8e281f325b7906346dd736bc7fe10"
+  },
+  {
+    "path": "handles/providers/java-spring/ast-helper/gradle/wrapper/gradle-wrapper.jar",
+    "size": 48462,
+    "mode": 420,
+    "sha256": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7"
+  },
+  {
+    "path": "handles/providers/java-spring/ast-helper/gradle/wrapper/gradle-wrapper.properties",
+    "size": 281,
+    "mode": 420,
+    "sha256": "e0846bd420bf1543f500e0c9b35c01d84611b0f1afe01e24a82d0eca53c33ccb"
+  },
+  {
+    "path": "handles/providers/java-spring/ast-helper/gradlew",
+    "size": 8654,
+    "mode": 493,
+    "sha256": "ab5c0cad16305af2e619c159c1f58dd68d07fab9c11e36701e109c0277407f7a"
+  },
+  {
+    "path": "handles/providers/java-spring/ast-helper/gradlew.bat",
+    "size": 2846,
+    "mode": 420,
+    "sha256": "475c4f08cd57cf2faa819e7f36d72aa93f0ad646ea23a8f7fa3ef54dee1cbc52"
+  },
+  {
+    "path": "handles/providers/java-spring/ast-helper/settings.gradle",
+    "size": 43,
+    "mode": 420,
+    "sha256": "9d1b495623e558670ba45643f043cc5c850b6fca8676360d425c9ae909d5bff9"
+  },
+  {
+    "path": "handles/providers/java-spring/ast-helper/src/main/java/com/backendskeleton/asthelper/Main.java",
+    "size": 25637,
+    "mode": 420,
+    "sha256": "9ed1e6cb3c04bfcc9f4d9305ed6c1b2ba5cf28061a8329843e4cbb4466d57846"
+  },
+  {
+    "path": "handles/providers/java-spring/emit.mjs",
+    "size": 28376,
+    "mode": 420,
+    "sha256": "6def153065c83d9ead65074702aee4309c69fbf5133605ccae9e1ee508cd4769"
+  },
+  {
+    "path": "handles/providers/java-spring/observe.mjs",
+    "size": 8008,
+    "mode": 420,
+    "sha256": "7ab9cc5c74f233876acdebc997bc71b497f3678524077acedce08404633396fc"
+  },
+  {
+    "path": "handles/providers/java-spring/patch-strategy.mjs",
+    "size": 13795,
+    "mode": 420,
+    "sha256": "672dbd92579a036313824803aa787ab655d69dddbbdadbc9de7b63bf922e8046"
+  },
+  {
+    "path": "handles/providers/java-spring/plan.mjs",
+    "size": 40357,
+    "mode": 420,
+    "sha256": "e1e73544d8bd5b5ac8330fd860dacb7d44dc8b4cfc343f79870a7135e8dcce3a"
+  },
+  {
+    "path": "handles/providers/java-spring/rules.mjs",
+    "size": 8720,
+    "mode": 420,
+    "sha256": "78e50274d6bb576ba45c29e95e929220b6a1d7ec1dcbc9312a9f16b4a96cb64c"
+  },
+  {
+    "path": "handles/providers/java-spring/source-splice.mjs",
+    "size": 25565,
+    "mode": 420,
+    "sha256": "baf41127fb7f78982023aa0e001f4e5807a46f34d9d424bf5691316455bdbb59"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/AuthorizationPolicyStub.java.tmpl",
+    "size": 1543,
+    "mode": 420,
+    "sha256": "1e6c474d167c210f1367ddb1383f469421fcd17f7693e47c454fb604838bf5b8"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/ContractCheck.java.tmpl",
+    "size": 6214,
+    "mode": 420,
+    "sha256": "d5690db7616106f1d9c32763bdd860cba390bf2a23d44c5325db6413574abfaa"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/ContractObservationAspect.java.tmpl",
+    "size": 11228,
+    "mode": 420,
+    "sha256": "d8f234af08279f22a97b099a4a3fd42c07d51d6279171be9dacb50006cd1a182"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/EnforceRules.java.tmpl",
+    "size": 2227,
+    "mode": 420,
+    "sha256": "d9141765de08d74a6a5589aa6d3ced9d039ebab2d49999cd8586491bac155d2a"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/HandleAspect.java.tmpl",
+    "size": 5845,
+    "mode": 420,
+    "sha256": "5f66c7ff60360ec3d4dbd720cf09d90d773d942888beda8c577a5d399b460bcd"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/HandleCodec.java.tmpl",
+    "size": 7804,
+    "mode": 420,
+    "sha256": "8d31cf1b395bcef49b6a1243edad467bbe1efb6d97a3b9a1a5bee4942beb3d47"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/HandleController.java.tmpl",
+    "size": 13943,
+    "mode": 420,
+    "sha256": "45f9f90baf51b725b7aca6d120e6bfbea9353489a9812e775ca091d7b0b3a8fb"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/HandleRegistry.java.tmpl",
+    "size": 3660,
+    "mode": 420,
+    "sha256": "6c26584aab502aa6fe99f2472fb43c7068c70b1a77c5aa763437499503e297c4"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/HandleRegistryRepository.java.tmpl",
+    "size": 218,
+    "mode": 420,
+    "sha256": "f33c84b0155e737e3261a5b08fc7843c78098d032b1fdaa5275db0bf5fb526f5"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/HandleService.java.tmpl",
+    "size": 6380,
+    "mode": 420,
+    "sha256": "54ff9a0954e66dfb12182a1f85da62e39646f15f8761b4657a35c194616e7b39"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/HandleSnapshot.java.tmpl",
+    "size": 2843,
+    "mode": 420,
+    "sha256": "6b3706ce8dfcb7b78fdd660b08a4d3702a557ff9ebbfdba52c3fe39ba600d64d"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/HandleSnapshotRepository.java.tmpl",
+    "size": 734,
+    "mode": 420,
+    "sha256": "834d6f358a04de2f0876017d08688626c8b02339996ea645f397f26a4e6fd5eb"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/migration.sql.tmpl",
+    "size": 1437,
+    "mode": 420,
+    "sha256": "efc81420ade60dac51bac6ae5954029bf57b4f33f1567ddfcd10cda60fc89ac3"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/ObserveContract.java.tmpl",
+    "size": 2052,
+    "mode": 420,
+    "sha256": "079489b84263e3aa578e3bd644358de1a682343cba21701f6ab61d3f9e491e65"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/ObserveSchemaLoader.java.tmpl",
+    "size": 6404,
+    "mode": 420,
+    "sha256": "f866cbb58c151072ec6b19b8b01bedc48509af19ee5618a56730358a0cd8ae90"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/ReceiptSigner.java.tmpl",
+    "size": 7312,
+    "mode": 420,
+    "sha256": "436a236c5872c17b8510c63974cbc29eaba2f0256810eadd29f631c39697fd94"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/RecordHandleSnapshot.java.tmpl",
+    "size": 2505,
+    "mode": 420,
+    "sha256": "e417341144b49cbe206778bbc375c6bb373a316d108b1298f85b9ea331cc6bdf"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/ResourceResolver.java.tmpl",
+    "size": 6981,
+    "mode": 420,
+    "sha256": "7773a7688f6f8739495823c1e4d2152d901b13cb15db83977c5cb691d34ce0a3"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/ResourceResolverPolicyStub.java.tmpl",
+    "size": 2830,
+    "mode": 420,
+    "sha256": "f98ba47d9bec7a2910107c65584752e0099eb43ab7b01595a11ae24cf60871ca"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/ResourceResolverStub.java.tmpl",
+    "size": 3884,
+    "mode": 420,
+    "sha256": "ffd9ea825bdfc7e7c3eeed8d4793bbbe93a0a95623176ab17a8a8a1730ca944c"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/RuleCheck.java.tmpl",
+    "size": 11214,
+    "mode": 420,
+    "sha256": "be07e66e4bba388bb9f043d9753b22d6452fc669876cf81ec23f498d42ca0328"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/RuleEnforcementAspect.java.tmpl",
+    "size": 6308,
+    "mode": 420,
+    "sha256": "7cbc51841ffda595a7d72d8823d2538a53700c0061a33f10e61b337581ee85b3"
+  },
+  {
+    "path": "handles/providers/java-spring/templates/RuleSetLoader.java.tmpl",
+    "size": 5584,
+    "mode": 420,
+    "sha256": "40dde6114f970d914c333dc8611b5d9a1d05f213c0182e7abd2d298dc86a2ef7"
+  },
+  {
+    "path": "handles/providers/python-fastapi.mjs",
+    "size": 1098,
+    "mode": 420,
+    "sha256": "13850583b642b9e597b94e9c3de59bca6713df759031953e333e3f9aa1325fbd"
+  },
+  {
+    "path": "handles/providers/python-fastapi/emit.mjs",
+    "size": 13005,
+    "mode": 420,
+    "sha256": "ef31b411973514928cebb0a1674498d33a632a9b6946eac15d3469542d2ee047"
+  },
+  {
+    "path": "handles/providers/python-fastapi/observe.mjs",
+    "size": 7506,
+    "mode": 420,
+    "sha256": "923a8611f1a7ad498b2111a45b2db8c255c7876441fe69d1754105b4701cace4"
+  },
+  {
+    "path": "handles/providers/python-fastapi/plan.mjs",
+    "size": 9069,
+    "mode": 420,
+    "sha256": "ccece24b4db1db09970c8b381cd43cbf661ee7cc356986b796d52a83e46ec097"
+  },
+  {
+    "path": "handles/providers/python-fastapi/rules.mjs",
+    "size": 8183,
+    "mode": 420,
+    "sha256": "642eebe589f0fe4df5a00239a53d70177034d0527cbed4972ee730b69cbc9955"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/__init__.py.tmpl",
+    "size": 96,
+    "mode": 420,
+    "sha256": "c8df01ea5a99c9ffd1d2b479cb3817c4af92be9dac91a973ca08d5d30a3f6c0c"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/codec.py.tmpl",
+    "size": 6949,
+    "mode": 420,
+    "sha256": "751a83518199e989c33388b9d9a167cb4997ee388a13dc1043074ae704a2a9cc"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/contract_check.py.tmpl",
+    "size": 5724,
+    "mode": 420,
+    "sha256": "e2e487292396bc926846e876bae0bbb7573996783119aafbfd112a2f0b8b74bf"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/enforce_rules.py.tmpl",
+    "size": 6038,
+    "mode": 420,
+    "sha256": "d99e1e90afdb58760f19f81ee21db69fbf51517d62fe11e9ef4e074edaf0a37c"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/handle_service.py.tmpl",
+    "size": 4139,
+    "mode": 420,
+    "sha256": "123179edbaa4b35e92f6e0326e2454a63fc4863f623d36f0385a5b3ea060ddf4"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/migration.sql.tmpl",
+    "size": 1533,
+    "mode": 420,
+    "sha256": "88ca526638d74363081b9c8712ec3c2d377483aa0ec6531c74da63070982c6b2"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/observe_contract.py.tmpl",
+    "size": 9060,
+    "mode": 420,
+    "sha256": "e5d3257386058d6736557a17f46fa0251863398542253ceb1658d1b61fdecdca"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/observed_schema.py.tmpl",
+    "size": 4614,
+    "mode": 420,
+    "sha256": "bf576ffd98984d2e930a0640fab6b507a7b41c7bbba0125a30e41134bfd117dd"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/receipt_sign.py.tmpl",
+    "size": 3784,
+    "mode": 420,
+    "sha256": "2b2e06f0a8ce0bd07e63ec73015c0e289774219d6e8194ea549c5f5af9887c69"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/record_snapshot.py.tmpl",
+    "size": 14110,
+    "mode": 420,
+    "sha256": "c99c91b7b53f50a5d1723c564160b6b85bddef4c47142a4a48ef2021abf60411"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/registry.py.tmpl",
+    "size": 1543,
+    "mode": 420,
+    "sha256": "8d97496b38e4e12f1a3a2c001bbc12409186fcbe8e41f349d4b78a13fad098a7"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/resolver_policy.py.tmpl",
+    "size": 1107,
+    "mode": 420,
+    "sha256": "1fc8f5119cc229949cdbdf719019fd23ea2423b5dec97c2a42e505c1c69ce673"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/resolver.py.tmpl",
+    "size": 3285,
+    "mode": 420,
+    "sha256": "3b39423b2f7b6ed407970e12eee32e4e987bca790c6fadfe74e8edea74baeef8"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/resolvers_init.py.tmpl",
+    "size": 1004,
+    "mode": 420,
+    "sha256": "91176d29e5cfd62b3b8d689803ade71e596b7b74b4c63b4191293fd7a44262da"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/router.py.tmpl",
+    "size": 9109,
+    "mode": 420,
+    "sha256": "0737fd79d58ed984532776461d001fce5744b6be148e09c79f2d974dee949c53"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/rule_check.py.tmpl",
+    "size": 9439,
+    "mode": 420,
+    "sha256": "a168534a23bfe7391cf5f7c6801ac229537d2c23b36566d4419341e8ea27117f"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/rule_set.py.tmpl",
+    "size": 2333,
+    "mode": 420,
+    "sha256": "51e1836175d60c9c8dbecde85ea3dc1e4a66be95fb02925c415d90ab2c6f3aa1"
+  },
+  {
+    "path": "handles/providers/python-fastapi/templates/tables.py.tmpl",
+    "size": 3130,
+    "mode": 420,
+    "sha256": "247d9f199d2eeb16b7513374de369d6c8294f53fa851df9cef9f077ded0cf384"
+  },
+  {
+    "path": "handles/providers/typescript-express.mjs",
+    "size": 1233,
+    "mode": 420,
+    "sha256": "534ce20dd777d4649920656590769bce90868b09192be4a16f0db9312badd19d"
+  },
+  {
+    "path": "handles/providers/typescript-express/emit.mjs",
+    "size": 13420,
+    "mode": 420,
+    "sha256": "daf5a95a086507584c03921fac28fcac632acfbef0f9a1bc1c1af9d18532c5f1"
+  },
+  {
+    "path": "handles/providers/typescript-express/observe.mjs",
+    "size": 9280,
+    "mode": 420,
+    "sha256": "33c4007ca5fe182de97a81362f4e7f47def794e6e8a7d52625c8012ac722566f"
+  },
+  {
+    "path": "handles/providers/typescript-express/plan.mjs",
+    "size": 14507,
+    "mode": 420,
+    "sha256": "183301924d0d389a93687afc9f0a841bf90f60eb16ff5d22dfb800fcb4fa8609"
+  },
+  {
+    "path": "handles/providers/typescript-express/rules.mjs",
+    "size": 7615,
+    "mode": 420,
+    "sha256": "f3faf1c2ee3b55abd5ffcbbd81128c43e5fc8fdf857b3c0e5477ebe76e32531a"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/codec.ts.tmpl",
+    "size": 7456,
+    "mode": 420,
+    "sha256": "291dcf36670b5da8f0ac709b519e863fb68c51fc1366b5776b42b0da0572ce2b"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/contractCheck.ts.tmpl",
+    "size": 6005,
+    "mode": 420,
+    "sha256": "f3b03b5ffed7572ae1ea822f116a0d8449f94a6d2b959a2de044bec03268c530"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/enforceRules.ts.tmpl",
+    "size": 4585,
+    "mode": 420,
+    "sha256": "ffb3de5bb9dfc1420f1f0d03aae470e200f3d4cefa854d320032d2d342eb3012"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/handleEntities.ts.tmpl",
+    "size": 3296,
+    "mode": 420,
+    "sha256": "abc8192b85c91c5e0c9d4aedb8ec8b82d4987c186e8f7a46866c7b2e3365fd0e"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/handleService.ts.tmpl",
+    "size": 4647,
+    "mode": 420,
+    "sha256": "65c97786643d059afdf38d87af5a43b0891b0d06d96d4ce9dfcde6ce266937aa"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/migration.sql.tmpl",
+    "size": 1559,
+    "mode": 420,
+    "sha256": "8c399d43a189740c36ff31b12d8970690f5633078afb9ee99589d2a1dfb34db1"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/observeContract.ts.tmpl",
+    "size": 7668,
+    "mode": 420,
+    "sha256": "82fd9810ed1cd08f67178fc9abcde6737b7136db95ca1ec882605984658afa62"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/observedSchema.ts.tmpl",
+    "size": 4721,
+    "mode": 420,
+    "sha256": "994c6e58023b51987a3bd85a7319145238bd483c60bb84886fffd260d628feee"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/receiptSign.ts.tmpl",
+    "size": 3394,
+    "mode": 420,
+    "sha256": "6ab1b65c8db7c6047971dd8cb8e570bb85918c85159fce3cb875d88a12c427cd"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/recordSnapshotWrapper.ts.tmpl",
+    "size": 6680,
+    "mode": 420,
+    "sha256": "7dba7a154636dd784bcc9d88c90538d7299243ec8fbc5f16f61b842a5ef78834"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/registry.ts.tmpl",
+    "size": 2702,
+    "mode": 420,
+    "sha256": "095e8d6682ad62375dfb2316a4f5aa1425cdc62a917ba6bac7613775f5925f51"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/resolver.ts.tmpl",
+    "size": 4276,
+    "mode": 420,
+    "sha256": "2cbdd23f58d5d5c149a9b8f7fdcdf1a82b3fae66e27bdf9256493f90627407f6"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/resolverPolicy.ts.tmpl",
+    "size": 1363,
+    "mode": 420,
+    "sha256": "dc93ee87d50ce5ad9289d8224b34efec70d5c9c7668569bc0a81a97cda5900d9"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/resolvers_index.ts.tmpl",
+    "size": 833,
+    "mode": 420,
+    "sha256": "fdb9bb0902b6a082592c5dd0e815ca4ef18edcc15b1a86e57059565e776a3f4f"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/router.ts.tmpl",
+    "size": 10202,
+    "mode": 420,
+    "sha256": "9a75d3b1a881f728a7a1349928269254c5c0b862367730abb4566064fc9cbbf2"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/ruleCheck.ts.tmpl",
+    "size": 9493,
+    "mode": 420,
+    "sha256": "708d9b667ccc0b41fa605986393c38c7536467b163dd89f2a620d12861b96997"
+  },
+  {
+    "path": "handles/providers/typescript-express/templates/ruleSet.ts.tmpl",
+    "size": 2448,
+    "mode": 420,
+    "sha256": "52f7414243de2bb7922dfaffe4078ef3485711774f452d37c3a63f865f946149"
+  },
+  {
+    "path": "handles/registry.mjs",
+    "size": 3921,
+    "mode": 420,
+    "sha256": "6b5ba29db0e39f493e00d63baae1dd76f4b8c528d7ec021f71ca47ab82c386fa"
+  },
+  {
+    "path": "lib/attest.mjs",
+    "size": 5382,
+    "mode": 420,
+    "sha256": "115e5a0f3456b4a70de3e2aadc4478710df84d39308f63884ffe9fb99cef3536"
+  },
+  {
+    "path": "lib/ci-check.mjs",
+    "size": 9703,
+    "mode": 420,
+    "sha256": "36bbd30c3200c2d76f6635452021643bf964f14acb9c817c24317b63d674c8e8"
+  },
+  {
+    "path": "lib/cli.mjs",
+    "size": 47103,
+    "mode": 420,
+    "sha256": "5e5fc2454c4078d46ef5ab24589e0edc7e466a6e4ae351eb276da1fd0295095e"
+  },
+  {
+    "path": "lib/cross-feature-collisions.mjs",
+    "size": 17898,
+    "mode": 420,
+    "sha256": "00e62e8f8340d198a83cf875c3ccb41c1c1f6685d12ec9f745c000d632745a44"
+  },
+  {
+    "path": "lib/decision-log.mjs",
+    "size": 3106,
+    "mode": 420,
+    "sha256": "f946807e06cf8a091c9c0590d2f6f720b73b12b213fe850a26f9dd370c8e8557"
+  },
+  {
+    "path": "lib/diff.mjs",
+    "size": 1897,
+    "mode": 420,
+    "sha256": "c82649fd325fe2e80ee32b76e96129a0392124952cc2d9b9dba333b6c2723306"
+  },
+  {
+    "path": "lib/doctor.mjs",
+    "size": 11754,
+    "mode": 420,
+    "sha256": "9214e017dc5433a5435d7764c1afe589b28c3cf0ecb86d1d49e020c9e17b7343"
+  },
+  {
+    "path": "lib/exit-codes.mjs",
+    "size": 6744,
+    "mode": 420,
+    "sha256": "41e9c86e111555a4b9ecffc19120c05ad885177d8aed0b71cfa4ed196fdeb1b1"
+  },
+  {
+    "path": "lib/featureid.mjs",
+    "size": 2429,
+    "mode": 420,
+    "sha256": "dea24a2397905e3907cc46a6a8cc4ca28def762ad68b16e2b2beeaeb8dcc2d5d"
+  },
+  {
+    "path": "lib/featurelifecycle.mjs",
+    "size": 9959,
+    "mode": 420,
+    "sha256": "c3f1edda4abb964eca3d02e3c374a738cf3482378c630b45752e412e0742951c"
+  },
+  {
+    "path": "lib/field-dependencies.mjs",
+    "size": 19660,
+    "mode": 420,
+    "sha256": "46dcbef5bcee58fbc08477989e354b2d1588c70ba52acb0386b1d5c785b6fc96"
+  },
+  {
+    "path": "lib/fsutil.mjs",
+    "size": 2849,
+    "mode": 420,
+    "sha256": "f04805bc38b178aaad0328c06ac286d7cf9483fd831df6b1794025c1f80e1b89"
+  },
+  {
+    "path": "lib/gate-definitions.mjs",
+    "size": 34100,
+    "mode": 420,
+    "sha256": "c35df1783807151824502f1bc667751e1b221fedfdb9dda6134d6a29839786c2"
+  },
+  {
+    "path": "lib/gate-export.mjs",
+    "size": 13464,
+    "mode": 420,
+    "sha256": "8465e954c844a5972f3259f1fd0d519cda46ae47e403f7877894d54a749ed07a"
+  },
+  {
+    "path": "lib/gates.mjs",
+    "size": 15056,
+    "mode": 420,
+    "sha256": "fbc4a10188cac2694c6ed482dad6aebc2dcf7f64b8ccdbe9669e4bb94e84a6bd"
+  },
+  {
+    "path": "lib/handles-manifest.mjs",
+    "size": 6372,
+    "mode": 420,
+    "sha256": "164f0b4e7ad15fa3403faa08d04f59c2286b114ad805bf50eb4023d7cffd04bd"
+  },
+  {
+    "path": "lib/http-server.mjs",
+    "size": 18441,
+    "mode": 420,
+    "sha256": "e22a23f121940b7acc986dc13b457aa669e14f4f11a252f4a34ca6b5f08bc2d0"
+  },
+  {
+    "path": "lib/impact-export-graphify.mjs",
+    "size": 6338,
+    "mode": 420,
+    "sha256": "dc3e68eac0d9d64669ec0c966d5987fe6042359a32d52df620cdafaaab5166e7"
+  },
+  {
+    "path": "lib/impact-graph.mjs",
+    "size": 10621,
+    "mode": 420,
+    "sha256": "9c129873ba3c46d095aaa10d1e682b25498088514943a5fd07f8ae3614b2ab58"
+  },
+  {
+    "path": "lib/impact-surface.mjs",
+    "size": 9249,
+    "mode": 420,
+    "sha256": "b6aaf4638013ca29461ac0e9676eb8712c6e15689e28c4cdb85206b5fb42cdb3"
+  },
+  {
+    "path": "lib/impact.mjs",
+    "size": 17342,
+    "mode": 420,
+    "sha256": "bc52ecd6835a4b6e0af2551a56ae8dc93eaf66b75798962d7212490b35ae24b9"
+  },
+  {
+    "path": "lib/lock.mjs",
+    "size": 6270,
+    "mode": 420,
+    "sha256": "e737ad291744f530dbe24d8b9cd49696304f251198deda1c72b0d2c5b9365be1"
+  },
+  {
+    "path": "lib/patch-approvals.mjs",
+    "size": 2924,
+    "mode": 420,
+    "sha256": "d3b4d7ca86f8a4d8eaf2367b4ea4d392a75646f726dffc590dfeee5287227218"
+  },
+  {
+    "path": "lib/patch-kinds.mjs",
+    "size": 4178,
+    "mode": 420,
+    "sha256": "2ed432d67305ffe1633740ada4dd2b602c723ec68cdbc58cfb7356cfcffcf986"
+  },
+  {
+    "path": "lib/patch-transactions.mjs",
+    "size": 10606,
+    "mode": 420,
+    "sha256": "2a6319308afdbfa3162d826d9904ac99e3e3d40b144d53ae1e98f82133c567d2"
+  },
+  {
+    "path": "lib/paths.mjs",
+    "size": 964,
+    "mode": 420,
+    "sha256": "e9faaf3c82631ad476a737d030f766d31ee19043cafdc07c7d72a8801496375a"
+  },
+  {
+    "path": "lib/repo.mjs",
+    "size": 6560,
+    "mode": 420,
+    "sha256": "8692f3e089d4cce56019c57c97a2955487c93914931c07ab28470aa569701068"
+  },
+  {
+    "path": "lib/scan-report-paths.mjs",
+    "size": 2880,
+    "mode": 420,
+    "sha256": "7a5f05d2677e7d4419143a14809a30bc4d2572c57d7f93dc004e69fcdefbfdf1"
+  },
+  {
+    "path": "lib/schema-validate.mjs",
+    "size": 2526,
+    "mode": 420,
+    "sha256": "b0ab99fd7568119f9827bcaf3d1341aeb89511afc9141060b9129bc6a8c6cf27"
+  },
+  {
+    "path": "lib/serve-ui.html",
+    "size": 13524,
+    "mode": 420,
+    "sha256": "5cff86f926066c52b0c0194f6c3463755941dd84c53e116b1e57104acdcf268a"
+  },
+  {
+    "path": "lib/state.mjs",
+    "size": 6301,
+    "mode": 420,
+    "sha256": "995ad47bdab87605496d1a40886740fbb7bfca584209f9633304f894de306b37"
+  },
+  {
+    "path": "lib/template.mjs",
+    "size": 1986,
+    "mode": 420,
+    "sha256": "8d32528713032f4197682d6f1d302059ab101ff6fab08c918e6312a837b02c37"
+  },
+  {
+    "path": "lib/verify.mjs",
+    "size": 14152,
+    "mode": 420,
+    "sha256": "80b2e3a330cadcf502bb481e4a739726d0367f0e43c02d9f666b2b86a582d65c"
+  },
+  {
+    "path": "lib/workflow.mjs",
+    "size": 13733,
+    "mode": 420,
+    "sha256": "1475a7eb13b0a23f6b96929a4c384321cf34228371b1bc4cef71f70d3e1ab6b6"
+  },
+  {
+    "path": "LICENSE",
+    "size": 34523,
+    "mode": 420,
+    "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
+  },
+  {
+    "path": "new/fastapi.mjs",
+    "size": 8210,
+    "mode": 420,
+    "sha256": "6253efa5c60cfc072b430809675af458defcc1e191ae7e8620a71e2d804fec8d"
+  },
+  {
+    "path": "new/index.mjs",
+    "size": 5944,
+    "mode": 420,
+    "sha256": "1897e8005acb2c882ac086e61a8a473915f0e78b79610593cf9ef1571e2d5e95"
+  },
+  {
+    "path": "new/params.mjs",
+    "size": 14667,
+    "mode": 420,
+    "sha256": "dcd0f00b23048801d2e706cf0170b5b087d35e37f5015146a240e416b0cd6973"
+  },
+  {
+    "path": "new/spring.mjs",
+    "size": 10492,
+    "mode": 420,
+    "sha256": "61050442c8b95c10a7eb9ff226e3d23d1559ce00a825e5c287096aa9d2aa5a16"
+  },
+  {
+    "path": "new/templates/fastapi/app/__init__.py",
+    "size": 0,
+    "mode": 420,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "new/templates/fastapi/app/main.py",
+    "size": 143,
+    "mode": 420,
+    "sha256": "7af57262820569d57097ca7a10bccb6d2a302226d28798a7cf019980cde3c0e0"
+  },
+  {
+    "path": "new/templates/fastapi/gitignore",
+    "size": 44,
+    "mode": 420,
+    "sha256": "d8d1eb571a4bf9be5204f29c5cc73780a8d4ce57f7d7486aa59d5b8ff5bbabaf"
+  },
+  {
+    "path": "new/templates/fastapi/pyproject.toml",
+    "size": 380,
+    "mode": 420,
+    "sha256": "22d942475b74697988c2aeb90508d2b2cbc55317ad189ac90b9408f978533a47"
+  },
+  {
+    "path": "new/templates/fastapi/README.md",
+    "size": 701,
+    "mode": 420,
+    "sha256": "a90260eb180f6439bf7233144e166bfbc1d96c21233e77d93bb16ccd8809f9bd"
+  },
+  {
+    "path": "package.json",
+    "size": 2851,
+    "mode": 420,
+    "sha256": "728d85992b671e23b9bb6f33056c348ff9198ba006e92ef638d8381fd081aa64"
+  },
+  {
+    "path": "patterns/schema.sql",
+    "size": 1046,
+    "mode": 420,
+    "sha256": "a28f7caa43a066a3439df4b4c66ada202f6aac05a8f8eb575f39fa0aa6113563"
+  },
+  {
+    "path": "patterns/store.mjs",
+    "size": 5011,
+    "mode": 420,
+    "sha256": "f31ef4b636d959ab1d145a0f28dd6bfca01ec468e0d33b46a1ec5d71191622db"
+  },
+  {
+    "path": "README.md",
+    "size": 50367,
+    "mode": 420,
+    "sha256": "eb082e6295ec3ae719ea5de853bb061eed44427cd29bbb772b1d12532210868c"
+  },
+  {
+    "path": "rules/compile.mjs",
+    "size": 22454,
+    "mode": 420,
+    "sha256": "a3877ab98593f9a2f8f27654e5c5782f5d392309bfdf829de87c5ae1aca831c7"
+  },
+  {
+    "path": "rules/derived.mjs",
+    "size": 4935,
+    "mode": 420,
+    "sha256": "187293222107d4e3e5ba5733fffe6491603938ddec3dfcb9499823d8c239e43d"
+  },
+  {
+    "path": "rules/diagnostics.mjs",
+    "size": 7944,
+    "mode": 420,
+    "sha256": "90d90cb9ecf34831404c3ce2b3e4bbf186ea292498295fe87939ff33e28a797f"
+  },
+  {
+    "path": "rules/store.mjs",
+    "size": 6497,
+    "mode": 420,
+    "sha256": "c5b5cfdabd4dcf6ede6daba790a20150e4e3c764b24274439b9a9ce5a9bb0bf3"
+  },
+  {
+    "path": "rules/vocabulary.mjs",
+    "size": 11127,
+    "mode": 420,
+    "sha256": "947416ab9d6ebaad9b795b584118cd99ee3d6a4240c0f35283f9d09689c4b2c7"
+  },
+  {
+    "path": "scanners/adapters/_express-shared.mjs",
+    "size": 12464,
+    "mode": 420,
+    "sha256": "62072f33f09021afcf15744eba6393da1c9fb371d0cd398bbcc4d032b3385d01"
+  },
+  {
+    "path": "scanners/adapters/_java-spring-analyzer.mjs",
+    "size": 19285,
+    "mode": 420,
+    "sha256": "852ab6874a3bd855f05feee466249726b65da8c30ebf21cae185dd7e7720518e"
+  },
+  {
+    "path": "scanners/adapters/generic-grep.mjs",
+    "size": 6757,
+    "mode": 420,
+    "sha256": "13ae4f14b7fb16af0c8ae39bc29e81afffb52d376fa781d7d33a7585fb26ee13"
+  },
+  {
+    "path": "scanners/adapters/java-spring.mjs",
+    "size": 33351,
+    "mode": 420,
+    "sha256": "76abcacf8fde31f171eced2a396b90b6ce27874404b764761ec2378f748801cf"
+  },
+  {
+    "path": "scanners/adapters/javascript-express.mjs",
+    "size": 29026,
+    "mode": 420,
+    "sha256": "e12a6c6ae881591073fcee261d4438893f6df8f7ae8c8577688ba7f86f8bc4ab"
+  },
+  {
+    "path": "scanners/adapters/python-fastapi.mjs",
+    "size": 28719,
+    "mode": 420,
+    "sha256": "6601ad11625f40a6874662283b5c80d3cde6e56fc5b2cf3f36a3fc1ada30ee9e"
+  },
+  {
+    "path": "scanners/adapters/ruby-rails.mjs",
+    "size": 26862,
+    "mode": 420,
+    "sha256": "1623cc4242354a3e42f97f0f02a1a4bebd5ac7ac5b6ea3ef79a2965b09c4b0ff"
+  },
+  {
+    "path": "scanners/adapters/typescript-express.mjs",
+    "size": 20302,
+    "mode": 420,
+    "sha256": "de12daccdff91e2916a1e77f6efd949c8c6f4bdfd96c745c6fd6059819e1ce4b"
+  },
+  {
+    "path": "scanners/capabilities.mjs",
+    "size": 5455,
+    "mode": 420,
+    "sha256": "b9b862735b23665e7008916a970e72ebcd991261398addc85abc1ec66d9c9264"
+  },
+  {
+    "path": "scanners/conformance.mjs",
+    "size": 2669,
+    "mode": 420,
+    "sha256": "5a070d9b5645e32749f7f3f533b56a82b0d60695419b2429661cc92516c454f2"
+  },
+  {
+    "path": "scanners/db/ddl-apply.mjs",
+    "size": 13517,
+    "mode": 420,
+    "sha256": "d6164d5122122e3f8054df80e1c74922f4af0b1396f32c9a197b6b05ee3997f1"
+  },
+  {
+    "path": "scanners/db/erd.mjs",
+    "size": 15356,
+    "mode": 420,
+    "sha256": "2d3d42081109145e5f8f214215d34378c9c581e278a4a9ca01ee4df535ccb5ba"
+  },
+  {
+    "path": "scanners/db/introspect.mjs",
+    "size": 8533,
+    "mode": 420,
+    "sha256": "231f22059f3e41a6ec26a9edd42541b44d166a66faefaef597eacdb24e9770cf"
+  },
+  {
+    "path": "scanners/db/migrations.mjs",
+    "size": 9359,
+    "mode": 420,
+    "sha256": "6c4ceb72e20ee794d951ca53d03ca959dfc95aa1ec573448f659051c603e7cbe"
+  },
+  {
+    "path": "scanners/index.mjs",
+    "size": 20077,
+    "mode": 420,
+    "sha256": "d6261c741e45df7f7b9b48b812158e575c3a0ef48a5c144d2e68f2733d13d63c"
+  },
+  {
+    "path": "scanners/registry.mjs",
+    "size": 7404,
+    "mode": 420,
+    "sha256": "f67968e4ef43cc138e4652c7d5b6e877d17e0cf79daa12a42ba83b5d8112ab8e"
+  },
+  {
+    "path": "scanners/render.mjs",
+    "size": 7116,
+    "mode": 420,
+    "sha256": "98cdda1731a694fb38eb0344372a480e5590f6137e84008c86979d2ff264ba37"
+  },
+  {
+    "path": "scanners/text-util.mjs",
+    "size": 3372,
+    "mode": 420,
+    "sha256": "293383368952be98c7f868847c8184ebc5df49615a3bdd7861613a372e8d2198"
+  },
+  {
+    "path": "scanners/webgame.mjs",
+    "size": 12897,
+    "mode": 420,
+    "sha256": "312ba2beee88b0f8e89adf10311f89b7d5877084fc2f6327aafe073181fa97ff"
+  },
+  {
+    "path": "schemas/adapter.schema.json",
+    "size": 1978,
+    "mode": 420,
+    "sha256": "d790174b3b2bb7c079983794ddc8a96455ca8566a52f5d2cc8d8bb2ed13578ce"
+  },
+  {
+    "path": "schemas/agent-envelope.schema.json",
+    "size": 1248,
+    "mode": 420,
+    "sha256": "52165fbedad535588087b8fcebd1d98cee32d08ebe45bfc21511b16d006b9ee8"
+  },
+  {
+    "path": "schemas/conformance-report.schema.json",
+    "size": 3635,
+    "mode": 420,
+    "sha256": "96b540227a922ed7a06f540430aa65fbd4b9e4d818b4a2ef06704827a3e02dde"
+  },
+  {
+    "path": "schemas/contract-identity.golden.json",
+    "size": 2210,
+    "mode": 420,
+    "sha256": "a8cc038183c9e1d3ba8a8c7c67251d7ba3b794f17fe72befb6a9b3f665042364"
+  },
+  {
+    "path": "schemas/contract-identity.schema.json",
+    "size": 1712,
+    "mode": 420,
+    "sha256": "949875b82667009e45bc1ecb36f1c373745f32e08f4600339f4c7e31fef54159"
+  },
+  {
+    "path": "schemas/contract-resolution.schema.json",
+    "size": 1938,
+    "mode": 420,
+    "sha256": "e3cca0691aef4c8acb340a3fc7a94461c248ea8f5332e9eccd40d14f8a270b17"
+  },
+  {
+    "path": "schemas/cross-feature-report.schema.json",
+    "size": 5760,
+    "mode": 420,
+    "sha256": "9da2ddd9965ae41587dfe48bbae6c5dc080c9d29657c2594627cebb946b6d1e3"
+  },
+  {
+    "path": "schemas/cross-feature-resolution.schema.json",
+    "size": 1783,
+    "mode": 420,
+    "sha256": "a2232a009b686f08fc21bf340bf0cc817b8ecbb54cd9ee67d0aedbbc1fb4fd85"
+  },
+  {
+    "path": "schemas/decision-event.schema.json",
+    "size": 3441,
+    "mode": 420,
+    "sha256": "cd242c895514c9417eb7acaf76b93f62ac06d781e63cfdc6b60f849435c71ce5"
+  },
+  {
+    "path": "schemas/feature-contract.schema.json",
+    "size": 10209,
+    "mode": 420,
+    "sha256": "ef18fd7e089e6754c6178a385dbb56bd69b19b3bf150d39e1739d0c5f0cd2fcb"
+  },
+  {
+    "path": "schemas/feature-index.schema.json",
+    "size": 1455,
+    "mode": 420,
+    "sha256": "cfb70ebd50bcb39a0e1274e1c64edea19a3fe3723a2ac53ad8f84b38f4b3cae9"
+  },
+  {
+    "path": "schemas/feature-rules.schema.json",
+    "size": 8533,
+    "mode": 420,
+    "sha256": "4064aed348653abd274edea585dccfff473617e7ce87c1ee102f6e5047e35f6c"
+  },
+  {
+    "path": "schemas/feature.schema.json",
+    "size": 1099,
+    "mode": 420,
+    "sha256": "823e73ea392120f0c108778b8d76aed3f717405719387d2515fac98dbeb9e42f"
+  },
+  {
+    "path": "schemas/field-dependency.schema.json",
+    "size": 2887,
+    "mode": 420,
+    "sha256": "f85d7c5f4f69c111bd7c58692f8bac1278e66603dc5b286cff860dbb270ffb5e"
+  },
+  {
+    "path": "schemas/gate-attestation.schema.json",
+    "size": 1800,
+    "mode": 420,
+    "sha256": "9c178ef7a75d955f2ca054df7c0f9656f5f470f609ea712f6bf51e2856014a66"
+  },
+  {
+    "path": "schemas/gate-event.schema.json",
+    "size": 1122,
+    "mode": 420,
+    "sha256": "0a31b7b8ca61cc7cb016f9e654c04e85a88d88f525ac3ba5bf270ceb3bb7b578"
+  },
+  {
+    "path": "schemas/gate-export.schema.json",
+    "size": 20689,
+    "mode": 420,
+    "sha256": "d713e27510d8b1462866f81a4406df552dd5396fcb5b90955086b19dc03c786e"
+  },
+  {
+    "path": "schemas/handles-plan.schema.json",
+    "size": 4853,
+    "mode": 420,
+    "sha256": "9b475ba1522696f9797ac5dc44a05abf497d4f70b2a14253ecbda0814ef0efd5"
+  },
+  {
+    "path": "schemas/handles-provider.schema.json",
+    "size": 1171,
+    "mode": 420,
+    "sha256": "698c9d2df850245ad3116c79f02aaa2e16b774efb7fa8c876985a739c0c11ebe"
+  },
+  {
+    "path": "schemas/impact-baseline.schema.json",
+    "size": 3043,
+    "mode": 420,
+    "sha256": "e5aaeeafaddf0c3399bc3259f87393140209c45f241171bc695de59f3d31c85a"
+  },
+  {
+    "path": "schemas/impact-graph.schema.json",
+    "size": 3210,
+    "mode": 420,
+    "sha256": "406bb3d5742223e80a1d676d1f880874f36694a48309e0b7443bf78214c05bb3"
+  },
+  {
+    "path": "schemas/impact-report.schema.json",
+    "size": 3857,
+    "mode": 420,
+    "sha256": "041efbe42813e401c292c9732d010a95d93a39d4191b4c450d2d6b5e6c3b7dda"
+  },
+  {
+    "path": "schemas/impact-resolution.schema.json",
+    "size": 2277,
+    "mode": 420,
+    "sha256": "208a0a0db431338fc750f65902bc81ea1aa960a6ab075055274812819b356fac"
+  },
+  {
+    "path": "schemas/java-source-splice.schema.json",
+    "size": 4247,
+    "mode": 420,
+    "sha256": "25c1ae8812e9ca6623d49b2c5e2067b104dace23850e9e6623758f74bb9a7984"
+  },
+  {
+    "path": "schemas/observe-receipt.schema.json",
+    "size": 2129,
+    "mode": 420,
+    "sha256": "0ff9aff784884ae5a1417afbe648bf7a62d99288c0e91c42823f8ccb95d85ee5"
+  },
+  {
+    "path": "schemas/oracle-manifest.schema.json",
+    "size": 3388,
+    "mode": 420,
+    "sha256": "9d1d1a46001ce4b77cd48b88e2ff5012d2e0665e65f76eb08ce1bdab4825e6bb"
+  },
+  {
+    "path": "schemas/patch-approvals.schema.json",
+    "size": 1577,
+    "mode": 420,
+    "sha256": "4ca4a7af4904a0db4182f0a47e89230339cddb3c0fef477ee22b3dfeef735f95"
+  },
+  {
+    "path": "schemas/patch-transaction.schema.json",
+    "size": 12274,
+    "mode": 420,
+    "sha256": "abb3fa27cad9344aae57444e4e77af59854a6e8c8b6443fead6f8c7114649ff0"
+  },
+  {
+    "path": "schemas/pattern-record.schema.json",
+    "size": 1300,
+    "mode": 420,
+    "sha256": "e7fef7154d7a1c1871a19d93c96c80c4455cc0097da8f8a4f933f5904f5eec36"
+  },
+  {
+    "path": "schemas/scan-report.schema.json",
+    "size": 6760,
+    "mode": 420,
+    "sha256": "ae8c3863f04f76fb441c2352a5873ab168f5325e39c03523af5a38a741fb0145"
+  },
+  {
+    "path": "schemas/stack-choice.schema.json",
+    "size": 3775,
+    "mode": 420,
+    "sha256": "ce03c8a88dff7a920343aeab8221a96b87468dd0c8b02b19b3a08db473d1cc46"
+  },
+  {
+    "path": "schemas/stack-record.schema.json",
+    "size": 1900,
+    "mode": 420,
+    "sha256": "9eab76490138540be6c664846d441e3b2790dbc70110af59cf6077fb6af1fbb4"
+  },
+  {
+    "path": "schemas/state.schema.json",
+    "size": 3030,
+    "mode": 420,
+    "sha256": "909ad357c2f258afafc23197629dcf4d6d802f50802adabf15a0be7169535223"
+  },
+  {
+    "path": "schemas/webgame-contract.schema.json",
+    "size": 8177,
+    "mode": 420,
+    "sha256": "dcacaa68f0c42fc091b9b9cd827f0a73d689c01c90ada35a7a6f1e83de967a46"
+  },
+  {
+    "path": "schemas/webgame-scan.schema.json",
+    "size": 9976,
+    "mode": 420,
+    "sha256": "230e8562bf7d09dbdf2ae4baa9504a7db2523ed4d920791761beecc2374e300e"
+  },
+  {
+    "path": "scripts/preflight-base-ref.sh",
+    "size": 11439,
+    "mode": 493,
+    "sha256": "87aad15f47b50070e6bd0968c35ea7f38df4db93a1d579e2d06f16fc682f276b"
+  },
+  {
+    "path": "stack/apply.mjs",
+    "size": 10775,
+    "mode": 420,
+    "sha256": "a7083a887b9c1bbdedbd0737073734443926d614fee58b064ffaaf662b9ba09f"
+  },
+  {
+    "path": "stack/bootstrap/_lib.sh",
+    "size": 3228,
+    "mode": 420,
+    "sha256": "afe4ff5120366ba29ff9ebf57c94ca3c3ef4a10a68efa1fd2d93a641aa95910f"
+  },
+  {
+    "path": "stack/bootstrap/db-up.sh",
+    "size": 2184,
+    "mode": 420,
+    "sha256": "f7c5b11e473d2f5a4a97e65e247fc0a00facba097490077244ecd03bb85fa6fa"
+  },
+  {
+    "path": "stack/bootstrap/docker-compose.postgres.yml",
+    "size": 750,
+    "mode": 420,
+    "sha256": "12a3fa0c9863ff1179ee7394051200fb21fb1a614dea731cb8d8280b193c1872"
+  },
+  {
+    "path": "stack/bootstrap/ngrok.sh",
+    "size": 3649,
+    "mode": 420,
+    "sha256": "782904e912c01d0b4a8f89f7182b26a53cf4d581aa2fa5c1d7f860acc2d04735"
+  },
+  {
+    "path": "stack/catalog/ngrok.yml",
+    "size": 2815,
+    "mode": 420,
+    "sha256": "8c1ce86b66949924d5b81e274d4f0a84ebf446bd4310a51d933312233ecdedb1"
+  },
+  {
+    "path": "stack/catalog/postgres-dev-db.yml",
+    "size": 2143,
+    "mode": 420,
+    "sha256": "5eb88a2461b471e63bfd8e24fe28823c0c814fe012ab034225311a015201d957"
+  },
+  {
+    "path": "stack/config-apply.mjs",
+    "size": 9538,
+    "mode": 420,
+    "sha256": "2d7686e600694b7b533279e576e697ccc18dc5458d799433cf8318787c52bdbb"
+  }
+]
