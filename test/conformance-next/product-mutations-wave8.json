@@ -1,0 +1,75 @@
+{
+  "contract": "sbf.qa-product-mutation-catalog/1",
+  "mutants": [
+    {
+      "id": "PMUT8-DECLARATION-FORGE-RUNTIME-AUTHORIZATION",
+      "vector_id": "NEG-AUTH-02",
+      "critical": true,
+      "file": "contracts/openapi.mjs",
+      "find": "result.sourceSecurity = security;",
+      "replace": "result.sourceSecurity = security; result.runtimeEnforced = true;",
+      "test_files": [
+        "test/conformance-next/wave8-auth-02.test.mjs"
+      ],
+      "invariant": "Declared security and runtime enforcement remain distinct claims."
+    },
+    {
+      "id": "PMUT8-EXPLICIT-PUBLIC-OVERRIDE-LOST",
+      "vector_id": "NEG-AUTH-04",
+      "critical": true,
+      "file": "contracts/openapi.mjs",
+      "find": "result.sourceSecurity = security;",
+      "replace": "result.sourceSecurity = security.length === 0 ? [{ bearerAuth: [] }] : security;",
+      "test_files": [
+        "test/conformance-next/wave8-auth-04.test.mjs"
+      ],
+      "invariant": "Per-operation security overrides do not inherit a global rule blindly."
+    },
+    {
+      "id": "PMUT8-REQUIRED-AND-SPLIT-INTO-OR",
+      "vector_id": "NEG-AUTH-05",
+      "critical": true,
+      "file": "contracts/openapi.mjs",
+      "find": "result.sourceSecurity = security;",
+      "replace": "result.sourceSecurity = security.flatMap((entry) => Object.entries(entry).map(([key,scope]) => ({ [key]: scope })));",
+      "test_files": [
+        "test/conformance-next/wave8-auth-05.test.mjs"
+      ],
+      "invariant": "AND versus OR security requirements retain their boolean semantics."
+    },
+    {
+      "id": "PMUT8-ALTERNATIVE-OR-MERGED-INTO-AND",
+      "vector_id": "NEG-AUTH-05",
+      "critical": true,
+      "file": "contracts/openapi.mjs",
+      "find": "result.sourceSecurity = security;",
+      "replace": "result.sourceSecurity = security.length > 1 ? [Object.assign({}, ...security)] : security;",
+      "test_files": [
+        "test/conformance-next/wave8-auth-05.test.mjs"
+      ],
+      "invariant": "AND versus OR security requirements retain their boolean semantics."
+    },
+    {
+      "id": "PMUT8-SHARED-SOURCE-FORCED-SINGLE-FACET",
+      "vector_id": "NEG-PROJ-05",
+      "critical": false,
+      "file": "scanners/project-graph/index.mjs",
+      "find": "firstClass.push(adapterSummary(adapter));",
+      "replace": "if (firstClass.length === 0) firstClass.push(adapterSummary(adapter));",
+      "test_files": [
+        "test/conformance-next/wave8-project-05.test.mjs"
+      ],
+      "invariant": "Shared source files may belong to multiple project facets without forced single ownership."
+    }
+  ],
+  "coverage_scope": {
+    "planned_catalog": "test/corpus-next/negative-vectors.json",
+    "planned_catalog_sha256": "829ac742786cb570d5ef4238c81bb9051123812beaffce320e211cf6a148e23e",
+    "base_pr296_head": "3d0f177a4180ec806074517e0f33a9b52ad50cc9",
+    "previous_stacked_representations": 67,
+    "added_original_negative_ids": 4,
+    "stacked_candidate_representations": 71,
+    "remaining_unrepresented": 8,
+    "scope": "OpenAPI source declaration security metadata plus shared project ambiguity; not runtime auth."
+  }
+}
