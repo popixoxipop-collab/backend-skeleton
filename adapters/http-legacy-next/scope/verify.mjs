@@ -81,10 +81,17 @@ function staticRunner(rel, { notes = false, profile = null, pin = null } = {}) {
     emitsUnknownMarkers: notes,
     pinPackage: pin,
     async run(root) {
-      const { adapter } = await load(rel);
+      const { adapter, scanTypeScriptExpressHistoricalT11 } = await load(rel);
       const detection = await adapter.detect(root);
       if (!detection) return { detected: false, endpoints: [], unknowns: [] };
-      const result = await adapter.scan(root, detection);
+      // This verifier reproduces a FIXED October 9 T11 legacy record.
+      // Only TypeScript Express needs the original computed-prefix behavior:
+      // normal adapter.scan is intentionally safer and would make the
+      // historic, sealed counterexample unrepeatable. Do not edit that record
+      // or present its known false GET /ping as current scanner behavior.
+      const result = rel === 'scanners/adapters/typescript-express.mjs'
+        ? scanTypeScriptExpressHistoricalT11(root, detection)
+        : await adapter.scan(root, detection);
       const endpoints = result.modules.flatMap((m) => m.controllers.flatMap((c) => c.endpoints.map((e) => canonRoute(e.verb, e.path))));
       return { detected: true, endpoints: sorted(endpoints), unknowns: notes ? (result.scanNotes ?? []) : [] };
     },
