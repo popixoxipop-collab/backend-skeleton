@@ -1,0 +1,31 @@
+{
+  "schema": "sbf.track-a-remote-acceptance/1",
+  "repository": "img2threejs/img2threejs",
+  "revision": "6e60b5e22419464b4853e01ddb6c0e6f6659a733",
+  "mode": "remote-source-inspection",
+  "full_filesystem_scan": false,
+  "status": "role-boundary-confirmed",
+  "observations": [
+    {
+      "path": "forge/tests/fixtures/reference_target_oracle.ts",
+      "kind": "three-reference",
+      "value": "imports three and Three.js examples; contains Three.js renderer/scene-oriented oracle material",
+      "expected_role": "reference"
+    },
+    {
+      "path": "forge/stage3_build/generate_threejs_factory.py",
+      "kind": "generator",
+      "value": "generates Three.js factory source; generator text is not active browser runtime evidence"
+    },
+    {
+      "path": "integrations/glb_character_pipeline/node/emit_surface_module.mjs",
+      "kind": "generator-tool",
+      "value": "emits generated TypeScript surface modules"
+    }
+  ],
+  "expected_track_a_classification": {
+    "fixture_oracle_promoted_to_playable_runtime": false,
+    "reason": "test/tests/fixture/fixtures source paths are classified as reference"
+  },
+  "limitation": "This artifact records inspected GitHub source evidence. It is not represented as output from scanMultiplane() because no local repository snapshot was available in this session."
+}
