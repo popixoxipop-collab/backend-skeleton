@@ -27,6 +27,16 @@ The previous package has no native-server module; its probe verifies absence.
 Receipts include probe exit or signal and stdout/stderr hashes. A failed test
 is not a successful restore receipt.
 
+The CI test reads the checked-in `next/t08/evidence/T08_06` manifest, digest,
+complete inventories, and both receipts. Their file hashes are pinned in the
+test. It compares the live Git pins, trees, lock hashes, installed inventories,
+stage results, probe output hashes and restoration with those records. When
+the Node or npm executable differs from the recorded toolchain, npm tarball
+byte identity is left unverified; the full installed member contents and
+replay results must still match. When both toolchain identifiers match, the
+tarball hashes must match as well. In-memory negative controls change each
+evidence file and simulate stale live receipts and a different toolchain.
+
 ## Limits and remaining review
 
 - The historical candidate is not this PR's head. CI must run at this PR's

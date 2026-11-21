@@ -59,3 +59,35 @@ The two tarballs are retained outside Git at the output path above and can be
 regenerated from the pinned Git commits with the recorded npm executable.
 This proves neither mid-install transaction recovery nor compiler helpers,
 cross-platform parity, independent T19 approval, or a release decision.
+
+## Evidence binding review fix (2026-11-21 UTC)
+
+The T08 test now reads this checked-in manifest, its digest, the two complete
+inventories and both receipts. Their SHA-256 values are fixed in the test and
+the recorded stable fields are compared with the live installed-package replay.
+Node and npm versions may differ across CI jobs: archive byte equality is
+asserted only when both recorded toolchain identifiers match. Git pins, trees,
+lock hashes, complete installed contents, stage order, actual child-probe
+outputs and rollback results must match on every tested Node version.
+
+```sh
+npm_config_cache="$PWD/.t08-review-npm-cache" T08_REPLAY_OUTPUT_DIR=/workspace/t08-06-review-fix-final-evidence node scripts/run-next-nested-tests.mjs T08
+```
+
+Exit `0`; 61/61 pass. `test-stdout-review.tap` SHA-256
+`58ab9e36c6224596d1f075e78ce26fbefc2f0c8b4ba51afa1489421f58088251`.
+The live archives, inventories, manifest and receipts had the hashes listed
+above; the local result reported `evidence_bound: true` and
+`same_toolchain_archive_bytes_compared: true`.
+
+For an actual file-tamper counterexample, one space was appended to the
+checked-in `normal-receipt.json` in the isolated worktree, then
+`node --test test/language-native-server/package-replay.test.mjs` exited `1`
+with `committed evidence changed: normal-receipt.json`; stdout SHA-256
+`09cfc2de841607cedd1f3814a6320774cc408818f8a3711c1819191b81e3e9c2`.
+The file was restored to SHA-256
+`a1d149c2fb15575cf56e721ee1ea2b9968c7808174b7a45c208cc43b3e431ed6`.
+In-memory controls additionally mutate every committed evidence file and
+simulate stale normal and fault receipts plus a different runtime toolchain.
+The temporary npm cache and replay scratch were removed. This is a local test
+result; the updated PR's natural CI and independent T19 review are separate.

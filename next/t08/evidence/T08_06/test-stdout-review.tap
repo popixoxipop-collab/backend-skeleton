@@ -1,0 +1,76 @@
+NESTED_SUITE T08 RUN 3 files
+✔ transport: encode/decode round-trip validates the version and request ID (2.435249ms)
+✔ transport: malformed UTF-8 is rejected rather than replacement-decoded (0.517462ms)
+✔ transport: a single CRLF-terminated message is accepted for Windows helpers (0.254655ms)
+✔ transport: one line cannot smuggle a second protocol message (0.157368ms)
+✔ transport: protocol version mismatch is rejected (0.169937ms)
+✔ transport: output budget is enforced (0.273463ms)
+✔ Go/Gin: nested literal groups compose deterministic absolute routes (1.97301ms)
+✔ Go/Gin: var declarations are accepted without widening to unrelated method calls (0.267053ms)
+✔ Go/Gin: comments and unrelated GET methods are not routes (0.25168ms)
+✔ Go/Gin: computed group and route paths remain unknown instead of guessed (0.351611ms)
+✔ C#/ASP.NET: Minimal API nested groups compose routes (1.004477ms)
+✔ C#/ASP.NET: controller Route + Http attributes compose and [controller] is literal metadata (1.178119ms)
+✔ C#/ASP.NET: braces inside strings do not terminate a controller body (0.203197ms)
+✔ C#/ASP.NET: action-only literal route is allowed, but missing literal route is not invented from conventions (0.209726ms)
+✔ C#/ASP.NET: comments, computed Minimal route and MapMethods do not become invented routes (0.239862ms)
+✔ transport/analyzer boundary: requestId and backend are bound into a validated response (0.430961ms)
+✔ transport/analyzer boundary: direct object requests also enforce input bytes (0.160181ms)
+✔ transport/analyzer boundary: route budget fails closed instead of truncating facts (0.308576ms)
+✔ Rust/Axum: literal route chains emit method/path/handler facts (9.314628ms)
+✔ Rust/Axum: nested routers compose prefixes and suppress child-only exposure when nested (0.692987ms)
+✔ Rust/Axum: computed route/nest inputs remain diagnostics, not guessed routes (0.414015ms)
+✔ Rust/Axum: comments and raw strings containing route-looking text never become routes (0.400074ms)
+✔ Rust/Axum: Rust lifetimes do not swallow following route syntax (0.320554ms)
+✔ Rust/Actix: direct App route emits literal method/path/handler fact (0.723683ms)
+✔ Rust/Actix: literal web::scope composes contained route prefixes (0.537602ms)
+✔ Rust/Actix: computed route paths and unsupported method builders do not become facts (0.397491ms)
+✔ transport/analyzer boundary: Rust requests bind to the Rust pilot backend (0.562018ms)
+✔ transport: malformed route facts are rejected at the response boundary (0.264289ms)
+✔ transport: malformed diagnostics are rejected at the response boundary (0.249406ms)
+✔ transport/analyzer boundary: direct responses enforce maxOutputBytes too (0.332492ms)
+✔ Rust/Axum: Router turbofish constructors are recognized without type inference (0.261164ms)
+✔ Rust mixed-framework file: Axum and Actix facts coexist without cross-talk diagnostics (0.465463ms)
+✔ worker: valid NDJSON request crosses a real process boundary and returns validated facts (75.70655ms)
+✔ worker: multi-message stdin is rejected and never executes a second request (57.008951ms)
+✔ worker: analysis budget failure returns a request-bound error envelope and nonzero exit (39.435257ms)
+✔ Go/Gin: route-looking text inside quoted data is not executable route syntax (0.301896ms)
+✔ C#/ASP.NET: route-looking text inside a normal string is not executable route syntax (0.275576ms)
+✔ native analyzers: identical source produces deep-equal facts on repeated calls (0.499745ms)
+✔ runner: real worker round-trip returns a request-bound response (76.221092ms)
+✔ runner: spawn contract uses absolute Node worker, exact timeout and a secret-minimal environment (0.406444ms)
+✔ runner: timeout is a distinct fail-closed error (0.488708ms)
+✔ runner: oversized stdout is rejected before response decoding (0.224499ms)
+✔ runner: a successful process cannot substitute another request response (0.293644ms)
+✔ runner: worker-side budget failures remain request-bound structured errors (44.045046ms)
+✔ Rust/Axum: deriving a router by value exposes the final router once, not the consumed base plus final copy (0.409569ms)
+✔ Rust/Axum: merged child routers are consumed roots and do not duplicate their routes (0.246482ms)
+✔ Rust/Axum: unsupported intermediate clone chain is diagnosed rather than treated as a move (0.241284ms)
+✔ transport: malformed group facts are rejected at the response boundary (0.214344ms)
+✔ transport: malformed framework and multiline logical paths are rejected (0.188595ms)
+✔ runner: request budgets may narrow but may not expand the default runner profile (73.471078ms)
+✔ runner: a trusted profile can explicitly widen one bound while all request bounds remain subordinate (0.339673ms)
+✔ runner: wider trusted input profile is harmless until a request exceeds worker bootstrap capacity (0.322147ms)
+✔ runner: omitted request budget fields are clamped to a narrower trusted profile (0.213462ms)
+✔ batch: input file order does not change aggregated Go facts (0.730083ms)
+✔ batch: duplicate method/path facts across files are preserved for later reconciliation (0.208976ms)
+✔ batch: diagnostics remain source-file scoped and deterministically ordered (0.248065ms)
+✔ batch: duplicate logical file paths are rejected instead of merged (0.131989ms)
+✔ batch: caller may narrow but not widen file and byte ceilings (0.170257ms)
+✔ batch: unsupported languages and multiline logical paths fail closed (0.168264ms)
+{"marker":"DOT-T00-T08-06-20261122","manifest_sha256":"7700e59db6f61128d38a9361a1396aaa6ff8ff5516c118e3baeff76ff9ec325d","committed_manifest_sha256":"7700e59db6f61128d38a9361a1396aaa6ff8ff5516c118e3baeff76ff9ec325d","evidence_bound":true,"same_toolchain_archive_bytes_compared":true,"previous_archive_sha256":"72efda536e010294d35941b70f056e435239ba3853f10243c3ec53e3b3766d5b","candidate_archive_sha256":"2051c8cda0fa2cda077863fce4b3e32be2e8eefc4837c459c1853aad06863c3a","previous_members":217,"candidate_members":423,"normal":"pass","fault":"interrupted-restored","rollback_restored":true,"retained":"/workspace/t08-06-review-fix-final-evidence"}
+✔ T08 installed static worker previous→candidate→previous and interrupted recovery (10724.136577ms)
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+✔ T08 packaging: npm pack includes every native-server runtime module and excludes its tests (1052.983134ms)
+ℹ tests 61
+ℹ suites 0
+ℹ pass 61
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10817.597318
