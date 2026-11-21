@@ -150,16 +150,59 @@ function initializeScratchGit(scratch) {
   commitScratchSnapshot(scratch,'baseline');
 }
 
+// Exact Node TAP result counters are part of the child process outcome, not a
+// user-supplied mutant status. Refuse missing/duplicated counters and partial
+// suites. A zero-exit subprocess can still be incomplete if it had TODO/skips.
+const TEST_SUMMARY_KEYS=['tests','pass','fail','cancelled','skipped','todo'];
+function parseTapSummary(stdout) {
+  if (!/^TAP version \d+\r?$/m.test(stdout)) return null;
+  const counters={};
+  for (const key of TEST_SUMMARY_KEYS) {
+    const rx=new RegExp('^# '+key+' (\\d+)\\r?$','gm');
+    const matches=[...stdout.matchAll(rx)];
+    if (matches.length!==1) return null;
+    const value=Number(matches[0][1]);
+    if (!Number.isSafeInteger(value)) return null;
+    counters[key]=value;
+  }
+  if (counters.tests===0) return null;
+  if (counters.pass+counters.fail+counters.skipped+counters.cancelled+counters.todo!==counters.tests) return null;
+  return counters;
+}
+function semanticAssertionFailures(stdout) {
+  // Import/parse failures have code ERR_TEST_FAILURE, not ERR_ASSERTION.
+  // Read the full bounded child output before preserving only its short tail.
+  const assertionMarkers=[...stdout.matchAll(/^\s+code:\s*['"]ERR_ASSERTION['"]\s*$/gm)].length;
+  const hasNormalTestFailure=/^\s+failureType:\s*['"]testCodeFailure['"]\s*$/m.test(stdout);
+  return hasNormalTestFailure?assertionMarkers:0;
+}
+function containsTestSetupFailure(stdout) {
+  return /^\s+code:\s*['"](?:ERR_TEST_FAILURE|ERR_MODULE_NOT_FOUND|ERR_UNKNOWN_FILE_EXTENSION)['"]\s*$/m.test(stdout)
+    || /^\s+failureType:\s*['"](?:uncaughtException|testTimeoutFailure)['"]\s*$/m.test(stdout);
+}
+
 function runTestFiles(scratch, testFiles, timeoutMs) {
-  const env={...process.env}; delete env.NODE_TEST_CONTEXT;
-  const args=['--test',...testFiles.map((p)=>path.join(scratch,p))];
+  // This disposable child owns exactly one TAP reporter. Inheriting the
+  // parent test process's NODE_OPTIONS may add a second reporter (or preload
+  // code), corrupt the original oracle, and produce a false baseline failure.
+  const env={...process.env}; delete env.NODE_TEST_CONTEXT; delete env.NODE_OPTIONS;
+  // Pin TAP in the actual child, even when the caller runs a different
+  // reporter. Node prints counters AFTER failing-assertion details in TAP.
+  const args=['--test','--test-reporter=tap',...testFiles.map((p)=>path.join(scratch,p))];
   const run=runBoundedCommand(process.execPath,args,{cwd:scratch,timeoutMs,env});
+  const stdout=run.stdout??'';
   return {
     exit_code:Number.isInteger(run.status)?run.status:null,
     signal:run.signal??null,
     timed_out:run.error?.code==='ETIMEDOUT',
     error_code:run.error?.code??null,
-    stdout_tail:(run.stdout??'').slice(-1400),
+    tap:parseTapSummary(stdout),
+    // Comparing only test counts is insufficient: a failed import may replace
+    // one real test with a synthetic file-level test, keeping total count equal.
+    test_names:[...stdout.matchAll(/^# Subtest: (.*)\r?$/gm)].map((m)=>m[1]),
+    semantic_assertion_failures:semanticAssertionFailures(stdout),
+    setup_failure_detected:containsTestSetupFailure(stdout),
+    stdout_tail:stdout.slice(-1400),
     stderr_tail:(run.stderr??'').slice(-1400),
   };
 }
@@ -223,6 +266,14 @@ export function runProductMutationCampaign({repoRoot,catalog,sourceCommit=null})
         results.push({id:mutant.id,vector_id:mutant.vector_id,critical:mutant.critical,timeout_ms:timeoutMs,status:'survived',classification:'baseline-failed',reason:'unmodified scratch test suite did not pass; mutant cannot be counted as killed',baseline});
         continue;
       }
+      const completeBaseline=baseline.signal===null && baseline.error_code===null &&
+        !baseline.timed_out && baseline.tap && baseline.tap.fail===0 &&
+        baseline.tap.skipped===0 && baseline.tap.cancelled===0 && baseline.tap.todo===0 &&
+        baseline.tap.pass===baseline.tap.tests && !baseline.setup_failure_detected;
+      if(!completeBaseline){
+        results.push({id:mutant.id,vector_id:mutant.vector_id,critical:mutant.critical,timeout_ms:timeoutMs,status:'survived',classification:'baseline-incomplete',reason:'unmodified test oracle must execute its complete asserted case set (no skipped/TODO/cancelled or malformed TAP evidence)',baseline});
+        continue;
+      }
       const applied=applyMutation(scratch,mutant);
       if(!applied.ok){
         results.push({id:mutant.id,vector_id:mutant.vector_id,critical:mutant.critical,timeout_ms:timeoutMs,status:'survived',classification:'mutation-not-applied',reason:applied.reason,baseline});
@@ -230,11 +281,35 @@ export function runProductMutationCampaign({repoRoot,catalog,sourceCommit=null})
       }
       commitScratchSnapshot(scratch,`mutant ${mutant.id}`);
       const run=runTestFiles(scratch,mutant.test_files,timeoutMs);
-      const killed=Number.isInteger(run.exit_code)&&run.exit_code!==0;
+      const exactCases=run.tap && baseline.tap &&
+        run.tap.tests===baseline.tap.tests && run.tap.tests>0 &&
+        run.tap.fail>0 && run.tap.pass+run.tap.fail===run.tap.tests &&
+        run.tap.skipped===0 && run.tap.cancelled===0 && run.tap.todo===0;
+      const sameTestIdentities=run.test_names.length>0 &&
+        JSON.stringify(run.test_names)===JSON.stringify(baseline.test_names);
+      // A substantive product regression may also cause expected caller
+      // tests to throw ERR_TEST_FAILURE, but *at least one* test must actually
+      // fail an assertion. Requiring all failures to be assertions would miss
+      // legitimate cascading regressions in an otherwise complete suite.
+      // Import/parse failures instead replace test identities with a file-
+      // level failure and therefore fail this gate even when counts match.
+      const genuineAssertion=run.semantic_assertion_failures>0;
+      const killed=run.exit_code===1 && run.signal===null && !run.timed_out &&
+        run.error_code===null && exactCases && sameTestIdentities && genuineAssertion;
+      const classification=killed?'mutant-detected':
+        run.exit_code!==null && run.exit_code!==0 &&
+          run.tap?.tests!==baseline.tap?.tests?'mutant-test-count-mismatch':
+        run.exit_code!==null && run.exit_code!==0 && !sameTestIdentities
+          ?'mutant-test-identity-mismatch':
+        run.exit_code!==null && run.exit_code!==0 && !genuineAssertion
+          ?'mutant-nonassertion-failure':'mutant-survived';
       results.push({
         id:mutant.id,vector_id:mutant.vector_id,critical:mutant.critical,timeout_ms:timeoutMs,
-        status:killed?'killed':'survived',classification:killed?'mutant-detected':'mutant-survived',baseline,
-        exit_code:run.exit_code,signal:run.signal,timed_out:run.timed_out,error_code:run.error_code,stdout_tail:run.stdout_tail,stderr_tail:run.stderr_tail,
+        status:killed?'killed':'survived',classification,baseline,
+        exit_code:run.exit_code,signal:run.signal,timed_out:run.timed_out,error_code:run.error_code,
+        tap:run.tap,test_names:run.test_names,semantic_assertion_failures:run.semantic_assertion_failures,
+        setup_failure_detected:run.setup_failure_detected,
+        stdout_tail:run.stdout_tail,stderr_tail:run.stderr_tail,
       });
       }finally{cleanupScratch(parent);}
     }
