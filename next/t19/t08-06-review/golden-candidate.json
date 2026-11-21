@@ -1,0 +1,35 @@
+{
+  "schema": "t19.t08-independent-review-candidate/0",
+  "status": "UNAPPROVED_PROPOSAL",
+  "source_commit": "c45eb5aefd6ca3dc787389db337f016177a03757",
+  "source_tree": "bd187ad9a6cb7d93f367d59ee5ee1495e6547184",
+  "scope": "first-party Node/static source facts only; no compiler or target runtime",
+  "fixtures": {
+    "go-gin.go": {
+      "language": "go",
+      "route_pairs": ["GET /metrics/live"],
+      "required_unknown_codes": ["GO_GIN_DYNAMIC_ROUTE_PATH"],
+      "forbidden_paths": ["/phantom", "/metrics/config"]
+    },
+    "csharp-aspnet.cs": {
+      "language": "csharp",
+      "route_pairs": ["PATCH /reports/{slug}"],
+      "required_unknown_codes": ["CSHARP_MAPMETHODS_NEEDS_METHOD_SET"],
+      "forbidden_paths": ["/phantom", "/batch"]
+    },
+    "rust-axum.rs": {
+      "language": "rust",
+      "route_pairs": ["POST /api/inbox", "GET /healthz"],
+      "required_unknown_codes": ["RUST_AXUM_UNSUPPORTED_BASE_CHAIN"],
+      "forbidden_paths": ["/phantom", "/hidden"]
+    },
+    "rust-actix.rs": {
+      "language": "rust",
+      "route_pairs": ["PUT /v2/events"],
+      "required_unknown_codes": ["RUST_ACTIX_DYNAMIC_ROUTE_PATH"],
+      "forbidden_paths": ["/phantom"]
+    }
+  },
+  "release_approved": false,
+  "independent_t19_attestation": false
+}

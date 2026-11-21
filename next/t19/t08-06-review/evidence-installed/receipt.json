@@ -1,0 +1,142 @@
+{
+  "schema": "t19.t08-installed-review-candidate/1",
+  "status": "CANDIDATE_OBSERVATION_NOT_APPROVAL",
+  "source_commit": "c45eb5aefd6ca3dc787389db337f016177a03757",
+  "source_tree": "bd187ad9a6cb7d93f367d59ee5ee1495e6547184",
+  "source_lock_sha256": "c5d31a4bcef1168f6fd07db2544efca0f95d2dad841d108f608a1e23e59e83e0",
+  "golden_sha256": "ce26967f467d32287cee6f1accd304da462c8783432fd7d5c1c85dd6dd6c2fc1",
+  "archive_sha256": "598fb1cbcfd4d0e2e8842b2c120efeac2b76112a25e589b1f14450deea00dc5a",
+  "pack_member_count": 424,
+  "pack_members_sha256": "4cd89fb256517e93248338d83ff7013d38cfda0f9d91b658031518bd45b4b8f2",
+  "archive_members_sha256": "7fe7ac0559226127aae4cb9a5f24b9a3e4b12e483795fab44b69d397378ccf0f",
+  "installed_members_sha256": "cd129e44cfa9563431a2305d39ac453d7f2449366ce7715f130b52533b27021f",
+  "npm_version": "11.9.0",
+  "node_version": "v24.19.0",
+  "worker_inside_installed_package": true,
+  "commands": {
+    "git_archive": {
+      "argv": [
+        "git",
+        "-C",
+        "/workspace/t19-t08-06-owned",
+        "archive",
+        "--format=tar",
+        "-o",
+        "/tmp/t19-t08-installed-ZpIRbn/source.tar",
+        "c45eb5aefd6ca3dc787389db337f016177a03757"
+      ],
+      "exit_code": 0,
+      "signal": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "tar_extract": {
+      "argv": [
+        "tar",
+        "-xf",
+        "/tmp/t19-t08-installed-ZpIRbn/source.tar",
+        "-C",
+        "/tmp/t19-t08-installed-ZpIRbn/source"
+      ],
+      "exit_code": 0,
+      "signal": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "npm_pack": {
+      "argv": [
+        "npm",
+        "pack",
+        "--offline",
+        "--ignore-scripts",
+        "--json",
+        "--pack-destination",
+        "/tmp/t19-t08-installed-ZpIRbn/packed"
+      ],
+      "exit_code": 0,
+      "signal": null,
+      "stdout_sha256": "a9691dcd421f86fbd183b1f62da6469b4906629c0322e2a181aa9631ec5dd9c0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "tar_unpack": {
+      "argv": [
+        "tar",
+        "-xf",
+        "/tmp/t19-t08-installed-ZpIRbn/packed/backend-skeleton-1.9.0.tgz",
+        "-C",
+        "/tmp/t19-t08-installed-ZpIRbn/unpacked"
+      ],
+      "exit_code": 0,
+      "signal": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "npm_install": {
+      "argv": [
+        "npm",
+        "install",
+        "--prefer-offline",
+        "--ignore-scripts",
+        "--no-save",
+        "--package-lock=false",
+        "--prefix",
+        "/tmp/t19-t08-installed-ZpIRbn/consumer",
+        "/tmp/t19-t08-installed-ZpIRbn/packed/backend-skeleton-1.9.0.tgz"
+      ],
+      "exit_code": 0,
+      "signal": null,
+      "stdout_sha256": "4d7bb44e0756061f349055948ef68e1929628adcd2c69a4c4d2385bb93e21915",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "observations": [
+    {
+      "filename": "go-gin.go",
+      "source_sha256": "ead6c52ea5b7f96c43d692bcab3db2598ca9fcaed80cb4516d3458f3031257a8",
+      "routes": [
+        "GET /metrics/live"
+      ],
+      "unknown_codes": [
+        "GO_GIN_DYNAMIC_ROUTE_PATH"
+      ],
+      "deterministic": true
+    },
+    {
+      "filename": "csharp-aspnet.cs",
+      "source_sha256": "bf7d689bc31a0a9c02ed93f1b586bb0c64cc76d707032e27d785f8ffcb90e4c1",
+      "routes": [
+        "PATCH /reports/{slug}"
+      ],
+      "unknown_codes": [
+        "CSHARP_MAPMETHODS_NEEDS_METHOD_SET"
+      ],
+      "deterministic": true
+    },
+    {
+      "filename": "rust-axum.rs",
+      "source_sha256": "bcd5e3ee603574c3c1bc85b72f335296d5d104860098f991be6a254f2a90d9e6",
+      "routes": [
+        "GET /healthz",
+        "POST /api/inbox"
+      ],
+      "unknown_codes": [
+        "RUST_AXUM_UNSUPPORTED_BASE_CHAIN"
+      ],
+      "deterministic": true
+    },
+    {
+      "filename": "rust-actix.rs",
+      "source_sha256": "4df9f907339171e5ec5aa310b8be5f5367c6371fd196c22069d73d4318e1c909",
+      "routes": [
+        "PUT /v2/events"
+      ],
+      "unknown_codes": [
+        "RUST_ACTIX_DYNAMIC_ROUTE_PATH"
+      ],
+      "deterministic": true
+    }
+  ],
+  "byte_mode_tamper_detected": true,
+  "independent_t19_attestation": false,
+  "release_approved": false
+}
