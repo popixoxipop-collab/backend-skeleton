@@ -1,0 +1,61 @@
+{
+  "schema": "bskel.t08-static-package-replay/1",
+  "marker": "DOT-T00-T08-06-20261122",
+  "status": "pass",
+  "interrupt": false,
+  "stages": [
+    {
+      "slot": "previous",
+      "inventory_sha256": "23a79f2f67b01f95211de786c10e7e188150537f549820c48f4254709e8fbc4b",
+      "member_count": 217,
+      "probe_exit_code": 0,
+      "probe_signal": null,
+      "probe_stdout_sha256": "12ae495c89ba9d349ad3f1852cf792bec183ed6509b2aefbc39e650e17c4ba71",
+      "probe_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe": {
+        "slot": "previous",
+        "installed_static_worker": false,
+        "vectors": 1,
+        "compiler_certified": false,
+        "release_authorized": false
+      }
+    },
+    {
+      "slot": "candidate",
+      "inventory_sha256": "71395c605f3c98a5439e3c9bcae81c9c5a2d2dfeb9cc225695744c5e7064dcab",
+      "member_count": 423,
+      "probe_exit_code": 0,
+      "probe_signal": null,
+      "probe_stdout_sha256": "0fc327546e97b83674ef24ff6ddbc418525b56c0821e604d360f31bdf3693fc3",
+      "probe_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe": {
+        "slot": "candidate",
+        "installed_static_worker": true,
+        "vectors": 2,
+        "compiler_certified": false,
+        "release_authorized": false
+      }
+    },
+    {
+      "slot": "previous",
+      "inventory_sha256": "23a79f2f67b01f95211de786c10e7e188150537f549820c48f4254709e8fbc4b",
+      "member_count": 217,
+      "probe_exit_code": 0,
+      "probe_signal": null,
+      "probe_stdout_sha256": "12ae495c89ba9d349ad3f1852cf792bec183ed6509b2aefbc39e650e17c4ba71",
+      "probe_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe": {
+        "slot": "previous",
+        "installed_static_worker": false,
+        "vectors": 1,
+        "compiler_certified": false,
+        "release_authorized": false
+      }
+    }
+  ],
+  "failures": [],
+  "rollback_restored": true,
+  "compiler_certified": false,
+  "release_authorized": false,
+  "independent_attestation": false
+}
