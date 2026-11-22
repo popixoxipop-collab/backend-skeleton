@@ -83,12 +83,6 @@ try {
   const archiveGit = command('git', ['-C', repo, 'archive', '--format=tar', '-o', archive, head], repo, cache);
   const extract = command('tar', ['-xf', archive, '-C', source], repo, cache);
   const lock = JSON.parse(git(['show', head + ':package-lock.json']));
-  const overrides = Object.fromEntries(Object.entries(lock.packages)
-    .filter(([name]) => name.startsWith('node_modules/'))
-    .map(([name, value]) => [name.slice('node_modules/'.length), value.version]));
-  fs.writeFileSync(path.join(consumer, 'package.json'), json({
-    name: 't19-t08-disposable-review', version: '0.0.0', private: true, overrides,
-  }));
   const pack = command('npm', ['pack', '--offline', '--ignore-scripts', '--json',
     '--pack-destination', packed], source, cache);
   const [meta] = JSON.parse(pack.stdout);
@@ -123,8 +117,28 @@ try {
   const archiveMembers = inventory(path.join(unpacked, 'package'));
   assertSameInventory(archiveMembers, expected.map(({ git_mode, ...row }) =>
     ({ ...row, mode: git_mode })), 'archive differs from exact Git members');
-  const installed = command('npm', ['install', '--prefer-offline', '--ignore-scripts',
-    '--no-save', '--package-lock=false', '--prefix', consumer, packedFile], repo, cache);
+  // Bind every transitive install to the pinned source lock, not just versions.
+  assert.equal(lock.lockfileVersion, 3);
+  const { '': rootPackage, ...lockedDeps } = lock.packages;
+  for (const [name, dep] of Object.entries(lockedDeps)) {
+    assert.ok(name.startsWith('node_modules/') && name !== 'node_modules/backend-skeleton');
+    assert.match(dep.integrity, /^sha512-[A-Za-z0-9+/]{86}==$/);
+    assert.equal(new URL(dep.resolved).origin, 'https://registry.npmjs.org');
+  }
+  const tarSpec = 'file:../packed/' + path.basename(packedFile);
+  const consumerRoot = { name: 't19-t08-disposable-review', version: '0.0.0',
+    dependencies: { 'backend-skeleton': tarSpec } };
+  const integrity = 'sha512-' + createHash('sha512').update(fs.readFileSync(packedFile)).digest('base64');
+  const consumerLockBytes = json({
+    name: consumerRoot.name, version: consumerRoot.version, lockfileVersion: 3, requires: true,
+    packages: { '': consumerRoot, 'node_modules/backend-skeleton': {
+      ...rootPackage, resolved: tarSpec, integrity,
+    }, ...lockedDeps },
+  });
+  fs.writeFileSync(path.join(consumer, 'package.json'), json({ ...consumerRoot, private: true }));
+  fs.writeFileSync(path.join(consumer, 'package-lock.json'), consumerLockBytes);
+  const installed = command('npm', ['ci', '--ignore-scripts', '--prefix', consumer], repo, cache);
+  assert.deepEqual(fs.readFileSync(path.join(consumer, 'package-lock.json')), consumerLockBytes);
   const installedRoot = path.join(consumer, 'node_modules/backend-skeleton');
   const observed = inventory(installedRoot);
   assertSameInventory(observed, expected.map(({ git_mode, ...row }) => row),
@@ -181,6 +195,7 @@ try {
     node_version: process.version, worker_inside_installed_package: true,
     commands: { git_archive: archiveGit.receipt, tar_extract: extract.receipt,
       npm_pack: pack.receipt, tar_unpack: unpack.receipt, npm_install: installed.receipt },
+    consumer_lock_sha256: sha(consumerLockBytes), pinned_dependency_count: Object.keys(lockedDeps).length,
     observations, byte_mode_tamper_detected: true,
     independent_t19_attestation: false, release_approved: false };
   fs.writeFileSync(path.join(outputDir, 'receipt.json'), json(receipt));
