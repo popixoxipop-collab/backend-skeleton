@@ -11,6 +11,16 @@
     "record_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "item": { "enum": ["HTTP-python-fastapi-01", "HTTP-python-flask-01", "HTTP-python-django-01", "HTTP-python-starlette-01", "HTTP-python-litestar-01"] },
     "framework": { "enum": ["fastapi", "flask", "django", "starlette", "litestar"] },
+    "starlette_static_sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapters/http/python-starlette/facts.py", "adapters/http/python-starlette/project.mjs", "adapters/http/python-starlette/scan.mjs"],
+      "properties": {
+        "adapters/http/python-starlette/facts.py": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "adapters/http/python-starlette/project.mjs": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "adapters/http/python-starlette/scan.mjs": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
     "track": { "enum": ["T11", "T12", "T13"] },
     "claims": {
       "type": "object",

@@ -1,11 +1,11 @@
 // Runs the real in-repo Python HTTP scanners over scope-record fixture directories and prints one
-// canonical JSON document: `node static-runner.mjs <flask|fastapi|django> <fixtures-root>`.
+// canonical JSON document: `node static-runner.mjs <flask|fastapi|django|starlette> <fixtures-root>`.
 // It only normalizes what the scanners emitted (routes + flags); it adds no route of its own.
-// There is deliberately no starlette/litestar entry: no scanner layer exists for them yet, and a
-// target registration is not support.
+// Starlette can be replayed only from the later T13 installation. Litestar remains scope-only.
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { analyzePythonFiles } from '../../../scanners/language/python/analyzer.mjs';
 import { buildPythonProjectFacts } from '../../../scanners/language/python/resolver.mjs';
 import { buildFlaskRouteShadow } from '../../../scanners/language/python/flask-shadow.mjs';
@@ -16,7 +16,14 @@ import { projectFlaskShadow } from '../flask.mjs';
 import { projectDjangoDrfShadow } from '../django-drf.mjs';
 
 export const STATIC_RUNNER_SCHEMA = 'bskel.internal.python-scope-static-run/0';
-const ENTRY = { flask: 'app.py', fastapi: 'app.py', django: 'urls.py' };
+const REPO = fileURLToPath(new URL('../../../', import.meta.url));
+const STARLETTE_LAYER = 't13-starlette-static';
+const STARLETTE_SOURCES = Object.freeze([
+  'adapters/http/python-starlette/facts.py',
+  'adapters/http/python-starlette/project.mjs',
+  'adapters/http/python-starlette/scan.mjs',
+]);
+const ENTRY = { starlette: 'app.py', flask: 'app.py', fastapi: 'app.py', django: 'urls.py' };
 export const STATIC_LAYERS = {
   flask: ['t06-flask-shadow', 't12-flask-leaf'],
   fastapi: ['legacy-adapter', 't06-fastapi-shadow'],
@@ -24,6 +31,7 @@ export const STATIC_LAYERS = {
 };
 // The in-repo file each layer id runs (the imports above); verify.mjs holds a record's layers[].source to this table.
 export const STATIC_LAYER_SOURCES = {
+  [STARLETTE_LAYER]: STARLETTE_SOURCES[2],
   'legacy-adapter': 'scanners/adapters/python-fastapi.mjs',
   't06-fastapi-shadow': 'scanners/language/python/fastapi-shadow.mjs',
   't06-flask-shadow': 'scanners/language/python/flask-shadow.mjs',
@@ -111,7 +119,25 @@ function djangoLayers(dir) {
   };
 }
 
-const BUILDERS = { flask: flaskLayers, fastapi: fastapiLayers, django: djangoLayers };
+// The child receives only fixed interpreter code, the fixed adapter path, and fixture bytes on stdin.
+function starletteLayers(dir, repoRoot) {
+  const entry = path.join(dir, 'app.py');
+  if (!fs.lstatSync(entry).isFile()) throw new Error('Starlette fixture must be a regular file');
+  const script = [
+    "import fs from 'node:fs';",
+    "const { scanStarletteScopeLayer } = await import(process.argv[1]);",
+    "const value = scanStarletteScopeLayer(fs.readFileSync(0), 'app.py', process.argv[2]);",
+    "process.stdout.write(JSON.stringify(value));",
+  ].join(' ');
+  const target = pathToFileURL(path.join(repoRoot, STARLETTE_SOURCES[2])).href;
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', script, target, process.env.BSKEL_PYTHON || 'python3'], {
+    input: fs.readFileSync(entry), encoding: 'utf8', timeout: 10000, maxBuffer: 4 * 1024 * 1024,
+    env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' },
+  });
+  if (result.error || result.status !== 0) throw new Error('Starlette scanner did not return a complete result');
+  return { [STARLETTE_LAYER]: JSON.parse(result.stdout) };
+}
+const BUILDERS = { starlette: starletteLayers, flask: flaskLayers, fastapi: fastapiLayers, django: djangoLayers };
 
 // Sorts every object's keys (default string order), so the stored document has one spelling; verify.mjs uses it to hold a
 // stored static.json to exactly the text this runner prints for the document it holds.
@@ -121,17 +147,17 @@ export function canonical(value) {
   return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]));
 }
 
-export function runStatic(target, root) {
+export function runStatic(target, root, { repoRoot = REPO } = {}) {
   const build = BUILDERS[target];
   const fixtures = {};
-  for (const id of fixtureDirs(root, target)) fixtures[id] = { layers: build(path.join(root, id)) };
-  return canonical({ schema: STATIC_RUNNER_SCHEMA, target, layers: STATIC_LAYERS[target], fixtures });
+  for (const id of fixtureDirs(root, target)) fixtures[id] = { layers: build(path.join(root, id), repoRoot) };
+  return canonical({ schema: STATIC_RUNNER_SCHEMA, target, layers: target === 'starlette' ? [STARLETTE_LAYER] : STATIC_LAYERS[target], fixtures });
 }
 
 export const serializeStatic = (result) => `${JSON.stringify(result, null, 1)}\n`;
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const [target, root] = process.argv.slice(2);
-  if (!target || !root) { console.error('usage: static-runner.mjs <flask|fastapi|django> <fixtures-root>'); process.exit(2); }
+  if (!target || !root) { console.error('usage: static-runner.mjs <flask|fastapi|django|starlette> <fixtures-root>'); process.exit(2); }
   process.stdout.write(serializeStatic(runStatic(target, path.resolve(root))));
 }
