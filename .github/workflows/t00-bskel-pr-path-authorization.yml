@@ -1,0 +1,68 @@
+name: T00 independent approval
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/t00-bskel-pr-path-authorization.yml'
+      - 'next/t00/**'
+      - 'scripts/run-next-nested-tests.mjs'
+  schedule:
+    - cron: '3,13,23,33,43,53 * * * *'
+  workflow_dispatch:
+    inputs:
+      pull_number:
+        description: 'Exact same-repository Dot draft number'
+        required: true
+        type: string
+      expected_head:
+        description: 'Current 40-character commit SHA of the draft'
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('t00-independent-approval-test-{0}', github.event.pull_request.number) || 't00-independent-approval' }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          submodules: false
+      - run: node --test next/t00/independent-approval-policy.test.mjs next/t00/independent-approval-issuer.test.mjs
+
+  issue:
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.repository_id == '1334919554' && github.ref == 'refs/heads/main' && vars.T00_INDEPENDENT_APPROVAL_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    environment: t00-independent-approval
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+    steps:
+      - name: Check out the protected workflow commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+      - name: Validate candidates and publish signed checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          T00_APP_KEY: ${{ secrets.T00_APPROVER_APP_PRIVATE_KEY }}
+          T00_SIGNING_KEY: ${{ secrets.T00_APPROVER_ED25519_PRIVATE_KEY }}
+          T00_SIGNING_PUBLIC_DER: ${{ vars.T00_APPROVER_ED25519_PUBLIC_DER }}
+          T00_DOT_PUBLISHER_ID: ${{ vars.T00_DOT_PUBLISHER_BOT_ID }}
+          T00_PULL_NUMBER: ${{ inputs.pull_number }}
+          T00_EXPECTED_HEAD: ${{ inputs.expected_head }}
+        run: node next/t00/run-independent-approval.mjs
