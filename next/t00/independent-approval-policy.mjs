@@ -7,12 +7,13 @@ const REPOSITORY = 'popixoxipop-collab/backend-skeleton';
 const REPOSITORY_ID = 1334919554;
 const SHARED_ACCOUNT_ID = 261965176;
 const SHA = /^[0-9a-f]{40}$/;
+const TRACK = /^T[0-9]{2}$/;
 const DOT_BRANCH = /^dot\/[a-zA-Z0-9][a-zA-Z0-9._-]*(?:\/[a-zA-Z0-9][a-zA-Z0-9._-]*)*$/;
 const DIRECTIVE = /^\s*T00-(?:Track|Receipt)\s*:/im;
 const MAX_PATHS = 256;
 const GIT_LIMIT = 512 * 1024;
 const STRICT_PATH = /^[A-Za-z0-9_.@+/-]{1,512}$/;
-const CONTROL_PATH = /^(?:\.github(?:\/|$)|next\/t00\/(?:independent-approval|run-independent-approval|pr-path-gate|ownership|(?:build|check)-ownership|baseline\.lock\.json$|check-lease|check-path-exception|verify-path-exception|verify-baseline|snapshot-plan|path_exception_protocol|fixtures\/(?:ownership-rules|plan-write-scopes)\.json$|receipts(?:\/|$))|scripts\/run-next-nested-tests\.mjs$|package(?:-lock)?\.json$)/i;
+const CONTROL_PATH = /^(?:\.github(?:\/|$)|next\/t00\/(?:independent-approval|run-independent-approval|(?:run-)?dot-(?:draft-)?publisher|pr-path-gate|ownership|(?:build|check)-ownership|baseline\.lock\.json$|check-lease|check-path-exception|verify-path-exception|verify-baseline|snapshot-plan|path_exception_protocol|fixtures\/(?:ownership-rules|plan-write-scopes)\.json$|receipts(?:\/|$))|scripts\/run-next-nested-tests\.mjs$|package(?:-lock)?\.json$)/i;
 
 function requirePolicy(condition, code) {
   if (!condition) {
@@ -71,6 +72,24 @@ function isRepository(repository) {
   return repository?.id === REPOSITORY_ID && repository?.full_name === REPOSITORY;
 }
 
+export async function bindGitCandidate({ repoDir, mainSha, head, track }) {
+  requirePolicy(typeof mainSha === 'string' && SHA.test(mainSha) &&
+    typeof head === 'string' && SHA.test(head) && head !== mainSha &&
+    typeof track === 'string' && TRACK.test(track), 'GIT_CANDIDATE_INPUT');
+  requirePolicy(typeof repoDir === 'string' && repoDir.length > 0 &&
+    git(repoDir, 'rev-parse', 'HEAD').trim() === mainSha, 'POLICY_NOT_EXACT_BASE');
+  requirePolicy(!git(repoDir, 'status', '--porcelain=v1', '--untracked-files=all',
+    '--ignored=matching', '--ignore-submodules=none'), 'POLICY_DIRTY');
+  const { tree, paths } = readCandidateObjects(repoDir, mainSha, head);
+  const sources = await loadSources(repoDir);
+  requirePolicy(!sources.problems.length, 'POLICY_INPUT_INVALID');
+  const map = readMap(repoDir);
+  requirePolicy(!verifyMap(map, sources).length, 'POLICY_MAP_INVALID');
+  const failures = checkPaths(map, { repository: 'bskel', track, paths, backslash: 'reject' });
+  requirePolicy(!failures.length, failures[0]?.code);
+  return { base: mainSha, head, tree, track, paths };
+}
+
 export async function bindCandidate({ pull, mainSha, repoDir, publisherId }) {
   requirePolicy(Number.isSafeInteger(publisherId) && publisherId > 0 && publisherId !== SHARED_ACCOUNT_ID,
     'PUBLISHER_NOT_ENROLLED');
@@ -99,16 +118,6 @@ export async function bindCandidate({ pull, mainSha, repoDir, publisherId }) {
   const { track, receipt } = selected;
   requirePolicy(!receipt, 'DIRECTIVE_MALFORMED');
 
-  requirePolicy(typeof repoDir === 'string' && repoDir.length > 0 &&
-    git(repoDir, 'rev-parse', 'HEAD').trim() === mainSha, 'POLICY_NOT_EXACT_BASE');
-  requirePolicy(!git(repoDir, 'status', '--porcelain=v1', '--untracked-files=all',
-    '--ignored=matching', '--ignore-submodules=none'), 'POLICY_DIRTY');
-  const { tree, paths } = readCandidateObjects(repoDir, mainSha, head);
-  const sources = await loadSources(repoDir);
-  requirePolicy(!sources.problems.length, 'POLICY_INPUT_INVALID');
-  const map = readMap(repoDir);
-  requirePolicy(!verifyMap(map, sources).length, 'POLICY_MAP_INVALID');
-  const failures = checkPaths(map, { repository: 'bskel', track, paths, backslash: 'reject' });
-  requirePolicy(!failures.length, failures[0]?.code);
-  return { number: pull.number, base: mainSha, head, tree, track, paths, publisherId };
+  const binding = await bindGitCandidate({ repoDir, mainSha, head, track });
+  return { number: pull.number, ...binding, publisherId };
 }

@@ -160,6 +160,16 @@ this repository with Checks write and Metadata read. Register the independently 
 until an actual Dot-created draft verifies that identity. To start issuing scoped evidence, set the variable to `true`
 and verify the App-authored check for one exact draft. Removing the variable stops future issuance.
 
+### Dot Draft publication
+
+Dot holds its request-signing key on its native computer. It publishes an exact candidate tip to
+`dot-intake/<head>` and sends a short-lived signed request on PR #389. The `t00-dot-draft-publisher` environment
+on `main` supplies `T00_DOT_REQUEST_PUBLIC_DER` and `T00_PUBLISHER_APP_PRIVATE_KEY`. Active repository rules must
+allow only the installed publisher App to create, update or delete `dot/t00-publisher/*`. Set the repository
+variables `T00_PUBLISHER_RULESET_ID` and `T00_DOT_PUBLISHER_ENABLED=true` after verifying that exact rule.
+One request binds the repository, intake, current base, exact tip and tree, track and expiry. The publisher uses a
+create-only ref determined by the tip and verifies the exact Bot Draft through GitHub before returning a receipt.
+
 ## Optional strict v1 candidate
 
 The historical commands and report above retain their historical semantics and byte identity. They are not the strict validation entry point. See [BASELINE_STRICT_V1.md](BASELINE_STRICT_V1.md) for the isolated strict CLI, derivation, report and tests. The new inventory-alignment and cross-repository preconditions consume that strict module. This does not establish release-workflow adoption, current inventory alignment, all-writer enforcement, freeze or MET.
