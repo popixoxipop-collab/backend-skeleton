@@ -125,10 +125,29 @@ export function prepareDotPromotionRequest({ attestation, stateBytes, authority,
   requireIt(validWindow(product, now, PRODUCT_ATTESTATION_VALIDITY_SECONDS) && product.expiresAt > now + 30,
     'HOLD_PROMOTION_TIME');
   const state = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(stateBytes));
-  requireIt(state?.schema === 't00-progress-state/1' && positiveId(state.rev) && state.audit_291?.total === 291 &&
-    typeof state.basis?.audit_sha256 === 'string' && digest.test(state.basis.audit_sha256), 'HOLD_DOT_LEDGER_STATE');
+  let revision;
+  let stateSha256;
+  let auditSha256;
+  if (state?.schema === 't00.official-ledger-head/1') {
+    requireIt(exactKeys(state, ['schema', 'revision', 'stateSha256', 'auditSha256', 'met', 'total', 'scopes']) &&
+      state.total === 291 && Number.isSafeInteger(state.met) && state.met >= 0 && state.met <= state.total &&
+      Array.isArray(state.scopes) && state.scopes.length > 0 && state.scopes.length <= state.total &&
+      state.scopes.every(row => exactKeys(row, ['task', 'verdict']) && typeof row.task === 'string' && taskId.test(row.task) &&
+        ['MET', 'PARTIAL', 'NOT_MET', 'NOT_CHECKED'].includes(row.verdict)) &&
+      new Set(state.scopes.map(row => row.task)).size === state.scopes.length, 'HOLD_DOT_LEDGER_STATE');
+    const row = state.scopes.find(item => item.task === product.task);
+    requireIt(row && ['PARTIAL', 'NOT_MET'].includes(row.verdict), 'HOLD_DOT_LEDGER_STATE_NOT_ELIGIBLE');
+    ({ revision, stateSha256, auditSha256 } = state);
+  } else {
+    requireIt(state?.schema === 't00-progress-state/1' && state.audit_291?.total === 291, 'HOLD_DOT_LEDGER_STATE');
+    revision = state.rev;
+    stateSha256 = hash(stateBytes);
+    auditSha256 = state.basis?.audit_sha256;
+  }
+  requireIt(positiveId(revision) && [stateSha256, auditSha256].every(value =>
+    typeof value === 'string' && digest.test(value)), 'HOLD_DOT_LEDGER_STATE');
   return orderedBody({ schema: REQUEST_SCHEMA, ...Object.fromEntries(targetFields.map(key => [key, product[key]])),
-    revision: state.rev, stateSha256: hash(stateBytes), auditSha256: state.basis.audit_sha256,
+    revision, stateSha256, auditSha256,
     attestationSha256: checked.digest, issuedAt: now, expiresAt: Math.min(now + 900, product.expiresAt) }, requestFields);
 }
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import test from 'node:test';
-import { verifyPromotionAuthorization } from './promotion-authority.mjs';
+import { prepareDotPromotionRequest, verifyPromotionAuthorization } from './promotion-authority.mjs';
 import { buildPostmergeAttestation, verifyPostmergeGitHub, verifyPostmergeReplay, verifyPostmergeTrigger,
   waitForPostmergeCI } from './run-product-postmerge.mjs';
 
@@ -139,6 +139,15 @@ test('emits a canonical attestation accepted by the ledger verifier and binds bo
   assert.equal(accepted.attestation.adjudicationManifestSha256, hash(result.adjudication));
   assert.equal(JSON.parse(result.independent).postmerge.testedCommit, merge);
   assert.equal(JSON.parse(result.adjudication).protectedMain, movedMain);
+  const state = Buffer.from(JSON.stringify({ schema: 't00-progress-state/1', rev: 264,
+    basis: { audit_sha256: '2'.repeat(64) }, audit_291: { total: 291 } }));
+  const compact = { schema: 't00.official-ledger-head/1', revision: 264, stateSha256: hash(state), auditSha256: '2'.repeat(64),
+    met: 150, total: 291, scopes: [{ task: target.task, verdict: 'PARTIAL' }] };
+  const prepare = stateBytes => prepareDotPromotionRequest({ stateBytes, attestation: result.envelope.attestation,
+    authority, now: issuedAt });
+  assert.deepEqual(prepare(Buffer.from(JSON.stringify(compact))), prepare(state));
+  assert.throws(() => prepare(Buffer.from(JSON.stringify({ ...compact, scopes: [{ task: target.task, verdict: 'MET' }] }))),
+    /HOLD_DOT_LEDGER_STATE_NOT_ELIGIBLE/u);
   assert.throws(() => verifyPostmergeReplay(JSON.stringify({ ...replay, tested_commit: head }) + '\n', target, permit),
     /HOLD_POSTMERGE_PRODUCT_REPLAY/u);
 });
