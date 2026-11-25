@@ -1,0 +1,99 @@
+{
+  "contract": "sbf.qa-product-mutation-catalog/1",
+  "mutants": [
+    {
+      "id": "PMUT5-COMPOSITE-FK-ASSUMED-RESOLVED",
+      "vector_id": "NEG-DB-01",
+      "critical": true,
+      "file": "scanners/persistence-next/ir.mjs",
+      "find": "columns.length <= 1",
+      "replace": "columns.length > 0",
+      "test_files": [
+        "test/conformance-next/wave5-persistence.test.mjs"
+      ],
+      "invariant": "Composite foreign-key column order is preserved."
+    },
+    {
+      "id": "PMUT5-COMPOSITE-REFERENCED-COLS-SORTED",
+      "vector_id": "NEG-DB-01",
+      "critical": true,
+      "file": "scanners/persistence-next/ir.mjs",
+      "find": "references_columns: referencesColumns,",
+      "replace": "references_columns: [...referencesColumns].sort(),",
+      "test_files": [
+        "test/conformance-next/wave5-persistence.test.mjs"
+      ],
+      "invariant": "Composite foreign-key column order is preserved."
+    },
+    {
+      "id": "PMUT5-UNBOUND-RESOURCE-AUTO-PICKS-ENTITY",
+      "vector_id": "NEG-DB-02",
+      "critical": true,
+      "file": "scanners/persistence-next/bindings.mjs",
+      "find": "const refs = requested.get(resource.id) ?? [];",
+      "replace": "const refs = requested.get(resource.id) ?? [{ entityId: ir.entities[0]?.id, source: 'unsafe-name-guess' }];",
+      "test_files": [
+        "test/conformance-next/wave5-persistence.test.mjs"
+      ],
+      "invariant": "Entity/table name similarity alone cannot create a fetch binding."
+    },
+    {
+      "id": "PMUT5-PHYSICAL-TABLE-SCHEMA-DROPPED",
+      "vector_id": "NEG-DB-03",
+      "critical": true,
+      "file": "scanners/persistence-next/bindings.mjs",
+      "find": "${table.schema ?? ''}",
+      "replace": "${''}",
+      "test_files": [
+        "test/conformance-next/wave5-persistence.test.mjs"
+      ],
+      "invariant": "Same-named tables in different schemas keep their physical namespace."
+    },
+    {
+      "id": "PMUT5-MIGRATION-AND-LIVE-COMPARISON-SKIPPED",
+      "vector_id": "NEG-DB-06",
+      "critical": true,
+      "file": "scanners/persistence-next/drift.mjs",
+      "find": "if (migrations && live) comparisons.push",
+      "replace": "if (false) comparisons.push",
+      "test_files": [
+        "test/conformance-next/wave5-persistence.test.mjs"
+      ],
+      "invariant": "Migration metadata and live database snapshots may drift and the drift is reported explicitly."
+    },
+    {
+      "id": "PMUT5-UUID-KEY-CODEC-GATE-REMOVED",
+      "vector_id": "NEG-GEN-05",
+      "critical": true,
+      "file": "scanners/persistence-next/generation-handoff.mjs",
+      "find": "if (keyType !== 'uuid') {",
+      "replace": "if (false) {",
+      "test_files": [
+        "test/conformance-next/wave5-generation.test.mjs"
+      ],
+      "invariant": "Generated key codecs exactly match approved physical/logical key types."
+    },
+    {
+      "id": "PMUT5-MALFORMED-MANIFEST-NO-DIAGNOSTIC",
+      "vector_id": "NEG-PROJ-06",
+      "critical": false,
+      "file": "scanners/project-graph/index.mjs",
+      "find": "kind: 'package-metadata-read',",
+      "replace": "kind: 'silenced-metadata-read',",
+      "test_files": [
+        "test/conformance-next/wave5-project.test.mjs"
+      ],
+      "invariant": "Partial or missing manifests are reported as incomplete rather than fabricated framework certainty."
+    }
+  ],
+  "coverage_scope": {
+    "planned_catalog": "test/corpus-next/negative-vectors.json",
+    "planned_catalog_sha256": "829ac742786cb570d5ef4238c81bb9051123812beaffce320e211cf6a148e23e",
+    "base_pr292_head": "d88f3b3dd18abef247d7e267df76e9219be0c14e",
+    "pre_wave5_candidate_vectors": 49,
+    "wave5_new_unique_vectors": 6,
+    "stacked_candidate_vectors": 55,
+    "unrepresented": 24,
+    "scope": "Actual synthetic project, persistence IR, and generation-handoff decisions. Not a live DB, runtime key codec, third-party permission or signed holdout."
+  }
+}
