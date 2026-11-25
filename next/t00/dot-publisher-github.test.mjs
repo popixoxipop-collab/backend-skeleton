@@ -83,7 +83,7 @@ function fixture(options = {}) {
       return Response.json({ total_count: repositories.length, repositories });
     }
     if (path === `/users/${bot.login}`) {
-      assert.equal(token, undefined);
+      assert.equal(token, readToken);
       return Response.json({ ...bot, ...options.bot });
     }
     if (path === `${repo}/rules/branches/${branch}`) {
