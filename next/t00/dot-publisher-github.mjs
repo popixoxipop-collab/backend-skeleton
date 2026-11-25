@@ -76,16 +76,17 @@ function createApi(fetchImpl) {
       options.body = JSON.stringify(body);
       headers['Content-Type'] = 'application/json';
     }
+    let response;
     try {
-      const response = await fetchImpl(API + path, options);
-      expect(!response.redirected, `HOLD_GITHUB_${label}`);
-      if (allowMissing && response.status === 404) return null;
-      expect(response.status === (body ? 201 : 200), `HOLD_GITHUB_${label}`);
-      return await json(response);
+      response = await fetchImpl(API + path, options);
     } catch {
       // An ambiguous POST is never automatically attempted again, and no server body is logged.
       throw new Error(`HOLD_GITHUB_${label}`);
     }
+    expect(!response.redirected, `HOLD_GITHUB_${label}_REDIRECT`);
+    if (allowMissing && response.status === 404) return null;
+    expect(response.status === (body ? 201 : 200), `HOLD_GITHUB_${label}_HTTP_${response.status}`);
+    return json(response);
   };
 }
 
@@ -156,10 +157,10 @@ export async function createPublisher({ appId, installationId, rulesetId, pem, f
     exactPermissions(install.permissions, WRITE_PERMISSIONS), 'HOLD_PUBLISHER_INSTALLATION_SCOPE');
 
   // Use a metadata-only probe without a repo filter to verify the full installation scope.
-  await scopedInstallationToken(api, installationPath, jwt, READ_PERMISSIONS);
+  const metadataToken = await scopedInstallationToken(api, installationPath, jwt, READ_PERMISSIONS);
 
   const botLogin = `${app.slug}[bot]`;
-  const bot = await api(`/users/${encodeURIComponent(botLogin)}`, { label: 'PUBLISHER_BOT' });
+  const bot = await api(`/users/${encodeURIComponent(botLogin)}`, { token: metadataToken, label: 'PUBLISHER_BOT' });
   expect(positiveInteger(bot?.id) && bot.id !== OWNER_ID && bot.id !== APPROVER_BOT_ID && bot.type === 'Bot' &&
     bot.login === botLogin, 'HOLD_PUBLISHER_BOT_IDENTITY');
   const token = await scopedInstallationToken(api, installationPath, jwt, WRITE_PERMISSIONS, [REPOSITORY_ID]);
