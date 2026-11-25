@@ -37,8 +37,13 @@ HISTORY = {
         "cfe99556d4531269d87a213f3320a584d7d23653de33a6bb36f2d7d4aee588fb",
     ),
 }
-# Pin each Linux encoding from a completed reference receipt on the hosted runner.
-LINUX_ARCHIVE_SHA256 = {}
+# Verified on Ubuntu 24.04 in Actions run 45668075360, job 139395558722.
+LINUX_ARCHIVE_SHA256 = {
+    "271d5d747d7ef99fb7ce990a95db32fbdf4e46bd":
+        "72efda536e010294d35941b70f056e435239ba3853f10243c3ec53e3b3766d5b",
+    "bb18182c54a3a8f682ed2d1a6bac26749fcf267e":
+        "1c3c550b2cb76881af9a6b5be786f77f63ba92c76d48589cf32a052513414b44",
+}
 NODE_VERSION = "v26.7.0"
 NPM_VERSION = "11.19.0"
 MODULE = "handles/composition-next/plan.mjs"

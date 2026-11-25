@@ -19,14 +19,17 @@ const t14 = Object.freeze({ task: 'T14-06', scope: 'historical-provider-preview-
   scopePaths: Object.freeze(['next/t14/HISTORICAL_PACKAGE_REPLAY.json', 'next/t14/HISTORICAL_PACKAGE_REPLAY.md']) });
 export const productProfiles = Object.freeze([t03, t14]);
 
-const t03Archive = 'caa66cfd979341fa63e441af3d38184ef52a5e6d73b4749afeb1ebcaefbe5742';
+const t03OriginalArchive = '598fb1cbcfd4d0e2e8842b2c120efeac2b76112a25e589b1f14450deea00dc5a';
+const t03ArchiveEncodings = Object.freeze([t03OriginalArchive, 'caa66cfd979341fa63e441af3d38184ef52a5e6d73b4749afeb1ebcaefbe5742']);
 const t14Previous = Object.freeze({ commit: '271d5d747d7ef99fb7ce990a95db32fbdf4e46bd',
   tree: 'c5f1da277f3858cc93cefa8b6c3c0d5956b23e07', kind: 'reproduced-from-pinned-git-tree', package_members: 217,
-  archive_sha256: '9f2c2b705ddf6f7e9bd4ed03a7d4d6fb8ce002fbd46709f948ea99aa4e783ac8',
+  archive_platform: 'linux', archive_sha256: '72efda536e010294d35941b70f056e435239ba3853f10243c3ec53e3b3766d5b',
+  darwin_reference_archive_sha256: '9f2c2b705ddf6f7e9bd4ed03a7d4d6fb8ce002fbd46709f948ea99aa4e783ac8',
   archive_inventory_sha256: 'e32a0d3d34c46534f3a423fb1623e61e78965247bbd43f1c4c625d0922239e31' });
 const t14Introduced = Object.freeze({ commit: 'bb18182c54a3a8f682ed2d1a6bac26749fcf267e',
   tree: '3330ac643682236547425436179a8d09cb33bbec', kind: 'reproduced-from-pinned-git-tree', package_members: 363,
-  archive_sha256: '055e93ed6cde2c58f7fe7b1cfecedbf1375eda3be44ac3e9fa78168c43802a85',
+  archive_platform: 'linux', archive_sha256: '1c3c550b2cb76881af9a6b5be786f77f63ba92c76d48589cf32a052513414b44',
+  darwin_reference_archive_sha256: '055e93ed6cde2c58f7fe7b1cfecedbf1375eda3be44ac3e9fa78168c43802a85',
   archive_inventory_sha256: 'cfe99556d4531269d87a213f3320a584d7d23653de33a6bb36f2d7d4aee588fb' });
 const t14Writes = ['specs/001-t14-replay/handles/migration.sql', 'src/handles/codec.ts',
   'src/handles/handleEntities.ts', 'src/handles/handleService.ts', 'src/handles/recordSnapshotWrapper.ts',
@@ -89,8 +92,9 @@ export function validateProductReplay(profile, replay, { phase, subject, baseTre
     release_authorized: false, runtime_certified: false };
   let ok;
   if (profile === t03) {
-    ok = exact(replay, { ...bound, schema: 't00.t03-exact-pr-replay/3',
-      historical_archive_sha256: '598fb1cbcfd4d0e2e8842b2c120efeac2b76112a25e589b1f14450deea00dc5a',
+    const t03Archive = replay?.replayed_historical_archive_sha256;
+    ok = t03ArchiveEncodings.includes(t03Archive) && exact(replay, { ...bound, schema: 't00.t03-exact-pr-replay/3',
+      historical_archive_sha256: t03OriginalArchive,
       replayed_historical_archive_sha256: t03Archive, historical_archive_kind: 'reproduced-from-pinned-historical-tree',
       base_archive_sha256: t03Archive, candidate_archive_sha256: t03Archive, package_file_bytes_match_official_baseline: true,
       package_members: 424, normal_restore: true, sigterm_probe_restore: true },

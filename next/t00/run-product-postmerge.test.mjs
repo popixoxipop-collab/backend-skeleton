@@ -150,4 +150,9 @@ test('emits a canonical attestation accepted by the ledger verifier and binds bo
     /HOLD_DOT_LEDGER_STATE_NOT_ELIGIBLE/u);
   assert.throws(() => verifyPostmergeReplay(JSON.stringify({ ...replay, tested_commit: head }) + '\n', target, permit),
     /HOLD_POSTMERGE_PRODUCT_REPLAY/u);
+  const linux = { ...replay, replayed_historical_archive_sha256: historicalArchive,
+    base_archive_sha256: historicalArchive, candidate_archive_sha256: historicalArchive };
+  assert.deepEqual(verifyPostmergeReplay(JSON.stringify(linux) + '\n', target, permit), linux);
+  assert.throws(() => verifyPostmergeReplay(JSON.stringify({ ...linux, candidate_archive_sha256: reproducedArchive }) + '\n', target, permit),
+    /HOLD_POSTMERGE_PRODUCT_REPLAY/u);
 });

@@ -26,6 +26,7 @@ HISTORICAL_PACKAGE_TREE = "bd187ad9a6cb7d93f367d59ee5ee1495e6547184"
 HISTORICAL_PACKAGE_SHA = "598fb1cbcfd4d0e2e8842b2c120efeac2b76112a25e589b1f14450deea00dc5a"
 # XOX independently confirmed this reproducible archive has the original package inventory.
 REPRODUCED_HISTORICAL_PACKAGE_SHA = "caa66cfd979341fa63e441af3d38184ef52a5e6d73b4749afeb1ebcaefbe5742"
+HISTORICAL_INVENTORY_SHA = "c391ce08a700aa1e462243ae1201f42cf8847b8c3c3ee00718261004b2433af5"
 MODULE = "scanners/capability-next/index.mjs"
 
 PROBE = r"""
@@ -62,6 +63,16 @@ def require(condition, detail):
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def portable_inventory_sha(inventory):
+    return digest(json.dumps(inventory, sort_keys=True, separators=(",", ":")).encode())
+
+
+def expected_reproduced_archive():
+    known = {"darwin": REPRODUCED_HISTORICAL_PACKAGE_SHA, "linux": HISTORICAL_PACKAGE_SHA}
+    require(sys.platform in known, "historical package encoding platform unsupported")
+    return known[sys.platform]
 
 
 def run(argv, directory, env, timeout=50):
@@ -143,14 +154,15 @@ def replay_reference(work):
         inventory = archive_inventory(archive, git("ls-tree", "-r", "-z", commit))
         packages.append((archive, inventory))
     (prior, old_files), (current, new_files) = packages
-    require(MODULE not in old_files and MODULE in new_files and len(new_files) == 424, "historical package members differ")
+    require(MODULE not in old_files and MODULE in new_files and len(new_files) == 424 and
+            portable_inventory_sha(new_files) == HISTORICAL_INVENTORY_SHA, "historical package members differ")
     raw = digest(current.read_bytes())
     return {"schema": "t00.t03-historical-linux-reference/1", "platform": sys.platform, "phase": "reference",
             "previous_commit": PREVIOUS, "previous_tree": PREVIOUS_TREE, "previous_archive_sha256": digest(prior.read_bytes()),
             "historical_commit": HISTORICAL_PACKAGE_COMMIT, "historical_tree": HISTORICAL_PACKAGE_TREE,
             "historical_archive_sha256": raw, "package_members": len(new_files),
-            "historical_inventory_sha256": digest(json.dumps(new_files, sort_keys=True, separators=(",", ":")).encode()),
-            "deployed_archive_pin_matches": raw == REPRODUCED_HISTORICAL_PACKAGE_SHA,
+            "historical_inventory_sha256": portable_inventory_sha(new_files),
+            "deployed_archive_pin_matches": raw == expected_reproduced_archive(),
             **exercise_pair(work, prior, current, old_files, new_files, npm, node, env)}
 
 
@@ -324,12 +336,13 @@ def verify_replay(work, original_archive, args, api=github):
         archive = npm_pack(source, folder, npm, env)
         archive_kind = "reproduced-from-pinned-historical-tree"
         archive_sha = digest(archive.read_bytes())
-        require(archive_sha == REPRODUCED_HISTORICAL_PACKAGE_SHA, "reproduced historical archive SHA mismatch")
+        require(archive_sha == expected_reproduced_archive(), "reproduced historical archive SHA mismatch")
     else:
         archive = original_archive
         archive_kind = "original-historical-archive"
         archive_sha = HISTORICAL_PACKAGE_SHA
     historical = archive_inventory(archive, git("ls-tree", "-r", "-z", HISTORICAL_PACKAGE_COMMIT))
+    require(portable_inventory_sha(historical) == HISTORICAL_INVENTORY_SHA, "historical package inventory SHA mismatch")
     inventories = {}
     archives = {}
     for label, commit in (("previous", PREVIOUS), ("base", args.base), ("candidate", target)):
@@ -343,6 +356,9 @@ def verify_replay(work, original_archive, args, api=github):
     require(MODULE not in previous and MODULE in historical and
             inventories["base"] == historical == inventories["candidate"],
             "base and candidate packages must match the historically trusted package contents")
+    if original_archive is None:
+        require(all(digest(archives[label].read_bytes()) == archive_sha for label in ("base", "candidate")),
+                "base and candidate archive encodings differ from the trusted platform archive")
     result = exercise_pair(work, archives["previous"], archives["candidate"], previous, historical, npm, node, env)
     require(pr_target(api(f"/pulls/{args.pr}"), args) == target, "PR moved during replay")
     verify_main(expected_main, api, historical=postmerge)

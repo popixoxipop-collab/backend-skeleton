@@ -186,6 +186,10 @@ For T14-06 the native candidate uses the two evidence files printed by
 `python3 -I -B next/t00/t14-historical-product-replay.py candidate-evidence --base <protected-main-sha>`.
 The replay checks those exact bytes and verifies the package independently on both sides of the merge.
 
+The historical tarballs have pinned encodings for Linux and macOS. Every replay also checks the full versioned file
+inventory and the mode of each member. The [Ubuntu reference run](https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/45668075360)
+records the Linux encodings and installation restore results for both profiles.
+
 `t00-product-transition.yml` starts when that evidence workflow succeeds for a signed intake comment. It verifies the
 exact run and artifact, current protected base, scoped path check, and App-bound CI before issuing a short-lived permit.
 The publisher Bot checks the permit and merges with the expected head. Recovery verifies the existing merge actor,
