@@ -107,8 +107,8 @@ as `\xNN`, so a name cannot add a line. Exit 1: usage error or unreadable input,
 
 ## 9. Limits
 
-- No workflow calls `check-ownership.mjs` and no job runs `paths` on the diff of a pull request. The CI `npm test` runs
-  `test/t00-ownership.test.mjs`, which runs the gate on this checkout and on scaffold copies.
+- The CLI remains manual. The independent approval workflow uses the same ownership map from protected `main` for
+  eligible same-repository Dot drafts. The CI `npm test` tests the CLI on this checkout and scaffold copies.
 - The plan folder and the coordinator's pre-push checklist are outside this checkout. The snapshot and the rules file are
   their committed copies, and `snapshot-plan.mjs --check` against the backlog is a maintainer step, not a CI step.
 - The judged checkout supplies both the map and its inputs, so whoever can change both can change the policy the gate applies.

@@ -782,15 +782,26 @@ test('the commands of the protocol document use the flags the gate prints in its
   assert.ok(doc.includes('node next/t00/seal-lease-ledger.mjs'));
 });
 
-test('what the documents say of the CI is true: no workflow runs a T00 gate, the test job runs npm test on Node 22 and 24, and nothing runs Node 18', () => {
+test('CI keeps the lease gate manual and runs the documented Node matrix', () => {
   const dir = path.join(ROOT, '.github', 'workflows');
   const workflows = fs.readdirSync(dir).filter((n) => /\.ya?ml$/.test(n));
   assert.ok(workflows.includes('ci.yml'));
+  const independentApproval = 't00-bskel-pr-path-authorization.yml';
   const changeThem = 'LEASE_PROTOCOL.md, README.md and INTERFACE_RFC.md say so, so change them with the workflow';
   let seen = 0;
   for (const name of workflows) {
     const text = fs.readFileSync(path.join(dir, name), 'utf8');
-    assert.ok(!/check-lease|check-ownership|seal-lease-ledger|lease-mutants|make-lease-report|next\/t00/.test(text), `${name} runs a T00 gate: ${changeThem}`);
+    assert.doesNotMatch(text, /check-lease|check-ownership|seal-lease-ledger|lease-mutants|make-lease-report/,
+      `${name} runs a manual T00 gate: ${changeThem}`);
+    if (name === independentApproval) {
+      assert.match(text, /^  schedule:/m);
+      assert.match(text, /^  issue:\n    if: .*github\.ref == 'refs\/heads\/main'.*T00_INDEPENDENT_APPROVAL_ENABLED/m);
+      assert.match(text, /^    environment: t00-independent-approval$/m);
+      assert.match(text, /^        run: node next\/t00\/run-independent-approval\.mjs$/m);
+      assert.doesNotMatch(text.split('\n  issue:')[0], /\bsecrets\./);
+    } else {
+      assert.doesNotMatch(text, /next\/t00/, `${name} adds an undocumented T00 workflow: ${changeThem}`);
+    }
     assert.ok(!/7b517e7a|bootstrap-baseline/.test(text), `${name} refers to the coordination branch or commit that the documents say no workflow refers to`);
     const versions = [...text.matchAll(/node-version:[ \t]*(.+)$/gm)].map((m) => m[1].trim().replace(/^['"]|['"]$/g, ''));
     assert.ok(versions.every((v) => v === '22.x' || v === '24.x' || v === '${{ matrix.node }}'), `${name} runs a Node version the README does not name: ${versions.join(' ')}`);

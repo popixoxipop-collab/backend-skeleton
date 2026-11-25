@@ -184,10 +184,11 @@ again.
 
 ## Limits
 
-- The gates are manual and not wired into CI. No workflow calls `check-lease.mjs`, `check-ownership.mjs` or
+- The lease and ownership CLIs are manual and not wired into CI. No workflow calls `check-lease.mjs`, `check-ownership.mjs` or
   `seal-lease-ledger.mjs`. The root `npm test`, which the CI test job runs, executes `test/t00-lease.test.mjs` and
   `test/t00-ownership.test.mjs`; they run the gates on fixtures and on this checkout's map, so a stale map or a stale
-  `lease-report.json` fails that job. No job runs a gate on the diff of a pull request or on a real ledger.
+  `lease-report.json` fails that job. The separate independent PR path approval workflow reads the exact candidate diff.
+  The workflow issues ownership evidence only and neither consumes nor mutates the lease ledger.
 - The ledger is a file, not a service. The gate verifies the file it is given; it cannot tell that a worker read an older
   copy.
 - A fencing token protects only where this gate runs. A writer that never presents its token to the gate is not stopped.
