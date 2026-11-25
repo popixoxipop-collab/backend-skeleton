@@ -51,8 +51,8 @@ async function liveBase(workflowSha) {
   return workflowSha;
 }
 
-function acceptsDraft(pull, publisherId) {
-  return pull?.state === 'open' && pull.draft === true && pull.head?.repo?.id === REPOSITORY_ID &&
+function acceptsPublishedPull(pull, publisherId) {
+  return pull?.state === 'open' && typeof pull.draft === 'boolean' && pull.head?.repo?.id === REPOSITORY_ID &&
     SHA.test(pull.head.sha ?? '') && pull.head.ref === DRAFT_REF_PREFIX + pull.head.sha &&
     pull.user?.type === 'Bot' && pull.user.id === publisherId;
 }
@@ -63,12 +63,12 @@ async function verifyPublicationRules(ref, rulesetId) {
     rules.some(rule => rule.type === type && rule.ruleset_id === rulesetId)), 'HOLD_PUBLISHER_NAMESPACE');
 }
 
-async function listDrafts(publisherId) {
+async function listPublishedPulls(publisherId) {
   const eligible = [];
   for (let page = 1; page <= 10; page++) {
     const entries = await github(`${API}/pulls?state=open&base=main&sort=created&direction=asc&per_page=100&page=${page}`);
     expect(Array.isArray(entries), 'HOLD_PULL_LIST');
-    eligible.push(...entries.filter(pull => acceptsDraft(pull, publisherId)));
+    eligible.push(...entries.filter(pull => acceptsPublishedPull(pull, publisherId)));
     if (entries.length < 100) return eligible;
   }
   throw new Error('HOLD_PULL_LIST_TRUNCATED');
@@ -102,12 +102,12 @@ async function run() {
   const base = await liveBase(GITHUB_SHA);
   const scheduled = GITHUB_EVENT_NAME === 'schedule';
   if (!scheduled) expect(NUMBER.test(T00_PULL_NUMBER ?? '') && SHA.test(T00_EXPECTED_HEAD ?? ''), 'HOLD_DISPATCH_TARGET');
-  const candidates = scheduled ? await listDrafts(publisherId) : [{
+  const candidates = scheduled ? await listPublishedPulls(publisherId) : [{
     number: Number(T00_PULL_NUMBER),
     head: { sha: T00_EXPECTED_HEAD },
   }];
   if (!candidates.length) {
-    console.log('No open drafts from the enrolled Dot publisher');
+    console.log('No open pull requests from the enrolled Dot publisher');
     return;
   }
   const issuer = createIssuer({
@@ -124,9 +124,9 @@ async function run() {
       const load = async () => {
         const mainSha = await liveBase(base);
         const pull = await github(`${API}/pulls/${number}`);
-        expect(acceptsDraft(pull, publisherId) && pull.number === number && pull.head.sha === head, 'HOLD_GITHUB_CANDIDATE_CHANGED');
+        expect(acceptsPublishedPull(pull, publisherId) && pull.number === number && pull.head.sha === head, 'HOLD_GITHUB_CANDIDATE_CHANGED');
         await verifyPublicationRules(pull.head.ref, rulesetId);
-        return { pull, mainSha, repoDir: process.cwd(), publisherId };
+        return { pull, mainSha, repoDir: process.cwd(), publisherId, allowReady: true };
       };
       const input = await load();
       git('fetch', '--quiet', '--no-tags', '--no-recurse-submodules', '--depth=2',

@@ -1,4 +1,5 @@
 import { createPrivateKey, sign } from 'node:crypto';
+import { createDotTransitionTransport } from './t00-dot-transition-transport.mjs';
 
 const OWNER = 'popixoxipop-collab';
 const OWNER_ID = 261965176;
@@ -104,7 +105,7 @@ async function scopedInstallationToken(api, installationPath, jwt, permissions, 
   });
   expect(scope?.total_count === 1 && scope.repositories?.length === 1 && sameRepo(scope.repositories[0]),
     'HOLD_PUBLISHER_REPOSITORY_SCOPE');
-  return auth.token;
+  return { token: auth.token, expiresAt: Date.parse(auth.expires_at) };
 }
 
 function snapshot(binding) {
@@ -157,13 +158,14 @@ export async function createPublisher({ appId, installationId, rulesetId, pem, f
     exactPermissions(install.permissions, WRITE_PERMISSIONS), 'HOLD_PUBLISHER_INSTALLATION_SCOPE');
 
   // Use a metadata-only probe without a repo filter to verify the full installation scope.
-  const metadataToken = await scopedInstallationToken(api, installationPath, jwt, READ_PERMISSIONS);
+  const { token: metadataToken } = await scopedInstallationToken(api, installationPath, jwt, READ_PERMISSIONS);
 
   const botLogin = `${app.slug}[bot]`;
   const bot = await api(`/users/${encodeURIComponent(botLogin)}`, { token: metadataToken, label: 'PUBLISHER_BOT' });
   expect(positiveInteger(bot?.id) && bot.id !== OWNER_ID && bot.id !== APPROVER_BOT_ID && bot.type === 'Bot' &&
     bot.login === botLogin, 'HOLD_PUBLISHER_BOT_IDENTITY');
-  const token = await scopedInstallationToken(api, installationPath, jwt, WRITE_PERMISSIONS, [REPOSITORY_ID]);
+  const credentials = await scopedInstallationToken(api, installationPath, jwt, WRITE_PERMISSIONS, [REPOSITORY_ID]);
+  const { token } = credentials;
   const read = (path, label, allowMissing = false) => api(path, { token, label, allowMissing });
 
   async function validateRules(branch) {
@@ -177,6 +179,13 @@ export async function createPublisher({ appId, installationId, rulesetId, pem, f
 
   return {
     botId: bot.id,
+    async transitionTransport(subject, pullRequestNodeId) {
+      expect(appId === 5922170 && installationId === 185792757 && rulesetId === 28083525 && bot.id === 361175685,
+        'HOLD_PUBLISHER_TRANSITION_IDENTITY');
+      return createDotTransitionTransport({ subject, pullRequestNodeId, fetchImpl,
+        issueInstallationToken: () => ({ appId, installationId, repository: REPOSITORY, repositoryId: REPOSITORY_ID,
+          permissions: { ...WRITE_PERMISSIONS }, ...credentials }) });
+    },
     async publish(binding, revalidate) {
       expect(typeof revalidate === 'function', 'HOLD_PUBLISHER_REVALIDATOR');
       const initial = snapshot(binding);

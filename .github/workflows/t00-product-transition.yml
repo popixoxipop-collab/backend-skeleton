@@ -1,0 +1,140 @@
+name: T00 signed product transition
+
+on:
+  schedule:
+    - cron: '11,26,41,56 * * * *'
+  workflow_run:
+    workflows: [T00 independent product replay]
+    types: [completed]
+  pull_request:
+    paths:
+      - '.github/workflows/t00-product-transition.yml'
+      - 'next/t00/*.mjs'
+      - 'next/t00/product-t03-replay.py'
+      - 'next/t00/setup-product-npm.sh'
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.event_name == 'schedule' && 't00-postmerge-recovery' || github.event_name == 'workflow_run' && 't00-verified-product-transition' || format('t00-product-transition-test-{0}', github.event.pull_request.number) }}
+  queue: max
+
+jobs:
+  test:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          submodules: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24.x'
+      - run: node --test next/t00/dot-publisher-github.test.mjs next/t00/dot-transition-intent.test.mjs next/t00/independent-approval-policy.test.mjs next/t00/t00-dot-transition-transport.test.mjs next/t00/t00-exact-ready-merge.test.mjs next/t00/t00-github-*.test.mjs next/t00/run-product-*.test.mjs
+      - run: bash -n next/t00/setup-product-npm.sh
+
+  verify:
+    if: github.event_name == 'workflow_run' && github.repository_id == '1334919554' && github.ref == 'refs/heads/main' && github.event.workflow_run.workflow_id == 430570167 && github.event.workflow_run.event == 'issue_comment' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.id == 1334919554
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: t00-independent-product
+    permissions:
+      contents: read
+    outputs:
+      permit: ${{ steps.verify.outputs.permit }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          submodules: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24.x'
+      - id: verify
+        env:
+          T00_POLICY_READER_APP_PRIVATE_KEY: ${{ secrets.T00_POLICY_READER_APP_PRIVATE_KEY }}
+          T00_PRODUCT_ED25519_PRIVATE_DER_BASE64: ${{ secrets.T00_PRODUCT_ED25519_PRIVATE_DER_BASE64 }}
+        run: node next/t00/run-product-transition-verify.mjs
+
+  merge:
+    needs: verify
+    if: needs.verify.result == 'success' && needs.verify.outputs.permit != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: t00-dot-draft-publisher
+    permissions:
+      contents: read
+    outputs:
+      proof: ${{ steps.merge.outputs.proof }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          submodules: false
+      - id: merge
+        env:
+          T00_TRANSITION_PERMIT: ${{ needs.verify.outputs.permit }}
+          T00_PUBLISHER_APP_KEY: ${{ secrets.T00_PUBLISHER_APP_PRIVATE_KEY }}
+        run: node next/t00/run-product-transition-merge.mjs
+
+  postmerge:
+    needs: merge
+    if: needs.merge.result == 'success' && needs.merge.outputs.proof != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    environment: t00-independent-product
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          submodules: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '26.7.0'
+      - run: bash next/t00/setup-product-npm.sh
+      - name: Replay and attest the exact protected merge
+        env:
+          T00_POSTMERGE_PROOF_JSON: ${{ needs.merge.outputs.proof }}
+          T00_PRODUCT_ED25519_PRIVATE_DER_BASE64: ${{ secrets.T00_PRODUCT_ED25519_PRIVATE_DER_BASE64 }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node next/t00/run-product-postmerge.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: t00-product-postmerge-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/t00-product-postmerge/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish the verified promotion evidence to intake
+        env:
+          T00_POSTMERGE_PROOF_JSON: ${{ needs.merge.outputs.proof }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node next/t00/run-product-postmerge.mjs --publish
+
+  recover:
+    if: github.event_name == 'schedule' && github.repository_id == '1334919554' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: t00-independent-product
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          submodules: false
+      - env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node next/t00/run-product-recovery.mjs

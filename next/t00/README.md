@@ -178,7 +178,16 @@ returned by the publisher. Scheduled runs refresh current evidence and manual di
 The protected `main` job uses read-only repository permissions. It validates `T03-06` and the protected base,
 then reproduces the pinned historical package with Node 26.7.0 and npm 11.19.0. It checks the packaged snapshot
 and restoration after normal execution and SIGTERM, then publishes an evidence artifact bound to the run and
-candidate. The regular `npm test` matrix stays on Node 22.x and 24.x. Promotion consumes the evidence separately.
+candidate. The regular `npm test` matrix stays on Node 22.x and 24.x.
+
+`t00-product-transition.yml` starts when that evidence workflow succeeds for a signed intake comment. It verifies the
+exact run and artifact, current protected base, scoped path check, and App-bound CI before issuing a short-lived permit.
+The publisher Bot checks the permit and merges with the expected head. Recovery verifies the existing merge actor,
+parents, and tree. The independent product job checks the exact merge and main CI, replays the package using Node 26.7.0,
+and posts the signed attestation to PR #389 after uploading the evidence. Dot uses `dot-ledger-request.mjs` with the raw
+verified EOE `T00_DOT_LEDGER_HEAD.json` or the raw official state bytes, plus the signed attestation, to prepare the
+ledger request with its native Ed25519 key. EOE rechecks the revision and both hashes at the write boundary.
+Scheduled recovery retries a failed postmerge job up to twice after the exact merge job succeeded.
 
 ## Optional strict v1 candidate
 

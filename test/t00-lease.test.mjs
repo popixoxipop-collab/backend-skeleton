@@ -788,6 +788,7 @@ test('CI keeps the lease gate manual and runs the documented Node matrix', () =>
   assert.ok(workflows.includes('ci.yml'));
   const independentApproval = 't00-bskel-pr-path-authorization.yml';
   const productReplay = 't00-product-replay.yml';
+  const productTransition = 't00-product-transition.yml';
   const changeThem = 'LEASE_PROTOCOL.md, README.md and INTERFACE_RFC.md say so, so change them with the workflow';
   let seen = 0;
   for (const name of workflows) {
@@ -811,13 +812,27 @@ test('CI keeps the lease gate manual and runs the documented Node matrix', () =>
       assert.match(text, /^  premerge:\n    if: .*github\.ref == 'refs\/heads\/main'.*T00-DOT-TRANSITION-V1 /m);
       assert.match(text, /^          node next\/t00\/run-product-replay\.mjs$/m);
       assert.doesNotMatch(text, /\bsecrets\.|\bwrite\b/);
+    } else if (name === productTransition) {
+      assert.match(text, /^  workflow_run:\n    workflows: \[T00 independent product replay\]\n    types: \[completed\]$/m);
+      assert.match(text, /^permissions: \{\}$/m);
+      assert.match(text, /^  verify:\n    if: .*github\.ref == 'refs\/heads\/main'.*workflow_id == 430570167.*conclusion == 'success'/m);
+      const [testAndPre, mergeSection, postSection] = text.split(/\n  (?:merge|postmerge):\n/);
+      assert.ok(postSection && mergeSection);
+      assert.match(testAndPre, /environment: t00-independent-product/);
+      assert.doesNotMatch(testAndPre, /pull-requests: write|T00_PUBLISHER_APP_PRIVATE_KEY/);
+      assert.match(mergeSection, /environment: t00-dot-draft-publisher/);
+      assert.match(mergeSection, /T00_PUBLISHER_APP_PRIVATE_KEY/);
+      assert.doesNotMatch(mergeSection, /T00_PRODUCT_ED25519_PRIVATE_DER_BASE64/);
+      assert.match(postSection, /environment: t00-independent-product/);
+      assert.match(postSection, /run: node next\/t00\/run-product-postmerge\.mjs --publish/);
+      assert.doesNotMatch(postSection, /T00_PUBLISHER_APP_PRIVATE_KEY/);
     } else {
       assert.doesNotMatch(text, /next\/t00/, `${name} adds an undocumented T00 workflow: ${changeThem}`);
     }
     assert.ok(!/7b517e7a|bootstrap-baseline/.test(text), `${name} refers to the coordination branch or commit that the documents say no workflow refers to`);
     const versions = [...text.matchAll(/node-version:[ \t]*(.+)$/gm)].map((m) => m[1].trim().replace(/^['"]|['"]$/g, ''));
     assert.ok(versions.every((v) => v === '22.x' || v === '24.x' || v === '${{ matrix.node }}' ||
-      (name === productReplay && v === '26.7.0')), `${name} runs a Node version the README does not name: ${versions.join(' ')}`);
+      ([productReplay, productTransition].includes(name) && v === '26.7.0')), `${name} runs a Node version the README does not name: ${versions.join(' ')}`);
     seen += versions.length;
     const matrices = [...text.matchAll(/^[ \t]+node:[ \t]*(.+)$/gm)].map((m) => m[1].trim());
     assert.ok(matrices.every((v) => v === "['22.x', '24.x']"), `${name} has a Node matrix other than 22.x and 24.x: ${matrices.join(' ')}`);
@@ -840,7 +855,9 @@ test('CI keeps the lease gate manual and runs the documented Node matrix', () =>
   assert.match(read('next/t00/README.md'), /not wired into CI/);
   assert.match(read('next/t00/INTERFACE_RFC.md'), /not wired into CI/);
   for (const name of ['LEASE_PROTOCOL.md', 'README.md', 'INTERFACE_RFC.md']) {
-    assert.ok(read(`next/t00/${name}`).includes(productReplay), `${name} must document the read-only replay workflow`);
+    const documentation = read(`next/t00/${name}`);
+    assert.ok(documentation.includes(productReplay) && documentation.includes(productTransition),
+      `${name} must document the replay and signed transition workflows`);
   }
 });
 
