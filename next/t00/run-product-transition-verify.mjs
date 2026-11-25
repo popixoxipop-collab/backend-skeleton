@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync, readFileSync } from 'node:fs';
+import { setTimeout as pause } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { verifyDotTransitionIntent } from './dot-transition-intent.mjs';
 import { createDotTransitionAuthorizer } from './t00-dot-ready-evidence.mjs';
@@ -24,6 +25,10 @@ const NAMESPACE = Object.freeze({ rulesetId: 28083525, publisherAppId: 5922170,
 const ROOT = new URL('../../', import.meta.url);
 const validId = value => Number.isSafeInteger(value) && value > 0;
 const sameRepo = value => value?.id === REPO_ID && value.full_name === REPO;
+const PATH_CHECK_MISSING = 'HOLD_DOT_TRANSITION_INDEPENDENT_REVIEW';
+const PATH_CHECK_RETRY_SECONDS = [8, 12, 18, 24, 30, 30];
+const PATH_CHECK_WAIT_SECONDS = 120;
+const INTENT_TIME_RESERVE_SECONDS = 30;
 
 function requireIt(ok, code) {
   if (!ok) throw new Error(code);
@@ -69,6 +74,23 @@ export function verifyProductWorkflowEvent(event, main) {
   return { runId: run.id, attempt: run.run_attempt };
 }
 
+export async function authorizeWithPathReceipt(authorize, { subject, expiresAt },
+  { clock = () => Math.floor(Date.now() / 1000), delay = pause } = {}) {
+  const deadline = Math.min(clock() + PATH_CHECK_WAIT_SECONDS, expiresAt - INTENT_TIME_RESERVE_SECONDS);
+  let attempt = 0;
+  for (;;) {
+    try {
+      return await authorize(subject, 'merge');
+    } catch (error) {
+      const remainingSeconds = deadline - clock();
+      const retrySeconds = PATH_CHECK_RETRY_SECONDS[attempt++];
+      if (error?.message !== PATH_CHECK_MISSING || !retrySeconds || remainingSeconds <= 0) throw error;
+      await delay(1000 * Math.min(retrySeconds, remainingSeconds));
+      if (clock() >= deadline) throw error;
+    }
+  }
+}
+
 async function run(env) {
   requireIt(env.GITHUB_REPOSITORY === REPO && env.GITHUB_REPOSITORY_ID === String(REPO_ID) &&
     env.GITHUB_EVENT_NAME === 'workflow_run' && env.GITHUB_REF === 'refs/heads/main' &&
@@ -89,7 +111,7 @@ async function run(env) {
   const authorize = createDotTransitionAuthorizer({ intent, prCiRunId, readProductProof: async () => proof,
     readMainPolicy: target => verifyGitHubMainPolicy(target, { adminRead: app.adminRead, namespaceEnrollment: NAMESPACE }),
     readGitHub: app.readGitHub });
-  const authorization = await authorize(subject, 'merge');
+  const authorization = await authorizeWithPathReceipt(authorize, intent);
   const original = await app.readGitHub(`${REPO_PATH}/issues/comments/${commentId}`);
   const finalIntent = verifyDotTransitionIntent({ repository: REPO, repositoryId: REPO_ID, intake: INTAKE,
     comment: original, now: Math.floor(Date.now() / 1000) });

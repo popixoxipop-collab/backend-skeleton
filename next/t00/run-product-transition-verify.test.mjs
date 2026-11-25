@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { exactPrCiRunId, verifyProductWorkflowEvent } from './run-product-transition-verify.mjs';
+import { authorizeWithPathReceipt, exactPrCiRunId, verifyProductWorkflowEvent } from './run-product-transition-verify.mjs';
 
 const repo = { id: 1334919554, full_name: 'popixoxipop-collab/backend-skeleton' };
 const base = 'a'.repeat(40);
@@ -49,4 +49,40 @@ test('does not use an unrelated run even when the commit or the PR number overla
     assert.throws(() => exactPrCiRunId(result([ciRun(changed)]), subject),
       /HOLD_TRANSITION_VERIFY_CI_PENDING_OR_AMBIGUOUS/);
   }
+});
+
+test('waits only for the independent path check and preserves time for the signed request', async () => {
+  const pending = new Error('HOLD_DOT_TRANSITION_INDEPENDENT_REVIEW');
+  let now = 1000;
+  const waits = [];
+  const options = {
+    clock: () => now,
+    delay: async milliseconds => {
+      waits.push(milliseconds);
+      now += milliseconds / 1000;
+    },
+  };
+  let checks = 0;
+  const receipt = await authorizeWithPathReceipt(async (candidate, action) => {
+    assert.equal(candidate, subject);
+    assert.equal(action, 'merge');
+    if (++checks === 1) throw pending;
+    return { verified: true };
+  }, { subject, expiresAt: 1600 }, options);
+  assert.deepEqual(receipt, { verified: true });
+  assert.equal(checks, 2);
+  assert.equal(waits.length, 1);
+
+  waits.length = 0;
+  await assert.rejects(authorizeWithPathReceipt(async () => {
+    throw pending;
+  }, { subject, expiresAt: now + 31 }, options), pending);
+  assert.deepEqual(waits, [1000]);
+
+  waits.length = 0;
+  const refused = new Error('HOLD_DOT_TRANSITION_PROTECTED_BASE');
+  await assert.rejects(authorizeWithPathReceipt(async () => {
+    throw refused;
+  }, { subject, expiresAt: 1600 }, options), refused);
+  assert.deepEqual(waits, []);
 });
