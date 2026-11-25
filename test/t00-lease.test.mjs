@@ -787,6 +787,7 @@ test('CI keeps the lease gate manual and runs the documented Node matrix', () =>
   const workflows = fs.readdirSync(dir).filter((n) => /\.ya?ml$/.test(n));
   assert.ok(workflows.includes('ci.yml'));
   const independentApproval = 't00-bskel-pr-path-authorization.yml';
+  const productReplay = 't00-product-replay.yml';
   const changeThem = 'LEASE_PROTOCOL.md, README.md and INTERFACE_RFC.md say so, so change them with the workflow';
   let seen = 0;
   for (const name of workflows) {
@@ -804,12 +805,19 @@ test('CI keeps the lease gate manual and runs the documented Node matrix', () =>
       assert.match(text, /^    environment: t00-dot-draft-publisher$/m);
       assert.match(text, /^        run: node next\/t00\/run-dot-publisher\.mjs$/m);
       assert.doesNotMatch(text.split('\n  publish:')[0], /\bsecrets\./);
+    } else if (name === productReplay) {
+      assert.match(text, /^  issue_comment:\n    types: \[created\]$/m);
+      assert.match(text, /^permissions:\n  contents: read$/m);
+      assert.match(text, /^  premerge:\n    if: .*github\.ref == 'refs\/heads\/main'.*T00-DOT-TRANSITION-V1 /m);
+      assert.match(text, /^          node next\/t00\/run-product-replay\.mjs$/m);
+      assert.doesNotMatch(text, /\bsecrets\.|\bwrite\b/);
     } else {
       assert.doesNotMatch(text, /next\/t00/, `${name} adds an undocumented T00 workflow: ${changeThem}`);
     }
     assert.ok(!/7b517e7a|bootstrap-baseline/.test(text), `${name} refers to the coordination branch or commit that the documents say no workflow refers to`);
     const versions = [...text.matchAll(/node-version:[ \t]*(.+)$/gm)].map((m) => m[1].trim().replace(/^['"]|['"]$/g, ''));
-    assert.ok(versions.every((v) => v === '22.x' || v === '24.x' || v === '${{ matrix.node }}'), `${name} runs a Node version the README does not name: ${versions.join(' ')}`);
+    assert.ok(versions.every((v) => v === '22.x' || v === '24.x' || v === '${{ matrix.node }}' ||
+      (name === productReplay && v === '26.7.0')), `${name} runs a Node version the README does not name: ${versions.join(' ')}`);
     seen += versions.length;
     const matrices = [...text.matchAll(/^[ \t]+node:[ \t]*(.+)$/gm)].map((m) => m[1].trim());
     assert.ok(matrices.every((v) => v === "['22.x', '24.x']"), `${name} has a Node matrix other than 22.x and 24.x: ${matrices.join(' ')}`);
@@ -831,6 +839,9 @@ test('CI keeps the lease gate manual and runs the documented Node matrix', () =>
   assert.match(doc, /not wired into CI/);
   assert.match(read('next/t00/README.md'), /not wired into CI/);
   assert.match(read('next/t00/INTERFACE_RFC.md'), /not wired into CI/);
+  for (const name of ['LEASE_PROTOCOL.md', 'README.md', 'INTERFACE_RFC.md']) {
+    assert.ok(read(`next/t00/${name}`).includes(productReplay), `${name} must document the read-only replay workflow`);
+  }
 });
 
 // ---------------------------------------------------------------------------------------------------------------------------------

@@ -107,8 +107,8 @@ as `\xNN`, so a name cannot add a line. Exit 1: usage error or unreadable input,
 
 ## 9. Limits
 
-- The CLI remains manual. The independent approval workflow uses the same ownership map from protected `main` for
-  eligible same-repository Dot drafts. The CI `npm test` tests the CLI on this checkout and scaffold copies.
+- The CLI remains manual. CI tests it on this checkout and scaffold copies. Independent path approval uses the same
+  ownership map from protected `main`. `t00-product-replay.yml` produces read-only historical product evidence.
 - The plan folder and the coordinator's pre-push checklist are outside this checkout. The snapshot and the rules file are
   their committed copies, and `snapshot-plan.mjs --check` against the backlog is a maintainer step, not a CI step.
 - The judged checkout supplies both the map and its inputs, so whoever can change both can change the policy the gate applies.
