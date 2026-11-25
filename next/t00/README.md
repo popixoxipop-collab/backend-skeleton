@@ -107,10 +107,9 @@ input. After a change to `SUITES`, to a plan write scope or to `test/t00-*.test.
 ## T00-03 lease ledger
 
 Which worker may write which paths until when (a lease), and the gate that checks a worker's result against its lease. The
-protocol is `LEASE_PROTOCOL.md`. Both gates, this one and the ownership gate, are run by hand and are not wired into CI: no
-workflow calls `check-lease.mjs` or `check-ownership.mjs`, and no job runs a gate on the diff of a pull request or on a real
-ledger. The CI test job runs `npm test`, which includes `test/t00-lease.test.mjs` and `test/t00-ownership.test.mjs`; they run
-the gates on fixtures, on this checkout and on scaffold copies of it.
+protocol is `LEASE_PROTOCOL.md`. The lease and ownership CLIs are run by hand and are not wired into CI. The CI test job
+runs `npm test`, which exercises both CLIs on fixtures, this checkout and scaffold copies. The independent approval
+workflow below uses the same ownership map to verify exact-head Git diffs.
 
 The exact-head path-exception checker is operator-invoked too: its unit tests run in `npm test`, but CI does not yet
 authenticate a coordinator comment or fetch a trusted cross-repository receipt. See `PATH_EXCEPTION_PROTOCOL.md`.
@@ -144,6 +143,22 @@ whether the head was pinned. After a change to the ownership map, to the fixture
 Node: `package.json` allows Node `>=18` and the CI test job runs `npm test` on Node 22.x and 24.x, so no job runs Node 18. The T00
 tests therefore scan every `next/t00/*.mjs` file and every `test/t00-*.test.mjs` file for the names of APIs that Node 18 lacks.
 That is a list of known names, not a proof, and Node 18 itself was not run.
+
+## Independent PR path approval
+
+The approval workflow reads the current protected `main` and the exact Git objects of same-repository Dot drafts. It
+issues an App-authored `t00-independent-approval/verified` check for single-track owned changes after a second live
+validation. The signed receipt binds the repository, PR, base, head, tree, paths and publisher and expires after 15 minutes.
+The check is path ownership evidence. A consumer must verify its signature and current binding before using it. CI,
+protected-path exceptions, PR review, merging and MET ledger writes follow their existing processes.
+
+Provision the `t00-independent-approval` environment with the Branch `main` rule and separate
+`T00_APPROVER_APP_PRIVATE_KEY` and `T00_APPROVER_ED25519_PRIVATE_KEY` secrets. Set the environment variable
+`T00_APPROVER_ED25519_PUBLIC_DER` to the matching base64 DER public key. App 5920902, installation 185763944, is scoped to
+this repository with Checks write and Metadata read. Register the independently verified GitHub Bot **user** ID as
+`T00_DOT_PUBLISHER_BOT_ID` in that environment. Keep the repository variable `T00_INDEPENDENT_APPROVAL_ENABLED` unset
+until an actual Dot-created draft verifies that identity. To start issuing scoped evidence, set the variable to `true`
+and verify the App-authored check for one exact draft. Removing the variable stops future issuance.
 
 ## Optional strict v1 candidate
 
