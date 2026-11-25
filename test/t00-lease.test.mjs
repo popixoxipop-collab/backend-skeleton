@@ -795,7 +795,9 @@ test('CI keeps the lease gate manual and runs the documented Node matrix', () =>
       `${name} runs a manual T00 gate: ${changeThem}`);
     if (name === independentApproval) {
       assert.match(text, /^  schedule:/m);
-      assert.match(text, /^  issue:\n    if: .*github\.ref == 'refs\/heads\/main'.*T00_INDEPENDENT_APPROVAL_ENABLED/m);
+      assert.match(text, /^  issue:\n    needs: publish\n    if: .*github\.ref == 'refs\/heads\/main'.*T00_INDEPENDENT_APPROVAL_ENABLED.*needs\.publish\.result == 'success'/m);
+      assert.match(text, /T00_PULL_NUMBER: .*needs\.publish\.outputs\.pull_number/);
+      assert.match(text, /T00_EXPECTED_HEAD: .*needs\.publish\.outputs\.expected_head/);
       assert.match(text, /^    environment: t00-independent-approval$/m);
       assert.match(text, /^        run: node next\/t00\/run-independent-approval\.mjs$/m);
       assert.match(text, /^  publish:\n    if: .*github\.ref == 'refs\/heads\/main'.*T00_DOT_PUBLISHER_ENABLED/m);
