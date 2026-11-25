@@ -203,10 +203,21 @@ def pr_target(pull, args):
     return oid(pull["merge_commit_sha"])
 
 
-def verify_main(expected, api=github):
+def require_ancestor(expected, current, api):
+    if current != expected:
+        compare = api(f"/compare/{expected}...{current}?per_page=1")
+        require(compare["status"] == "ahead" and compare["merge_base_commit"]["sha"] == expected,
+                "the tested merge is outside protected main history")
+
+
+def verify_main(expected, api=github, historical=False):
     main = api("/branches/main")
-    require(main["name"] == "main" and main["protected"] is True and main["commit"]["sha"] == expected,
-            "protected main does not match the replay phase")
+    require(main["name"] == "main" and main["protected"] is True, "main is not protected")
+    current = oid(main["commit"]["sha"])
+    if historical:
+        require_ancestor(expected, current, api)
+    else:
+        require(current == expected, "protected main does not match the replay phase")
 
 
 def changed_paths(changes):
@@ -243,15 +254,22 @@ def verify_replay(work, original_archive, args, api=github):
                    source, env, timeout=timeout)
 
     target = pr_target(api(f"/pulls/{args.pr}"), args)
-    expected_main = target if args.phase == "postmerge" else args.base
-    verify_main(expected_main, api)
+    postmerge = args.phase == "postmerge"
+    expected_main = target if postmerge else args.base
+    verify_main(expected_main, api, historical=postmerge)
     git("init", "--quiet")
+    exact_merge_ref = [f"{target}:refs/t00/merged"] if postmerge else []
     git("fetch", "--quiet", "--no-tags", "--depth=1", REMOTE,
         f"{PREVIOUS}:refs/t00/previous", f"{HISTORICAL_PACKAGE_COMMIT}:refs/t00/historical",
         f"{args.base}:refs/t00/base", f"refs/pull/{args.pr}/head:refs/t00/head",
-        "refs/heads/main:refs/t00/main", timeout=150)
-    require(git("rev-parse", "refs/t00/main").decode().strip() == expected_main
-            and git("rev-parse", "refs/t00/head").decode().strip() == args.head, "Git refs moved")
+        "refs/heads/main:refs/t00/main", *exact_merge_ref, timeout=150)
+    current = oid(git("rev-parse", "refs/t00/main").decode().strip())
+    if postmerge:
+        require(git("rev-parse", "refs/t00/merged").decode().strip() == target, "exact merge ref differs")
+        require_ancestor(expected_main, current, api)
+    else:
+        require(current == expected_main, "Git main moved")
+    require(git("rev-parse", "refs/t00/head").decode().strip() == args.head, "Git candidate head changed")
     for commit, tree in ((PREVIOUS, PREVIOUS_TREE), (HISTORICAL_PACKAGE_COMMIT, HISTORICAL_PACKAGE_TREE),
                          (args.base, args.base_tree), (args.head, args.head_tree), (target, args.head_tree)):
         require(git("rev-parse", f"{commit}^{{tree}}").decode().strip() == tree, "Git tree differs from independent pin")
@@ -291,7 +309,7 @@ def verify_replay(work, original_archive, args, api=github):
             "base and candidate packages must match the historically trusted package contents")
     result = exercise_pair(work, archives["previous"], archives["candidate"], previous, historical, npm, node, env)
     require(pr_target(api(f"/pulls/{args.pr}"), args) == target, "PR moved during replay")
-    verify_main(expected_main, api)
+    verify_main(expected_main, api, historical=postmerge)
     return {
         "schema": "t00.t03-exact-pr-replay/3", "phase": args.phase, "pull_request": args.pr,
         "base": args.base, "base_tree": args.base_tree, "source_head": args.head,

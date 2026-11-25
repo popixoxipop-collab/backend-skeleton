@@ -191,6 +191,8 @@ again.
   The workflow issues ownership evidence only and neither consumes nor mutates the lease ledger.
 - `t00-product-replay.yml` uses read-only repository permissions to generate independent product evidence for an exact
   Dot-signed T03-06 candidate. The historical replay uses Node 26.7.0 and npm 11.19.0. The current lease gates remain manual.
+- `t00-product-transition.yml` verifies signed evidence and the protected merge. Its Bot merge and product attestation run
+  in separate protected environments. The official ledger still checks the signed request and current audit revision independently.
 - The ledger is a file, not a service. The gate verifies the file it is given; it cannot tell that a worker read an older
   copy.
 - A fencing token protects only where this gate runs. A writer that never presents its token to the gate is not stopped.

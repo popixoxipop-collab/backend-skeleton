@@ -13,7 +13,7 @@ const DIRECTIVE = /^\s*T00-(?:Track|Receipt)\s*:/im;
 const MAX_PATHS = 256;
 const GIT_LIMIT = 512 * 1024;
 const STRICT_PATH = /^[A-Za-z0-9_.@+/-]{1,512}$/;
-const CONTROL_PATH = /^(?:\.github(?:\/|$)|next\/t00\/(?:independent-approval|run-independent-approval|(?:run-)?dot-(?:draft-)?publisher|pr-path-gate|ownership|(?:build|check)-ownership|baseline\.lock\.json$|check-lease|check-path-exception|verify-path-exception|verify-baseline|snapshot-plan|path_exception_protocol|fixtures\/(?:ownership-rules|plan-write-scopes)\.json$|receipts(?:\/|$))|scripts\/run-next-nested-tests\.mjs$|package(?:-lock)?\.json$)/i;
+const CONTROL_PATH = /^(?:\.github(?:\/|$)|next\/t00\/(?:independent-approval|run-independent-approval|(?:run-)?dot-(?:draft-)?publisher|dot-(?:transition|ledger-request)|run-product-|product-t03-replay|setup-product-|transition-permit|promotion-authority|t00-(?:dot|exact|github)-|pr-path-gate|ownership|(?:build|check)-ownership|baseline\.lock\.json$|check-lease|check-path-exception|verify-path-exception|verify-baseline|snapshot-plan|path_exception_protocol|fixtures\/(?:ownership-rules|plan-write-scopes)\.json$|receipts(?:\/|$))|scripts\/run-next-nested-tests\.mjs$|package(?:-lock)?\.json$)/i;
 
 function requirePolicy(condition, code) {
   if (!condition) {
@@ -90,7 +90,7 @@ export async function bindGitCandidate({ repoDir, mainSha, head, track }) {
   return { base: mainSha, head, tree, track, paths };
 }
 
-export async function bindCandidate({ pull, mainSha, repoDir, publisherId }) {
+export async function bindCandidate({ pull, mainSha, repoDir, publisherId, allowReady = false }) {
   requirePolicy(Number.isSafeInteger(publisherId) && publisherId > 0 && publisherId !== SHARED_ACCOUNT_ID,
     'PUBLISHER_NOT_ENROLLED');
   // A GitHub App's registration ID is not the actor's Bot account ID. Insist on
@@ -98,7 +98,8 @@ export async function bindCandidate({ pull, mainSha, repoDir, publisherId }) {
   requirePolicy(pull?.user?.type === 'Bot' && pull.user.id === publisherId, 'PUBLISHER_IDENTITY');
   const branch = pull.head?.ref;
   const head = pull.head?.sha;
-  requirePolicy(Number.isSafeInteger(pull.number) && pull.number > 0 && pull.state === 'open' && pull.draft === true &&
+  requirePolicy(Number.isSafeInteger(pull.number) && pull.number > 0 && pull.state === 'open' &&
+    (pull.draft === true || (allowReady === true && pull.draft === false)) &&
     !pull.merged_at && pull.base?.ref === 'main' && SHA.test(mainSha) && mainSha === pull.base.sha &&
     SHA.test(head) && head !== mainSha && isRepository(pull.base?.repo) && isRepository(pull.head?.repo) &&
     typeof branch === 'string' && branch.length <= 180 && DOT_BRANCH.test(branch) &&
