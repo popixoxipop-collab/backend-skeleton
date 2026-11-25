@@ -189,6 +189,8 @@ again.
   `test/t00-ownership.test.mjs`; they run the gates on fixtures and on this checkout's map, so a stale map or a stale
   `lease-report.json` fails that job. The separate independent PR path approval workflow reads the exact candidate diff.
   The workflow issues ownership evidence only and neither consumes nor mutates the lease ledger.
+- `t00-product-replay.yml` uses read-only repository permissions to generate independent product evidence for an exact
+  Dot-signed T03-06 candidate. The historical replay uses Node 26.7.0 and npm 11.19.0. The current lease gates remain manual.
 - The ledger is a file, not a service. The gate verifies the file it is given; it cannot tell that a worker read an older
   copy.
 - A fencing token protects only where this gate runs. A writer that never presents its token to the gate is not stopped.

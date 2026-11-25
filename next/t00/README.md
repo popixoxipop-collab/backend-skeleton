@@ -172,6 +172,14 @@ create-only ref determined by the tip and verifies the exact Bot Draft through G
 The same workflow then runs independent approval in its own environment for the exact Draft number and head
 returned by the publisher. Scheduled runs refresh current evidence and manual dispatch can recheck an exact Draft.
 
+### Independent product replay
+
+`t00-product-replay.yml` reads an exact `T00-DOT-TRANSITION-V1` request on PR #389 from the same native Dot key.
+The protected `main` job uses read-only repository permissions. It validates `T03-06` and the protected base,
+then reproduces the pinned historical package with Node 26.7.0 and npm 11.19.0. It checks the packaged snapshot
+and restoration after normal execution and SIGTERM, then publishes an evidence artifact bound to the run and
+candidate. The regular `npm test` matrix stays on Node 22.x and 24.x. Promotion consumes the evidence separately.
+
 ## Optional strict v1 candidate
 
 The historical commands and report above retain their historical semantics and byte identity. They are not the strict validation entry point. See [BASELINE_STRICT_V1.md](BASELINE_STRICT_V1.md) for the isolated strict CLI, derivation, report and tests. The new inventory-alignment and cross-repository preconditions consume that strict module. This does not establish release-workflow adoption, current inventory alignment, all-writer enforcement, freeze or MET.
