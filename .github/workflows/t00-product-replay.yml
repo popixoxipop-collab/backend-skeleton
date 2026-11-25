@@ -1,0 +1,74 @@
+name: T00 independent product replay
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request:
+    paths:
+      - '.github/workflows/t00-product-replay.yml'
+      - 'next/t00/dot-transition-intent*.mjs'
+      - 'next/t00/product-t03-replay.py'
+      - 'next/t00/run-product-replay.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          submodules: false
+      - run: node --test next/t00/dot-transition-intent.test.mjs
+      - run: python3 -I -B next/t00/product-t03-replay.py --help
+
+  premerge:
+    if: github.event_name == 'issue_comment' && github.repository_id == '1334919554' && github.ref == 'refs/heads/main' && github.event.issue.number == 389 && github.event.comment.user.id == 261965176 && startsWith(github.event.comment.body, 'T00-DOT-TRANSITION-V1 ')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    concurrency:
+      group: t00-product-replay-${{ github.event.comment.id }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '26.7.0'
+      - name: Use the verified replay npm distribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          toolchain=$(mktemp -d "$RUNNER_TEMP/t00-npm.XXXXXXXX")
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --max-time 40 \
+            https://registry.npmjs.org/npm/-/npm-11.19.0.tgz --output "$toolchain/npm.tgz"
+          expected='SDd/hHg3KqHE5Ht2NHWxNYNtqCQ2pXAPLl6OtQhPyED5PHsRfrOtO199MZTIG2cQoQ1ZRI9t28shrD+2cr3AAw=='
+          actual=$(openssl dgst -sha512 -binary "$toolchain/npm.tgz" | openssl base64 -A)
+          test "$actual" = "$expected"
+          tar --extract --gzip --file "$toolchain/npm.tgz" --directory "$toolchain" --no-same-owner
+          mkdir "$toolchain/bin"
+          ln -s "$toolchain/package/bin/npm-cli.js" "$toolchain/bin/npm"
+          rm "$toolchain/npm.tgz"
+          printf '%s\n' "$toolchain/bin" >> "$GITHUB_PATH"
+      - name: Independently replay the exact signed Dot candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node --version)" = v26.7.0
+          test "$(npm --version)" = 11.19.0
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          node next/t00/run-product-replay.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: t00-product-premerge-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/t00-product-premerge.json
+          if-no-files-found: error
+          retention-days: 14
