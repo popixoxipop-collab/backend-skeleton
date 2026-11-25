@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { crc32, inflateRawSync } from 'node:zlib';
 import { verifyDotTransitionIntent } from './dot-transition-intent.mjs';
+import { getProductProfile, productProfiles, validateProductReplay } from './product-profiles.mjs';
 
 const REPO = 'popixoxipop-collab/backend-skeleton';
 const REPO_ID = 1334919554;
@@ -8,22 +9,19 @@ const INTAKE = 389;
 const ACTOR_ID = 261965176;
 const API = `https://api.github.com/repos/${REPO}`;
 const WORKFLOW = '.github/workflows/t00-product-replay.yml';
-const RECEIPT_SCHEMA = 't00.t03-github-independent-premerge/1';
 const ENTRY_NAME = Buffer.from('t00-product-premerge.json');
 const MAX_JSON = 256 * 1024;
 const MAX_ZIP = 32 * 1024;
 const MAX_RECEIPT = 16 * 1024;
 const OID = /^[0-9a-f]{40}$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
-const HISTORICAL_SHA = '598fb1cbcfd4d0e2e8842b2c120efeac2b76112a25e589b1f14450deea00dc5a';
-const REPRODUCED_SHA = 'caa66cfd979341fa63e441af3d38184ef52a5e6d73b4749afeb1ebcaefbe5742';
 const SUBJECT_FIELDS = ['repo', 'repositoryId', 'pr', 'task', 'scope', 'base', 'head', 'tree'];
-const PINNED_FILES = [
-  [WORKFLOW, 'workflowSha256'], ['next/t00/run-product-replay.mjs', 'runScriptSha256'],
-  ['next/t00/product-t03-replay.py', 'verifierSha256'], ['next/t00/dot-transition-intent.mjs', 'intentVerifierSha256'],
-];
-const REPLAY_PATHS = ['test/capability-next/historical-installed-pair.test.mjs',
-  'test/capability-next/historical-installed-probe.mjs'];
+const SHARED_SOURCE_PATHS = [WORKFLOW, 'next/t00/run-product-replay.mjs', 'next/t00/dot-transition-intent.mjs',
+  'next/t00/product-profiles.mjs', 'next/t00/setup-product-npm.sh'];
+const profileSourcePaths = profile => [profile.replayFile, profile.probeFile].filter(Boolean);
+export const PRODUCT_ARTIFACT_SOURCE_PATHS = Object.freeze([...new Set([
+  ...SHARED_SOURCE_PATHS, ...productProfiles.flatMap(profileSourcePaths),
+])]);
 
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 const positiveId = value => Number.isSafeInteger(value) && value > 0;
@@ -127,24 +125,13 @@ function pythonCanonicalJson(value) {
   return JSON.stringify(value);
 }
 
-function verifyReplay(value, subject, baseTree, stdoutSha256) {
-  const expected = {
-    schema: 't00.t03-exact-pr-replay/3', phase: 'premerge', pull_request: subject.pr, base: subject.base,
-    base_tree: baseTree, source_head: subject.head, tested_commit: subject.head, tested_tree: subject.tree,
-    historical_archive_sha256: HISTORICAL_SHA, replayed_historical_archive_sha256: REPRODUCED_SHA,
-    historical_archive_kind: 'reproduced-from-pinned-historical-tree', base_archive_sha256: REPRODUCED_SHA,
-    candidate_archive_sha256: REPRODUCED_SHA, package_file_bytes_match_official_baseline: true,
-    package_members: 424, candidate_tests_executed: false, requires_separate_github_ci_and_authority: true,
-    normal_restore: true, sigterm_probe_restore: true, node: 'v26.7.0', npm: '11.19.0',
-    release_authorized: false, runtime_certified: false,
-  };
-  const outcome = { legacy_policy: 'supported', unknown_policy: 'rejected', runtime_certification: 'rejected' };
-  requireIt(exactKeys(value, [...Object.keys(expected), 'previous_installed_inventory_sha256', 'scope_paths', 'outcome']) &&
-    Object.entries(expected).every(([key, item]) => value[key] === item) &&
-    matches(SHA256, value.previous_installed_inventory_sha256) && Array.isArray(value.scope_paths) &&
-    value.scope_paths.length === REPLAY_PATHS.length && REPLAY_PATHS.every((path, index) => path === value.scope_paths[index]) &&
-    exactKeys(value.outcome, Object.keys(outcome)) && Object.entries(outcome).every(([key, item]) => value.outcome[key] === item) &&
-    sha256(`${pythonCanonicalJson(value)}\n`) === stdoutSha256, 'HOLD_PRODUCT_ARTIFACT_REPLAY');
+function verifyReplay(profile, value, context, stdoutSha256) {
+  try {
+    validateProductReplay(profile, value, context);
+  } catch {
+    throw new Error('HOLD_PRODUCT_ARTIFACT_REPLAY');
+  }
+  requireIt(sha256(`${pythonCanonicalJson(value)}\n`) === stdoutSha256, 'HOLD_PRODUCT_ARTIFACT_REPLAY');
 }
 
 function safeArchiveRedirect(location) {
@@ -159,9 +146,11 @@ function safeArchiveRedirect(location) {
 export function createGitHubProductArtifactReader({ actionsReadToken, policy, publicKeyDer,
   fetchImpl = fetch, clock = Date.now }) {
   requireIt(matches(/^[A-Za-z0-9_.-]{20,256}$/u, actionsReadToken) && positiveId(policy?.workflowId) &&
-    PINNED_FILES.every(([, key]) => matches(SHA256, policy[key])) &&
+    exactKeys(policy.fileSha256s, PRODUCT_ARTIFACT_SOURCE_PATHS) &&
+    PRODUCT_ARTIFACT_SOURCE_PATHS.every(path => matches(SHA256, policy.fileSha256s[path])) &&
     typeof fetchImpl === 'function' && typeof clock === 'function', 'HOLD_PRODUCT_ARTIFACT_CONFIGURATION');
-  const pins = Object.freeze({ ...policy });
+  const workflowId = policy.workflowId;
+  const pins = Object.freeze({ ...policy.fileSha256s });
 
   async function request(url, { api = true, redirect = 'error', signal } = {}) {
     const headers = api ? { Accept: 'application/vnd.github+json', Authorization: `Bearer ${actionsReadToken}`,
@@ -179,33 +168,38 @@ export function createGitHubProductArtifactReader({ actionsReadToken, policy, pu
     return parseObject(await readBytes(response, MAX_JSON), 'HOLD_PRODUCT_ARTIFACT_JSON');
   }
 
-  async function pinnedFiles(base, signal) {
-    await Promise.all(PINNED_FILES.map(async ([path, key]) => {
+  async function pinnedFiles(base, profile, signal) {
+    await Promise.all([...SHARED_SOURCE_PATHS, ...profileSourcePaths(profile)].map(async path => {
       const file = await getJson(`/contents/${path}?ref=${base}`, signal);
       requireIt(file?.type === 'file' && file.path === path && file.encoding === 'base64' && typeof file.content === 'string',
         'HOLD_PRODUCT_ARTIFACT_WORKFLOW_PIN');
       const encoded = file.content.replace(/\r?\n/gu, '');
       const bytes = Buffer.from(encoded, 'base64');
       requireIt(bytes.length > 0 && bytes.length === file.size && bytes.toString('base64') === encoded &&
-        sha256(bytes) === pins[key], 'HOLD_PRODUCT_ARTIFACT_WORKFLOW_PIN');
+        sha256(bytes) === pins[path], 'HOLD_PRODUCT_ARTIFACT_WORKFLOW_PIN');
     }));
   }
 
   async function readProductPremergeReceipt({ runId, attempt, commentId, subject, dotIntentSha256 }) {
     requireIt([runId, attempt, commentId].every(positiveId) && exactKeys(subject, SUBJECT_FIELDS) &&
       subject.repo === REPO && subject.repositoryId === REPO_ID && positiveId(subject.pr) && subject.pr !== INTAKE &&
-      subject.task === 'T03-06' && subject.scope === 'historical-installed-package-replay' && subject.base !== subject.head &&
+      subject.base !== subject.head &&
       [subject.base, subject.head, subject.tree].every(value => matches(OID, value)) && matches(SHA256, dotIntentSha256),
     'HOLD_PRODUCT_ARTIFACT_SUBJECT');
+    let profile;
+    try { profile = getProductProfile(subject); }
+    catch { throw new Error('HOLD_PRODUCT_ARTIFACT_SUBJECT'); }
+    const verifierSha256 = pins[profile.replayFile];
+    const probeSha256 = profile.probeFile ? pins[profile.probeFile] : null;
     const signal = AbortSignal.timeout(45_000);
     const runPath = `/actions/runs/${runId}`;
     const commentPath = `/issues/comments/${commentId}`;
     const [run, workflow, branch, comment] = await Promise.all([
-      getJson(`${runPath}/attempts/${attempt}`, signal), getJson(`/actions/workflows/${pins.workflowId}`, signal),
+      getJson(`${runPath}/attempts/${attempt}`, signal), getJson(`/actions/workflows/${workflowId}`, signal),
       getJson('/branches/main', signal), getJson(commentPath, signal),
     ]);
-    requireIt(workflow?.id === pins.workflowId && workflow.path === WORKFLOW && workflow.state === 'active' &&
-      run?.id === runId && run.run_attempt === attempt && run.workflow_id === pins.workflowId && run.path === WORKFLOW &&
+    requireIt(workflow?.id === workflowId && workflow.path === WORKFLOW && workflow.state === 'active' &&
+      run?.id === runId && run.run_attempt === attempt && run.workflow_id === workflowId && run.path === WORKFLOW &&
       run.head_branch === 'main' && run.head_sha === subject.base && run.event === 'issue_comment' &&
       repoIdentity(run.repository) && repoIdentity(run.head_repository) && run.actor?.id === ACTOR_ID &&
       run.triggering_actor?.id === ACTOR_ID && run.status === 'completed' && run.conclusion === 'success',
@@ -222,7 +216,7 @@ export function createGitHubProductArtifactReader({ actionsReadToken, policy, pu
       comment, now: Math.floor(now / 1000), publicKeyDer });
     requireIt(sameSubject(intent.subject, subject) && intent.dotIntentSha256 === dotIntentSha256,
       'HOLD_PRODUCT_ARTIFACT_INTENT');
-    await pinnedFiles(subject.base, signal);
+    await pinnedFiles(subject.base, profile, signal);
 
     const name = `t00-product-premerge-${runId}-${attempt}-${commentId}`;
     const listing = await getJson(`${runPath}/artifacts?name=${name}&per_page=10`, signal);
@@ -254,15 +248,16 @@ export function createGitHubProductArtifactReader({ actionsReadToken, policy, pu
     const receipt = parseObject(receiptBytes, 'HOLD_PRODUCT_ARTIFACT_RECEIPT');
     requireIt(exactKeys(receipt, ['schema', 'workflow', 'commit', 'runId', 'attempt', 'commentId', 'dotIntentSha256',
       'verifierSha256', 'stdoutSha256', 'completedAt', 'subject', 'replay']) &&
-      Buffer.from(`${JSON.stringify(receipt)}\n`).equals(receiptBytes) && receipt.schema === RECEIPT_SCHEMA &&
+      Buffer.from(`${JSON.stringify(receipt)}\n`).equals(receiptBytes) && receipt.schema === profile.receiptSchema &&
       receipt.workflow === WORKFLOW && receipt.commit === subject.base && receipt.runId === runId &&
       receipt.attempt === attempt && receipt.commentId === commentId && receipt.dotIntentSha256 === dotIntentSha256 &&
-      receipt.verifierSha256 === pins.verifierSha256 && matches(SHA256, receipt.stdoutSha256) && sameSubject(receipt.subject, subject),
+      receipt.verifierSha256 === verifierSha256 && matches(SHA256, receipt.stdoutSha256) && sameSubject(receipt.subject, subject),
     'HOLD_PRODUCT_ARTIFACT_RECEIPT');
     const completed = timestamp(receipt.completedAt);
     requireIt(completed >= start && completed <= artifactCreated + 999 && completed <= now,
       'HOLD_PRODUCT_ARTIFACT_TIME');
-    verifyReplay(receipt.replay, subject, baseTree, receipt.stdoutSha256);
+    verifyReplay(profile, receipt.replay, { phase: 'premerge', subject, baseTree,
+      testedCommit: subject.head, verifierSha256, probeSha256 }, receipt.stdoutSha256);
 
     const [latest, currentMain, currentComment] = await Promise.all([
       getJson(runPath, signal), getJson('/branches/main', signal), getJson(commentPath, signal),

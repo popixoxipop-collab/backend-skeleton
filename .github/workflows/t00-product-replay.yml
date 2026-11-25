@@ -8,6 +8,8 @@ on:
       - '.github/workflows/t00-product-replay.yml'
       - 'next/t00/dot-transition-intent*.mjs'
       - 'next/t00/product-t03-replay.py'
+      - 'next/t00/t14-historical-product-replay.py'
+      - 'next/t00/t14-installed-preview-probe.mjs'
       - 'next/t00/run-product-replay.mjs'
       - 'next/t00/setup-product-npm.sh'
 
@@ -26,6 +28,60 @@ jobs:
           submodules: false
       - run: node --test next/t00/dot-transition-intent.test.mjs
       - run: python3 -I -B next/t00/product-t03-replay.py --help
+
+  t14-linux-reference:
+    if: github.event_name == 'pull_request' && github.repository_id == '1334919554'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          submodules: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '26.7.0'
+      - run: bash next/t00/setup-product-npm.sh
+      - name: Rehearse pinned T14 historical packages on Linux
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = Linux
+          test "$(node --version)" = v26.7.0
+          test "$(npm --version)" = 11.19.0
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          sha256sum --check --strict <<'PINS'
+          cb02e09f30d3362ff40a0df91b925dad18aab1475da052e874b8807149c7821f  next/t00/t14-historical-product-replay.py
+          476f6c998bd2b6fdb1b18ac471966a6d21f8e995b55e2d5917affa7fb3fd6281  next/t00/t14-installed-preview-probe.mjs
+          PINS
+          proof="$RUNNER_TEMP/t00-t14-linux-reference"
+          mkdir -m 700 "$proof"
+          python3 -I -B next/t00/t14-historical-product-replay.py reference > "$proof/t14-reference.stdout.json"
+          (
+            cd "$proof"
+            sha256sum t14-reference.stdout.json > t14-reference.stdout.sha256
+            sha256sum --check --strict t14-reference.stdout.sha256
+            cat t14-reference.stdout.sha256
+          )
+          node --input-type=module <<'NODE' > "$proof/runner.json"
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          import { release } from 'node:os';
+          const env = process.env;
+          const event = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, 'utf8'));
+          assert.equal(process.platform, 'linux');
+          assert.equal(env.RUNNER_OS, 'Linux');
+          assert.match(event.pull_request.head.sha, /^[0-9a-f]{40}$/u);
+          console.log(JSON.stringify({ platform: process.platform, architecture: process.arch,
+            kernel: release(), runId: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT,
+            checkout: env.GITHUB_SHA, pullRequest: event.pull_request.number, candidate: event.pull_request.head.sha }));
+          NODE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: t00-t14-linux-reference-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/t00-t14-linux-reference/
+          if-no-files-found: error
+          retention-days: 14
 
   premerge:
     if: github.event_name == 'issue_comment' && github.repository_id == '1334919554' && github.ref == 'refs/heads/main' && github.event.issue.number == 389 && github.event.comment.user.id == 261965176 && startsWith(github.event.comment.body, 'T00-DOT-TRANSITION-V1 ')

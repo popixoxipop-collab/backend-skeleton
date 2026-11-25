@@ -1,9 +1,9 @@
 import { createPrivateKey, createPublicKey, sign, verify } from 'node:crypto';
+import { getProductProfile } from './product-profiles.mjs';
 
 const schema = 't00.dot-transition-permit/1';
 const repo = 'popixoxipop-collab/backend-skeleton';
 const repositoryId = 1334919554;
-const scope = 'historical-installed-package-replay';
 const publicDer = Buffer.from('MCowBQYDK2VwAyEARSKqohZkpsVC29H4Sgo9gzvdwh5hzOLqpbT3DcOt/s8=', 'base64');
 const publicKey = createPublicKey({ key: publicDer, format: 'der', type: 'spki' });
 const keyPrefix = Buffer.from('302e020100300506032b657004220420', 'hex');
@@ -22,8 +22,8 @@ function requireIt(ok, code) {
 function canonical(fields, now, allowExpired) {
   const { subject, baseTree, productEvidenceSha256, receiptSha256, productRunId, productAttempt, commentId,
     dotIntentSha256, independentReviewSha256, prCiRunId, policy, verifiedAt, expiresAt } = fields;
+  const profile = getProductProfile(subject);
   requireIt(subject?.repo === repo && subject.repositoryId === repositoryId && id(subject.pr) && subject.pr !== 389 &&
-    subject.task === 'T03-06' && subject.scope === scope &&
     [subject.base, subject.head, subject.tree, baseTree].every(x => match(o, x)) && subject.base !== subject.head,
   'HOLD_TRANSITION_PERMIT_SUBJECT');
   requireIt([productEvidenceSha256, receiptSha256, dotIntentSha256, independentReviewSha256].every(x => match(d, x)) &&
@@ -40,7 +40,7 @@ function canonical(fields, now, allowExpired) {
   const checks = required.map(({ context, appId }) => ({ context, appId }))
     .sort((a, b) => a.context < b.context ? -1 : a.context > b.context ? 1 : 0);
   const { pr, task, base, head, tree } = subject;
-  return { schema, subject: { repo, repositoryId, pr, task, scope, base, head, tree }, baseTree,
+  return { schema, subject: { repo, repositoryId, pr, task, scope: profile.scope, base, head, tree }, baseTree,
     productEvidenceSha256, receiptSha256, productRunId, productAttempt, commentId, dotIntentSha256,
     independentReviewSha256, prCiRunId, policy: {
       strictCurrentBase: true, mainBlocksForcePushes: true, publisherCannotBypassMain: true,

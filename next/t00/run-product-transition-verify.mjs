@@ -4,6 +4,7 @@ import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { verifyDotTransitionIntent } from './dot-transition-intent.mjs';
 import { createDotTransitionAuthorizer } from './t00-dot-ready-evidence.mjs';
+import { PRODUCT_ARTIFACT_SOURCE_PATHS } from './t00-github-product-artifact.mjs';
 import { verifyGitHubMainPolicy } from './t00-github-main-policy.mjs';
 import { createGitHubPolicyReaderApp } from './t00-github-policy-reader-app.mjs';
 import { issueTransitionPermit } from './transition-permit.mjs';
@@ -77,9 +78,8 @@ async function run(env) {
   checkCheckout(env.GITHUB_SHA);
   const app = await createGitHubPolicyReaderApp({ appId: 5923844, installationId: 185830017,
     privateKeyPem: env.T00_POLICY_READER_APP_PRIVATE_KEY, productArtifact: { policy: {
-      workflowId: PREMERGE_WORKFLOW_ID, workflowSha256: hashFile(PREMERGE_WORKFLOW),
-      runScriptSha256: hashFile('next/t00/run-product-replay.mjs'), verifierSha256: hashFile('next/t00/product-t03-replay.py'),
-      intentVerifierSha256: hashFile('next/t00/dot-transition-intent.mjs'),
+      workflowId: PREMERGE_WORKFLOW_ID,
+      fileSha256s: Object.fromEntries(PRODUCT_ARTIFACT_SOURCE_PATHS.map(source => [source, hashFile(source)])),
     } } });
   const { intent, proof } = await app.discoverProductPremergeReceipt(trigger);
   const { subject, commentId, dotIntentSha256 } = intent;
