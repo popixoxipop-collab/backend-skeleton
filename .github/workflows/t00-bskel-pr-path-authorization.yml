@@ -6,6 +6,8 @@ on:
       - '.github/workflows/t00-bskel-pr-path-authorization.yml'
       - 'next/t00/**'
       - 'scripts/run-next-nested-tests.mjs'
+  issue_comment:
+    types: [created]
   schedule:
     - cron: '3,13,23,33,43,53 * * * *'
   workflow_dispatch:
@@ -22,7 +24,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('t00-independent-approval-test-{0}', github.event.pull_request.number) || 't00-independent-approval' }}
+  group: ${{ github.event_name == 'pull_request' && format('t00-independent-approval-test-{0}', github.event.pull_request.number) || github.event_name == 'issue_comment' && format('t00-dot-publisher-{0}', github.event.comment.id) || 't00-independent-approval' }}
   cancel-in-progress: false
 
 jobs:
@@ -37,7 +39,29 @@ jobs:
         with:
           persist-credentials: false
           submodules: false
-      - run: node --test next/t00/independent-approval-policy.test.mjs next/t00/independent-approval-issuer.test.mjs
+      - run: node --test next/t00/independent-approval-policy.test.mjs next/t00/independent-approval-issuer.test.mjs next/t00/dot-publisher-request.test.mjs next/t00/dot-publisher-github.test.mjs
+
+  publish:
+    if: github.event_name == 'issue_comment' && github.repository_id == '1334919554' && github.ref == 'refs/heads/main' && vars.T00_DOT_PUBLISHER_ENABLED == 'true' && github.event.issue.number == 389 && github.event.comment.user.id == 261965176 && startsWith(github.event.comment.body, 'T00-DOT-PUBLISH-V1 ')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: t00-dot-draft-publisher
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+      - name: Publish only an exact candidate signed by Dot
+        env:
+          GH_TOKEN: ${{ github.token }}
+          T00_DOT_REQUEST_PUBLIC_DER: ${{ vars.T00_DOT_REQUEST_PUBLIC_DER }}
+          T00_PUBLISHER_RULESET_ID: ${{ vars.T00_PUBLISHER_RULESET_ID }}
+          T00_PUBLISHER_APP_KEY: ${{ secrets.T00_PUBLISHER_APP_PRIVATE_KEY }}
+        run: node next/t00/run-dot-publisher.mjs
 
   issue:
     if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.repository_id == '1334919554' && github.ref == 'refs/heads/main' && vars.T00_INDEPENDENT_APPROVAL_ENABLED == 'true'
@@ -63,6 +87,7 @@ jobs:
           T00_SIGNING_KEY: ${{ secrets.T00_APPROVER_ED25519_PRIVATE_KEY }}
           T00_SIGNING_PUBLIC_DER: ${{ vars.T00_APPROVER_ED25519_PUBLIC_DER }}
           T00_DOT_PUBLISHER_ID: ${{ vars.T00_DOT_PUBLISHER_BOT_ID }}
+          T00_PUBLISHER_RULESET_ID: ${{ vars.T00_PUBLISHER_RULESET_ID }}
           T00_PULL_NUMBER: ${{ inputs.pull_number }}
           T00_EXPECTED_HEAD: ${{ inputs.expected_head }}
         run: node next/t00/run-independent-approval.mjs

@@ -798,7 +798,10 @@ test('CI keeps the lease gate manual and runs the documented Node matrix', () =>
       assert.match(text, /^  issue:\n    if: .*github\.ref == 'refs\/heads\/main'.*T00_INDEPENDENT_APPROVAL_ENABLED/m);
       assert.match(text, /^    environment: t00-independent-approval$/m);
       assert.match(text, /^        run: node next\/t00\/run-independent-approval\.mjs$/m);
-      assert.doesNotMatch(text.split('\n  issue:')[0], /\bsecrets\./);
+      assert.match(text, /^  publish:\n    if: .*github\.ref == 'refs\/heads\/main'.*T00_DOT_PUBLISHER_ENABLED/m);
+      assert.match(text, /^    environment: t00-dot-draft-publisher$/m);
+      assert.match(text, /^        run: node next\/t00\/run-dot-publisher\.mjs$/m);
+      assert.doesNotMatch(text.split('\n  publish:')[0], /\bsecrets\./);
     } else {
       assert.doesNotMatch(text, /next\/t00/, `${name} adds an undocumented T00 workflow: ${changeThem}`);
     }

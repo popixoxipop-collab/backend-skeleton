@@ -8,7 +8,7 @@ const CHECK_NAME = 't00-independent-approval/verified';
 const API = `/repos/${REPOSITORY}`;
 const SHA = /^[a-f0-9]{40}$/;
 const NUMBER = /^[1-9][0-9]{0,11}$/;
-const DRAFT_REF = /^dot\/[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+const DRAFT_REF_PREFIX = 'dot/t00-publisher/';
 
 function expect(ok, code) {
   if (!ok) throw new Error(code);
@@ -52,7 +52,14 @@ async function liveBase(workflowSha) {
 
 function acceptsDraft(pull, publisherId) {
   return pull?.state === 'open' && pull.draft === true && pull.head?.repo?.id === REPOSITORY_ID &&
-    DRAFT_REF.test(pull.head.ref ?? '') && pull.user?.type === 'Bot' && pull.user.id === publisherId;
+    SHA.test(pull.head.sha ?? '') && pull.head.ref === DRAFT_REF_PREFIX + pull.head.sha &&
+    pull.user?.type === 'Bot' && pull.user.id === publisherId;
+}
+
+async function verifyPublicationRules(ref, rulesetId) {
+  const rules = await github(`${API}/rules/branches/${encodeURIComponent(ref)}`);
+  expect(Array.isArray(rules) && ['creation', 'update', 'deletion'].every(type =>
+    rules.some(rule => rule.type === type && rule.ruleset_id === rulesetId)), 'HOLD_PUBLISHER_NAMESPACE');
 }
 
 async function listDrafts(publisherId) {
@@ -75,7 +82,7 @@ async function hasCurrentReceipt(issuer, binding) {
 async function run() {
   const { GITHUB_REPOSITORY, GITHUB_REPOSITORY_ID, GITHUB_REF, GITHUB_SHA, GITHUB_EVENT_NAME,
     GITHUB_WORKFLOW_REF, GH_TOKEN, T00_DOT_PUBLISHER_ID, T00_PULL_NUMBER, T00_EXPECTED_HEAD,
-    T00_APP_KEY, T00_SIGNING_KEY, T00_SIGNING_PUBLIC_DER } = process.env;
+    T00_APP_KEY, T00_SIGNING_KEY, T00_SIGNING_PUBLIC_DER, T00_PUBLISHER_RULESET_ID } = process.env;
   expect(GITHUB_REPOSITORY === REPOSITORY && GITHUB_REPOSITORY_ID === String(REPOSITORY_ID) &&
     GITHUB_REF === 'refs/heads/main' && SHA.test(GITHUB_SHA) &&
     GITHUB_WORKFLOW_REF === `${REPOSITORY}/.github/workflows/t00-bskel-pr-path-authorization.yml@refs/heads/main` &&
@@ -83,6 +90,8 @@ async function run() {
   expect(git('rev-parse', 'HEAD') === GITHUB_SHA, 'HOLD_CHECKOUT');
   expect(GH_TOKEN && NUMBER.test(T00_DOT_PUBLISHER_ID ?? ''), 'HOLD_PUBLISHER_UNREGISTERED');
   const publisherId = Number(T00_DOT_PUBLISHER_ID);
+  const rulesetId = Number(T00_PUBLISHER_RULESET_ID);
+  expect(NUMBER.test(T00_PUBLISHER_RULESET_ID ?? ''), 'HOLD_PUBLISHER_NAMESPACE');
   const base = await liveBase(GITHUB_SHA);
   const scheduled = GITHUB_EVENT_NAME === 'schedule';
   if (!scheduled) expect(NUMBER.test(T00_PULL_NUMBER ?? '') && SHA.test(T00_EXPECTED_HEAD ?? ''), 'HOLD_DISPATCH_TARGET');
@@ -109,6 +118,7 @@ async function run() {
         const mainSha = await liveBase(base);
         const pull = await github(`${API}/pulls/${number}`);
         expect(acceptsDraft(pull, publisherId) && pull.number === number && pull.head.sha === head, 'HOLD_GITHUB_CANDIDATE_CHANGED');
+        await verifyPublicationRules(pull.head.ref, rulesetId);
         return { pull, mainSha, repoDir: process.cwd(), publisherId };
       };
       const input = await load();

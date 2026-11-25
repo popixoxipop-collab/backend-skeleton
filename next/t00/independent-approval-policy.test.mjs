@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { bindCandidate } from './independent-approval-policy.mjs';
+import { bindCandidate, bindGitCandidate } from './independent-approval-policy.mjs';
 
 const baseRepo = fileURLToPath(new URL('../../', import.meta.url));
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 't00-approval-policy-'));
@@ -62,6 +62,13 @@ function candidate({ head = owned.head, track = 'T03' } = {}) {
 test('binds a Bot-authored owned addition to the exact current protected base and tree', async () => {
   assert.deepEqual(await bindCandidate(candidate()), {
     number: 10, base, head: owned.head, tree: owned.tree, track: 'T03', paths: [own], publisherId,
+  });
+  assert.equal(fs.existsSync(path.join(repoDir, own)), false);
+});
+
+test('broker can bind exact Git objects before a PR exists without asserting a publisher identity', async () => {
+  assert.deepEqual(await bindGitCandidate({ repoDir, mainSha: base, head: owned.head, track: 'T03' }), {
+    base, head: owned.head, tree: owned.tree, track: 'T03', paths: [own],
   });
   assert.equal(fs.existsSync(path.join(repoDir, own)), false);
 });
@@ -136,6 +143,8 @@ test('rejects owned authorization files, hidden Git controls and cross-track edi
     '.github/workflows/fixture.yml',
     'next/t00/independent-approval-policy.mjs',
     'next/t00/run-independent-approval.mjs',
+    'next/t00/dot-publisher-request.mjs',
+    'next/t00/run-dot-publisher.mjs',
     'next/t00/verify-baseline.mjs',
     'scripts/run-next-nested-tests.mjs',
     'next/t00/baseline.lock.json',
