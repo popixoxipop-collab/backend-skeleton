@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { bindGitCandidate } from './independent-approval-policy.mjs';
 import { parseSignedRequest } from './dot-publisher-request.mjs';
 import { createPublisher } from './dot-publisher-github.mjs';
@@ -52,14 +52,15 @@ async function currentMain(token, sha) {
 async function run() {
   const {
     GITHUB_REPOSITORY, GITHUB_REPOSITORY_ID, GITHUB_WORKFLOW_REF, GITHUB_EVENT_NAME,
-    GITHUB_EVENT_PATH, GITHUB_REF, GITHUB_SHA, GH_TOKEN,
+    GITHUB_EVENT_PATH, GITHUB_OUTPUT, GITHUB_REF, GITHUB_SHA, GH_TOKEN,
     T00_DOT_REQUEST_PUBLIC_DER, T00_PUBLISHER_APP_KEY, T00_PUBLISHER_RULESET_ID,
   } = process.env;
   const rulesetId = Number(T00_PUBLISHER_RULESET_ID);
   insist(GITHUB_REPOSITORY === REPOSITORY && GITHUB_REPOSITORY_ID === String(REPO_ID) &&
     GITHUB_REF === 'refs/heads/main' && SHA.test(GITHUB_SHA ?? '') &&
     GITHUB_WORKFLOW_REF === `${REPOSITORY}/${WORKFLOW_PATH}@refs/heads/main` &&
-    GITHUB_EVENT_NAME === 'issue_comment' && GH_TOKEN && Number.isSafeInteger(rulesetId) && rulesetId > 0,
+    GITHUB_EVENT_NAME === 'issue_comment' && GH_TOKEN && GITHUB_OUTPUT?.startsWith('/') &&
+    Number.isSafeInteger(rulesetId) && rulesetId > 0,
   'HOLD_PUBLISHER_WORKFLOW_IDENTITY');
   insist(git('rev-parse', 'HEAD') === GITHUB_SHA, 'HOLD_PUBLISHER_CHECKOUT');
   const event = JSON.parse(readFileSync(GITHUB_EVENT_PATH, 'utf8'));
@@ -89,6 +90,9 @@ async function run() {
   const binding = await validate();
   const publisher = await createPublisher({ appId: APP_ID, installationId: INSTALLATION_ID, rulesetId, pem: T00_PUBLISHER_APP_KEY });
   const result = await publisher.publish(binding, validate);
+  insist(Number.isSafeInteger(result.pullNumber) && result.pullNumber > 0 && result.head === binding.head,
+    'HOLD_PUBLISHER_OUTPUT');
+  appendFileSync(GITHUB_OUTPUT, `pull_number=${result.pullNumber}\nexpected_head=${result.head}\n`);
   console.log(JSON.stringify({ status: 'DOT_SIGNED_DRAFT_PUBLISHED', signedCommentId: event.comment.id, ...result }));
 }
 

@@ -169,6 +169,8 @@ allow only the installed publisher App to create, update or delete `dot/t00-publ
 variables `T00_PUBLISHER_RULESET_ID` and `T00_DOT_PUBLISHER_ENABLED=true` after verifying that exact rule.
 One request binds the repository, intake, current base, exact tip and tree, track and expiry. The publisher uses a
 create-only ref determined by the tip and verifies the exact Bot Draft through GitHub before returning a receipt.
+The same workflow then runs independent approval in its own environment for the exact Draft number and head
+returned by the publisher. Scheduled runs refresh current evidence and manual dispatch can recheck an exact Draft.
 
 ## Optional strict v1 candidate
 

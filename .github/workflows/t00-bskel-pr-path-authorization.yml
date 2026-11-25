@@ -46,8 +46,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     environment: t00-dot-draft-publisher
+    concurrency:
+      group: t00-dot-publish-verified-request
+      queue: max
     permissions:
       contents: read
+    outputs:
+      pull_number: ${{ steps.draft.outputs.pull_number }}
+      expected_head: ${{ steps.draft.outputs.expected_head }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -56,6 +62,7 @@ jobs:
           persist-credentials: false
           submodules: false
       - name: Publish only an exact candidate signed by Dot
+        id: draft
         env:
           GH_TOKEN: ${{ github.token }}
           T00_DOT_REQUEST_PUBLIC_DER: ${{ vars.T00_DOT_REQUEST_PUBLIC_DER }}
@@ -64,10 +71,14 @@ jobs:
         run: node next/t00/run-dot-publisher.mjs
 
   issue:
-    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.repository_id == '1334919554' && github.ref == 'refs/heads/main' && vars.T00_INDEPENDENT_APPROVAL_ENABLED == 'true'
+    needs: publish
+    if: ${{ !cancelled() && github.repository_id == '1334919554' && github.ref == 'refs/heads/main' && vars.T00_INDEPENDENT_APPROVAL_ENABLED == 'true' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'issue_comment' && needs.publish.result == 'success' && needs.publish.outputs.pull_number != '' && needs.publish.outputs.expected_head != '')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     environment: t00-independent-approval
+    concurrency:
+      group: t00-independent-approval-emit
+      queue: max
     permissions:
       contents: read
       pull-requests: read
@@ -88,6 +99,6 @@ jobs:
           T00_SIGNING_PUBLIC_DER: ${{ vars.T00_APPROVER_ED25519_PUBLIC_DER }}
           T00_DOT_PUBLISHER_ID: ${{ vars.T00_DOT_PUBLISHER_BOT_ID }}
           T00_PUBLISHER_RULESET_ID: ${{ vars.T00_PUBLISHER_RULESET_ID }}
-          T00_PULL_NUMBER: ${{ inputs.pull_number }}
-          T00_EXPECTED_HEAD: ${{ inputs.expected_head }}
+          T00_PULL_NUMBER: ${{ github.event_name == 'issue_comment' && needs.publish.outputs.pull_number || inputs.pull_number }}
+          T00_EXPECTED_HEAD: ${{ github.event_name == 'issue_comment' && needs.publish.outputs.expected_head || inputs.expected_head }}
         run: node next/t00/run-independent-approval.mjs
