@@ -118,6 +118,42 @@ def npm_pack(source, destination, npm, env):
     return destination / name
 
 
+def replay_reference(work):
+    env = sandbox_environment(work)
+    node, npm = (shutil.which(tool, path=env["PATH"]) for tool in ("node", "npm"))
+    require(node and npm and run([node, "--version"], work, env).decode().strip() == "v26.7.0" and
+            run([npm, "--version"], work, env).decode().strip() == "11.19.0", "invalid reference toolchain")
+    source = work / "source"
+    source.mkdir()
+
+    def git(*args):
+        return run(["git", "--literal-pathspecs", "-c", "credential.helper=", *args], source, env, timeout=150)
+
+    git("init", "--quiet")
+    git("fetch", "--quiet", "--no-tags", "--no-recurse-submodules", "--depth=1", REMOTE,
+        f"{PREVIOUS}:refs/t00/previous", f"{HISTORICAL_PACKAGE_COMMIT}:refs/t00/historical")
+    packages = []
+    for label, commit, tree in (("previous", PREVIOUS, PREVIOUS_TREE),
+                                ("historical", HISTORICAL_PACKAGE_COMMIT, HISTORICAL_PACKAGE_TREE)):
+        require(git("rev-parse", f"{commit}^{{tree}}").decode().strip() == tree, "historical reference tree differs")
+        folder = work / label
+        folder.mkdir()
+        git("checkout", "--quiet", "--detach", commit)
+        archive = npm_pack(source, folder, npm, env)
+        inventory = archive_inventory(archive, git("ls-tree", "-r", "-z", commit))
+        packages.append((archive, inventory))
+    (prior, old_files), (current, new_files) = packages
+    require(MODULE not in old_files and MODULE in new_files and len(new_files) == 424, "historical package members differ")
+    raw = digest(current.read_bytes())
+    return {"schema": "t00.t03-historical-linux-reference/1", "platform": sys.platform, "phase": "reference",
+            "previous_commit": PREVIOUS, "previous_tree": PREVIOUS_TREE, "previous_archive_sha256": digest(prior.read_bytes()),
+            "historical_commit": HISTORICAL_PACKAGE_COMMIT, "historical_tree": HISTORICAL_PACKAGE_TREE,
+            "historical_archive_sha256": raw, "package_members": len(new_files),
+            "historical_inventory_sha256": digest(json.dumps(new_files, sort_keys=True, separators=(",", ":")).encode()),
+            "deployed_archive_pin_matches": raw == REPRODUCED_HISTORICAL_PACKAGE_SHA,
+            **exercise_pair(work, prior, current, old_files, new_files, npm, node, env)}
+
+
 def exercise_pair(work, previous, current, old_files, new_files, npm, node, env):
     consumer = work / "consumer"
     consumer.mkdir()
@@ -324,6 +360,10 @@ def verify_replay(work, original_archive, args, api=github):
 
 
 def main():
+    if sys.argv[1:] == ["reference"]:
+        with tempfile.TemporaryDirectory(prefix="t00-t03-linux-reference-") as temporary:
+            print(json.dumps(replay_reference(Path(temporary)), sort_keys=True), flush=True)
+        return
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("pr", type=int)
     parser.add_argument("phase", choices=("premerge", "postmerge"))

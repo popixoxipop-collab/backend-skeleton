@@ -29,6 +29,33 @@ jobs:
       - run: node --test next/t00/dot-transition-intent.test.mjs
       - run: python3 -I -B next/t00/product-t03-replay.py --help
 
+  t03-linux-reference:
+    if: github.event_name == 'pull_request' && github.repository_id == '1334919554'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          submodules: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '26.7.0'
+      - run: bash next/t00/setup-product-npm.sh
+      - name: Rehearse installed T03 historical packages on Linux
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = Linux
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          python3 -I -B next/t00/product-t03-replay.py reference | tee "$RUNNER_TEMP/t00-t03-linux-reference.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: t00-t03-linux-reference-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/t00-t03-linux-reference.json
+          if-no-files-found: error
+          retention-days: 14
+
   t14-linux-reference:
     if: github.event_name == 'pull_request' && github.repository_id == '1334919554'
     runs-on: ubuntu-24.04
@@ -51,7 +78,7 @@ jobs:
           test "$(npm --version)" = 11.19.0
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           sha256sum --check --strict <<'PINS'
-          cb02e09f30d3362ff40a0df91b925dad18aab1475da052e874b8807149c7821f  next/t00/t14-historical-product-replay.py
+          27ce8296b0033fad804e2709af6aee74ce20c16caea817b3ac0caa85947ddd0c  next/t00/t14-historical-product-replay.py
           476f6c998bd2b6fdb1b18ac471966a6d21f8e995b55e2d5917affa7fb3fd6281  next/t00/t14-installed-preview-probe.mjs
           PINS
           proof="$RUNNER_TEMP/t00-t14-linux-reference"

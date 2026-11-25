@@ -12,6 +12,7 @@ import shutil
 import signal
 import stat
 import subprocess
+import sys
 import tarfile
 import tempfile
 from urllib.request import Request, urlopen
@@ -36,6 +37,8 @@ HISTORY = {
         "cfe99556d4531269d87a213f3320a584d7d23653de33a6bb36f2d7d4aee588fb",
     ),
 }
+# Pin each Linux encoding from a completed reference receipt on the hosted runner.
+LINUX_ARCHIVE_SHA256 = {}
 NODE_VERSION = "v26.7.0"
 NPM_VERSION = "11.19.0"
 MODULE = "handles/composition-next/plan.mjs"
@@ -141,7 +144,18 @@ def verify_archive_install(observed, expected):
             "physical install bytes or executable modes differ from pinned archive")
 
 
-def pack(source, destination, npm, env, git, commit, tree, expected_archive=None, expected_inventory=None):
+def historical_encoding(commit, raw_sha256, darwin_sha256, archive_platform, observation):
+    require(archive_platform in {"darwin", "linux"}, "unsupported historical archive platform")
+    linux_sha256 = LINUX_ARCHIVE_SHA256.get(commit) if archive_platform == "linux" else None
+    expected_sha256 = linux_sha256 or darwin_sha256
+    permit_observation = archive_platform == "linux" and observation and linux_sha256 is None
+    require(raw_sha256 == expected_sha256 or permit_observation, "historical npm archive encoding SHA differs")
+    return {"archive_platform": archive_platform, "darwin_reference_archive_sha256": darwin_sha256}
+
+
+def pack(source, destination, npm, env, git, commit, tree, expected_archive=None, expected_inventory=None,
+         *, observe_linux_encoding=False):
+    require((expected_archive is None) == (expected_inventory is None), "historical inventory and encoding pins are required")
     require(git("rev-parse", commit + "^{tree}").decode().strip() == tree, "exact historical Git tree differs")
     git("checkout", "--quiet", "--detach", commit)
     destination.mkdir()
@@ -152,16 +166,17 @@ def pack(source, destination, npm, env, git, commit, tree, expected_archive=None
     require(re.fullmatch(r"backend-skeleton-[0-9][a-zA-Z0-9.+-]*\.tgz", name), "unexpected pack filename")
     archive = destination / name
     require(archive.is_file() and not archive.is_symlink(), "missing packed archive")
-    sha256 = digest(archive.read_bytes())
-    require(expected_archive is None or sha256 == expected_archive, "historical npm archive SHA differs")
     inventory = archive_inventory(archive, git("ls-tree", "-r", "-z", commit))
     inventory_sha256 = digest(json_bytes(inventory))
     require(expected_inventory is None or inventory_sha256 == expected_inventory,
-            "historical npm archive inventory SHA differs")
+            f"historical npm archive inventory SHA differs: {inventory_sha256} ({len(inventory)} members)")
+    sha256 = digest(archive.read_bytes())
+    encoding = {} if expected_archive is None else historical_encoding(
+        commit, sha256, expected_archive, sys.platform, observe_linux_encoding)
     return archive, inventory, {
         "commit": commit, "tree": tree, "archive_sha256": sha256,
         "archive_inventory_sha256": inventory_sha256, "package_members": len(inventory),
-        "kind": "reproduced-from-pinned-git-tree",
+        "kind": "reproduced-from-pinned-git-tree", **encoding,
     }
 
 
@@ -321,8 +336,13 @@ def replay(work, args, api=github):
     git("fetch", "--quiet", "--no-tags", "--no-recurse-submodules", "--depth=1", REMOTE, *refs)
     for name, (commit, _, _, _) in HISTORY.items():
         require(git("rev-parse", f"refs/t14/{name}").decode().strip() == commit, "historical Git ref differs")
-    previous, introduced = [pack(source, work / name, npm, env, git, *HISTORY[name]) for name in HISTORY]
+    previous, introduced = [pack(source, work / name, npm, env, git, *HISTORY[name],
+                                 observe_linux_encoding=reference) for name in HISTORY]
     require(MODULE not in previous[1] and MODULE in introduced[1], "historical T14 introduction did not reproduce")
+    if reference and sys.platform == "linux":
+        print("T14 verified historical Linux archives " + json.dumps({
+            "previous": previous[2], "introduced": introduced[2],
+        }, sort_keys=True), file=sys.stderr)
     scope = []
     if reference:
         tested = introduced
