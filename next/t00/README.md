@@ -175,10 +175,20 @@ returned by the publisher. Scheduled runs refresh current evidence and manual di
 ### Independent product replay
 
 `t00-product-replay.yml` reads an exact `T00-DOT-TRANSITION-V1` request on PR #389 from the same native Dot key.
-The protected `main` job uses read-only repository permissions. It validates `T03-06` and the protected base,
-then reproduces the pinned historical package with Node 26.7.0 and npm 11.19.0. It checks the packaged snapshot
-and restoration after normal execution and SIGTERM, then publishes an evidence artifact bound to the run and
-candidate. The regular `npm test` matrix stays on Node 22.x and 24.x.
+The protected `main` job uses read-only repository permissions and selects a trusted task and scope from
+`product-profiles.mjs`. The T03-06 historical package profile verifies the installed capability policy. The T14-06
+provider preview profile verifies isolated TypeORM preview, Prisma rejection, and the shipped package inventory against
+the protected base. Both use Node 26.7.0 and npm 11.19.0 and test normal and SIGTERM restoration. The Ubuntu reference
+job preserves its experimental artifact, and each production replay binds the exact protected candidate. The regular
+`npm test` matrix stays on Node 22.x and 24.x.
+
+For T14-06 the native candidate uses the two evidence files printed by
+`python3 -I -B next/t00/t14-historical-product-replay.py candidate-evidence --base <protected-main-sha>`.
+The replay checks those exact bytes and verifies the package independently on both sides of the merge.
+
+The historical tarballs have pinned encodings for Linux and macOS. Every replay also checks the full versioned file
+inventory and the mode of each member. The [Ubuntu reference run](https://github.com/popixoxipop-collab/backend-skeleton/actions/runs/45668075360)
+records the Linux encodings and installation restore results for both profiles.
 
 `t00-product-transition.yml` starts when that evidence workflow succeeds for a signed intake comment. It verifies the
 exact run and artifact, current protected base, scoped path check, and App-bound CI before issuing a short-lived permit.

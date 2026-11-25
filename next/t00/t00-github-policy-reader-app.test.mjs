@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { generateKeyPairSync, verify } from 'node:crypto';
 import test from 'node:test';
 import { createGitHubPolicyReaderApp } from './t00-github-policy-reader-app.mjs';
+import { PRODUCT_ARTIFACT_SOURCE_PATHS } from './t00-github-product-artifact.mjs';
 
 const appId = 5923844;
 const installationId = 185830017;
@@ -80,8 +81,8 @@ function scenario({ edit, artifact = false } = {}) {
       return response(edited.url ?? url, edited.data ?? data, edited.status ?? status);
     } };
   if (artifact) settings.productArtifact = {
-    policy: { workflowId: 77, workflowSha256: 'b'.repeat(64), runScriptSha256: 'c'.repeat(64),
-      verifierSha256: 'd'.repeat(64), intentVerifierSha256: 'e'.repeat(64) },
+    policy: { workflowId: 77, fileSha256s:
+      Object.fromEntries(PRODUCT_ARTIFACT_SOURCE_PATHS.map(path => [path, 'b'.repeat(64)])) },
   };
   return { settings, calls, setClock(value) { time = value; } };
 }

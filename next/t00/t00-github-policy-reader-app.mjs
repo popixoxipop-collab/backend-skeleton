@@ -1,5 +1,5 @@
 import { createPrivateKey, sign } from 'node:crypto';
-import { createGitHubProductArtifactReader } from './t00-github-product-artifact.mjs';
+import { createGitHubProductArtifactReader, PRODUCT_ARTIFACT_SOURCE_PATHS } from './t00-github-product-artifact.mjs';
 
 const APP_ID = 5923844;
 const INSTALLATION_ID = 185830017;
@@ -21,10 +21,7 @@ const APP_PERMISSIONS = Object.freeze({ administration: 'read', ...ACTIONS });
 const PROTECTION = `${MAIN}/protection`;
 const QUERY = '?per_page=100';
 const MAX_BYTES = 2_000_000;
-const ARTIFACT_PUBLIC_CONTENT = new Set([
-  '.github/workflows/t00-product-replay.yml', 'next/t00/run-product-replay.mjs',
-  'next/t00/product-t03-replay.py', 'next/t00/dot-transition-intent.mjs',
-]);
+const ARTIFACT_PUBLIC_CONTENT = new Set(PRODUCT_ARTIFACT_SOURCE_PATHS);
 const OWNER_POLICY_PATHS = new Set([REPO, MAIN, PROTECTION, `${PROTECTION}/required_status_checks`, `${BRANCH_RULES}main${QUERY}`]);
 const RUNS = `${REPO}/actions/runs/`;
 const CI_RUNS = `${REPO}/actions/workflows/ci.yml/runs?`;

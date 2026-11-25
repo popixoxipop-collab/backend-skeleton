@@ -3,13 +3,15 @@ import fs from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { prepareDotPromotionRequest, verifyPromotionAuthorization } from './promotion-authority.mjs';
+import { productProfiles } from './product-profiles.mjs';
 
 const authority = {
   schema: 't00.met-promotion-authority/1',
   dotPublicDer: 'MCowBQYDK2VwAyEAS/MHuNBaVdwLobRLZ8sMydOQIsYO3YhzG3+wxyqKmM0=',
   productPublicDer: 'MCowBQYDK2VwAyEARSKqohZkpsVC29H4Sgo9gzvdwh5hzOLqpbT3DcOt/s8=',
-  scopes: { 'T03-06': { repository: 'popixoxipop-collab/backend-skeleton', repositoryId: 1334919554,
-    scope: 'historical-installed-package-replay' } },
+  scopes: Object.fromEntries(productProfiles.map(profile => [profile.task, {
+    repository: 'popixoxipop-collab/backend-skeleton', repositoryId: 1334919554, scope: profile.scope,
+  }])),
 };
 
 function requireIt(ok, code) {

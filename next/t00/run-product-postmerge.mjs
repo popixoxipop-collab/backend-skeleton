@@ -3,10 +3,11 @@ import { createHash, createPrivateKey, createPublicKey, sign, verify } from 'nod
 import { lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { verifyTransitionPermit } from './transition-permit.mjs';
 import { verifyDotTransitionIntent } from './dot-transition-intent.mjs';
 import { encodeProductAttestation, PRODUCT_ATTESTATION_VALIDITY_SECONDS } from './promotion-authority.mjs';
+import { getProductProfile, productReplayArguments, productSourcePath, validateProductReplay } from './product-profiles.mjs';
 
 const repository = 'popixoxipop-collab/backend-skeleton';
 const repositoryId = 1334919554;
@@ -18,8 +19,6 @@ const api = origin + '/repos/' + repository;
 const transitionWorkflow = '.github/workflows/t00-product-transition.yml';
 const replayWorkflow = '.github/workflows/t00-product-replay.yml';
 const ciWorkflow = '.github/workflows/ci.yml';
-const historicalArchive = '598fb1cbcfd4d0e2e8842b2c120efeac2b76112a25e589b1f14450deea00dc5a';
-const reproducedArchive = 'caa66cfd979341fa63e441af3d38184ef52a5e6d73b4749afeb1ebcaefbe5742';
 const productPublicDer = 'MCowBQYDK2VwAyEARSKqohZkpsVC29H4Sgo9gzvdwh5hzOLqpbT3DcOt/s8=';
 const keyPrefix = Buffer.from('302e020100300506032b657004220420', 'hex');
 const sha = /^[0-9a-f]{40}$/u;
@@ -27,17 +26,12 @@ const digest = /^[0-9a-f]{64}$/u;
 const timestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u;
 const attestationSchema = 't00.met-product-attestation/1';
 const caption = 'T00-MET-ATTESTATION-V1 ';
-const replayPath = fileURLToPath(new URL('./product-t03-replay.py', import.meta.url));
 const files = Object.freeze({
   envelope: 'attestation.json',
   independent: 'independent-manifest.json',
   adjudication: 'adjudication-manifest.json',
   replay: 'postmerge-replay.json',
 });
-const expectedPaths = [
-  'test/capability-next/historical-installed-pair.test.mjs',
-  'test/capability-next/historical-installed-probe.mjs',
-];
 const hash = value => createHash('sha256').update(value).digest('hex');
 const sameRepository = value => value?.id === repositoryId && value.full_name === repository;
 const validId = value => Number.isSafeInteger(value) && value > 0;
@@ -77,8 +71,8 @@ export function verifyPostmergeTrigger({ env, event, permit, merged }) {
     run.path?.split('@')[0] === replayWorkflow && run.head_branch === 'main' && run.head_sha === subject.base &&
     run.status === 'completed' && run.conclusion === 'success' && sameRepository(run.repository),
   'HOLD_POSTMERGE_WORKFLOW_IDENTITY');
+  getProductProfile(subject);
   requireIt(subject.repo === repository && subject.repositoryId === repositoryId && validId(subject.pr) &&
-    subject.task === 'T03-06' && subject.scope === 'historical-installed-package-replay' &&
     [subject.base, subject.head, subject.tree, permit.baseTree].every(isSha) && subject.base !== subject.head &&
     [permit.productEvidenceSha256, permit.receiptSha256, permit.dotIntentSha256,
       permit.independentReviewSha256].every(isDigest) && validId(permit.prCiRunId) && validId(permit.commentId) &&
@@ -228,33 +222,22 @@ export async function waitForPostmergeCI(read, target, permit, required, { attem
 export function verifyPostmergeReplay(stdout, target, permit) {
   requireIt(typeof stdout === 'string' && Buffer.byteLength(stdout) <= 16_384 && /^[^\n]+\n$/u.test(stdout),
     'HOLD_POSTMERGE_PRODUCT_REPLAY');
-  const replay = JSON.parse(stdout);
-  const fields = {
-    schema: 't00.t03-exact-pr-replay/3', phase: 'postmerge', pull_request: target.pr,
-    base: permit.subject.base, base_tree: permit.baseTree, source_head: target.head,
-    tested_commit: target.merge, tested_tree: target.tree,
-    historical_archive_sha256: historicalArchive, replayed_historical_archive_sha256: reproducedArchive,
-    historical_archive_kind: 'reproduced-from-pinned-historical-tree',
-    base_archive_sha256: reproducedArchive, candidate_archive_sha256: reproducedArchive,
-    package_file_bytes_match_official_baseline: true, package_members: 424,
-    candidate_tests_executed: false, requires_separate_github_ci_and_authority: true,
-    normal_restore: true, sigterm_probe_restore: true, node: 'v26.7.0', npm: '11.19.0',
-    release_authorized: false, runtime_certified: false,
-  };
-  const outcome = { legacy_policy: 'supported', unknown_policy: 'rejected', runtime_certification: 'rejected' };
-  requireIt(exactKeys(replay, [...Object.keys(fields), 'scope_paths', 'previous_installed_inventory_sha256', 'outcome']) &&
-    Object.entries(fields).every(([key, value]) => replay[key] === value) &&
-    Array.isArray(replay.scope_paths) && replay.scope_paths.length === expectedPaths.length &&
-    expectedPaths.every((value, index) => replay.scope_paths[index] === value) &&
-    isDigest(replay.previous_installed_inventory_sha256) && exactKeys(replay.outcome, Object.keys(outcome)) &&
-    Object.entries(outcome).every(([key, value]) => replay.outcome[key] === value), 'HOLD_POSTMERGE_PRODUCT_REPLAY');
-  return replay;
+  const profile = getProductProfile(target);
+  try {
+    return validateProductReplay(profile, JSON.parse(stdout), { phase: 'postmerge', subject: permit.subject,
+      baseTree: permit.baseTree, testedCommit: target.merge,
+      verifierSha256: hash(readFileSync(productSourcePath(profile.replayFile))),
+      probeSha256: profile.probeFile ? hash(readFileSync(productSourcePath(profile.probeFile))) : null });
+  } catch {
+    throw new Error('HOLD_POSTMERGE_PRODUCT_REPLAY');
+  }
 }
 
 function replayInProcess(target, permit, path) {
-  const result = spawnSync('/usr/bin/python3', ['-I', '-B', replayPath, String(target.pr), 'postmerge',
-    '--base', permit.subject.base, '--base-tree', permit.baseTree, '--head', target.head, '--head-tree', target.tree,
-    '--reproduce-historical-archive'], { encoding: 'utf8', timeout: 180_000, maxBuffer: 16_384,
+  const profile = getProductProfile(target);
+  const args = productReplayArguments(profile, { phase: 'postmerge', subject: permit.subject,
+    baseTree: permit.baseTree, testedCommit: target.merge });
+  const result = spawnSync('/usr/bin/python3', ['-I', '-B', ...args], { encoding: 'utf8', timeout: 180_000, maxBuffer: 16_384,
     env: { PATH: path ?? '/usr/bin:/bin', LANG: 'C.UTF-8' }, stdio: ['ignore', 'pipe', 'pipe'] });
   requireIt(result.status === 0 && result.stderr === '', 'HOLD_POSTMERGE_PRODUCT_EXECUTION');
   verifyPostmergeReplay(result.stdout, target, permit);
@@ -406,7 +389,7 @@ async function execute(argv = process.argv.slice(2), env = process.env) {
   if (publishing) {
     const sent = await publishAttestation({ target, permit, client, dir, mergedAt: start.mergedAt,
       runId: Number(env.GITHUB_RUN_ID), attempt: Number(env.GITHUB_RUN_ATTEMPT), now: epoch() });
-    console.log('T03-06 attestation comment ' + sent.commentId + (sent.reused ? ' reused' : ' published'));
+    console.log(`${target.task} attestation comment ${sent.commentId}${sent.reused ? ' reused' : ' published'}`);
     return;
   }
   const replayStdout = replayInProcess(target, permit, env.PATH);
@@ -416,13 +399,14 @@ async function execute(argv = process.argv.slice(2), env = process.env) {
     JSON.stringify(refreshed.required) === JSON.stringify(start.required), 'HOLD_POSTMERGE_POLICY_CHANGED');
   const signed = buildPostmergeAttestation({ target, permit, ci, required: start.required, mergedAt: start.mergedAt,
     main: refreshed.main,
-    replayStdout, verifierSha256: hash(readFileSync(replayPath)), issuedAt: epoch(), encodedKey });
+    replayStdout, verifierSha256: hash(readFileSync(productSourcePath(getProductProfile(target).replayFile))),
+    issuedAt: epoch(), encodedKey });
   mkdirSync(dir, { mode: 0o700 });
   writeFileSync(join(dir, files.replay), replayStdout, { flag: 'wx', mode: 0o600 });
   writeFileSync(join(dir, files.independent), signed.independent, { flag: 'wx', mode: 0o600 });
   writeFileSync(join(dir, files.adjudication), signed.adjudication, { flag: 'wx', mode: 0o600 });
   writeFileSync(join(dir, files.envelope), JSON.stringify(signed.envelope) + '\n', { flag: 'wx', mode: 0o600 });
-  console.log('T03-06 postmerge attestation SHA-256 ' + signed.envelope.attestationSha256);
+  console.log(`${target.task} postmerge attestation SHA-256 ${signed.envelope.attestationSha256}`);
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {

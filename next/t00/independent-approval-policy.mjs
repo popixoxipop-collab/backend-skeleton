@@ -13,7 +13,7 @@ const DIRECTIVE = /^\s*T00-(?:Track|Receipt)\s*:/im;
 const MAX_PATHS = 256;
 const GIT_LIMIT = 512 * 1024;
 const STRICT_PATH = /^[A-Za-z0-9_.@+/-]{1,512}$/;
-const CONTROL_PATH = /^(?:\.github(?:\/|$)|next\/t00\/(?:independent-approval|run-independent-approval|(?:run-)?dot-(?:draft-)?publisher|dot-(?:transition|ledger-request)|run-product-|product-t03-replay|setup-product-|transition-permit|promotion-authority|t00-(?:dot|exact|github)-|pr-path-gate|ownership|(?:build|check)-ownership|baseline\.lock\.json$|check-lease|check-path-exception|verify-path-exception|verify-baseline|snapshot-plan|path_exception_protocol|fixtures\/(?:ownership-rules|plan-write-scopes)\.json$|receipts(?:\/|$))|scripts\/run-next-nested-tests\.mjs$|package(?:-lock)?\.json$)/i;
+const CONTROL_PATH = /^(?:\.github(?:\/|$)|next\/t00\/(?:independent-approval|run-independent-approval|(?:run-)?dot-(?:draft-)?publisher|dot-(?:transition|ledger-request)|run-product-|product-(?:profiles|t03-replay)|t14-(?:historical-product-replay|installed-preview-probe)|setup-product-|transition-permit|promotion-authority|t00-(?:dot|exact|github)-|pr-path-gate|ownership|(?:build|check)-ownership|baseline\.lock\.json$|check-lease|check-path-exception|verify-path-exception|verify-baseline|snapshot-plan|path_exception_protocol|fixtures\/(?:ownership-rules|plan-write-scopes)\.json$|receipts(?:\/|$))|scripts\/run-next-nested-tests\.mjs$|package(?:-lock)?\.json$)/i;
 
 function requirePolicy(condition, code) {
   if (!condition) {
