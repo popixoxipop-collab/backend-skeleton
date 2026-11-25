@@ -797,7 +797,12 @@ test('CI keeps the lease gate manual and runs the documented Node matrix', () =>
       `${name} runs a manual T00 gate: ${changeThem}`);
     if (name === independentApproval) {
       assert.match(text, /^  schedule:/m);
-      assert.match(text, /^  issue:\n    needs: publish\n    if: .*github\.ref == 'refs\/heads\/main'.*T00_INDEPENDENT_APPROVAL_ENABLED.*needs\.publish\.result == 'success'/m);
+      const issueCondition = text.match(/^  issue:\n    needs: publish\n    if: >-\n((?: {6}[^\n]+\n)+)/m)?.[1]
+        .trim().replace(/\s+/g, ' ');
+      assert.ok(issueCondition);
+      assert.match(issueCondition, /github\.repository_id == '1334919554' && github\.ref == 'refs\/heads\/main' && vars\.T00_INDEPENDENT_APPROVAL_ENABLED == 'true'/);
+      assert.match(issueCondition, /needs\.publish\.result == 'success' && needs\.publish\.outputs\.pull_number != '' && needs\.publish\.outputs\.expected_head != ''/);
+      assert.match(issueCondition, /github\.event_name == 'issue_comment'.*github\.event\.issue\.number == 389 && github\.event\.issue\.pull_request && github\.event\.sender\.id == 261965176 && github\.event\.comment\.user\.id == 261965176 && startsWith\(github\.event\.comment\.body, 'T00-DOT-TRANSITION-V1 '\)/);
       assert.match(text, /T00_PULL_NUMBER: .*needs\.publish\.outputs\.pull_number/);
       assert.match(text, /T00_EXPECTED_HEAD: .*needs\.publish\.outputs\.expected_head/);
       assert.match(text, /^    environment: t00-independent-approval$/m);
@@ -813,11 +818,11 @@ test('CI keeps the lease gate manual and runs the documented Node matrix', () =>
       assert.match(text, /^          node next\/t00\/run-product-replay\.mjs$/m);
       assert.doesNotMatch(text, /\bsecrets\.|\bwrite\b/);
     } else if (name === productTransition) {
-      assert.match(text, /^  workflow_run:\n    workflows: \[T00 independent product replay\]\n    types: \[completed\]$/m);
+      assert.match(text, /^  workflow_run:\n    workflows: \[T00 independent product replay, CI\]\n    types: \[completed\]$/m);
       assert.match(text, /^permissions: \{\}$/m);
       assert.match(text, /^  verify:\n    if: .*github\.ref == 'refs\/heads\/main'.*workflow_id == 430570167.*conclusion == 'success'/m);
-      const [testAndPre, mergeSection, postSection] = text.split(/\n  (?:merge|postmerge):\n/);
-      assert.ok(postSection && mergeSection);
+      const [testAndPre, mergeSection, postSection, recoverSection] = text.split(/\n  (?:merge|postmerge|recover):\n/);
+      assert.ok(postSection && mergeSection && recoverSection);
       assert.match(testAndPre, /environment: t00-independent-product/);
       assert.doesNotMatch(testAndPre, /pull-requests: write|T00_PUBLISHER_APP_PRIVATE_KEY/);
       assert.match(mergeSection, /environment: t00-dot-draft-publisher/);
@@ -826,6 +831,16 @@ test('CI keeps the lease gate manual and runs the documented Node matrix', () =>
       assert.match(postSection, /environment: t00-independent-product/);
       assert.match(postSection, /run: node next\/t00\/run-product-postmerge\.mjs --publish/);
       assert.doesNotMatch(postSection, /T00_PUBLISHER_APP_PRIVATE_KEY/);
+      const recoverCondition = recoverSection.match(/^    if: >-\n((?: {6}[^\n]+\n)+)/)?.[1]
+        .trim().replace(/\s+/g, ' ');
+      assert.ok(recoverCondition);
+      assert.match(recoverCondition, /github\.repository_id == '1334919554' && github\.ref == 'refs\/heads\/main'/);
+      assert.match(recoverCondition, /github\.event_name == 'schedule'.*github\.event_name == 'workflow_run' && github\.event\.action == 'completed'/);
+      assert.match(recoverCondition, /github\.event\.workflow_run\.workflow_id == 338234334 && github\.event\.workflow_run\.path == '\.github\/workflows\/ci\.yml'/);
+      assert.match(recoverCondition, /github\.event\.workflow_run\.event == 'push' && github\.event\.workflow_run\.status == 'completed' && github\.event\.workflow_run\.conclusion == 'success' && github\.event\.workflow_run\.head_branch == 'main' && github\.event\.workflow_run\.head_repository\.id == 1334919554 && github\.event\.workflow_run\.actor\.id == 361175685/);
+      assert.match(recoverSection, /environment: t00-independent-product\n    permissions:\n      contents: read\n      actions: write\n      pull-requests: read\n/);
+      assert.match(recoverSection, /run: node next\/t00\/run-product-recovery\.mjs$/m);
+      assert.doesNotMatch(recoverSection, /\bsecrets\.|pull-requests: write|run-product-(?:merge|transition-verify)\.mjs/);
     } else {
       assert.doesNotMatch(text, /next\/t00/, `${name} adds an undocumented T00 workflow: ${changeThem}`);
     }

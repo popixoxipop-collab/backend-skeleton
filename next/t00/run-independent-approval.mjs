@@ -1,10 +1,15 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { DOT_TRANSITION_PREFIX, verifyDotTransitionIntent } from './dot-transition-intent.mjs';
 import { bindCandidate } from './independent-approval-policy.mjs';
 import { createIssuer } from './independent-approval-issuer.mjs';
+import { getProductProfile } from './product-profiles.mjs';
+import { verifyGitHubPathApproval } from './t00-github-path-approval.mjs';
 
 const REPOSITORY = 'popixoxipop-collab/backend-skeleton';
 const REPOSITORY_ID = 1334919554;
+const INTAKE = 389;
+const DOT_ACTOR = 261965176;
 const CHECK_NAME = 't00-independent-approval/verified';
 const API = `/repos/${REPOSITORY}`;
 const SHA = /^[a-f0-9]{40}$/;
@@ -74,10 +79,30 @@ async function listPublishedPulls(publisherId) {
   throw new Error('HOLD_PULL_LIST_TRUNCATED');
 }
 
-async function hasCurrentReceipt(issuer, binding) {
+async function hasCurrentReceipt(issuer, binding, transition) {
   const checks = await github(`${API}/commits/${binding.head}/check-runs?check_name=${encodeURIComponent(CHECK_NAME)}&filter=latest&per_page=100`);
   expect(Array.isArray(checks.check_runs) && checks.total_count <= checks.check_runs.length, 'HOLD_CHECK_LIST');
-  return checks.check_runs.some(check => issuer.isCurrentReceipt(check, binding, 300));
+  return checks.check_runs.some(check => {
+    if (!issuer.isCurrentReceipt(check, binding, 300)) return false;
+    if (!transition) return true;
+    try {
+      verifyGitHubPathApproval(check, transition.subject, binding.paths, { minimumRemainingSeconds: 300 });
+      return true;
+    } catch {
+      return false;
+    }
+  });
+}
+
+function readTransition(comment) {
+  return verifyDotTransitionIntent({ repository: REPOSITORY, repositoryId: REPOSITORY_ID, intake: INTAKE,
+    comment, now: Math.floor(Date.now() / 1000) });
+}
+
+async function verifyOriginalTransition(intent) {
+  const original = readTransition(await github(`${API}/issues/comments/${intent.commentId}`));
+  expect(original.commentId === intent.commentId && original.dotIntentSha256 === intent.dotIntentSha256,
+    'HOLD_APPROVAL_TRANSITION_COMMENT_CHANGED');
 }
 
 async function run() {
@@ -85,14 +110,19 @@ async function run() {
     GITHUB_WORKFLOW_REF, GITHUB_EVENT_PATH, GH_TOKEN, T00_DOT_PUBLISHER_ID, T00_PULL_NUMBER, T00_EXPECTED_HEAD,
     T00_APP_KEY, T00_SIGNING_KEY, T00_SIGNING_PUBLIC_DER, T00_PUBLISHER_RULESET_ID } = process.env;
   expect(GITHUB_REPOSITORY === REPOSITORY && GITHUB_REPOSITORY_ID === String(REPOSITORY_ID) &&
-    GITHUB_REF === 'refs/heads/main' && SHA.test(GITHUB_SHA) &&
+    GITHUB_REF === 'refs/heads/main' && SHA.test(GITHUB_SHA ?? '') &&
     GITHUB_WORKFLOW_REF === `${REPOSITORY}/.github/workflows/t00-bskel-pr-path-authorization.yml@refs/heads/main` &&
     ['schedule', 'workflow_dispatch', 'issue_comment'].includes(GITHUB_EVENT_NAME), 'HOLD_WORKFLOW_IDENTITY');
+  let transition;
   if (GITHUB_EVENT_NAME === 'issue_comment') {
+    expect(GITHUB_EVENT_PATH?.startsWith('/'), 'HOLD_PUBLISHER_EVENT');
     const event = JSON.parse(readFileSync(GITHUB_EVENT_PATH, 'utf8'));
-    expect(event.action === 'created' && event.repository?.id === REPOSITORY_ID &&
-      event.issue?.number === 389 && event.issue?.pull_request &&
-      event.sender?.id === 261965176 && event.comment?.user?.id === 261965176, 'HOLD_PUBLISHER_EVENT');
+    expect(event.action === 'created' && event.repository?.id === REPOSITORY_ID && event.repository.full_name === REPOSITORY &&
+      event.issue?.number === INTAKE && event.issue?.pull_request &&
+      event.sender?.id === DOT_ACTOR && event.comment?.user?.id === DOT_ACTOR &&
+      typeof event.comment.body === 'string', 'HOLD_PUBLISHER_EVENT');
+    if (event.comment.body.startsWith(`${DOT_TRANSITION_PREFIX} `)) transition = readTransition(event.comment);
+    else expect(event.comment.body.startsWith('T00-DOT-PUBLISH-V1 '), 'HOLD_PUBLISHER_EVENT');
   }
   expect(git('rev-parse', 'HEAD') === GITHUB_SHA, 'HOLD_CHECKOUT');
   expect(GH_TOKEN && NUMBER.test(T00_DOT_PUBLISHER_ID ?? ''), 'HOLD_PUBLISHER_UNREGISTERED');
@@ -101,10 +131,18 @@ async function run() {
   expect(NUMBER.test(T00_PUBLISHER_RULESET_ID ?? ''), 'HOLD_PUBLISHER_NAMESPACE');
   const base = await liveBase(GITHUB_SHA);
   const scheduled = GITHUB_EVENT_NAME === 'schedule';
-  if (!scheduled) expect(NUMBER.test(T00_PULL_NUMBER ?? '') && SHA.test(T00_EXPECTED_HEAD ?? ''), 'HOLD_DISPATCH_TARGET');
+  const subject = transition?.subject;
+  let expectedPaths;
+  if (transition) {
+    expect(subject.base === base, 'HOLD_APPROVAL_TRANSITION_BASE');
+    expectedPaths = getProductProfile(subject).scopePaths;
+    await verifyOriginalTransition(transition);
+  } else if (!scheduled) {
+    expect(NUMBER.test(T00_PULL_NUMBER ?? '') && SHA.test(T00_EXPECTED_HEAD ?? ''), 'HOLD_DISPATCH_TARGET');
+  }
   const candidates = scheduled ? await listPublishedPulls(publisherId) : [{
-    number: Number(T00_PULL_NUMBER),
-    head: { sha: T00_EXPECTED_HEAD },
+    number: subject?.pr ?? Number(T00_PULL_NUMBER),
+    head: { sha: subject?.head ?? T00_EXPECTED_HEAD },
   }];
   if (!candidates.length) {
     console.log('No open pull requests from the enrolled Dot publisher');
@@ -132,14 +170,30 @@ async function run() {
       git('fetch', '--quiet', '--no-tags', '--no-recurse-submodules', '--depth=2',
         `https://github.com/${REPOSITORY}.git`, `refs/pull/${number}/head`);
       expect(git('rev-parse', 'FETCH_HEAD') === head, 'HOLD_FETCH_HEAD_CHANGED');
-      const bind = async observation => ({
-        repository: REPOSITORY, repositoryId: REPOSITORY_ID, ...await bindCandidate(observation),
-      });
+      const bind = async observation => {
+        const binding = await bindCandidate(observation);
+        if (transition) {
+          expect(binding.number === subject.pr && binding.base === subject.base && binding.head === subject.head &&
+            binding.tree === subject.tree && binding.track === subject.task.slice(0, 3) &&
+            binding.paths.length === expectedPaths.length && binding.paths.every((path, index) => path === expectedPaths[index]),
+          'HOLD_APPROVAL_TRANSITION_BINDING');
+        }
+        return { repository: REPOSITORY, repositoryId: REPOSITORY_ID, ...binding };
+      };
       const binding = await bind(input);
-      if (await hasCurrentReceipt(issuer, binding)) continue;
+      if (await hasCurrentReceipt(issuer, binding, transition)) {
+        if (transition) console.log(JSON.stringify({ status: 'VERIFIED_CHECK_CURRENT', pull: number, head,
+          commentId: transition.commentId }));
+        continue;
+      }
       publicationStarted = true;
-      const result = await issuer.publish(binding, async () => bind(await load()));
-      console.log(JSON.stringify({ status: 'VERIFIED_CHECK_PUBLISHED', pull: number, head, result }));
+      const result = await issuer.publish(binding, async () => {
+        const verified = await bind(await load());
+        if (transition) await verifyOriginalTransition(transition);
+        return verified;
+      });
+      console.log(JSON.stringify({ status: 'VERIFIED_CHECK_PUBLISHED', pull: number, head,
+        commentId: transition?.commentId, result }));
       if (++published === 3) break;
     } catch (error) {
       blocked++;

@@ -170,7 +170,9 @@ variables `T00_PUBLISHER_RULESET_ID` and `T00_DOT_PUBLISHER_ENABLED=true` after 
 One request binds the repository, intake, current base, exact tip and tree, track and expiry. The publisher uses a
 create-only ref determined by the tip and verifies the exact Bot Draft through GitHub before returning a receipt.
 The same workflow then runs independent approval in its own environment for the exact Draft number and head
-returned by the publisher. Scheduled runs refresh current evidence and manual dispatch can recheck an exact Draft.
+returned by the publisher. An authenticated native Dot transition request for an enrolled task also triggers the
+independent path check for that exact candidate. Scheduled runs refresh current evidence and manual dispatch can
+recheck an exact Draft.
 
 ### Independent product replay
 
@@ -192,12 +194,14 @@ records the Linux encodings and installation restore results for both profiles.
 
 `t00-product-transition.yml` starts when that evidence workflow succeeds for a signed intake comment. It verifies the
 exact run and artifact, current protected base, scoped path check, and App-bound CI before issuing a short-lived permit.
+It waits for a missing path check for at most 120 seconds while preserving 30 seconds of the signed request's lifetime.
 The publisher Bot checks the permit and merges with the expected head. Recovery verifies the existing merge actor,
 parents, and tree. The independent product job checks the exact merge and main CI, replays the package using Node 26.7.0,
 and posts the signed attestation to PR #389 after uploading the evidence. Dot uses `dot-ledger-request.mjs` with the raw
 verified EOE `T00_DOT_LEDGER_HEAD.json` or the raw official state bytes, plus the signed attestation, to prepare the
 ledger request with its native Ed25519 key. EOE rechecks the revision and both hashes at the write boundary.
-Scheduled recovery retries a failed postmerge job up to twice after the exact merge job succeeded.
+Successful protected-main CI from the publisher Bot triggers recovery for that exact merge. Recovery retries only its
+failed postmerge job, up to twice after the exact merge job succeeded. Scheduled recovery keeps the same retry limit.
 
 ## Optional strict v1 candidate
 

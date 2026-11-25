@@ -72,7 +72,15 @@ jobs:
 
   issue:
     needs: publish
-    if: ${{ !cancelled() && github.repository_id == '1334919554' && github.ref == 'refs/heads/main' && vars.T00_INDEPENDENT_APPROVAL_ENABLED == 'true' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'issue_comment' && needs.publish.result == 'success' && needs.publish.outputs.pull_number != '' && needs.publish.outputs.expected_head != '')) }}
+    if: >-
+      ${{ !cancelled() && github.repository_id == '1334919554' && github.ref == 'refs/heads/main' &&
+      vars.T00_INDEPENDENT_APPROVAL_ENABLED == 'true' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' &&
+      ((needs.publish.result == 'success' && needs.publish.outputs.pull_number != '' && needs.publish.outputs.expected_head != '') ||
+      (github.event.issue.number == 389 && github.event.issue.pull_request &&
+      github.event.sender.id == 261965176 && github.event.comment.user.id == 261965176 &&
+      startsWith(github.event.comment.body, 'T00-DOT-TRANSITION-V1 '))))) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     environment: t00-independent-approval
