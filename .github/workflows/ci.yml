@@ -27,7 +27,8 @@ on:
     - cron: '17 3 * * *'
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # Keep the exact main push run available for postmerge evidence.
+  group: ci-${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'push' && format('-{0}', github.sha) || '' }}
   cancel-in-progress: true
 
 permissions:
