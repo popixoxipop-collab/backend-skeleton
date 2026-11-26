@@ -46,6 +46,9 @@ import { HTTP_WAVE_BC_TARGETS } from '../../http-wave-bc/catalog.mjs';
 import { FLASK_PROFILE } from '../flask.mjs';
 import { DJANGO_DRF_PROFILE } from '../django-drf.mjs';
 
+const STARLETTE_LAYER = 't13-starlette-static';
+const STARLETTE_SOURCES = ['facts.py', 'project.mjs', 'scan.mjs']
+  .map(member => path.posix.join(path.posix.dirname(STATIC_LAYER_SOURCES[STARLETTE_LAYER]), member));
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(HERE, '../../..');
 export const SCOPE_TARGETS = {
@@ -226,6 +229,7 @@ const UPLOAD_TIME = /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][
 const STATIC_KEYS = ['fixtures', 'layers', 'schema', 'target'];
 // per static layer id: the members a layer has, and the member sets a flag of that layer may have (every flag member is a string)
 const STATIC_LAYER_MEMBERS = {
+  [STARLETTE_LAYER]: { layer: ['flags', 'routes'], flags: [['code', 'where'], ['code', 'text', 'where']] },
   'legacy-adapter': { layer: ['detected', 'flags', 'routes'], flags: [['code', 'prefix', 'where']] },
   't06-fastapi-shadow': { layer: ['flags', 'routes'], flags: [['code', 'where']] },
   't06-flask-shadow': { layer: ['flags', 'routes'], flags: [['code', 'where'], ['code', 'text', 'where']] },
@@ -340,6 +344,12 @@ function malformedResults({ oracle, registry, staticReport, framework, layerIds,
 const OUTPUT_FORMS = ['stored_as', 'stdout_inline', 'stdout_empty', 'stdout_unstored'];
 // Flask's two pip commands ran without --no-cache-dir; the commands of every other record carry it, at the position below.
 const PIP_NO_CACHE_DIR = { fastapi: true, flask: false, django: true, starlette: true, litestar: true };
+// Absence of an opt-in declaration preserves the historical scope-only model and appearance alarm.
+const starletteOptIn = (r) => r.framework === 'starlette' && (
+  Object.hasOwn(r, 'starlette_static_sources') || r.layers.some(l => l.id === STARLETTE_LAYER)
+);
+const layerIdsFor = (r) => starletteOptIn(r) ? [STARLETTE_LAYER] : (STATIC_LAYERS[r.framework] ?? []);
+
 export function expectedCommands(record) {
   const spec = SCOPE_TARGETS[record.item];
   const [major, minor] = record.pin.python.split('.');
@@ -356,7 +366,7 @@ export function expectedCommands(record) {
   add('wheel', 'stdout_empty', `python -m pip download --no-deps${cache} --only-binary=:all: --disable-pip-version-check -d wheels -q ${pins}`);
   add('wheel-digest', 'stored_as', `shasum -a 256 ${record.pin.packages.map((p) => p.wheel).join(' ')}`, 'results/wheel-digest.txt');
   for (const id of ['oracle-1', 'oracle-2']) add(id, 'stored_as', `$VENV/bin/python ${ORACLE_PATH} ${target}`, 'results/oracle.json');
-  if (Object.hasOwn(STATIC_LAYERS, record.framework)) {
+  if (layerIdsFor(record).length) {
     for (const id of ['static-1', 'static-2']) add(id, 'stored_as', `node ${RUNNER_PATH} ${target}`, 'results/static.json');
     add(`static-py${major}${minor}`, 'stored_as', `BSKEL_PYTHON=${interpreter} node ${RUNNER_PATH} ${target}`, 'results/static.json');
   }
@@ -371,8 +381,10 @@ export function verifyStoredRecord(record, { dir }) {
   const shape = schemaProblems(record);
   if (shape.length) return shape;
   const spec = SCOPE_TARGETS[record.item];
-  const isStatic = Object.hasOwn(STATIC_LAYERS, record.framework);
-  const layerIds = isStatic ? STATIC_LAYERS[record.framework] : [];
+  const layerIds = layerIdsFor(record);
+  const isStatic = layerIds.length > 0;
+  if (starletteOptIn(record) && !Object.hasOwn(record, 'starlette_static_sources')) add('starlette-binding', 'starlette_static_sources', 'a static transition requires the exact scanner source digests');
+  if (record.framework !== 'starlette' && Object.hasOwn(record, 'starlette_static_sources')) add('starlette-binding', 'starlette_static_sources', 'Starlette-specific source proof is not valid for this framework');
   if (record.record_digest !== sealOf(record)) add('seal', 'record_digest', 'the seal does not match the record content (an edit that was not re-sealed)');
   if (record.framework !== spec.framework || record.track !== spec.track) add('schema', 'item', 'framework or track does not match the item');
   if (record.claims.supported !== false) add('claims', 'claims.supported', 'a scope record never claims "supported"');
@@ -504,7 +516,7 @@ export function verifyStoredRecord(record, { dir }) {
 
   // fixtures and must-catch: each outcome is recomputed from the stored oracle and static results
   if (isStatic && !sameSet(Object.keys(staticReport.fixtures), fixtureIds)) add('result-set', 'results/static.json', 'static fixtures differ from the recorded fixtures');
-  if (isStatic && !isDeepStrictEqual(staticReport.layers, STATIC_LAYERS[record.framework])) add('result-set', 'results/static.json', 'static layers differ from the scanner layers under test');
+  if (isStatic && !isDeepStrictEqual(staticReport.layers, layerIds)) add('result-set', 'results/static.json', 'static layers differ from the scanner layers under test');
   for (const f of record.fixtures) if (f.role !== (f.id === 'normal' ? 'normal' : 'counterexample')) add('must-catch', `fixtures.${f.id}`, 'fixture role does not match its id (only "normal" is the normal fixture, every other id is a counterexample)');
   if (!fixtureIds.includes('normal')) add('must-catch', 'fixtures', 'the normal fixture is missing');
   const mustIds = record.must_catch.map((mc) => mc.id);
@@ -547,7 +559,7 @@ export function verifyStoredRecord(record, { dir }) {
   }
   for (const id of fixtureIds) if (!used.has(id)) add('must-catch', `fixtures.${id}`, 'fixture is not referenced by any must-catch entry');
   if (!isDeepStrictEqual(record.scope, derivePartition(record))) add('partition', 'scope', 'scope partition differs from the recomputed outcomes');
-  const wantConformance = isStatic ? { status: 'COMPARED', layers: STATIC_LAYERS[record.framework], compared_fixtures: fixtureIds.length } : { status: 'BLOCKED' };
+  const wantConformance = isStatic ? { status: 'COMPARED', layers: layerIds, compared_fixtures: fixtureIds.length } : { status: 'BLOCKED' };
   const { reason, ...haveConformance } = record.conformance;
   if (!isDeepStrictEqual(haveConformance, wantConformance) || (!isStatic && !reason)) add('conformance', 'conformance', 'conformance status does not match the scanner layers that exist (BLOCKED needs a reason)');
   return problems;
@@ -559,14 +571,16 @@ export function verifyLiveTree(record, { dir, root = REPO_ROOT }) {
   const problems = [];
   const add = (code, where, message) => problems.push({ code, where, message });
   const spec = SCOPE_TARGETS[record.item];
-  const isStatic = Object.hasOwn(STATIC_LAYERS, record.framework);
+  const layerIds = layerIdsFor(record);
+  const isStatic = layerIds.length > 0;
+  const starlette = starletteOptIn(record);
   const fixturesRoot = path.join(dir, 'fixtures');
   for (const layer of record.layers) {
     if (!fs.existsSync(path.join(root, layer.source))) add('layer-source', `layers.${layer.id}`, `${layer.source} does not exist`);
     const runs = Object.hasOwn(STATIC_LAYER_SOURCES, layer.id) ? STATIC_LAYER_SOURCES[layer.id] : null;
     if (layer.source !== runs) add('layer-source', `layers.${layer.id}`, `source ${layer.source} is not the file the static runner exercises for this layer (${runs})`);
   }
-  if (!isDeepStrictEqual(record.layers.map((l) => l.id), isStatic ? STATIC_LAYERS[record.framework] : [])) add('layer-source', 'layers', 'recorded layers differ from the layers the static runner exercises');
+  if (!isDeepStrictEqual(record.layers.map((l) => l.id), layerIds)) add('layer-source', 'layers', 'recorded layers differ from the layers the static runner exercises');
 
   // the recorded fixture list is held to its order by verifyStoredRecord (normal first, then ascending), so the live ids are compared as a set
   const liveIds = walkIfDir(fixturesRoot).filter((f) => path.posix.basename(f) === spec.entry).map((f) => path.posix.dirname(f));
@@ -604,10 +618,30 @@ export function verifyLiveTree(record, { dir, root = REPO_ROOT }) {
     if (DJANGO_DRF_PROFILE.versionPin.framework !== `Django ${django} / djangorestframework ${drf}`) add('registration', 'pin.packages', 'record pins differ from the versions named by the live Django/DRF profile pin');
   }
 
+  if (starlette) {
+    const adapterDirectory = path.dirname(STARLETTE_SOURCES[0]);
+    let cur = root;
+    for (const segment of adapterDirectory.split('/')) {
+      cur = path.join(cur, segment);
+      try { if (fs.lstatSync(cur).isDirectory()) continue; } catch { /* missing */ }
+      add('starlette-binding', adapterDirectory, 'adapter directory must exist without symlinks');
+      break;
+    }
+    const sourceDirOK = problems.length === 0;
+    for (const rel of STARLETTE_SOURCES) {
+      const bytes = sourceDirOK ? readBytes(path.join(root, rel)) : null;
+      if (!bytes || sha256(bytes) !== record.starlette_static_sources?.[rel])
+        add('starlette-binding', rel, 'adapter member missing, unreadable or different from the source receipt');
+    }
+    // A declared transition never invokes the scanner unless the entire stored record also passes.
+    if (problems.length) return problems;
+    const stored = verifyStoredRecord(record, { dir });
+    if (stored.length) return stored;
+  }
   if (isStatic) {
     let live = null;
     try {
-      live = serializeStatic(runStatic(record.framework, fixturesRoot));
+      live = serializeStatic(runStatic(record.framework, fixturesRoot, { repoRoot: root }));
     } catch (error) {
       add('static-run-failed', 'results/static.json', `the live static run did not complete (python3 on PATH is required): ${error.message}`);
     }
@@ -629,7 +663,7 @@ export function verifyLiveTree(record, { dir, root = REPO_ROOT }) {
 
 export function verifyScopeRecord(record, { dir, root = REPO_ROOT }) {
   const stored = verifyStoredRecord(record, { dir });
-  return stored.some((p) => p.code === 'schema') ? stored : [...stored, ...verifyLiveTree(record, { dir, root })];
+  return stored.some((p) => p.code === 'schema') || (stored.length && starletteOptIn(record)) ? stored : [...stored, ...verifyLiveTree(record, { dir, root })];
 }
 
 // The CLI body. Every failure is printed as a structured problem line, including an unknown item, an unreadable

@@ -7,7 +7,7 @@ import { RECEIPT, SOURCE_FILES, pinnedFiles, structureProblems,
 
 test('T12 committed evidence matches Git source bytes and an actual zero-skip RFC+boundary replay', () => {
   const record = JSON.parse(fs.readFileSync(RECEIPT, 'utf8'));
-  assert.equal(SOURCE_FILES.length, 20);
+  assert.equal(SOURCE_FILES.length, 22);
   assert.deepEqual(verifyEvidence(record, runRfcCommand()), []);
 });
 test('T12 receipt rejects missing pins, source edits, forged Git identity and false MET/release assertions', () => {
